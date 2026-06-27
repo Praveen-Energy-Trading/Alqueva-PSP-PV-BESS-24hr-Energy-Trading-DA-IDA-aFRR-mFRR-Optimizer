@@ -4,6 +4,7 @@
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/Solver-CPLEX%2022.1-brightgreen?style=for-the-badge&logo=ibm&logoColor=white"/>
   <img src="https://img.shields.io/badge/Fallback-HiGHS%20%7C%20CBC-green?style=for-the-badge"/>
+  <br/>
   <img src="https://img.shields.io/badge/Optimisation-MILP-orange?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Markets-DA%20%7C%20IDA%20%7C%20XBID%20%7C%20aFRR%20%7C%20mFRR-purple?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Grid-MIBEL%20%2F%20OMIE-red?style=for-the-badge"/>
