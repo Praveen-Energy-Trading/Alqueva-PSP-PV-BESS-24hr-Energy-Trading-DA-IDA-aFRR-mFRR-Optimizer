@@ -53,6 +53,13 @@
 
 ## Pipeline Architecture
 
+<p align="center">
+  <img src="docs/pipeline_architecture.png" alt="Pipeline Architecture" width="820"/>
+</p>
+
+<details>
+<summary>Text diagram (Mermaid)</summary>
+
 ```mermaid
 flowchart TD
     subgraph C0["① Shared Core — drives every gate"]
@@ -97,6 +104,8 @@ flowchart TD
 ```
 
 > **Key:** each gate freezes committed hours and re-optimises the remaining window with updated prices. Reserve headroom = plant capacity − committed p_net − FCR. Settlement uses ramp-corrected effective ISP hours (eff_isp_h).
+
+</details>
 
 ---
 
