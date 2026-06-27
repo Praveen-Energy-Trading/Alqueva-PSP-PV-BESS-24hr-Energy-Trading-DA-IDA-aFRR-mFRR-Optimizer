@@ -12,15 +12,15 @@
 
 <p align="center">
   <b>Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL)</b><br/>
-  Pumped-Storage Hydro ,  Floating PV ,  Battery Storage ,  DA / IDA / XBID / aFRR / mFRR ,  Full Settlement & Analytics
+  Pumped-Storage Hydro, Floating PV, Battery Storage, DA / IDA / XBID / aFRR / mFRR, Full Settlement & Analytics
 </p>
 
 <p align="center">
-  <code>15 pipeline phases</code> , 
-  <code>16 entry points</code> , 
-  <code>9 production figures</code> , 
-  <code>5-sheet Excel report</code> , 
-  <code>4 YAML configs</code> , 
+  <code>15 pipeline phases</code>,
+  <code>16 entry points</code>,
+  <code>9 production figures</code>,
+  <code>5-sheet Excel report</code>,
+  <code>4 YAML configs</code>,
   <code>1 shared MILP model</code>
 </p>
 
@@ -44,7 +44,7 @@
 | **Upper Reservoir** | Alqueva, 3,150 hm³ usable, head range **54.7–73.0 m** |
 | **Lower Reservoir** | Pedrógão, 54 hm³ usable, binding constraint on long pumping sequences |
 
-> **Sign convention:** generation / discharge = **+** ,  pumping / charging = **−**
+> **Sign convention:** generation / discharge = **+**, pumping / charging = **−**
 
 ---
 
