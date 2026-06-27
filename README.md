@@ -96,35 +96,6 @@ python run_production.py --dry-run
 
 ---
 
-## 🧮 MILP Core
-
-> One model drives **every gate.** DA, IDA1, IDA2, IDA3, and XBID all solve the same 24-hour MILP defined in `common_layer/optimisation_model/core_milp_builder.py`. Gates differ only in price inputs and which hours are frozen to the already-committed position. **A constraint fix propagates to every gate automatically.**
-
-### Decision Variables
-
-| Variable | Dimensions | Description |
-|----------|-----------|-------------|
-| `p_turb[u,h]` / `p_pump[u,h]` | unit × hour | Turbine / pump power (MW, non-negative magnitude) |
-| `on_turb[u,h]` / `on_pump[u,h]` | unit × hour | Mode binaries — mutually exclusive (PR-1) |
-| `H_net[h]` | hour | Dynamic hydraulic head (m) — linear in reservoir volume |
-| `omega_trb[u,fi,hi,h]` / `omega_pmp[u,fi,hi,h]` | unit × flow × head × hour | 5×5 efficiency surface interpolation weights |
-| `pv_used[h]` / `pv_to_bess[h]` / `pv_curt[h]` | hour | PV disposition — must sum to PV forecast |
-| `p_chg[h]` / `p_dis[h]` / `soc[h]` | hour | BESS charge / discharge / state of charge |
-| `v_up[h]` / `v_low[h]` | hour | Upper (Alqueva) / lower (Pedrógão) reservoir volumes (hm³) |
-| `p_net[h]` | hour | Net grid injection = bid quantity (MWh) |
-
-### Key Physics Constraints
-
-| Constraint | Formula / Rule |
-|-----------|----------------|
-| **Head model** | `H_net = 54.7 + 7.89e-9 × (v_up_m³ − 830e6)` m · range 54.7–73.0 m |
-| **Efficiency surface** | η = f(flow_norm, head_norm) · 5×5 bilinear · clipped [0.85, 0.92] |
-| **McCormick linearisation** | 4 envelope constraints × 2 modes × 4 units × 24 hours for `H_net × on_binary` |
-| **Net power identity** | `p_net = PSP_net + pv_used + p_dis − p_chg` (pv_to_bess is internal) |
-| **No double-selling (PR-11)** | headroom = capacity − committed `p_net` − FCR reserved |
-
----
-
 ## 📋 Phase Reference
 
 | Phase | Entry Point | What It Does |
@@ -421,83 +392,6 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 | **Gate_Decisions** | — | DA → IDA1 → IDA2 → IDA3 → XBID position evolution and P&L per gate |
 | **Summary_KPIs** | — | 10 KPI sections — revenue · dispatch · reserves · imbalance · solver quality · risk |
 | **Glossary** | — | Variable definitions, units, and specification cross-references |
-
----
-
-## 🗄️ Shared Core — `common_layer/`
-
-<details>
-<summary>Optimisation model modules</summary>
-
-| Module | Class / Function | Role |
-|--------|-----------------|------|
-| `core_milp_builder.py` | `CoreModelMeta` · `build_milp()` | Shared 24h MILP — one model for all gates |
-| `core_milp_solver.py` | `solve_milp()` · `SolveError` | CPLEX-first auto-select · raises `SolveError` if infeasible (PR-13) |
-| `ida_reoptimiser.py` | `optimise_ida()` | Freeze committed hours · re-solve with updated prices |
-| `reserve_offer_builder.py` | `build_afrr_offers()` · `build_mfrr_offers()` | Headroom after committed energy — no double-selling (PR-11) |
-| `activation_ramp_tracker.py` | — | Ramp-corrected effective ISP hours for reserve settlement |
-
-</details>
-
-<details>
-<summary>Physical plant model classes</summary>
-
-| Module | Class | Role |
-|--------|-------|------|
-| `psp_turbine_pump_model.py` | `PSPModel` · `UnitDispatch` | 4 Francis units · mode exclusivity (PR-1) · min stable load (PR-2) |
-| `pv_production_model.py` | `PVModel` | 5 MWp PV · temperature derate · annual degradation |
-| `bess_model.py` | `BESSModel` · `BESSDispatch` | SOC bounds (PR-7) · no simultaneous charge/discharge (PR-8) · FAT deliverability |
-| `reservoir_model.py` | `ReservoirModel` | Two-reservoir closed-loop water balance · spill · volume bounds |
-| `fcr_headroom_model.py` | `FCRHeadroomModel` | FCR headroom reserved — never sold to any market |
-| `reservoir_activation_checker.py` | `ReservoirActivationChecker` | Validates pumping sequences against lower reservoir bounds |
-
-</details>
-
-<details>
-<summary>Database stores and runtime files</summary>
-
-| Class | Storage | Description |
-|-------|---------|-------------|
-| `PositionStore` | `runtime/db/positions.db` | Committed energy positions per gate (FR-1.4 / INV-8) |
-| `ReserveStore` | `runtime/db/reserve.db` | aFRR / mFRR capacity offers |
-| `DeliveryStore` | `runtime/db/realtime.db` | Per-ISP scheduled vs actual net power |
-| `ActivationStore` | `runtime/db/realtime.db` | Per-ISP aFRR / mFRR activated energy (up / dn MW) |
-| `ComponentStore` | `runtime/components/<date>.json` | Per-component DA dispatch — PSP · BESS · PV · reservoir |
-| `AuditStore` | `runtime/audit/audit_<date>.jsonl` | Read-only query of append-only audit trail |
-
-</details>
-
-<details>
-<summary>Configuration files — config/</summary>
-
-| File | Controls |
-|------|---------|
-| `config/market.yaml` | Gate times · IDA regime dates · ISP duration · FAT values · bid price limits |
-| `config/plant.yaml` | PSP / PV / BESS / reservoir specs · head model · efficiency surface · timezone |
-| `config/solver.yaml` | Solver order (CPLEX → HiGHS → CBC) · MIP gap · per-gate time limits · threads |
-| `config/run.yaml` | Delivery date · mode (trader / auto) · data source (synthetic / live) · phase flags |
-
-Loaded via `config_loader.py` → `AppConfig` (aggregates `PlantConfig` · `MarketConfig` · `SolverConfig`).
-
-</details>
-
----
-
-## 📦 Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `pyomo` | ≥ 6.7 | Optimisation modelling layer (solver-agnostic) |
-| `highspy` | ≥ 1.7 | HiGHS MILP solver — free fallback when CPLEX absent |
-| `numpy` | ≥ 1.26 | Numerics |
-| `pandas` | ≥ 2.2 | Data handling |
-| `PyYAML` | ≥ 6.0 | Config file loading |
-| `openpyxl` | ≥ 3.1 | Excel report export |
-| `requests` | ≥ 2.31 | Live OMIE / REN data loaders (live mode only) |
-| **stdlib** | — | `sqlite3` · `zoneinfo` · `dataclasses` · `datetime` · `json` · `pathlib` |
-
-> [!NOTE]
-> **CPLEX setup:** CPLEX 22.1 is invoked as an external executable via Pyomo — no Python binding needed. Install IBM CPLEX separately and set the path in `config/solver.yaml`. Without CPLEX the pipeline silently falls back to HiGHS with no configuration required.
 
 ---
 
