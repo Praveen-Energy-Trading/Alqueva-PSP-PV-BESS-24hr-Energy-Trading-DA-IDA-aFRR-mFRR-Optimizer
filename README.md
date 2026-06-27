@@ -31,55 +31,6 @@
   <img src="docs/pipeline_architecture.png" alt="Alqueva 24-Hour Trading Pipeline" width="840"/>
 </p>
 
-<details>
-<summary>📐 Mermaid source (click to expand)</summary>
-<br/>
-
-```mermaid
-flowchart TD
-    subgraph C0["① Shared Core — drives every gate"]
-        direction LR
-        cfg["⚙️ Configuration"] --- milp["🧮 MILP Core"] --- phy["⚡ Plant Models"] --- db["🗄️ Database"] --- sched["🕐 Gate Scheduler"] --- util["🛠️ Utilities"]
-    end
-
-    subgraph G0["② Trading Gates — one MILP solve per gate"]
-        direction LR
-        DA["**Phase 1 · DA**<br/>H1–H24 · D-1 12:00 CET"]
-        --> IDA1["**Phase 2A · IDA1**<br/>H1–H24 · D-1 15:00 CET"]
-        --> IDA2["**Phase 2B · IDA2**<br/>H3–H24 · D-1 22:00 CET"]
-        --> IDA3["**Phase 2C · IDA3**<br/>H12–H24 · D 10:00 CET"]
-        --> XBID["**Phase 2D · XBID**<br/>open hours · H-1 rolling"]
-    end
-
-    P3A["**Phase 3A · aFRR**<br/>PICASSO · FAT 5 min · eff_h 0.2083"]
-    P4B["**Phase 4B · aFRR Activation**<br/>TSO signal · ramp-corrected"]
-    P3B["**Phase 3B · mFRR**<br/>MARI · FAT 12.5 min · eff_h 0.1458"]
-    P4C["**Phase 4C · mFRR Activation**<br/>TSO signal · ramp-corrected"]
-    RT["**Phase 4A · ISP Real-Time Dispatch**<br/>PSP & BESS setpoints · 96 ISPs/day · REN telemetry"]
-
-    subgraph S0["④ Settlement"]
-        direction LR
-        S5A["**Phase 5A · Energy**<br/>DA + IDA delta · OMIE"] &
-        S5B["**Phase 5B · Reserve**<br/>capacity + act · eff_isp_h"] &
-        S5C["**Phase 5C · Imbalance**<br/>Long×0.85 · Short×1.20 · REN"]
-    end
-
-    subgraph A0["⑤ Analytics & Validation"]
-        direction LR
-        A5D["**Phase 5D · Analytics**<br/>P&L · KPIs · Excel · 9 figures"] &
-        A6["**Phase 6 · Backtesting**<br/>Historical replay · MILP quality · portfolio risk"]
-    end
-
-    C0 --> G0
-    G0 --> P3A & P3B & RT
-    P3A --> P4B
-    P3B --> P4C
-    P4B & P4C & RT --> S0
-    S0 --> A0
-```
-
-</details>
-
 ---
 
 ## 🏭 Plant
