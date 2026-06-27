@@ -53,100 +53,50 @@
 
 ## Pipeline Architecture
 
-### Shared Core — drives every gate
+```mermaid
+flowchart TD
+    subgraph C0["① Shared Core — drives every gate"]
+        direction LR
+        cfg["⚙️ Configuration"] --- milp["🧮 MILP Core"] --- phy["⚡ Plant Models"] --- db["🗄️ Database"] --- sched["🕐 Gate Scheduler"] --- util["🛠️ Utilities"]
+    end
 
-| Module | Role |
-|--------|------|
-| `configuration/` | Typed plant · market · solver config from YAML |
-| `optimisation_model/` | **Shared 24h MILP** · IDA re-optimiser · reserve sizing · activation ramp |
-| `physical_plant_models/` | PSP · PV · BESS · reservoir physics + FCR headroom |
-| `database/` | SQLite stores — positions · reserve · delivery · activations · audit |
-| `gate_scheduler/` | CET gate-time resolver and trigger |
-| `utilities/` | Logging · CET/WET timezone · ISP calendar · audit logger |
+    subgraph G0["② Trading Gates — one MILP solve per gate"]
+        direction LR
+        DA["**Phase 1 · DA**<br/>H1–H24<br/>D-1 12:00 CET"]
+        --> IDA1["**Phase 2A · IDA1**<br/>H1–H24<br/>D-1 15:00 CET"]
+        --> IDA2["**Phase 2B · IDA2**<br/>H3–H24<br/>D-1 22:00 CET"]
+        --> IDA3["**Phase 2C · IDA3**<br/>H12–H24<br/>D 10:00 CET"]
+        --> XBID["**Phase 2D · XBID**<br/>open hours<br/>H-1 rolling"]
+    end
 
----
+    P3A["**Phase 3A · aFRR**<br/>PICASSO · FAT 5 min<br/>eff_h = 0.2083"]
+    P4B["**Phase 4B · aFRR Activation**<br/>TSO signals"]
+    P3B["**Phase 3B · mFRR**<br/>MARI · FAT 12.5 min<br/>eff_h = 0.1458"]
+    P4C["**Phase 4C · mFRR Activation**<br/>TSO signals"]
+    RT["**Phase 4A · ISP Real-Time Dispatch**<br/>PSP & BESS setpoints · 96 ISPs/day · REN telemetry"]
 
-### Trading Gates — one MILP solve per gate
+    subgraph S0["④ Settlement"]
+        direction LR
+        S5A["**Phase 5A**<br/>Energy Settlement<br/>DA + IDA delta · OMIE"] &
+        S5B["**Phase 5B**<br/>Reserve Settlement<br/>capacity + act · eff_isp_h"] &
+        S5C["**Phase 5C**<br/>Imbalance Settlement<br/>Long×0.85 · Short×1.20 · REN"]
+    end
 
-```
-D-1 12:00 CET          D-1 15:00 CET    D-1 22:00 CET    D 10:00 CET     H-1 rolling
-      │                       │                │                │               │
-      ▼                       ▼                ▼                ▼               ▼
-┌───────────┐         ┌───────────┐    ┌───────────┐    ┌───────────┐   ┌───────────┐
-│ Phase 1   │         │ Phase 2A  │    │ Phase 2B  │    │ Phase 2C  │   │ Phase 2D  │
-│    DA     │──────▶  │   IDA1   │──▶ │   IDA2   │──▶ │   IDA3   │──▶│   XBID    │
-│ H1–H24   │         │  H1–H24  │    │  H3–H24  │    │ H12–H24  │   │  rolling  │
-└───────────┘         └───────────┘    └───────────┘    └───────────┘   └───────────┘
-                       ↑ H1–H2 free    ↑ H1–H2 frozen  ↑ H1–H11 frozen
-```
-> Each gate freezes the already-committed hours and re-optimises the remaining window with updated prices.
+    subgraph A0["⑤ Analytics & Validation"]
+        direction LR
+        A5D["**Phase 5D · Analytics & Reporting**<br/>P&amp;L · KPIs · Excel 5 sheets · 94 cols · 9 figures"] &
+        A6["**Phase 6 · Backtesting**<br/>Historical replay · forecast validation<br/>MILP quality check · portfolio risk"]
+    end
 
----
-
-### Reserve Markets — from leftover headroom
-
-```
-committed net position  →  headroom = capacity − p_net − FCR
-                                              │
-                     ┌────────────────────────┴────────────────────────┐
-                     ▼                                                 ▼
-             ┌───────────────┐                               ┌───────────────┐
-             │   Phase 3A    │                               │   Phase 3B    │
-             │     aFRR      │                               │     mFRR      │
-             │   PICASSO     │                               │     MARI      │
-             │ FAT = 5 min   │                               │ FAT = 12.5 min│
-             │ eff_h=0.2083  │                               │ eff_h=0.1458  │
-             └───────┬───────┘                               └───────┬───────┘
-                     │          TSO activation signals               │
-                     ▼                                               ▼
-             ┌───────────────┐                               ┌───────────────┐
-             │   Phase 4B    │                               │   Phase 4C    │
-             │aFRR Activation│                               │mFRR Activation│
-             └───────────────┘                               └───────────────┘
+    C0 --> G0
+    G0 --> P3A & P3B & RT
+    P3A --> P4B
+    P3B --> P4C
+    P4B & P4C & RT --> S0
+    S0 --> A0
 ```
 
----
-
-### Real-Time Dispatch
-
-```
-             ┌────────────────────────────────────────────┐
-             │               Phase 4A                     │
-             │         ISP Real-Time Dispatch              │
-             │   PSP setpoints · BESS setpoints            │
-             │   REN telemetry · 96 ISPs/day (15 min)     │
-             └────────────────────────────────────────────┘
-```
-
----
-
-### Settlement → Analytics → Backtesting
-
-```
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│   Phase 5A      │   │   Phase 5B      │   │   Phase 5C      │
-│ Energy Settlement│   │Reserve Settlement│   │Imbalance Settle │
-│ DA + IDA delta  │   │ capacity + act. │   │Long×0.85 Short  │
-│ per gate · OMIE │   │ eff_isp_h used  │   │    ×1.20 · REN  │
-└────────┬────────┘   └────────┬────────┘   └────────┬────────┘
-         └──────────────────────┴──────────────────────┘
-                                │
-                                ▼
-             ┌────────────────────────────────────────────┐
-             │                Phase 5D                    │
-             │         Analytics & Daily Reporting         │
-             │  P&L · KPIs · Excel (5 sheets · 94 cols)  │
-             │       9 production figures generated        │
-             └────────────────────────────────────────────┘
-                                │
-                                ▼
-             ┌────────────────────────────────────────────┐
-             │                Phase 6                     │
-             │        Backtesting & Validation            │
-             │  Historical replay · forecast validation   │
-             │  MILP quality check · portfolio risk       │
-             └────────────────────────────────────────────┘
-```
+> **Key:** each gate freezes committed hours and re-optimises the remaining window with updated prices. Reserve headroom = plant capacity − committed p_net − FCR. Settlement uses ramp-corrected effective ISP hours (eff_isp_h).
 
 ---
 
