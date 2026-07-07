@@ -90,8 +90,8 @@ $ python run_production.py --date 2026-08-15 --auto --synthetic
   2A     IDA1 intraday re-optimisation          [ OK  ]   8.92s  IDA1-20260815-001, delta +1,401
   2B     IDA2 intraday re-optimisation          [ OK  ]   8.64s  no re-trade (no-churn threshold)
   2C     IDA3 intraday re-optimisation          [ OK  ]   7.28s  IDA3-20260815-001, delta +939
-  2D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   7.51s
-  2D/W2  XBID continuous  (D  09:30)            [ OK  ]   7.20s
+  2D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   7.51s  NO_ORDER — gain 69 EUR/23.8 MWh below 5 EUR/MWh spread
+  2D/W2  XBID continuous  (D  09:30)            [ OK  ]   7.20s  NO_ORDER — gain 71 EUR/16.5 MWh below 5 EUR/MWh spread
   3A     aFRR capacity offer  (PICASSO/REN)     [ OK  ]   3.80s  capacity revenue +79,564
   3B     mFRR capacity offer  (MARI)            [ OK  ]   2.24s  capacity revenue +21,761
   4A     RT dispatch simulation  (96 ISPs)      [ OK  ]   0.02s  96 ISPs, mean abs dev 1.41 MW
