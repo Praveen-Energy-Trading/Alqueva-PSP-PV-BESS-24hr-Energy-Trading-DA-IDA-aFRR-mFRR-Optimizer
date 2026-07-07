@@ -77,16 +77,16 @@ pip install -r requirements.txt
 python run_production.py
 
 # 3. Run for a specific date
-python run_production.py --date 2026-06-28
+python run_production.py --date <YYYY-MM-DD>
 
 # 4. Backtest mode — fully automated, no live APIs
-python run_production.py --date 2026-06-28 --auto --synthetic
+python run_production.py --date <YYYY-MM-DD> --auto --synthetic
 
 # 5. Resume from a specific phase after a crash
-python run_production.py --date 2026-06-28 --from-phase realtime
+python run_production.py --date <YYYY-MM-DD> --from-phase realtime
 
 # 6. Run only selected phases
-python run_production.py --date 2026-06-28 --only da,afrr,mfrr
+python run_production.py --date <YYYY-MM-DD> --only da,afrr,mfrr
 
 # 7. Validate config and imports without executing anything
 python run_production.py --dry-run
