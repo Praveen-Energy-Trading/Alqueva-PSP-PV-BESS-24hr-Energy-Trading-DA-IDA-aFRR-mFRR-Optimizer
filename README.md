@@ -109,13 +109,15 @@ $ python run_production.py --date 2026-08-15 --auto --synthetic
 | Revenue Stream | Amount | Share |
 |---|---|---|
 | DA energy trading (OMIE) | +€129,784 | 46.9% |
-| aFRR (capacity + activation) | +€110,035 | 39.7% |
-| mFRR (capacity + activation) | +€34,759 | 12.6% |
+| aFRR capacity (PICASSO) | +€79,564 | — |
+| aFRR activation | +€30,471 | — |
+| mFRR capacity (MARI) | +€21,761 | — |
+| mFRR activation | +€12,998 | — |
 | IDA1 + IDA3 re-optimisation delta | +€2,339 | 0.8% |
 | Imbalance settlement (dual pricing) | -€462 | — |
 | **Total P&L** | **+€276,454** | 100% |
 
-Reserve capacity alone (before activation): aFRR +€79,564, mFRR +€21,761.
+Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759 (12.6%).
 
 > [!NOTE]
 > **On robustness:** the same pipeline, run against a different synthetic day, hit a genuine physical infeasibility at IDA3 — intraday re-optimisation had shifted heavy generation into earlier hours, leaving insufficient pumping capacity to refill the upper reservoir by end of day. The solver correctly reported infeasibility and the pipeline aborted rather than submit an unproven bid (`SolveError`, PR-13). That is intended behaviour, not a defect: the permanent invariant checker is designed to block a bid it cannot physically guarantee.
