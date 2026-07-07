@@ -1,32 +1,12 @@
-﻿# ⚡ Alqueva PSP + PV + BESS — 24-Hour Energy Trading Optimizer
+﻿# Alqueva PSP + PV + BESS — 24-Hour Energy Trading Optimizer
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Solver-CPLEX%2022.1-brightgreen?style=for-the-badge&logo=ibm&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Fallback-HiGHS%20%7C%20CBC-green?style=for-the-badge"/>
-  <br/>
-  <img src="https://img.shields.io/badge/Optimisation-MILP-orange?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Markets-DA%20%7C%20IDA%20%7C%20XBID%20%7C%20aFRR%20%7C%20mFRR-purple?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Grid-MIBEL%20%2F%20OMIE-red?style=for-the-badge"/>
-</p>
+Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL) — pumped-storage hydro, floating PV, and battery storage, bidding across DA, IDA, XBID, aFRR, and mFRR with full settlement and analytics.
 
-<p align="center">
-  <b>Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL)</b><br/>
-  Pumped-Storage Hydro, Floating PV, Battery Storage, DA / IDA / XBID / aFRR / mFRR, Full Settlement & Analytics
-</p>
-
-<p align="center">
-  <code>15 pipeline phases</code>,
-  <code>16 entry points</code>,
-  <code>9 production figures</code>,
-  <code>5-sheet Excel report</code>,
-  <code>4 YAML configs</code>,
-  <code>1 shared MILP model</code>
-</p>
+**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 15 pipeline phases · 1 shared MILP model**
 
 ---
 
-## 🗺️ Pipeline Architecture
+## Pipeline Architecture
 
 <p align="center">
   <img src="docs/pipeline_architecture.png" alt="Alqueva 24-Hour Trading Pipeline" width="840"/>
@@ -34,7 +14,7 @@
 
 ---
 
-## 🏭 Plant
+## Plant
 
 | Asset | Specification |
 |-------|--------------|
@@ -48,7 +28,7 @@
 
 ---
 
-## 📈 Market Coverage
+## Market Coverage
 
 | Gate | Exchange | Gate Close (CET) | Hours in Scope |
 |------|----------|-----------------|----------------|
@@ -67,7 +47,7 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Install dependencies
@@ -97,7 +77,7 @@ python run_production.py --dry-run
 
 ---
 
-## 📋 Phase Reference
+## Phase Reference
 
 | Phase | Entry Point | What It Does |
 |-------|------------|--------------|
@@ -119,7 +99,7 @@ python run_production.py --dry-run
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
@@ -368,7 +348,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 
 ---
 
-## 📊 Outputs
+## Outputs
 
 ### 9 Production Figures — `figures/output/`, 600 DPI
 
@@ -396,7 +376,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 
 ---
 
-## ✅ Design Principles
+## Design Principles
 
 | Principle | Implementation |
 |-----------|----------------|
