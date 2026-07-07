@@ -111,12 +111,12 @@ $ python run_production.py --date 2026-08-15 --auto --synthetic
 | Revenue Stream | Amount | Share |
 |---|---|---|
 | DA energy trading (OMIE) | +€129,784 | 46.9% |
-| aFRR capacity (PICASSO) | +€79,564 | — |
-| aFRR activation | +€30,471 | — |
-| mFRR capacity (MARI) | +€21,761 | — |
-| mFRR activation | +€12,998 | — |
+| aFRR capacity (PICASSO) | +€79,564 | 28.8% |
+| aFRR activation | +€30,471 | 11.0% |
+| mFRR capacity (MARI) | +€21,761 | 7.9% |
+| mFRR activation | +€12,998 | 4.7% |
 | IDA1 + IDA3 re-optimisation delta | +€2,339 | 0.8% |
-| Imbalance settlement (dual pricing) | -€462 | — |
+| Imbalance settlement (dual pricing) | -€462 | -0.2% |
 | **Total P&L** | **+€276,454** | 100% |
 
 Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759 (12.6%).
