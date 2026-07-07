@@ -135,13 +135,13 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 | **Phase 2B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
 | **Phase 2C, IDA3** | `run_ida3.py` | H1–H11 frozen, re-optimise H12–H24 |
 | **Phase 2D, XBID** | `run_xbid.py` | Continuous intraday, per-order caps, H-1 rolling |
-| **Phase 3A, aFRR** | `run_afrr.py` | Capacity offers, PICASSO, FAT 5 min, eff_isp_h = 0.2083 h |
-| **Phase 3B, mFRR** | `run_mfrr.py` | Capacity offers, MARI, FAT 12.5 min, eff_isp_h = 0.1458 h |
+| **Phase 3A, aFRR** | `run_afrr.py` | Capacity offers, PICASSO, FAT 5 min, `eff_isp_h` = 0.2083 h |
+| **Phase 3B, mFRR** | `run_mfrr.py` | Capacity offers, MARI, FAT 12.5 min, `eff_isp_h` = 0.1458 h |
 | **Phase 4A, Real-Time** | `run_realtime.py` | 96 ISPs/day, PSP + BESS setpoints, REN telemetry feed |
 | **Phase 4B, aFRR Act.** | `run_afrr_activation.py` | TSO activation → ramp-corrected energy, min hold 2 ISPs |
 | **Phase 4C, mFRR Act.** | `run_mfrr_activation.py` | TSO activation → ramp-corrected energy, min hold 3 ISPs |
 | **Phase 5A, Energy** | `run_energy_settlement.py` | DA + IDA delta per gate, OMIE prices, no double-counting |
-| **Phase 5B, Reserve** | `run_reserve_settlement.py` | Capacity (hourly) + activation, eff_isp_h ramp-corrected, PICASSO + MARI |
+| **Phase 5B, Reserve** | `run_reserve_settlement.py` | Capacity (hourly) + activation, `eff_isp_h` ramp-corrected, PICASSO + MARI |
 | **Phase 5C, Imbalance** | `run_imbalance_settlement.py` | Long→DA×0.85, Short→DA×1.20, REN imbalance prices |
 | **Phase 5D, Analytics** | `run_analytics.py` | Daily P&L, KPIs, 5-sheet Excel report, 9 production figures |
 | **Phase 6, Backtest** | `run_backtest.py` | Historical replay, forecast validation, MILP quality, portfolio risk |
