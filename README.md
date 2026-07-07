@@ -22,7 +22,7 @@ Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy pl
 |-------|--------------|
 | **PSP — Pumped Storage** | 4 × reversible Francis units, 129.6 MW turbine / 111.6 MW pump each → **518.4 MW generation / 446.4 MW pumping** |
 | **PV — Floating Solar** | 5 MWp, commissioned 2022, temperature derate, annual degradation model |
-| **BESS — Battery** | 1 MW / 2 MWh, SOC 10 %–95 %, η_charge = η_discharge = 0.90 |
+| **BESS — Battery** | 1 MW / 2 MWh, SOC 10 %–95 %, η<sub>charge</sub> = η<sub>discharge</sub> = 0.90 |
 | **Upper Reservoir** | Alqueva, 3,150 hm³ usable, head range **54.7–73.0 m** |
 | **Lower Reservoir** | Pedrógão, 54 hm³ usable, binding constraint on long pumping sequences |
 
