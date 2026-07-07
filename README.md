@@ -4,6 +4,13 @@ Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy pl
 
 **Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 15 pipeline phases · 1 shared MILP model**
 
+<p align="center">
+  <img src="figures/output/ops_board.png" alt="Real trading ops board — dispatch, SoC, position evolution, aFRR/mFRR capacity, P&L waterfall, from an actual CPLEX-solved run" width="900"/>
+</p>
+<p align="center"><i>Real output from an actual solved run (2026-08-15) — see <a href="#example-run">Example Run</a> for the full log and verified numbers.</i></p>
+
+**Contents:** [Pipeline Architecture](#pipeline-architecture) · [Plant](#plant) · [Market Coverage](#market-coverage) · [Quick Start](#quick-start) · [Example Run](#example-run) · [Phase Reference](#phase-reference) · [Project Structure](#project-structure) · [Outputs](#outputs) · [Design Principles](#design-principles)
+
 ---
 
 ## Pipeline Architecture
@@ -147,6 +154,9 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 ---
 
 ## Project Structure
+
+<details>
+<summary><b>Click to expand — full file-level tree, every .py file with inline description</b></summary>
 
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
@@ -392,6 +402,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │
 └── requirements.txt                              # pip install -r requirements.txt
 ```
+
+</details>
 
 ---
 
