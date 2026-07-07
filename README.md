@@ -77,6 +77,49 @@ python run_production.py --dry-run
 
 ---
 
+## Example Run
+
+Real output, solved end-to-end with IBM CPLEX 22.1.1 on synthetic data (`--auto --synthetic`):
+
+```
+$ python run_production.py --date 2026-08-15 --auto --synthetic
+
+  PHASE                                          STATUS     TIME  NOTE
+  --------------------------------------------------------------------------------
+  1      Day-Ahead bidding  (OMIE DA)           [ OK  ]  23.95s  energy revenue +129,784
+  2A     IDA1 intraday re-optimisation          [ OK  ]   8.92s  IDA1-20260815-001
+  2B     IDA2 intraday re-optimisation          [ OK  ]   8.64s
+  2C     IDA3 intraday re-optimisation          [ OK  ]   7.28s  IDA3-20260815-001
+  2D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   7.51s
+  2D/W2  XBID continuous  (D  09:30)            [ OK  ]   7.20s
+  3A     aFRR capacity offer  (PICASSO/REN)     [ OK  ]   3.80s  capacity revenue +79,564
+  3B     mFRR capacity offer  (MARI)            [ OK  ]   2.24s  capacity revenue +21,761
+  4A     RT dispatch simulation  (96 ISPs)      [ OK  ]   0.02s
+  4B     aFRR activation response               [ OK  ]   0.14s
+  4C     mFRR activation response               [ OK  ]   0.11s
+  5A     Energy settlement  (DA / IDA)          [ OK  ]   1.14s
+  5B     Reserve settlement  (aFRR / mFRR)      [ OK  ]   0.01s
+  5C     Imbalance settlement  (REN balance)    [ OK  ]   0.07s
+  5D     Analytics + KPI report + Excel         [ OK  ]   1.35s  total pnl +276,454
+
+  PIPELINE COMPLETE
+  15 passed   0 skipped   0 warnings   0 failed   (72.4s total)
+```
+
+| Revenue Stream | Amount |
+|---|---|
+| DA energy trading (OMIE) | +€129,784 |
+| aFRR capacity (PICASSO) | +€79,564 |
+| mFRR capacity (MARI) | +€21,761 |
+| IDA re-optimisation + XBID | included |
+| Imbalance settlement | included |
+| **Total P&L** | **+€276,454** |
+
+> [!NOTE]
+> **On robustness:** the same pipeline, run against a different synthetic day, hit a genuine physical infeasibility at IDA3 — intraday re-optimisation had shifted heavy generation into earlier hours, leaving insufficient pumping capacity to refill the upper reservoir by end of day. The solver correctly reported infeasibility and the pipeline aborted rather than submit an unproven bid (`SolveError`, PR-13). That is intended behaviour, not a defect: the permanent invariant checker is designed to block a bid it cannot physically guarantee.
+
+---
+
 ## Phase Reference
 
 | Phase | Entry Point | What It Does |
