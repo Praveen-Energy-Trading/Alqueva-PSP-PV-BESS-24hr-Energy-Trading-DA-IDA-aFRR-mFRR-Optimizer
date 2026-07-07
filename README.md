@@ -87,19 +87,19 @@ $ python run_production.py --date 2026-08-15 --auto --synthetic
   PHASE                                          STATUS     TIME  NOTE
   --------------------------------------------------------------------------------
   1      Day-Ahead bidding  (OMIE DA)           [ OK  ]  23.95s  energy revenue +129,784
-  2A     IDA1 intraday re-optimisation          [ OK  ]   8.92s  IDA1-20260815-001
-  2B     IDA2 intraday re-optimisation          [ OK  ]   8.64s
-  2C     IDA3 intraday re-optimisation          [ OK  ]   7.28s  IDA3-20260815-001
+  2A     IDA1 intraday re-optimisation          [ OK  ]   8.92s  IDA1-20260815-001, delta +1,401
+  2B     IDA2 intraday re-optimisation          [ OK  ]   8.64s  no re-trade (no-churn threshold)
+  2C     IDA3 intraday re-optimisation          [ OK  ]   7.28s  IDA3-20260815-001, delta +939
   2D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   7.51s
   2D/W2  XBID continuous  (D  09:30)            [ OK  ]   7.20s
   3A     aFRR capacity offer  (PICASSO/REN)     [ OK  ]   3.80s  capacity revenue +79,564
   3B     mFRR capacity offer  (MARI)            [ OK  ]   2.24s  capacity revenue +21,761
-  4A     RT dispatch simulation  (96 ISPs)      [ OK  ]   0.02s
-  4B     aFRR activation response               [ OK  ]   0.14s
-  4C     mFRR activation response               [ OK  ]   0.11s
-  5A     Energy settlement  (DA / IDA)          [ OK  ]   1.14s
-  5B     Reserve settlement  (aFRR / mFRR)      [ OK  ]   0.01s
-  5C     Imbalance settlement  (REN balance)    [ OK  ]   0.07s
+  4A     RT dispatch simulation  (96 ISPs)      [ OK  ]   0.02s  96 ISPs, mean abs dev 1.41 MW
+  4B     aFRR activation response               [ OK  ]   0.14s  78 ISPs activated, +345.3/-260.2 MWh
+  4C     mFRR activation response               [ OK  ]   0.11s  24 ISPs activated, +175.0/-79.1 MWh
+  5A     Energy settlement  (DA / IDA)          [ OK  ]   1.14s  total energy +132,123
+  5B     Reserve settlement  (aFRR / mFRR)      [ OK  ]   0.01s  total reserve +144,794
+  5C     Imbalance settlement  (REN balance)    [ OK  ]   0.07s  net imbalance -462
   5D     Analytics + KPI report + Excel         [ OK  ]   1.35s  total pnl +276,454
 
   PIPELINE COMPLETE
