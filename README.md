@@ -4,11 +4,6 @@ Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy pl
 
 **Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 15 pipeline phases · 1 shared MILP model**
 
-<p align="center">
-  <img src="figures/output/ops_board.png" alt="Real trading ops board — dispatch, SoC, position evolution, aFRR/mFRR capacity, P&L waterfall, from an actual CPLEX-solved run" width="900"/>
-</p>
-<p align="center"><i>Real output from an actual solved run (2026-08-15) — see <a href="#example-run">Example Run</a> for the full log and verified numbers.</i></p>
-
 **Contents:** [Pipeline Architecture](#pipeline-architecture) · [Plant](#plant) · [Market Coverage](#market-coverage) · [Quick Start](#quick-start) · [Example Run](#example-run) · [Phase Reference](#phase-reference) · [Project Structure](#project-structure) · [Outputs](#outputs) · [Design Principles](#design-principles)
 
 ---
