@@ -79,7 +79,7 @@ python run_production.py --dry-run
 
 ## Example Run
 
-Real output, solved end-to-end with IBM CPLEX 22.1.1 on synthetic data (`--auto --synthetic`):
+Real output, solved end-to-end with IBM CPLEX 22.1.1 on synthetic data (`--auto --synthetic`). "Synthetic" here means a stylised OMIE-shaped price model — morning/evening demand peaks, a midday solar dip, an overnight discount, deterministic per-date seeding, small bounded noise — not random noise, used so the pipeline can be run and verified without a live market data subscription:
 
 ```
 $ python run_production.py --date 2026-08-15 --auto --synthetic
