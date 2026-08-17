@@ -21,6 +21,15 @@ import theme
 
 st.title("⚡ Overview")
 
+# Streamlit's default top padding on the main content block is ~35px,
+# leaving a visible dead gap above the title before anything else on the
+# page. Trimmed to match the standard 16px gap used between every other
+# subsection below.
+st.markdown(
+    '<style>div[data-testid="stMainBlockContainer"] { padding-top: 1rem; }</style>',
+    unsafe_allow_html=True,
+)
+
 # ---------------------------------------------------------------------------
 # Asset strip — physical plant, straight from config/plant.yaml. Fixed
 # regardless of which run/date is selected, since it's hardware, not a
@@ -43,7 +52,7 @@ ASSET_CARDS = [
 st.markdown(
     f'<div style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500; margin-bottom:8px;">'
     f'Alqueva PSP + PV + BESS</div>'
-    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin-bottom:1.5rem;">' +
+    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px;">' +
     "".join(
         f'<div style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE}; border-radius:10px; padding:0.75rem 0.9rem;">'
         f'<div style="font-size:12px; color:{theme.INK_SECONDARY}; margin-bottom:4px;">{icon} {label}</div>'
@@ -227,7 +236,8 @@ pnl_lines = [
     ("mFRR activation",   data.kpi_value(kpis, "mFRR activation revenue") or 0.0,          theme.COLOR_PUMP),
     ("Imbalance settlement", data.kpi_value(kpis, "Imbalance settlement") or 0.0,          theme.STATUS_GOOD),
 ]
-components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=430)
+st.markdown("##### P&L Breakdown")
+components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
 
 # Dispatch + price, Gate decisions, Risk & constraints, and Portfolio risk
 # summaries were all dropped from Overview -- each already has its own

@@ -1036,33 +1036,35 @@ def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines
     scale = max(abs(total_pnl), 1e-6)
     rows_html = []
     for label, value, color in lines:
-        pct = min(abs(value) / scale * 100, 100.0)
+        share_pct = value / total_pnl * 100 if total_pnl else 0.0  # signed -- sums to exactly 100% across all lines
+        bar_pct = min(abs(value) / scale * 100, 100.0)
         bar_color = theme.STATUS_CRITICAL if value < 0 else color
         rows_html.append(f'''
-        <div style="margin-bottom:7px;">
-          <div style="display:flex; justify-content:space-between; font-size:10.5px; color:{theme.INK_SECONDARY};">
-            <span>{label}</span><span>{value:,.0f} EUR</span>
+        <div style="margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">
+            <span>{label}</span>
+            <span><span style="color:{theme.INK_PRIMARY};">{value:,.0f} EUR</span> <span style="color:{theme.INK_MUTED}; font-weight:400;">&middot; {share_pct:.1f}%</span></span>
           </div>
-          <div style="height:5px; background:{theme.GRIDLINE}; border-radius:3px; margin-top:2px;">
-            <div style="width:{pct:.2f}%; height:100%; background:{bar_color}; border-radius:3px;"></div>
+          <div style="height:7px; background:{theme.GRIDLINE}; border-radius:4px; margin-top:3px;">
+            <div style="width:{bar_pct:.2f}%; height:100%; background:{bar_color}; border-radius:4px;"></div>
           </div>
         </div>''')
 
     reserve_html = (
-        f'<div style="display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid {theme.GRIDLINE}; font-size:11px;">'
+        f'<div style="display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE}; font-size:13px;">'
         f'<span style="color:{theme.INK_MUTED};">Reserve share of P&amp;L</span>'
-        f'<span style="font-weight:500; color:{theme.INK_PRIMARY};">{reserve_pct:.1f}%</span></div>'
+        f'<span style="font-weight:600; color:{theme.INK_PRIMARY};">{reserve_pct:.1f}%</span></div>'
         if reserve_pct is not None else ""
     )
 
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div style="margin-bottom:10px;">
+    <div style="font-size:15px; color:{theme.INK_SECONDARY}; font-weight:500;">Total P&amp;L</div>
+    <div style="font-size:38px; font-weight:700; color:{theme.INK_PRIMARY}; letter-spacing:-0.5px;">{total_pnl:,.0f} <span style="font-size:18px; font-weight:500; color:{theme.INK_MUTED};">EUR</span></div>
+  </div>
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Total P&amp;L</span>
-      <span style="font-size:22px; font-weight:600; color:{theme.INK_PRIMARY};">{total_pnl:,.0f} EUR</span>
-    </div>
     {''.join(rows_html)}
     {reserve_html}
   </div>
