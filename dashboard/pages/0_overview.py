@@ -10,8 +10,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -207,7 +205,7 @@ if not report_ready:
     st.stop()
 
 report = data.load_daily_report(selected_date)
-dispatch, isp, gates, kpis = report["dispatch"], report["isp"], report["gates"], report["kpis"]
+kpis = report["kpis"]
 
 # ---------------------------------------------------------------------------
 # KPI row — same Summary_KPIs values Trading Desk shows
@@ -227,87 +225,7 @@ c3.metric("IDA + XBID", f"{ida_rev:,.0f} EUR")
 c4.metric("Reserve (aFRR+mFRR)", f"{reserve:,.0f} EUR")
 c5.metric("Reserve share", f"{reserve_pct:.1f} %" if reserve_pct is not None else "n/a")
 
-st.markdown("---")
-
-# ---------------------------------------------------------------------------
-# Hero: dispatch + price (stacked), and a compact gate-decision list
-# ---------------------------------------------------------------------------
-
-left, right = st.columns([2, 1])
-with left:
-    st.subheader("Dispatch and DA price")
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.6, 0.4])
-    fig.add_trace(go.Bar(x=dispatch["Hour"], y=dispatch["Plant_net_final_MW"],
-                          name="Net dispatch MW", marker_color=theme.COLOR_GEN), row=1, col=1)
-    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["DA_price_EUR_MWh"],
-                              name="DA price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-    theme.style_fig(fig, height=340)
-    fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
-    fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
-    st.plotly_chart(fig, width="stretch")
-
-with right:
-    st.subheader("Gate decisions")
-    GATES = ["IDA1", "IDA2", "IDA3", "XBID"]
-    DECISION_EVENTS = {"SUBMITTED", "NO_CHANGE", "ORDERS_PLACED", "NO_ORDER", "RISK_BLOCKED", "BIDCHECK_FAILED"}
-    LABEL = {"SUBMITTED": "🟢 Re-bid", "ORDERS_PLACED": "🟢 Re-bid", "NO_CHANGE": "⚪ Held",
-             "NO_ORDER": "⚪ Held", "RISK_BLOCKED": "🔴 Blocked", "BIDCHECK_FAILED": "🔴 Blocked"}
-    for gate in GATES:
-        events = data.load_audit_events(selected_date, event_prefix=gate)
-        decisions = [e for e in events if e["event"][len(gate) + 1:] in DECISION_EVENTS]
-        if decisions:
-            latest = decisions[-1]
-            suffix = latest["event"][len(gate) + 1:]
-            st.markdown(f"**{gate}** &nbsp; {LABEL.get(suffix, suffix)}", unsafe_allow_html=True)
-        else:
-            st.markdown(f"**{gate}** &nbsp; ⚪ No decision logged", unsafe_allow_html=True)
-    st.caption("See Decision Rationale for the improvement-vs-threshold detail behind each.")
-
-st.markdown("---")
-
-# ---------------------------------------------------------------------------
-# Risk & Portfolio Risk summaries — same numbers as their full pages
-# ---------------------------------------------------------------------------
-
-rc1, rc2 = st.columns(2)
-with rc1:
-    st.subheader("Risk & constraints")
-    plant_cfg = data.load_plant_config()
-    market_cfg = data.load_market_config()
-    fcr_mw = plant_cfg["fcr"]["mandatory_headroom_mw"]
-    gen_cap_fcr_mw = market_cfg["bid_limits"]["max_generation_mw"] - fcr_mw
-    pump_cap_fcr_mw = market_cfg["bid_limits"]["max_pump_mw"] - fcr_mw
-    net = dispatch["Plant_net_final_MW"]
-    peak_gen = (net.clip(lower=0) / gen_cap_fcr_mw * 100).max()
-    peak_pump = ((-net).clip(lower=0) / pump_cap_fcr_mw * 100).max()
-    st.markdown(f"Peak generation utilization: **{peak_gen:.1f}%**")
-    st.markdown(f"Peak pump utilization: **{peak_pump:.1f}%**")
-    if {"Gen_headroom_MW", "Pump_headroom_MW"}.issubset(dispatch.columns):
-        breach = (dispatch["Gen_headroom_MW"].min() < -0.01) or (dispatch["Pump_headroom_MW"].min() < -0.01)
-        st.markdown("FCR headroom: " + ("🔴 Breached" if breach else "🟢 Never breached"))
-    if "BESS_SOC_pct" in dispatch.columns:
-        soc = dispatch["BESS_SOC_pct"]
-        soc_ok = soc.between(9.99, 95.01).all()
-        st.markdown("BESS SOC bounds: " + ("🟢 Within range" if soc_ok else "🔴 Breached"))
-    st.caption("Full detail on Risk & Constraints.")
-
-with rc2:
-    st.subheader("Portfolio risk (latest backtest)")
-    files = data.list_backtest_reports()
-    if not files:
-        st.info("No backtest report found yet.")
-    else:
-        bt_report = data.load_backtest_report(files[0])
-        if "Risk" in bt_report:
-            flat = [(l, v) for l, v, is_hdr in bt_report["Risk"] if not is_hdr]
-            shown = 0
-            for label, value in flat:
-                if any(k in label for k in ("VaR", "CVaR", "Sharpe", "drawdown", "Max drawdown")):
-                    st.markdown(f"{label}: **{value:,.2f}**" if isinstance(value, (int, float)) else f"{label}: **{value}**")
-                    shown += 1
-                if shown >= 4:
-                    break
-        else:
-            st.info("This backtest report has no Risk sheet.")
-    st.caption(f"From `{files[0].name}`" if files else "")
-    st.caption("Full detail on Backtest & Portfolio Risk.")
+# Dispatch + price, Gate decisions, Risk & constraints, and Portfolio risk
+# summaries were all dropped from Overview -- each already has its own
+# dedicated page (Trading Desk / Decision Rationale / Risk & Constraints /
+# Backtest & Portfolio Risk), so repeating them here was pure duplication.
