@@ -285,12 +285,18 @@ def simulate_and_log_activation(product: str, delivery_date: str, cfg: AppConfig
             continue
 
         # Update BESS SOC after this ISP's activation; clamp to configured limits.
+        # bess_contrib is also the real resource split: BESS is the fast responder
+        # up to its power rating, PSP ramp covers whatever's left (up/dn - bess_contrib).
+        # PV never appears here -- it has no term in call sizing above (weather-
+        # dependent generation isn't relied on for regulation), so it's genuinely
+        # zero, not an omission.
+        bess_up_mw = bess_dn_mw = 0.0
         if up > 0:
-            bess_contrib = min(bess_up_avail, up)
-            bess_soc_mwh = max(bess_soc_min, bess_soc_mwh - bess_contrib * isp_h)
+            bess_up_mw = min(bess_up_avail, up)
+            bess_soc_mwh = max(bess_soc_min, bess_soc_mwh - bess_up_mw * isp_h)
         elif dn > 0:
-            bess_contrib = min(bess_dn_avail, dn)
-            bess_soc_mwh = min(bess_soc_max, bess_soc_mwh + bess_contrib * isp_h)
+            bess_dn_mw = min(bess_dn_avail, dn)
+            bess_soc_mwh = min(bess_soc_max, bess_soc_mwh + bess_dn_mw * isp_h)
 
         # Energy credited uses ramp-corrected hours, not face ISP duration.
         up_mwh += up * eff_isp_h
@@ -300,6 +306,8 @@ def simulate_and_log_activation(product: str, delivery_date: str, cfg: AppConfig
             "hour": h,
             "up_mw":             up,
             "dn_mw":             dn,
+            "bess_up_mw":        bess_up_mw,
+            "bess_dn_mw":        bess_dn_mw,
             "up_price_eur_mwh":  up_price,
             "dn_price_eur_mwh":  dn_price,
             "eff_isp_h":         eff_isp_h,  # stored for settlement accuracy

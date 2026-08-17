@@ -761,6 +761,45 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
 
 
 @st.cache_data
+def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None:
+    """Real per-ISP reserved capacity (ReserveStore) vs actually activated MW
+    (ActivationStore), split by resource -- BESS (fast responder, up to its
+    power rating) vs PSP (ramp covers the rest). PV is never a contributor:
+    the activation model has no PV term in its call-sizing logic (weather-
+    dependent generation isn't relied on for regulation), so it's correctly
+    absent here rather than omitted. None if this product hasn't activated
+    yet (no ActivationStore rows) or has no offered capacity for the date."""
+    rows = ActivationStore().load(delivery_date, product)
+    offers = ReserveStore().load_reserve(delivery_date, product)
+    if not rows or not offers:
+        return None
+
+    isps = sorted(offers)
+    act_by_isp = {r["isp"]: r for r in rows}
+
+    reserved_up_mw = [offers[isp].get("up_mw", 0.0) for isp in isps]
+    reserved_dn_mw = [offers[isp].get("dn_mw", 0.0) for isp in isps]
+    up_mw = [act_by_isp.get(isp, {}).get("up_mw", 0.0) for isp in isps]
+    dn_mw = [act_by_isp.get(isp, {}).get("dn_mw", 0.0) for isp in isps]
+    bess_up_mw = [act_by_isp.get(isp, {}).get("bess_up_mw", 0.0) for isp in isps]
+    bess_dn_mw = [act_by_isp.get(isp, {}).get("bess_dn_mw", 0.0) for isp in isps]
+    psp_up_mw = [max(0.0, u - b) for u, b in zip(up_mw, bess_up_mw)]
+    psp_dn_mw = [max(0.0, d - b) for d, b in zip(dn_mw, bess_dn_mw)]
+
+    return {
+        "isps": isps,
+        "product": product,
+        "reserved_up_mw": reserved_up_mw,
+        "reserved_dn_mw": reserved_dn_mw,
+        "bess_up_mw": bess_up_mw,
+        "psp_up_mw": psp_up_mw,
+        "bess_dn_mw": bess_dn_mw,
+        "psp_dn_mw": psp_dn_mw,
+        "delivery_date": delivery_date,
+    }
+
+
+@st.cache_data
 def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     """Real solved MILP reservoir trajectory (upper=Alqueva, lower=Pedrogao)
     -- ComponentStore.reservoir_trajectory is written straight from the

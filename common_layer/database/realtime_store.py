@@ -104,6 +104,8 @@ class ActivationStore:
                     up_price_eur_mwh     REAL    NOT NULL DEFAULT 0,
                     dn_price_eur_mwh     REAL    NOT NULL DEFAULT 0,
                     eff_isp_h            REAL    NOT NULL DEFAULT 0.25,
+                    bess_up_mw           REAL    NOT NULL DEFAULT 0,
+                    bess_dn_mw           REAL    NOT NULL DEFAULT 0,
                     PRIMARY KEY (delivery_date, product, isp)
                 )
                 """
@@ -118,6 +120,8 @@ class ActivationStore:
             ("up_price_eur_mwh", "0"),
             ("dn_price_eur_mwh", "0"),
             ("eff_isp_h", "0.25"),
+            ("bess_up_mw", "0"),
+            ("bess_dn_mw", "0"),
         ]:
             if col not in existing:
                 conn.execute(
@@ -129,7 +133,9 @@ class ActivationStore:
         return conn
 
     def save(self, delivery_date: str, product: str, rows: List[dict]) -> None:
-        """rows = [{isp, hour, up_mw, dn_mw, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h}]."""
+        """rows = [{isp, hour, up_mw, dn_mw, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h,
+        bess_up_mw, bess_dn_mw}]. bess_up_mw/bess_dn_mw are optional (default 0) --
+        callers that don't track a resource split (e.g. legacy code) just omit them."""
         data = []
         for r in rows:
             up_p = float(r["up_price_eur_mwh"])
@@ -140,6 +146,7 @@ class ActivationStore:
                 delivery_date, product, int(r["isp"]), int(r["hour"]),
                 float(r["up_mw"]), float(r["dn_mw"]),
                 legacy_p, up_p, dn_p, eff,
+                float(r.get("bess_up_mw", 0.0)), float(r.get("bess_dn_mw", 0.0)),
             ))
         with self._c() as conn:
             # Replace-all semantics: the activation list for (date, product) is the
@@ -151,14 +158,16 @@ class ActivationStore:
             conn.executemany(
                 """INSERT INTO activations
                    (delivery_date, product, isp, hour, up_mw, dn_mw,
-                    energy_price_eur_mwh, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", data)
+                    energy_price_eur_mwh, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h,
+                    bess_up_mw, bess_dn_mw)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", data)
 
     def load(self, delivery_date: str, product: str) -> List[dict]:
         with self._c() as conn:
             cur = conn.execute(
                 "SELECT isp, hour, up_mw, dn_mw, "
-                "energy_price_eur_mwh, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h "
+                "energy_price_eur_mwh, up_price_eur_mwh, dn_price_eur_mwh, eff_isp_h, "
+                "bess_up_mw, bess_dn_mw "
                 "FROM activations WHERE delivery_date=? AND product=? ORDER BY isp",
                 (delivery_date, product))
             return [dict(r) for r in cur.fetchall()]

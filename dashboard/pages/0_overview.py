@@ -160,6 +160,7 @@ bess_soc_price = data.load_bess_soc_price(selected_date)
 bess_charge_source = data.load_bess_charge_source(selected_date)
 da_vs_activation = data.load_da_vs_activation(selected_date)
 isp_dispatch = data.load_isp_dispatch(selected_date)
+afrr_dispatch = data.load_afrr_dispatch(selected_date, "aFRR")
 market_cards = [
     ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=380)) if rt else None,
     ("aFRR activation", lambda: components.html(delivery_ticket.render_activation_card(afrr_act, "aFRR"), height=440)) if afrr_act else None,
@@ -177,6 +178,7 @@ technical_cards = [
     ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=380)) if bess_charge_source else None,
     ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=380)) if da_vs_activation else None,
     ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=460)) if isp_dispatch else None,
+    ("aFRR dispatch (BESS vs PSP)", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch), height=520)) if afrr_dispatch else None,
 ]
 market_cards = [c for c in market_cards if c is not None]
 technical_cards = [c for c in technical_cards if c is not None]

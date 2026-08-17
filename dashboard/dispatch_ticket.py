@@ -1045,6 +1045,7 @@ def render_isp_dispatch_card(dv: dict) -> str:
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">ISP dispatch</div>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Real per-asset dispatch at true 96-ISP (15-min) resolution &mdash; every point independently solved, not a repeated hourly value</p>
 
+
     <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
       <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Power, <i>P</i> (MW)</div>
@@ -1078,6 +1079,109 @@ def render_isp_dispatch_card(dv: dict) -> str:
       </div>
       <p style="font-size:11px; color:#000; margin:12px 0 4px; line-height:1.5;">
         Fig. 1.&nbsp;&nbsp;Alqueva PSP&ndash;PV&ndash;BESS dispatch across the delivery day, resolved at {n} real 15-min imbalance settlement periods (ISP). Top: PV and BESS discharge (own scale, max {pv_bess_max:.1f} MW). Bottom: PSP turbine output (own scale, max {psp_max:.0f} MW). Delivery date {dv['delivery_date']}.
+      </p>
+    </div>
+  </div>
+</div>'''
+
+
+def render_afrr_dispatch_card(dv: dict) -> str:
+    """Real per-ISP reserved capacity vs actual activation for aFRR (or
+    mFRR), split by resource: BESS (fast responder up to its power rating,
+    base of the fill) vs PSP (ramp covers the remainder, stacked on top).
+    PV is never a contributor -- the activation model has no PV term in its
+    call-sizing logic, so it's correctly absent, not omitted. Two panels
+    (up-regulation / down-regulation), each with a dashed reserved-capacity
+    ceiling/floor and a two-toned stacked area for the actual call -- same
+    IEEE styling as the ISP dispatch widget."""
+    isps = dv["isps"]
+    n = len(isps)
+    product = dv["product"]
+    res_up, res_dn = dv["reserved_up_mw"], dv["reserved_dn_mw"]
+    bess_up, psp_up = dv["bess_up_mw"], dv["psp_up_mw"]
+    bess_dn, psp_dn = dv["bess_dn_mw"], dv["psp_dn_mw"]
+
+    x0, x1 = 30, 390
+    y0, y1 = 10, 48
+    band_h = y1 - y0
+    up_max = max(max(res_up, default=0.0), 1e-6)
+    dn_max = max(max(res_dn, default=0.0), 1e-6)
+
+    def fx(i: int) -> float:
+        return x0 + i / max(n - 1, 1) * (x1 - x0)
+
+    def stacked_area(base: list[float], top_extra: list[float], vmax: float, up: bool) -> tuple[str, str]:
+        """base = BESS fill (from axis), top = base+extra = BESS+PSP fill."""
+        def fy(v: float) -> float:
+            frac = v / vmax if vmax > 1e-9 else 0.0
+            return (y1 - frac * band_h) if up else (y0 + frac * band_h)
+        base_pts = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(base))
+        base_axis = y1 if up else y0
+        base_path = f"M{fx(0):.1f},{base_axis:.1f} L{base_pts} L{fx(n-1):.1f},{base_axis:.1f} Z"
+        total = [b + e for b, e in zip(base, top_extra)]
+        top_pts_fwd = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(total))
+        top_pts_bwd = " L".join(f"{fx(n-1-i):.1f},{fy(v):.1f}" for i, v in enumerate(reversed(base)))
+        top_path = f"M{fx(0):.1f},{fy(total[0]):.1f} L{top_pts_fwd} L{top_pts_bwd} Z"
+        return base_path, top_path
+
+    up_base_path, up_top_path = stacked_area(bess_up, psp_up, up_max, True)
+    dn_base_path, dn_top_path = stacked_area(bess_dn, psp_dn, dn_max, False)
+
+    tick_idx = [0, round((n - 1) * 0.25), round((n - 1) * 0.5), round((n - 1) * 0.75), n - 1]
+    ticks_x = "".join(
+        f'<line x1="{fx(i):.1f}" y1="{y1+62}" x2="{fx(i):.1f}" y2="{y1+65}" stroke="#000"/>'
+        f'<text x="{fx(i):.1f}" y="{y1+74}" font-size="9" fill="#000" text-anchor="middle">{isps[i]}</text>'
+        for i in tick_idx
+    )
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Reserve delivery</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
+    </div>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
+    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Reserved capacity vs actual activation at 96-ISP resolution, split by resource &mdash; BESS (fast responder) base, PSP (ramp) on top. PV never contributes: no PV term in the call-sizing logic.</p>
+
+    <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Up-reg., <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 60" style="width:100%; height:55px; display:block;">
+            <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y0}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,2"/>
+            <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{up_max:.1f}</text>
+            <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
+            <path d="{up_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
+            <path d="{up_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            <text x="{x0+8}" y="{y0+11}" font-size="8" fill="#22c55e">reserved up (ceiling)</text>
+            <text x="{x0+8}" y="{y0+21}" font-size="9" fill="{theme.COLOR_UP}" font-weight="bold">BESS</text>
+            <text x="{x0+40}" y="{y0+21}" font-size="9" fill="{theme.COLOR_GEN}" font-weight="bold">PSP</text>
+          </svg>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-top:10px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Dn-reg., <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 90" style="width:100%; height:84px; display:block;">
+            <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y0}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
+            <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">0</text>
+            <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">{dn_max:.1f}</text>
+            <path d="{dn_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
+            <path d="{dn_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            <text x="{x0+8}" y="{y1+11}" font-size="8" fill="#ef4444">reserved dn (floor)</text>
+            {ticks_x}
+          </svg>
+          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">ISP index, <i>k</i> (15-min periods, <i>k</i> = 1&hellip;{n})</div>
+        </div>
+      </div>
+      <p style="font-size:11px; color:#000; margin:12px 0 4px; line-height:1.5;">
+        Fig. 1.&nbsp;&nbsp;{product} reserve delivery across the delivery day, resolved at {n} real 15-min imbalance settlement periods (ISP). Top: up-regulation vs reserved ceiling ({up_max:.1f} MW). Bottom: down-regulation vs reserved floor ({dn_max:.1f} MW). Stacked fill: BESS (fast responder) base, PSP (ramp) remainder. Delivery date {dv['delivery_date']}.
       </p>
     </div>
   </div>
