@@ -32,6 +32,7 @@ from common_layer.database import (
 )
 from common_layer.configuration.config_loader import load_config
 from common_layer.optimisation_model.reserve_offer_builder import _envelope
+from common_layer.utilities import date_utils as du
 
 # ── Alqueva physical limits — confirmed from plant.yaml / market.yaml ────────
 # Total plant generation/pump envelope (FCR-aware) is now computed dynamically
@@ -57,7 +58,100 @@ _DEFAULT_LOWER_INIT_HM3 = 27.0
 
 
 def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
-    hours = list(range(1, 25))
+    """Builds the real-hourly (24-row) summary sheet by honestly aggregating
+    each hour's real ISPs (4 per hour post-transition, 1 per hour pre-
+    transition -- hour_to_isps()/isp_duration_min() handle both). Every
+    store this reads (PositionStore, ComponentStore, ReserveStore) is now
+    ISP-keyed since the DA/IDA/XBID gates solve natively at ISP resolution
+    -- a plain `.get(h, ...)` for h in 1..24 would silently read ISP KEYS
+    1..24 (the first ~6 hours of the day) instead of real hourly values,
+    which is exactly the bug this aggregation replaces (surfaced as large
+    spurious Energy_balance_check_MW / Mass_balance_error_hm3 on the Risk &
+    Constraints page)."""
+    day = du.parse_date(delivery_date)
+    hours = du.delivery_hours(day)
+    isp_dt_h = du.isp_duration_min(day) / 60.0
+
+    def isps_for(h: int) -> List[int]:
+        return du.hour_to_isps(h, day)
+
+    def avg(d: dict, isps: List[int], field: str, default: float = 0.0) -> float:
+        """Rate/power fields (MW, m3/h, %, ratios) -- time-weighted mean is
+        exact since every ISP in an hour has equal duration."""
+        vals = [d.get(isp, {}).get(field, default) for isp in isps]
+        return sum(vals) / len(vals) if vals else default
+
+    def avg_list(d: dict, isps: List[int], field: str, n: int = 4) -> List[float]:
+        sums = [0.0] * n
+        for isp in isps:
+            arr = d.get(isp, {}).get(field, [0.0] * n)
+            for i in range(n):
+                sums[i] += arr[i] if i < len(arr) else 0.0
+        cnt = max(len(isps), 1)
+        return [s / cnt for s in sums]
+
+    def last(d: dict, isps: List[int], field: str, default: float = 0.0) -> float:
+        """Stock fields (reservoir level, head) -- the value at the END of
+        the hour (last ISP), matching the original hourly semantics of
+        'reservoir level at this hour's close', not an average level."""
+        if not isps:
+            return default
+        return d.get(isps[-1], {}).get(field, default)
+
+    def vol_and_price(pos: dict, isps: List[int]) -> tuple[float, float]:
+        """Position dicts: volume_mwh sums to the real hourly MWh (== MW
+        since the hour is always 1h regardless of ISP count); price is the
+        volume-weighted average across the hour's ISPs, falling back to a
+        simple average when total traded volume is ~0."""
+        total_vol = 0.0
+        weighted = 0.0
+        abs_weight = 0.0
+        for isp in isps:
+            row = pos.get(isp, {})
+            v = row.get("volume_mwh", 0.0)
+            p = row.get("price_eur_mwh", 0.0)
+            total_vol += v
+            weighted += p * abs(v)
+            abs_weight += abs(v)
+        if abs_weight > 1e-9:
+            price = weighted / abs_weight
+        else:
+            prices = [pos.get(isp, {}).get("price_eur_mwh", 0.0) for isp in isps]
+            price = sum(prices) / len(prices) if prices else 0.0
+        return total_vol, price
+
+    def has_any(pos: dict, isps: List[int]) -> bool:
+        return any(isp in pos for isp in isps)
+
+    def sum_revenue(pos: dict, isps: List[int]) -> float:
+        """True per-ISP revenue summed across the hour -- NOT
+        avg_price * total_volume, which is only exact when every ISP in the
+        hour has the same sign of volume. Real mid-hour mode switches
+        (turbine -> pump within the same hour) do happen, so the two are
+        not interchangeable -- confirmed against 2026-08-16, where using
+        the average-price shortcut for DA alone understated revenue by
+        ~16k EUR (2%) versus this exact sum."""
+        return sum(
+            pos.get(isp, {}).get("volume_mwh", 0.0) * pos.get(isp, {}).get("price_eur_mwh", 0.0)
+            for isp in isps
+        )
+
+    def sum_delta_revenue(cur_pos: dict, prev_pos: dict, isps: List[int]) -> float:
+        """True per-ISP incremental revenue for a re-bidding gate: each ISP's
+        (cur_volume - effective_prior_volume) settled at cur's price, summed
+        across the hour. ISPs the gate didn't touch (outside its delivery
+        window) contribute zero, matching the original per-hour behaviour of
+        only counting hours actually in the gate's window."""
+        total = 0.0
+        for isp in isps:
+            cur = cur_pos.get(isp)
+            if cur is None:
+                continue
+            prev_vol = prev_pos.get(isp, {}).get("volume_mwh", 0.0)
+            cur_vol = cur.get("volume_mwh", prev_vol)
+            cur_prc = cur.get("price_eur_mwh", 0.0)
+            total += cur_prc * (cur_vol - prev_vol)
+        return total
 
     # FCR-aware envelope: reuse the SAME function reserve_offer_builder.py uses
     # (single source of truth) instead of the hardcoded _P_MAX_GEN_MW/_P_MAX_PUMP_MW
@@ -80,6 +174,15 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
 
     # Load cumulative committed position (DA + all IDA/XBID deltas) once — used per hour below
     committed_final: Dict[int, float] = pos.committed_position(delivery_date)
+
+    # Effective per-ISP position after each gate (latest gate that touched an ISP
+    # wins, falling back to the previous gate for ISPs outside that gate's
+    # delivery window) -- needed as the "prior" side of each gate's true
+    # per-ISP incremental revenue (sum_delta_revenue below), since a gate's own
+    # dict only has rows for the ISPs it actually re-bid.
+    eff_after_ida1 = {isp: (ida1_pos[isp] if isp in ida1_pos else da_pos.get(isp, {})) for isp in da_pos}
+    eff_after_ida2 = {isp: (ida2_pos[isp] if isp in ida2_pos else eff_after_ida1.get(isp, {})) for isp in da_pos}
+    eff_after_ida3 = {isp: (ida3_pos[isp] if isp in ida3_pos else eff_after_ida2.get(isp, {})) for isp in da_pos}
 
     afrr_off = rsvr.load_reserve(delivery_date, "aFRR")
     mfrr_off = rsvr.load_reserve(delivery_date, "mFRR")
@@ -131,16 +234,16 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
     # ISP duration 15 min → energy per ISP = MW × 0.25 h
     _IMB_LONG_FACTOR  = 0.85   # matches market.yaml imbalance.fallback_long_factor
     _IMB_SHORT_FACTOR = 1.20   # matches market.yaml imbalance.fallback_short_factor
-    da_price_h = {h: da_pos.get(h, {}).get("price_eur_mwh", 0.0) for h in hours}
+    da_price_h = {h: vol_and_price(da_pos, isps_for(h))[1] for h in hours}
     imb_rev: Dict[int, float] = {h: 0.0 for h in hours}
     for row in rt_rows:
         h = row["hour"]
         dev = row.get("actual_mw", 0.0) - row.get("scheduled_mw", 0.0)
         da_p = da_price_h.get(h, 0.0)
         if dev > 0:   # long: over-delivered → receives DA × 0.85 per surplus MWh
-            imb_rev[h] = imb_rev.get(h, 0.0) + dev * da_p * _IMB_LONG_FACTOR * 0.25
+            imb_rev[h] = imb_rev.get(h, 0.0) + dev * da_p * _IMB_LONG_FACTOR * isp_dt_h
         elif dev < 0: # short: under-delivered → pays DA × 1.20 per missing MWh (dev is negative)
-            imb_rev[h] = imb_rev.get(h, 0.0) + dev * da_p * _IMB_SHORT_FACTOR * 0.25
+            imb_rev[h] = imb_rev.get(h, 0.0) + dev * da_p * _IMB_SHORT_FACTOR * isp_dt_h
 
     # ── Build one row per hour ─────────────────────────────────────────────────
     rows = []
@@ -148,108 +251,111 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
     cum_net_mwh = 0.0
 
     for h in hours:
+        isps = isps_for(h)
+
         # --- GROUP A: Inputs ---
-        da_price = da_pos.get(h, {}).get("price_eur_mwh", 0.0)
-        pv_avail = pv_sched.get(h, {}).get("available_mw", 0.0)
-        inflow   = float(inflow_m3h.get(h, 0.0))
+        da_vol, da_price = vol_and_price(da_pos, isps)
+        pv_avail = avg(pv_sched, isps, "available_mw")
+        inflow   = sum(float(inflow_m3h.get(isp, 0.0)) for isp in isps) / max(len(isps), 1)
 
         # --- GROUP B: PSP plant totals ---
-        ps       = psp_sched.get(h, {})
-        psp_gen  = ps.get("turbine_mw", 0.0)
-        psp_pump = ps.get("pump_mw", 0.0)
-        da_vol       = da_pos.get(h, {}).get("volume_mwh", 0.0)  # signed MWh (dt=1h)
-        psp_net_da   = da_vol   # MW equivalent (dt=1h so numerically equal)
-        final_vol    = committed_final.get(h, psp_net_da)  # cumulative position after all IDA/XBID
-        units_turb   = int(sum(ps.get("units_on_turb", [])))
-        units_pump_n = int(sum(ps.get("units_on_pump", [])))
+        psp_gen  = avg(psp_sched, isps, "turbine_mw")
+        psp_pump = avg(psp_sched, isps, "pump_mw")
+        psp_net_da   = da_vol   # real hourly MWh == MW equivalent (hour is always 1h)
+        final_vol    = sum(committed_final.get(isp, psp_net_da) for isp in isps) / max(len(isps), 1)
+        # units_on_turb/pump average to a fractional "on for X of the hour's ISPs" --
+        # honest for a mid-hour mode switch, and reduces to the exact original 0/1 on
+        # pre-transition dates (1 ISP per hour).
+        units_turb   = round(sum(avg_list(psp_sched, isps, "units_on_turb")), 2)
+        units_pump_n = round(sum(avg_list(psp_sched, isps, "units_on_pump")), 2)
         da_side = "SELL" if psp_net_da > 0.01 else ("BUY" if psp_net_da < -0.01 else "IDLE")
 
         # --- GROUP C: Per-unit PSP (4 units) ---
-        u_gen  = ps.get("units_turbine", [0.0] * 4)
-        u_pump = ps.get("units_pump",    [0.0] * 4)
-        u_on_t = ps.get("units_on_turb", [0]   * 4)
-        u_on_p = ps.get("units_on_pump", [0]   * 4)
-        u_qt   = ps.get("units_q_turb",  [0.0] * 4)
-        u_qp   = ps.get("units_q_pump",  [0.0] * 4)
-        q_turb_total = ps.get("q_turb_total_m3h", 0.0)
-        q_pump_total = ps.get("q_pump_total_m3h", 0.0)
+        u_gen  = avg_list(psp_sched, isps, "units_turbine")
+        u_pump = avg_list(psp_sched, isps, "units_pump")
+        u_on_t = avg_list(psp_sched, isps, "units_on_turb")
+        u_on_p = avg_list(psp_sched, isps, "units_on_pump")
+        u_qt   = avg_list(psp_sched, isps, "units_q_turb")
+        u_qp   = avg_list(psp_sched, isps, "units_q_pump")
+        q_turb_total = avg(psp_sched, isps, "q_turb_total_m3h")
+        q_pump_total = avg(psp_sched, isps, "q_pump_total_m3h")
 
         # --- GROUP D: PV ---
-        pv          = pv_sched.get(h, {})
-        pv_used     = pv.get("used_mw", 0.0)
-        pv_to_bess  = pv.get("to_bess_mw", 0.0)
-        pv_curt     = pv.get("curtailed_mw", 0.0)
+        pv_used     = avg(pv_sched, isps, "used_mw")
+        pv_to_bess  = avg(pv_sched, isps, "to_bess_mw")
+        pv_curt     = avg(pv_sched, isps, "curtailed_mw")
 
         # --- GROUP E: BESS ---
-        bs           = bess_sched.get(h, {})
-        bess_chg     = bs.get("charge_mw", 0.0)       # grid → BESS (p_chg in MILP)
-        bess_tot_chg = bs.get("total_charge_mw", 0.0) # p_chg + pv_to_bess
-        bess_dis     = bs.get("discharge_mw", 0.0)
-        bess_soc     = bs.get("soc_mwh", 0.0)
+        bess_chg     = avg(bess_sched, isps, "charge_mw")       # grid → BESS (p_chg in MILP)
+        bess_tot_chg = avg(bess_sched, isps, "total_charge_mw") # p_chg + pv_to_bess
+        bess_dis     = avg(bess_sched, isps, "discharge_mw")
+        bess_soc     = last(bess_sched, isps, "soc_mwh")        # stock -- value at hour-end
         bess_soc_pct = round(100.0 * bess_soc / _BESS_CAP_MWH, 1)  # ref: 2.0 MWh capacity
 
         # --- GROUP F: Reservoir & hydraulics ---
-        rt        = res_traj.get(h, {})
-        upper_hm3 = rt.get("upper_hm3", 0.0)
-        lower_hm3 = rt.get("lower_hm3", 0.0)
-        spill_m3h = rt.get("spill_m3h", 0.0)
-        head_m    = rt.get("head_m", 0.0)
+        upper_hm3 = last(res_traj, isps, "upper_hm3")   # stock -- level at hour-end
+        lower_hm3 = last(res_traj, isps, "lower_hm3")
+        spill_m3h = avg(res_traj, isps, "spill_m3h")
+        head_m    = last(res_traj, isps, "head_m")
 
         upper_rng = _UPPER_MAX_HM3 - _UPPER_MIN_HM3    # 3150 − 830 = 2320 hm³ usable range
         lower_rng = _LOWER_MAX_HM3 - _LOWER_MIN_HM3    # 54 − 5 = 49 hm³ usable range
         upper_pct = round(100.0 * (upper_hm3 - _UPPER_MIN_HM3) / upper_rng, 1) if upper_rng else 0.0
         lower_pct = round(100.0 * (lower_hm3 - _LOWER_MIN_HM3) / lower_rng, 1) if lower_rng else 0.0
 
-        dV_actual      = upper_hm3 - prev_upper_hm3   # Δ volume vs prior-hour end state
-        # Mass balance theoretical: ΔV = (inflow + q_pump − q_turb − spill) × 1h / M3_PER_HM3
-        dV_theoretical = (inflow + q_pump_total - q_turb_total - spill_m3h) / _M3_PER_HM3
+        dV_actual = upper_hm3 - prev_upper_hm3   # Δ volume vs prior-hour end state
+        # Mass balance theoretical: integrate real per-ISP rates over each ISP's own
+        # duration (isp_dt_h) and sum across the hour's ISPs, rather than treating an
+        # already hour-averaged rate as if a full hour elapsed at that single rate --
+        # exact for any ISP count per hour (4 normally, 3/5 on DST change days).
+        dV_theoretical = sum(
+            (float(inflow_m3h.get(isp, 0.0))
+             + psp_sched.get(isp, {}).get("q_pump_total_m3h", 0.0)
+             - psp_sched.get(isp, {}).get("q_turb_total_m3h", 0.0)
+             - res_traj.get(isp, {}).get("spill_m3h", 0.0)) * isp_dt_h
+            for isp in isps
+        ) / _M3_PER_HM3
         mass_balance_err = round(abs(dV_actual - dV_theoretical), 6)
         prev_upper_hm3   = upper_hm3
 
         # --- GROUP G: Efficiency & capacity factors ---
-        ep      = eff_ph.get(h, {})
-        eta_trb = round(ep.get("eta_trb_pw", 0.0), 4)
-        eta_pmp = round(ep.get("eta_pmp_pw", 0.0), 4)
+        eta_trb = round(avg(eff_ph, isps, "eta_trb_pw"), 4)
+        eta_pmp = round(avg(eff_ph, isps, "eta_pmp_pw"), 4)
         # CF denominator is PSP-only (518.4/446.4 MW) — mixing in PV+BESS capacity would understate CF
         cf_trb  = round(psp_gen  / _PSP_MAX_GEN_MW,  4) if _PSP_MAX_GEN_MW  else 0.0
         cf_pmp  = round(psp_pump / _PSP_MAX_PUMP_MW, 4) if _PSP_MAX_PUMP_MW else 0.0
 
         # --- GROUP H: IDA re-optimisation ---
-        ida1_vol = ida1_pos.get(h, {}).get("volume_mwh", psp_net_da)
-        ida1_prc = ida1_pos.get(h, {}).get("price_eur_mwh", da_price)
+        ida1_vol, ida1_prc = vol_and_price(ida1_pos, isps) if has_any(ida1_pos, isps) else (psp_net_da, da_price)
         ida1_del = round(ida1_vol - psp_net_da, 4)
         ida1_spr = round(ida1_prc - da_price, 4)
 
-        ida2_vol = ida2_pos.get(h, {}).get("volume_mwh", ida1_vol)
-        ida2_prc = ida2_pos.get(h, {}).get("price_eur_mwh", ida1_prc)
+        ida2_vol, ida2_prc = vol_and_price(ida2_pos, isps) if has_any(ida2_pos, isps) else (ida1_vol, ida1_prc)
         ida2_del = round(ida2_vol - ida1_vol, 4)
         # Zero spread for hours outside IDA2 delivery window (H1–H2 frozen; market.yaml delivery_hours [3,24])
         # Propagated fallback price would otherwise misrepresent a trade that never happened.
-        ida2_spr = round(ida2_prc - da_price, 4) if h in ida2_pos else 0.0
+        ida2_spr = round(ida2_prc - da_price, 4) if has_any(ida2_pos, isps) else 0.0
 
-        ida3_vol = ida3_pos.get(h, {}).get("volume_mwh", ida2_vol)
-        ida3_prc = ida3_pos.get(h, {}).get("price_eur_mwh", ida2_prc)
+        ida3_vol, ida3_prc = vol_and_price(ida3_pos, isps) if has_any(ida3_pos, isps) else (ida2_vol, ida2_prc)
         ida3_del = round(ida3_vol - ida2_vol, 4)
         # Zero spread for hours outside IDA3 delivery window (H1–H11 frozen; market.yaml delivery_hours [12,24])
-        ida3_spr = round(ida3_prc - da_price, 4) if h in ida3_pos else 0.0
+        ida3_spr = round(ida3_prc - da_price, 4) if has_any(ida3_pos, isps) else 0.0
 
-        xbid_vol = xbid_pos.get(h, {}).get("volume_mwh", ida3_vol)
+        xbid_vol, xbid_prc = vol_and_price(xbid_pos, isps) if has_any(xbid_pos, isps) else (ida3_vol, ida3_prc)
         xbid_del = round(xbid_vol - ida3_vol, 4)
         ida_cum  = round(final_vol - psp_net_da, 4)
 
         # --- GROUP I: aFRR ---
-        af       = afrr_off.get(h, {})
-        afrr_up  = af.get("up_mw", 0.0)
-        afrr_dn  = af.get("dn_mw", 0.0)
-        afrr_cup = af.get("cap_up_eur_mw", 0.0)
-        afrr_cdn = af.get("cap_dn_eur_mw", 0.0)
+        afrr_up  = avg(afrr_off, isps, "up_mw")
+        afrr_dn  = avg(afrr_off, isps, "dn_mw")
+        afrr_cup = avg(afrr_off, isps, "cap_up_eur_mw")
+        afrr_cdn = avg(afrr_off, isps, "cap_dn_eur_mw")
 
         # --- GROUP J: mFRR ---
-        mf       = mfrr_off.get(h, {})
-        mfrr_up  = mf.get("up_mw", 0.0)
-        mfrr_dn  = mf.get("dn_mw", 0.0)
-        mfrr_cup = mf.get("cap_up_eur_mw", 0.0)
-        mfrr_cdn = mf.get("cap_dn_eur_mw", 0.0)
+        mfrr_up  = avg(mfrr_off, isps, "up_mw")
+        mfrr_dn  = avg(mfrr_off, isps, "dn_mw")
+        mfrr_cup = avg(mfrr_off, isps, "cap_up_eur_mw")
+        mfrr_cdn = avg(mfrr_off, isps, "cap_dn_eur_mw")
 
         # --- GROUP K: Physical headroom checks ---
         # PR-11: use committed net position (final_vol) — matches reserve_offer_builder.py
@@ -269,17 +375,19 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
         energy_balance = round(psp_net_da - net_components, 4)
 
         # --- GROUP L: Revenue per hour ---
-        # DA settlement: committed DA volume × DA clearing price
-        rev_da          = round(da_price * psp_net_da, 2)
-        # IDA incremental: each IDA gate settles its delta volume at its clearing price.
-        # Kept per-gate (not just the Rev_IDA_EUR sum below) so callers that need to
-        # distinguish which gate actually re-bid don't have to guess from delta_MW
-        # alone -- a delta can be non-zero with ~zero revenue if price barely moved.
-        xbid_prc        = xbid_pos.get(h, {}).get("price_eur_mwh", ida3_prc)
-        rev_ida1        = round(ida1_prc * ida1_del, 2)
-        rev_ida2        = round(ida2_prc * ida2_del, 2)
-        rev_ida3        = round(ida3_prc * ida3_del, 2)
-        rev_xbid        = round(xbid_prc * xbid_del, 2)
+        # DA settlement: true per-ISP volume x price, summed -- NOT
+        # da_price * psp_net_da, which uses an hour-average price and would
+        # misstate revenue on any hour with a mid-hour mode switch (real,
+        # confirmed sign flips within a single hour on this plant).
+        rev_da          = round(sum_revenue(da_pos, isps), 2)
+        # IDA incremental: each ISP's delta volume settles at that ISP's real
+        # price, summed across the hour -- kept per-gate (not just the
+        # Rev_IDA_EUR sum below) so callers that need to distinguish which
+        # gate actually re-bid don't have to guess from delta_MW alone.
+        rev_ida1        = round(sum_delta_revenue(ida1_pos, da_pos, isps), 2)
+        rev_ida2        = round(sum_delta_revenue(ida2_pos, eff_after_ida1, isps), 2)
+        rev_ida3        = round(sum_delta_revenue(ida3_pos, eff_after_ida2, isps), 2)
+        rev_xbid        = round(sum_delta_revenue(xbid_pos, eff_after_ida3, isps), 2)
         rev_ida         = round(rev_ida1 + rev_ida2 + rev_ida3 + rev_xbid, 2)
         # aFRR capacity revenue: MW × EUR/MW/h × 1h
         rev_afrr_cap_up = round(afrr_up * afrr_cup, 2)
