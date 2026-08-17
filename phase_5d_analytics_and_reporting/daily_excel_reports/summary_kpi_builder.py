@@ -180,6 +180,10 @@ def build_summary_kpis(delivery_date: str, df: pd.DataFrame) -> List[Row]:
     sec = "8. Real-Time Delivery"
     S(sec, "Imbalance settlement",       _r(df["Rev_imbalance_EUR"].sum()), "EUR")
     S(sec, "IDA incremental revenue",    _r(df["Rev_IDA_EUR"].sum()), "EUR")
+    S(sec, "IDA1 incremental revenue",   _r(df["Rev_IDA1_EUR"].sum()), "EUR")
+    S(sec, "IDA2 incremental revenue",   _r(df["Rev_IDA2_EUR"].sum()), "EUR")
+    S(sec, "IDA3 incremental revenue",   _r(df["Rev_IDA3_EUR"].sum()), "EUR")
+    S(sec, "XBID incremental revenue",   _r(df["Rev_XBID_EUR"].sum()), "EUR")
     S(sec, "Hours IDA1 adjusted",        int((df["IDA1_delta_MW"].abs() > 0.01).sum()), "h")
     S(sec, "Hours IDA2 adjusted",        int((df["IDA2_delta_MW"].abs() > 0.01).sum()), "h")
     S(sec, "Hours IDA3 adjusted",        int((df["IDA3_delta_MW"].abs() > 0.01).sum()), "h")

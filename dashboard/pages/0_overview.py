@@ -208,22 +208,26 @@ report = data.load_daily_report(selected_date)
 kpis = report["kpis"]
 
 # ---------------------------------------------------------------------------
-# KPI row — same Summary_KPIs values Trading Desk shows
+# P&L breakdown — every real revenue line item as its own proportion bar,
+# not folded into "IDA + XBID" or "Reserve" buckets, since those hide which
+# gate/product actually moved the needle.
 # ---------------------------------------------------------------------------
 
 total_pnl = data.kpi_value(kpis, "Total daily P&L") or 0.0
-da_rev    = data.kpi_value(kpis, "DA energy revenue") or 0.0
-ida_rev   = data.kpi_value(kpis, "IDA incremental revenue") or 0.0
-reserve   = (data.kpi_value(kpis, "aFRR capacity revenue") or 0.0) + (data.kpi_value(kpis, "aFRR activation revenue") or 0.0) \
-            + (data.kpi_value(kpis, "mFRR capacity revenue") or 0.0) + (data.kpi_value(kpis, "mFRR activation revenue") or 0.0)
 reserve_pct = data.kpi_value(kpis, "Reserve share of P&L")
-
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Total P&L", f"{total_pnl:,.0f} EUR")
-c2.metric("DA", f"{da_rev:,.0f} EUR")
-c3.metric("IDA + XBID", f"{ida_rev:,.0f} EUR")
-c4.metric("Reserve (aFRR+mFRR)", f"{reserve:,.0f} EUR")
-c5.metric("Reserve share", f"{reserve_pct:.1f} %" if reserve_pct is not None else "n/a")
+pnl_lines = [
+    ("DA",                data.kpi_value(kpis, "DA energy revenue") or 0.0,               theme.COLOR_GEN),
+    ("IDA1",              data.kpi_value(kpis, "IDA1 incremental revenue") or 0.0,         theme.COLOR_PRICE),
+    ("IDA2",              data.kpi_value(kpis, "IDA2 incremental revenue") or 0.0,         theme.COLOR_PRICE),
+    ("IDA3",              data.kpi_value(kpis, "IDA3 incremental revenue") or 0.0,         theme.COLOR_PRICE),
+    ("XBID",              data.kpi_value(kpis, "XBID incremental revenue") or 0.0,         theme.STATUS_NEUTRAL),
+    ("aFRR capacity",     data.kpi_value(kpis, "aFRR capacity revenue") or 0.0,            theme.COLOR_UP),
+    ("aFRR activation",   data.kpi_value(kpis, "aFRR activation revenue") or 0.0,          theme.COLOR_UP),
+    ("mFRR capacity",     data.kpi_value(kpis, "mFRR capacity revenue") or 0.0,            theme.COLOR_PUMP),
+    ("mFRR activation",   data.kpi_value(kpis, "mFRR activation revenue") or 0.0,          theme.COLOR_PUMP),
+    ("Imbalance settlement", data.kpi_value(kpis, "Imbalance settlement") or 0.0,          theme.STATUS_GOOD),
+]
+components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=430)
 
 # Dispatch + price, Gate decisions, Risk & constraints, and Portfolio risk
 # summaries were all dropped from Overview -- each already has its own

@@ -1025,6 +1025,50 @@ window.dtIspReplay = function(btn) {
 </script>'''
 
 
+def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines: list[tuple[str, float, str]]) -> str:
+    """Total P&L plus every real revenue line item as a mini proportion bar
+    under it, replacing the old 5-flat-metric row. `lines` = [(label, value,
+    color)], each bar's width = |value| / |total_pnl| (capped 100%) so all
+    bars share one scale and are directly comparable. A negative value (e.g.
+    Imbalance settlement, which can be a real signed penalty on other days)
+    renders in STATUS_CRITICAL red regardless of its assigned color, so a
+    cost never reads as if it were revenue."""
+    scale = max(abs(total_pnl), 1e-6)
+    rows_html = []
+    for label, value, color in lines:
+        pct = min(abs(value) / scale * 100, 100.0)
+        bar_color = theme.STATUS_CRITICAL if value < 0 else color
+        rows_html.append(f'''
+        <div style="margin-bottom:7px;">
+          <div style="display:flex; justify-content:space-between; font-size:10.5px; color:{theme.INK_SECONDARY};">
+            <span>{label}</span><span>{value:,.0f} EUR</span>
+          </div>
+          <div style="height:5px; background:{theme.GRIDLINE}; border-radius:3px; margin-top:2px;">
+            <div style="width:{pct:.2f}%; height:100%; background:{bar_color}; border-radius:3px;"></div>
+          </div>
+        </div>''')
+
+    reserve_html = (
+        f'<div style="display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid {theme.GRIDLINE}; font-size:11px;">'
+        f'<span style="color:{theme.INK_MUTED};">Reserve share of P&amp;L</span>'
+        f'<span style="font-weight:500; color:{theme.INK_PRIMARY};">{reserve_pct:.1f}%</span></div>'
+        if reserve_pct is not None else ""
+    )
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Total P&amp;L</span>
+      <span style="font-size:22px; font-weight:600; color:{theme.INK_PRIMARY};">{total_pnl:,.0f} EUR</span>
+    </div>
+    {''.join(rows_html)}
+    {reserve_html}
+  </div>
+</div>'''
+
+
 def render_isp_dispatch_card(dv: dict) -> str:
     """Real per-asset dispatch (PV, BESS discharge, PSP turbine) at true
     96-ISP (15-min) resolution -- every point is a genuinely different

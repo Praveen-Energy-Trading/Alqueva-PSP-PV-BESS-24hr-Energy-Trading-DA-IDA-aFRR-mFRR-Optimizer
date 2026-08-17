@@ -271,10 +271,16 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
         # --- GROUP L: Revenue per hour ---
         # DA settlement: committed DA volume × DA clearing price
         rev_da          = round(da_price * psp_net_da, 2)
-        # IDA incremental: each IDA gate settles its delta volume at its clearing price
+        # IDA incremental: each IDA gate settles its delta volume at its clearing price.
+        # Kept per-gate (not just the Rev_IDA_EUR sum below) so callers that need to
+        # distinguish which gate actually re-bid don't have to guess from delta_MW
+        # alone -- a delta can be non-zero with ~zero revenue if price barely moved.
         xbid_prc        = xbid_pos.get(h, {}).get("price_eur_mwh", ida3_prc)
-        rev_ida         = round(ida1_prc * ida1_del + ida2_prc * ida2_del
-                                + ida3_prc * ida3_del + xbid_prc * xbid_del, 2)
+        rev_ida1        = round(ida1_prc * ida1_del, 2)
+        rev_ida2        = round(ida2_prc * ida2_del, 2)
+        rev_ida3        = round(ida3_prc * ida3_del, 2)
+        rev_xbid        = round(xbid_prc * xbid_del, 2)
+        rev_ida         = round(rev_ida1 + rev_ida2 + rev_ida3 + rev_xbid, 2)
         # aFRR capacity revenue: MW × EUR/MW/h × 1h
         rev_afrr_cap_up = round(afrr_up * afrr_cup, 2)
         rev_afrr_cap_dn = round(afrr_dn * afrr_cdn, 2)
@@ -387,6 +393,10 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
             "Energy_balance_check_MW":    energy_balance,   # should be 0
             "Rev_DA_EUR":                 rev_da,
             "Rev_IDA_EUR":                rev_ida,
+            "Rev_IDA1_EUR":               rev_ida1,
+            "Rev_IDA2_EUR":               rev_ida2,
+            "Rev_IDA3_EUR":               rev_ida3,
+            "Rev_XBID_EUR":               rev_xbid,
             "Rev_aFRR_cap_up_EUR":        rev_afrr_cap_up,
             "Rev_aFRR_cap_dn_EUR":        rev_afrr_cap_dn,
             "Rev_aFRR_cap_EUR":           rev_afrr_cap,
