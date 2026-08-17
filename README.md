@@ -2,7 +2,7 @@
 
 Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL) — pumped-storage hydro, floating PV, and battery storage, bidding across DA, IDA, XBID, aFRR, and mFRR with full settlement and analytics.
 
-**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 15 pipeline phases · 1 shared MILP model**
+**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 19 pipeline phases · 1 shared MILP model**
 
 **Contents:** [Pipeline Architecture](#pipeline-architecture) · [Plant](#plant) · [Market Coverage](#market-coverage) · [Quick Start](#quick-start) · [Example Run](#example-run) · [Phase Reference](#phase-reference) · [Project Structure](#project-structure) · [Outputs](#outputs) · [Design Principles](#design-principles)
 
@@ -134,7 +134,12 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 | **Phase 2A, IDA1** | `run_ida1.py` | Re-optimise H1–H24, no-churn threshold, SIDC delta bids |
 | **Phase 2B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
 | **Phase 2C, IDA3** | `run_ida3.py` | H1–H11 frozen, re-optimise H12–H24 |
-| **Phase 2D, XBID** | `run_xbid.py` | Continuous intraday, per-order caps, H-1 rolling |
+| **Phase 2D/W1, XBID** | `run_xbid.py` | Continuous intraday check window 1 (D-1 18:30), per-order caps |
+| **Phase 2D/W2, XBID** | `run_xbid.py` | Continuous intraday check window 2 (D-1 22:30), per-order caps |
+| **Phase 2D/W3, XBID** | `run_xbid.py` | Continuous intraday check window 3 (D 03:00), per-order caps |
+| **Phase 2D/W4, XBID** | `run_xbid.py` | Continuous intraday check window 4 (D 06:00), per-order caps |
+| **Phase 2D/W5, XBID** | `run_xbid.py` | Continuous intraday check window 5 (D 09:30), per-order caps |
+| **Phase 2D/W6, XBID** | `run_xbid.py` | Continuous intraday check window 6 (D 12:00), per-order caps |
 | **Phase 3A, aFRR** | `run_afrr.py` | Capacity offers, PICASSO, FAT 5 min, `eff_isp_h` = 0.2083 h |
 | **Phase 3B, mFRR** | `run_mfrr.py` | Capacity offers, MARI, FAT 12.5 min, `eff_isp_h` = 0.1458 h |
 | **Phase 4A, Real-Time** | `run_realtime.py` | 96 ISPs/day, PSP + BESS setpoints, REN telemetry feed |
@@ -156,7 +161,7 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │
-├── run_production.py                             # ◄ Master orchestrator — all 15 phases
+├── run_production.py                             # ◄ Master orchestrator — all 19 phases
 │
 ├── common_layer/                                 # Shared foundation — imported by every phase
 │   ├── configuration/

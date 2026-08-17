@@ -34,10 +34,14 @@ from common_layer.database import PositionStore, ComponentStore, validate_inputs
 from common_layer.optimisation_model import (
     build_core_model, solve_core_model, extract_results, SolveError,
 )
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import update_training_data
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices
+from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import (
+    update_training_data, update_isp_training_data,
+)
+from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
+    forecast_da_prices_isp,
+)
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.pv_power_forecaster import (
-    forecast_pv_available,
+    forecast_pv_available_isp,
 )
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.reservoir_inflow_forecaster import (
     forecast_inflow,
@@ -58,16 +62,33 @@ from phase_1_da_day_ahead_bidding.trader_approval.trader_approval_prompt import 
 log = get_logger("phase1.da")
 
 
-def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool) -> tuple[dict, str]:
-    """Build the optimisation input bundle. Returns (inputs, price_source)."""
-    day   = du.parse_date(delivery_date)
-    hours = du.delivery_hours(day)
+def _expand_hourly_to_isp(hourly: dict, day, hours: list) -> dict:
+    """Repeat each hour's value flat across that hour's real ISPs. Used only
+    for inflow: river inflow's physical time constant is hours/days, not
+    minutes, so a flat hourly value genuinely is the correct treatment at
+    15-min resolution, not an approximation (same reasoning already applied
+    to the BESS SOC-vs-price and multi-asset dispatch dashboard widgets)."""
+    out = {}
+    for h in hours:
+        for isp in du.hour_to_isps(h, day):
+            out[isp] = hourly[h]
+    return out
 
-    # Step 1 — fill Excel with prices up to yesterday.
-    # Always runs: real OMIE data when available, synthetic gap-fill on failure.
-    # use_synthetic=True only skips live OMIE when internet is unavailable (CI/test).
+
+def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool) -> tuple[dict, str]:
+    """Build the optimisation input bundle at real ISP (15-min MTU) resolution,
+    matching MIBEL's actual settlement/commitment granularity since
+    2025-10-01. Returns (inputs, price_source)."""
+    day   = du.parse_date(delivery_date)
+    isps  = du.delivery_isps(day)
+    hours = du.delivery_hours(day)
+    isp_h = du.isp_duration_min(day) / 60.0
+
+    # Step 1 — fill Excel with prices up to yesterday (both hourly-legacy and
+    # real ISP history; the ISP price forecaster trains on the latter).
     if not use_synthetic:
         update_training_data(delivery_date, zone="PT")
+        update_isp_training_data(delivery_date, zone="PT")
     else:
         # Fill any historical gap with synthetic prices so lag features are valid.
         from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import (
@@ -76,24 +97,40 @@ def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool) ->
         _fill_synthetic_gap(delivery_date, zone="PT")
 
     # Step 2 — ML forecaster trains on updated history, predicts delivery_date
-    da_prices  = forecast_da_prices(hours, delivery_date)
+    # at true ISP resolution (real GHI-physics-scaled PV, real quarter-hour
+    # price history where available).
+    da_prices  = forecast_da_prices_isp(isps, delivery_date)
     price_source = "ML_FORECAST"
 
-    pv     = forecast_pv_available(hours, delivery_date, cfg.plant.pv)
-    inflow = forecast_inflow(hours, delivery_date, cfg.plant.reservoir)
+    pv = forecast_pv_available_isp(isps, delivery_date, cfg.plant.pv)
+
+    # Inflow forecaster is hourly-native (the underlying dataset is daily-mean
+    # sourced -- see reservoir_inflow_forecaster.py); expand flat per-hour,
+    # the physically correct treatment, not an approximation.
+    inflow_hourly = forecast_inflow(hours, delivery_date, cfg.plant.reservoir)
+    inflow = _expand_hourly_to_isp(inflow_hourly, day, hours)
 
     inputs = {
         "delivery_date": delivery_date,
-        "hours": hours,
-        "dt_h": 1.0,
+        "hours": isps,
+        "dt_h": isp_h,
         "da_prices": da_prices,
         "pv_available_mw": pv,
         "inflow_m3h": inflow,
-        "initial_state": {
-            "upper_reservoir_hm3": cfg.plant.initial_state.upper_reservoir_hm3,
-            "lower_reservoir_hm3": cfg.plant.initial_state.lower_reservoir_hm3,
-            "bess_soc_frac": cfg.plant.initial_state.bess_soc_frac,
-        },
+        "initial_state": ComponentStore().load_chained_initial_state(
+            delivery_date, cfg.plant.bess.capacity_mwh,
+            default_state={
+                "upper_reservoir_hm3": cfg.plant.initial_state.upper_reservoir_hm3,
+                "lower_reservoir_hm3": cfg.plant.initial_state.lower_reservoir_hm3,
+                "bess_soc_frac": cfg.plant.initial_state.bess_soc_frac,
+            },
+            reservoir_bounds={
+                "upper_min_hm3": cfg.plant.reservoir.upper_min_hm3,
+                "upper_usable_hm3": cfg.plant.reservoir.upper_usable_hm3,
+                "lower_min_hm3": cfg.plant.reservoir.lower_min_hm3,
+                "lower_capacity_hm3": cfg.plant.reservoir.lower_capacity_hm3,
+            },
+        ),
     }
     return inputs, price_source
 
@@ -103,7 +140,7 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
     cfg = load_config(config_dir)
     audit = AuditLogger()
     audit.log("DA_START", delivery_date=delivery_date, synthetic=use_synthetic)
-    log.info(f"DA gate for delivery {delivery_date} (synthetic={use_synthetic})")
+    log.info(f"DA gate for delivery {delivery_date}")
 
     # 2. inputs --------------------------------------------------------------
     inputs, price_source = _assemble_inputs(delivery_date, cfg, use_synthetic)
@@ -113,8 +150,14 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
         validate_inputs(inputs, cfg)
     except SchemaError as e:
         log.error(str(e))
-        audit.log("DA_SCHEMA_FAILED", reason=str(e))
+        audit.log("DA_SCHEMA_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "SCHEMA_FAILED", "reason": str(e)}
+
+    # DA runs FIRST in the real REN sequence (MPGGS Article 80(3): PDVD ->
+    # aFRR band -> mFRR band — see run_production.py for the full citation),
+    # so no reserve capacity is committed yet at this point. DA solves
+    # against the full FCR-reduced envelope; aFRR/mFRR are sized afterward
+    # from DA's leftover headroom (see run_afrr.py / afrr_offer_builder.py).
 
     # 4. solve ---------------------------------------------------------------
     try:
@@ -122,13 +165,13 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
         solve_time = solve_core_model(model, cfg, gate="DA")
     except SolveError as e:
         log.error(str(e))
-        audit.log("DA_SOLVE_FAILED", reason=str(e))
+        audit.log("DA_SOLVE_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "SOLVE_FAILED", "reason": str(e)}
 
     results = extract_results(model, meta)
     log.info(f"Solved in {solve_time:.2f}s | energy revenue "
              f"{results.energy_revenue_eur:,.2f} EUR")
-    audit.log("DA_SOLVED", solve_time=solve_time,
+    audit.log("DA_SOLVED", delivery_date=delivery_date, solve_time=solve_time,
               energy_revenue_eur=results.energy_revenue_eur,
               objective_eur=results.objective_eur)
 
@@ -137,17 +180,17 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
         check_da_bid(results, inputs, cfg, gate="DA")
     except BidCheckError as e:
         log.error(str(e))
-        audit.log("DA_BIDCHECK_FAILED", reason=str(e))
+        audit.log("DA_BIDCHECK_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "BID_CHECK_FAILED", "reason": str(e)}
-    audit.log("DA_BIDCHECK_PASSED")
+    audit.log("DA_BIDCHECK_PASSED", delivery_date=delivery_date)
 
     # 7. risk checker --------------------------------------------------------
-    risk = PreTradeRiskChecker(cfg).check(results)
+    risk = PreTradeRiskChecker(cfg).check(results, dt_h=inputs["dt_h"])
     if not risk.passed:
         log.error("RISK CHECK FAILED: " + "; ".join(risk.violations))
-        audit.log("DA_RISK_BLOCKED", violations=risk.violations)
+        audit.log("DA_RISK_BLOCKED", delivery_date=delivery_date, violations=risk.violations)
         return {"status": "RISK_BLOCKED", "violations": risk.violations}
-    audit.log("DA_RISK_PASSED")
+    audit.log("DA_RISK_PASSED", delivery_date=delivery_date)
 
     bids = format_da_bids(results)
     gate_close = resolve_gate_time(cfg.market.gate("DA").gate_close,
@@ -162,19 +205,19 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
         approved = request_da_approval(bids, results, price_source, solve_time, gate_close)
         if not approved:
             log.info("Trader REJECTED DA bids — nothing submitted")
-            audit.log("DA_REJECTED")
+            audit.log("DA_REJECTED", delivery_date=delivery_date)
             return {"status": "REJECTED"}
 
     # 9. submit (stub) + save ------------------------------------------------
     payload = to_omie_payload(bids, delivery_date)
     ref = f"DA-{delivery_date.replace('-', '')}-001"
-    audit.log("DA_SUBMITTED", ref=ref, n_hours=len(bids), n_bids=len(payload["bids"]))
+    audit.log("DA_SUBMITTED", delivery_date=delivery_date, ref=ref, n_hours=len(bids), n_bids=len(payload["bids"]))
     log.info(f"Submitted (stub). OMIE ref {ref}")
 
     position = {b.hour: {"volume_mwh": b.volume_mwh, "price_eur_mwh": b.price_eur_mwh}
                 for b in bids}
     PositionStore().save_position(delivery_date, "DA", position)
-    audit.log("DA_POSITION_SAVED", n_hours=len(position))
+    audit.log("DA_POSITION_SAVED", delivery_date=delivery_date, n_hours=len(position))
 
     # Save rich component data for analytics Excel report
     ComponentStore().save(

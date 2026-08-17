@@ -2,14 +2,14 @@
 reservoir_inflow_forecaster.py — daily natural inflow forecast for Alqueva upper reservoir.
 
 Methodology:
-    1. Load inflow_training_data_2015_2025.xlsx (daily mean m3/h, Guadiana river)
+    1. Load inflow_training_data_from_2015.xlsx (daily mean m3/h, Guadiana river)
        Source: 11-year hourly research dataset (2015-2025), aggregated to daily means
        to remove sub-daily simulation noise.
     2. Gap fill: missing dates filled with monthly climatological mean from plant.yaml
     3. Build lag + seasonal features
     4. Auto-select best model via inflow_selected_model.json:
          - On first run OR when Excel has new data since last evaluation:
-             walk-forward CV (4 folds) compares Naive / Ridge / LightGBM
+             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest / CatBoost
              → updates inflow_selected_model.json automatically
          - Otherwise: reads selected model from json (no CV overhead)
     5. Forecast delivery_date daily mean inflow → distribute flat across 24 hours
@@ -42,11 +42,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
 
 from common_layer.configuration.plant_config import ReservoirConfig
 
-_EXCEL_PATH   = os.path.join(_HERE, "inflow_training_data_2015_2025.xlsx")
+_EXCEL_PATH   = os.path.join(_HERE, "inflow_training_data_from_2015.xlsx")
 _SHEET        = "Inflow_2015_2025"
 _JSON_PATH    = os.path.join(_HERE, "inflow_selected_model.json")
 _WARMUP_DAYS  = 60    # minimum history before first CV fold
@@ -122,12 +122,7 @@ def _model_forecast(hours: List[int], delivery_date: str,
         X     = feat_tr[fcols]
         y     = feat_tr["inflow_m3h"].values
 
-        if selected == "LightGBM":
-            model = fit_lgbm(X, y, fcols)
-        elif selected == "Ridge":
-            model = fit_ridge(X.values, y)
-        else:
-            model = None  # Naive
+        model = fit_selected(selected, X, y, fcols)
 
         _cache[cache_key]            = model
         _cache[f"sel_{delivery_date}"] = selected
@@ -136,12 +131,7 @@ def _model_forecast(hours: List[int], delivery_date: str,
     selected = _cache[f"sel_{delivery_date}"]
     X_pred   = feat_pr[_feature_cols()]
 
-    if model is None:
-        pred = float(feat_pr["lag_1d"].iloc[0])
-    elif selected == "Ridge":
-        pred = float(model.predict(X_pred.values)[0])
-    else:
-        pred = float(model.predict(X_pred)[0])
+    pred = float(model.predict(X_pred)[0])
 
     pred = max(0.0, round(pred, 1))
     return {h: pred for h in hours}
@@ -180,9 +170,9 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
     with open(_JSON_PATH, "w") as f:
         json.dump(info, f, indent=2)
 
-    print(f"\n[Inflow Forecaster] Model selection updated → {selected}")
+    print(f"\n[Inflow Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.0f} m3/h{marker}")
     print()
@@ -210,7 +200,8 @@ def _fill_gaps(delivery_date: str, res_cfg: ReservoirConfig) -> None:
     new_rows = []
     for dt in missing:
         mean = res_cfg.inflow_for_month(dt.month)
-        new_rows.append({"Date": dt, "inflow_m3h": mean, "source": "CLIMATOLOGY"})
+        new_rows.append({"Date": dt, "inflow_m3h": mean,
+                          "source": "Alqueva Reservoir Inflow - Monthly Climatology (gap-fill)"})
 
     updated = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
     updated = updated.sort_values("Date").reset_index(drop=True)

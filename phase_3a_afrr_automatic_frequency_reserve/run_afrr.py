@@ -6,9 +6,20 @@ aFRR = automatic Frequency Restoration Reserve (secondary control).
   FAT  : 5 minutes (PICASSO harmonised, since 4 Dec 2024)
   Cap  : <= 250 EUR/MW availability price (REN)
 
-Offers the headroom left after the committed energy position (PR-11: no MW sold
-twice), bounded by FAT deliverability and the market max. Run the energy gates
-(DA / IDA) first so a committed position exists.
+REAL-WORLD SEQUENCING — CONFIRMED against REN's own official rulebook:
+Manual de Procedimentos da Gestao Global do Sistema (MPGGS), ERSE Directive
+9/2025, Article 80(3): "... a) Criacao do Programa Diario Viavel Definitivo
+(PDVD); b) Mercado de Banda de aFRR; c) Mercado de banda diaria de mFRR ..."
+The DA-derived program (PDVD, REN's grid-security-checked version of the DA
+market result — Article 81) is created FIRST, THEN the aFRR band market.
+An earlier session pass had this backwards (aFRR before DA), based on
+Germany's regelleistung.net precedent — a valid pattern elsewhere in the EU,
+but not what REN's own document specifies for Portugal. Reverted once the
+real REN sequence was confirmed directly from the source.
+
+Offers the headroom left after the committed DA energy position (PR-11: no
+MW sold twice), bounded by FAT deliverability and the market max. Run DA
+(and IDA, if applicable at this point) first so a committed position exists.
 
     python phase_3a_afrr_automatic_frequency_reserve/run_afrr.py --date 2026-06-26
 """
@@ -22,7 +33,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from common_layer.configuration import load_config, AppConfig
 from common_layer.utilities import get_logger, AuditLogger
-from common_layer.utilities import date_utils as du
 from common_layer.database import PositionStore, ReserveStore
 from phase_3a_afrr_automatic_frequency_reserve.afrr_price_forecasting.picasso_afrr_price_loader import (
     fetch_afrr_cap_prices,
@@ -57,9 +67,9 @@ def run_afrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
         check_afrr_offers(offers, committed, cfg)
     except ReserveCheckError as e:
         log.error(str(e))
-        audit.log("AFRR_CHECK_FAILED", reason=str(e))
+        audit.log("AFRR_CHECK_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "CHECK_FAILED", "reason": str(e)}
-    audit.log("AFRR_CHECK_PASSED")
+    audit.log("AFRR_CHECK_PASSED", delivery_date=delivery_date)
 
     revenue = sum(o.up_mw * o.cap_price_up_eur_mw + o.dn_mw * o.cap_price_dn_eur_mw
                   for o in offers.values())
@@ -77,7 +87,7 @@ def run_afrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
             "cap_up_eur_mw": o.cap_price_up_eur_mw, "cap_dn_eur_mw": o.cap_price_dn_eur_mw}
         for h, o in offers.items()})
     ref = f"AFRR-{delivery_date.replace('-', '')}-001"
-    audit.log("AFRR_SUBMITTED", ref=ref, capacity_revenue_eur=revenue, n_hours=len(offers))
+    audit.log("AFRR_SUBMITTED", delivery_date=delivery_date, ref=ref, capacity_revenue_eur=revenue, n_hours=len(offers))
     log.info(f"aFRR offer saved (stub submit) ref {ref}; capacity revenue {revenue:,.2f} EUR")
     return {"status": "SUBMITTED", "ref": ref, "capacity_revenue_eur": revenue,
             "price_source": source}
@@ -93,14 +103,18 @@ def _print_offers(cfg, source, offers, committed, revenue):
           f"(nominal {freq.nominal_hz:.3f} Hz)")
     print(f"  FAT    : {cfg.market.afrr.fat_min:.0f} min   |   Platform: {cfg.market.afrr.platform}")
     print(f"  Source : {source}   |   Cap ceiling: {cfg.market.afrr.cap_price_max_eur_mw:.0f} EUR/MW")
+    print(f"  Gate closes (CET): {cfg.market.afrr.gate_close}   <-- submit before this   [hour ESTIMATE]")
+    print("  Note   : FAT = time to reach full offered MW after TSO's automatic")
+    print("           AGC signal. Must then sustain that MW until frequency is")
+    print("           restored or mFRR takes over (duration not fixed).")
     print(f"\n  {'Hour':<5} {'Energy MW':>10} {'Up MW':>8} {'Dn MW':>8} "
-          f"{'CapUp':>7} {'CapDn':>7}")
-    print("  " + "-" * 52)
+          f"{'CapUp €/MW':>11} {'CapDn €/MW':>11}")
+    print("  " + "-" * 64)
     for h in sorted(offers):
         o = offers[h]
         print(f"  H{h:02d}  {committed.get(h,0.0):>+10.1f} {o.up_mw:>8.1f} {o.dn_mw:>8.1f} "
-              f"{o.cap_price_up_eur_mw:>7.1f} {o.cap_price_dn_eur_mw:>7.1f}")
-    print("  " + "-" * 52)
+              f"{o.cap_price_up_eur_mw:>11.1f} {o.cap_price_dn_eur_mw:>11.1f}")
+    print("  " + "-" * 64)
     print(f"  Expected aFRR capacity revenue: {revenue:>12,.2f} EUR")
     print("=" * 64)
 

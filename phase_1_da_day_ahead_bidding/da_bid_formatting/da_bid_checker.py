@@ -73,7 +73,14 @@ def check_da_bid(results: GateResults, inputs: dict, cfg: AppConfig,
         v.extend(pv.validate_used_pv(pvs["used_mw"], pvs["available_mw"], label=f"H{h}"))
 
         # --- BESS dispatch (PR-8/9) ---
-        bd = BESSDispatch(charge_mw=bs["charge_mw"], discharge_mw=bs["discharge_mw"])
+        # total_charge_mw = p_chg + pv_to_bess -- the exact quantity the real
+        # chg_cap constraint bounds by power_mw (core_milp_builder.py's
+        # `p_chg[h] + pv_to_bess[h] <= bess.power_mw * chg_on[h]`). Using
+        # charge_mw alone here silently dropped PV-routed charging from both
+        # the PR-9 rating check and the SOC trajectory replay below --
+        # harmless at low PV-routing volumes, but compounds into real SOC
+        # drift over a 96-ISP day and can wrongly trip PR-7.
+        bd = BESSDispatch(charge_mw=bs["total_charge_mw"], discharge_mw=bs["discharge_mw"])
         v.extend(bess.validate_dispatch(bd, label=f"H{h}"))
         bess_dispatches.append(bd)
 
@@ -99,13 +106,19 @@ def check_da_bid(results: GateResults, inputs: dict, cfg: AppConfig,
             v.append(f"H{h} bid price {pr} outside OMIE bounds "
                      f"[{bl.price_min_eur_mwh}, {bl.price_max_eur_mwh}]")
 
-        # collect reservoir flows for trajectory replay
+        # Collect reservoir flows for trajectory replay -- use the solver's
+        # own real head-dependent flow (q_turb_total_m3h/q_pump_total_m3h,
+        # McCormick-relaxed nonlinear surface), not psp.turbine_flow_m3h()'s
+        # linear MW-approximation. The two diverge (the approximation is
+        # explicitly documented as such -- "refined in the MILP"), and that
+        # drift compounds over 24 hourly steps; harmless when reservoirs sit
+        # far from their bounds, but it can push this independent replay
+        # across PR-5/6 even though the solver's own hard v_up/v_low<=cap
+        # constraint was never actually violated.
         res_flows.append(ReservoirFlows(
             inflow_m3h=inputs.get("inflow_m3h", {}).get(h, 0.0),
-            turbine_flow_m3h=sum(psp.turbine_flow_m3h(ps["units_turbine"][u])
-                                 for u in range(plant.psp.n_units)),
-            pump_flow_m3h=sum(psp.pump_flow_m3h(ps["units_pump"][u])
-                              for u in range(plant.psp.n_units)),
+            turbine_flow_m3h=ps.get("q_turb_total_m3h", 0.0),
+            pump_flow_m3h=ps.get("q_pump_total_m3h", 0.0),
             spill_m3h=results.reservoir_trajectory[h]["spill_m3h"],
         ))
 

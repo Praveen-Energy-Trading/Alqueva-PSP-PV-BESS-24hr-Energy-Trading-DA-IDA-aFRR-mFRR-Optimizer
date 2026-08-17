@@ -32,7 +32,11 @@ class PreTradeRiskChecker:
         self.max_day_volume_mwh = max_day_volume_mwh
         self.max_revenue_eur = max_revenue_eur
 
-    def check(self, results: GateResults) -> RiskResult:
+    def check(self, results: GateResults, dt_h: float = 1.0) -> RiskResult:
+        """dt_h: real duration of one period in hours (1.0 hourly, 0.25 at
+        15-min ISP resolution) -- gross volume is MWh = Σ|net_mw| * dt_h, not
+        a raw MW sum. Defaults to 1.0 (unchanged hourly behavior) for any
+        caller that doesn't pass it explicitly."""
         v: List[str] = []
         bl = self.cfg.market.bid_limits
 
@@ -44,7 +48,7 @@ class PreTradeRiskChecker:
             if net < -bl.max_pump_mw - 1e-6:
                 v.append(f"H{h} net {net:.2f} MW exceeds position limit "
                          f"{-bl.max_pump_mw} MW (buy)")
-            total_abs += abs(net)
+            total_abs += abs(net) * dt_h
 
         if total_abs > self.max_day_volume_mwh:
             v.append(f"day gross volume {total_abs:.0f} MWh exceeds cap "

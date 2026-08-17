@@ -4,7 +4,10 @@ mfrr_offer_builder.py — build the mFRR capacity offer from headroom aFRR did n
 mFRR = manual Frequency Restoration Reserve (FAT 12.5 min, MARI). It is slower and
 lower-value than aFRR, so it is sized from the headroom REMAINING after the aFRR
 commitment (passed in as reserved_up/dn). The offer is further limited to a
-fraction of headroom (config mfrr.max_offer_fraction) to leave operating margin.
+fraction of headroom (config mfrr.max_offer_fraction) to leave operating margin —
+a discretionary trading-desk risk policy, NOT a REN/MPGGS rule (verified against
+the real MPGGS Procedimento 19; see market.yaml's comment on max_offer_fraction
+for the citation and what the real per-unit limit actually is).
 """
 from __future__ import annotations
 

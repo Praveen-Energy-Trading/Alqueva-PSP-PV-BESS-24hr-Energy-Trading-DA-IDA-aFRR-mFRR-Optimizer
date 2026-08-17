@@ -51,7 +51,7 @@ def run_reserve_settlement(delivery_date: str, config_dir=None) -> dict:
     print(f"  {'TOTAL':<8} {'':>16} {'':>16} {total:>14,.2f}")
     print("=" * 60)
 
-    audit.log("RESERVE_SETTLED", afrr_eur=afrr.total_eur, mfrr_eur=mfrr.total_eur, total_eur=total)
+    audit.log("RESERVE_SETTLED", delivery_date=delivery_date, afrr_eur=afrr.total_eur, mfrr_eur=mfrr.total_eur, total_eur=total)
     return {"status": "OK",
             "afrr_capacity_eur": afrr.capacity_eur, "afrr_activation_eur": afrr.activation_eur,
             "mfrr_capacity_eur": mfrr.capacity_eur, "mfrr_activation_eur": mfrr.activation_eur,

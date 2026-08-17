@@ -1,8 +1,8 @@
 """
 run_ida2.py — Phase 2B IDA2 gate (intraday auction 2, closes D-1 22:00 CET).
 
-Re-optimises hours h3-h24 against the IDA1 committed position under IDA2 prices.
-h1-h2 are frozen (already committed in IDA1, not re-tradable).
+Re-optimises all 24 delivery hours against the IDA1 committed position under
+IDA2 prices (IDA2 covers the full day D [0h-24h], same as IDA1).
 Run DA and IDA1 first.
 
     python phase_2b_ida2_intraday_auction_2/run_ida2.py --date 2026-06-22
@@ -29,9 +29,11 @@ def main():
     p.add_argument("--date", required=True, help="delivery date YYYY-MM-DD")
     p.add_argument("--config", default=None)
     p.add_argument("--no-pause", action="store_true")
+    p.add_argument("--real-data", action="store_true", help="use live OMIE training-data backfill")
     args = p.parse_args()
 
-    result = optimise_ida2(args.date, load_config(args.config), no_pause=args.no_pause)
+    result = optimise_ida2(args.date, load_config(args.config), no_pause=args.no_pause,
+                           use_synthetic=not args.real_data)
     status = result.get("status")
     print(f"\n  IDA2 gate result: {status}")
 

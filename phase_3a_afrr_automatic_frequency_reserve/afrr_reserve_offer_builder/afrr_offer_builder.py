@@ -2,9 +2,13 @@
 afrr_offer_builder.py — build the aFRR capacity offer from leftover headroom.
 
 aFRR is the FAST automatic reserve (FAT 5 min, restores frequency within the
-+/- 0.200 Hz band, 49.800-50.200 Hz). It has first call on the plant's headroom
-(higher value than mFRR). Offers are bounded by the market max (config
-afrr.max_offer_up/dn_mw) and FAT deliverability, and sized via the shared builder.
++/- 0.200 Hz band, 49.800-50.200 Hz). Its real gate closes AFTER the DA energy
+gate — CONFIRMED against REN's own MPGGS rulebook (Article 80(3): PDVD ->
+aFRR band -> mFRR band, see run_afrr.py for the full citation) — so it is
+sized from the plant's DA-committed position, taking first call on whatever
+headroom DA left behind (higher value than mFRR). Offers are bounded by the
+market max (config afrr.max_offer_up/dn_mw) and FAT deliverability, and sized
+via the shared builder.
 """
 from __future__ import annotations
 
@@ -29,5 +33,5 @@ def build_afrr_offers(committed_net: Dict[int, float],
         fat_min=a.fat_min,                 # 5 min
         max_up_mw=a.max_offer_up_mw,
         max_dn_mw=a.max_offer_dn_mw,
-        headroom_fraction=1.0,             # aFRR has first call on headroom
+        headroom_fraction=1.0,             # aFRR has first call on DA's leftover headroom
     )

@@ -11,8 +11,12 @@ Consequences enforced here (spec INV-7):
     envelope before any energy or reserve (aFRR/mFRR) offer is sized.
   * There is NO FCR market gate, NO FCR price, NO FCR bid anywhere in the system.
 
-If REN assigns an explicit obligation, set plant.fcr.mandatory_headroom_mw > 0;
-otherwise it is 0 and this model is a no-op that still documents the rule.
+plant.fcr.mandatory_headroom_mw defaults to 5.0 MW, an ESTIMATED obligation
+(~1% of Alqueva's nameplate capacity, reasoned from ENTSO-E's system-wide FCR
+apportionment — see config/plant.yaml for the full reasoning chain). REN has
+never published a per-plant FCR MW figure for Alqueva; replace this with a
+real REN-assigned figure the moment one is disclosed. Setting it to 0 makes
+this model a no-op that still documents the rule.
 """
 from __future__ import annotations
 

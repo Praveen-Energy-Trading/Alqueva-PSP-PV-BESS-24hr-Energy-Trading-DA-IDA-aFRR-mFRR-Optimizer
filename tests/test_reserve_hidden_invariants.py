@@ -17,7 +17,8 @@ that could only be caught by testing deeper interactions:
   --------------------------------
   T28  Hour mapping correct: row["hour"] == (isp-1)//4 + 1 for all activation rows
   T29  All up_mw and dn_mw in DB rows are non-negative
-  T30  Hold run direction lock: all ISPs within a single run have the same direction
+  T30  Legacy price field integrity: energy_price_eur_mwh mirrors the active
+       direction's price (up_price_eur_mwh when up_mw>0, dn_price_eur_mwh when dn_mw>0)
   T31  Activation rows for each ISP are unique (no duplicate ISP per product/date)
 
   BESS interaction and cross-product
@@ -384,8 +385,9 @@ class T30_LegacyPriceFieldCorrect(unittest.TestCase):
 
     Note on direction continuity: consecutive activated ISPs can span MULTIPLE hold
     windows (one hold ends, a new one starts immediately). So consecutive ISPs do NOT
-    necessarily share the same direction — T4 already verifies each hold window length
-    is >= min_hold_isps. This test checks price-field integrity instead.
+    necessarily share the same direction — test_bug_regressions.py::TestBug5MinHoldTime
+    already verifies each hold window length is >= min_hold_isps. This test checks
+    price-field integrity instead.
     """
 
     def _check(self, product: str):

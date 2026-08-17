@@ -34,6 +34,19 @@ psp:
   # ENERGY envelope (not ramp) is the binding limit on reserve. Mode CHANGES
   # (start/stop, pump<->turbine) are slower and excluded from fast aFRR sizing.
   ramp_rate_mw_per_min_per_unit: 25.0
+  # min_mode_hours: ESTIMATE, not a disclosed Alqueva/REN figure. Physically,
+  # a Francis reversible pump-turbine CAN complete a pump<->generate switch
+  # within ~4-10 minutes (well inside one hourly MILP period) - see the
+  # mode-aware FAT logic in reserve_offer_builder.py, _MIN_SAFE_MODE_SWITCH_MIN
+  # = 8.0 min, confirmed correct earlier this session. This constraint is NOT
+  # about whether the switch is mechanically possible within the hour (it is)
+  # - it is a minimum-dwell operational constraint: once a unit switches mode,
+  # standard hydro-thermal unit-commitment practice keeps it in that mode for
+  # >=2 consecutive hours before switching back, to limit governor/seal wear
+  # from excessive cycling (a real, commonly modelled cost driver in hydro
+  # scheduling literature, distinct from the FAT-deliverability question).
+  # Set to 1 to disable (allow hour-to-hour re-switching).
+  min_mode_hours: 2
 
 # -----------------------------------------------------------------------------
 # Floating PV — CONFIRMED: Alqueva floating solar, inaugurated July 2022, 5 MWp.
@@ -98,9 +111,37 @@ reservoir:
 # FCR — MANDATORY, NON-REMUNERATED in Portugal/Spain.
 # Modelled ONLY as reserved headroom constraint, NEVER as a tradable market gate.
 # https://www.ren.pt (Manual de Procedimentos do Gestor do Sistema)
-# -----------------------------------------------------------------------------
+#
+# mandatory_headroom_mw = 5.0 MW is an ESTIMATED value (~1% of Alqueva's 524.4 MW
+# total generation capacity), NOT a disclosed REN/ENTSO-E obligation for this
+# specific plant — REN has never published a per-plant FCR MW figure for Alqueva.
+# Reasoning chain (documented, not asserted as fact):
+#   1. ENTSO-E Continental Europe dimensions FCR system-wide from a single
+#      3,000 MW reference incident (loss of the two largest generation/load
+#      units) — ENTSO-E SO GL Art. 153, RfG framework. There is NO ENTSO-E or
+#      REN rule expressing FCR as "X% of any individual plant's capacity."
+#   2. That 3,000 MW is apportioned across Continental Europe by each control
+#      area's share of system demand; Portugal's demand share of the CE
+#      synchronous area implies a national FCR obligation on the order of
+#      ~50-60 MW (order-of-magnitude estimate from public ENTSO-E demand
+#      statistics, not a REN-published number).
+#   3. That national obligation is then split across the small number of large,
+#      technically-capable plants (large hydro/PSP) that can supply it -
+#      landing near ~5 MW for a single large plant such as Alqueva, i.e. ~1%
+#      of its 524.4 MW nameplate capacity.
+#   4. Cross-checked against real-world procurement: regelleistung.net FCR
+#      total procurement across the whole German/CE synchronous block is on
+#      the order of 1,200-3,000 MW spread across hundreds of plants, so any
+#      single large plant's share is typically low single-digit percent of
+#      its own capacity - NOT 20%. 20% (~105 MW here) would exceed most
+#      countries' entire national FCR obligation assigned to one plant, which
+#      is not physically or regulatorily plausible.
+# Prior default was 0.0 MW (also a Claude-session design choice, not a
+# confirmed "no obligation" fact from REN). 5.0 MW replaces it as a more
+# realistic, explicitly-labeled illustrative assumption — change to a real
+# REN-assigned MW figure the moment one is disclosed for this plant.
 fcr:
-  mandatory_headroom_mw: 0.0        # set > 0 if TSO assigns an obligation; reserved, never sold
+  mandatory_headroom_mw: 5.0
 
 # -----------------------------------------------------------------------------
 # Economic penalties (objective shaping)

@@ -45,15 +45,15 @@ def test_E1_da_to_afrr_chain_passes_clean(cfg, cplex_available):
     net = results.net_position_mw   # {h: MW}
     pv  = inputs["pv_available_mw"]
 
-    afrr_fat = cfg.plant.psp.afrr_fat_min if hasattr(cfg.plant.psp, "afrr_fat_min") else 5.0
+    afrr_fat = cfg.plant.bess.afrr_fat_min
 
     # Uniform capacity prices at REN cap (250 EUR/MW)
     cap_prices_up = {h: 250.0 for h in net}
     cap_prices_dn = {h: 100.0 for h in net}
 
-    afrr_cfg = cfg.market.afrr if hasattr(cfg.market, "afrr") else None
-    max_up = (afrr_cfg.max_offer_up_mw if afrr_cfg else cfg.plant.p_max_generation_mw)
-    max_dn = (afrr_cfg.max_offer_dn_mw if afrr_cfg else cfg.plant.p_max_pump_mw)
+    afrr_cfg = cfg.market.afrr
+    max_up = afrr_cfg.max_offer_up_mw
+    max_dn = afrr_cfg.max_offer_dn_mw
 
     offers = build_reserve_offers(
         product="aFRR",

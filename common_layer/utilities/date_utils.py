@@ -89,6 +89,11 @@ def isp_per_day(day: dt.date) -> int:
     return hours_in_day(day) * 4
 
 
+def delivery_isps(day: dt.date) -> List[int]:
+    """List of delivery ISPs [1..N] for the day (N = isp_per_day(day))."""
+    return list(range(1, isp_per_day(day) + 1))
+
+
 def hour_to_isps(hour: int, day: dt.date) -> List[int]:
     """ISP indices (1-based) belonging to delivery `hour` on `day`."""
     if day < PT_ISP_15MIN_FROM:

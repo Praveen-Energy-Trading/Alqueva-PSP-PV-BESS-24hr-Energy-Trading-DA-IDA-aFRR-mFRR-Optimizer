@@ -93,6 +93,15 @@ class PositionStore:
                 for row in cur.fetchall()
             }
 
+    def clear_date(self, delivery_date: str) -> None:
+        """Delete every gate's rows for this delivery date. Used when a run
+        genuinely starts fresh from phase 1 (not --from-phase/--only, which
+        need prior rows to resume from), so a killed-and-restarted run
+        doesn't layer new decisions on top of an aborted attempt's leftover
+        positions."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM positions WHERE delivery_date=?", (delivery_date,))
+
     def committed_position(self, delivery_date: str,
                            as_of_gate: str | None = None) -> Dict[int, float]:
         """Running net committed volume per hour up to and including `as_of_gate`.

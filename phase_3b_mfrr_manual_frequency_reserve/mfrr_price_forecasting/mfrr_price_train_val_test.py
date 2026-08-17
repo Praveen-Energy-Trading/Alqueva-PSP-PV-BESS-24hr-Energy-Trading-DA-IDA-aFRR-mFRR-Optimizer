@@ -27,11 +27,11 @@ import pandas as pd
 
 _HERE     = os.path.dirname(os.path.abspath(__file__))
 _REPO     = os.path.abspath(os.path.join(_HERE, "..", ".."))
-_FCST_DIR = os.path.join(_REPO, "phase_1_da_day_ahead_bidding", "price_and_power_forecasting")
+_FCST_DIR = os.path.join(_REPO, "phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting")
 
 sys.path.insert(0, _REPO)
 sys.path.insert(0, _FCST_DIR)
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae as _mae, walk_forward_cv
 
 _EXCEL_PATH = os.path.join(_HERE, "mfrr_training_data_2024_2025.xlsx")
 _SHEET      = "MFRR_2024_2025"
@@ -97,7 +97,7 @@ def _eval_one(label: str, target_col: str, json_path: str,
     print("Running walk-forward CV ...")
     cv_mae   = walk_forward_cv(X_tr, y_tr, naive_tr, fcols, _N_FOLDS)
     selected = min(cv_mae, key=cv_mae.get)
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in ["Naive"] + MODEL_NAMES:
         marker = "  <-- SELECTED" if name == selected else ""
         print(f"  {name:<22} {cv_mae.get(name, float('inf')):.4f}{marker}")
 
@@ -105,12 +105,9 @@ def _eval_one(label: str, target_col: str, json_path: str,
     y_te      = test[target_col].values
     naive_val = y_tr.mean()
 
-    if selected == "LightGBM":
-        model = fit_lgbm(X_tr, y_tr, fcols)
+    if selected in MODEL_NAMES:
+        model = fit_selected(selected, X_tr, y_tr, fcols)
         preds = model.predict(X_te)
-    elif selected == "Ridge":
-        model = fit_ridge(X_tr.values, y_tr)
-        preds = model.predict(X_te.values)
     else:
         preds = np.full_like(y_te, naive_val)
 
@@ -185,7 +182,7 @@ def _write_report(res_up: dict, res_dn: dict, excel_last) -> None:
             f"| Model | CV MAE EUR/MW |",
             "|---|---|",
         ]
-        for name in ["Naive", "Ridge", "LightGBM"]:
+        for name in ["Naive"] + MODEL_NAMES:
             marker = " **SELECTED**" if name == sel else ""
             lines.append(f"| {name} | {res['cv_mae'].get(name, float('inf')):.4f}{marker} |")
         lines += [

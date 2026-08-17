@@ -44,9 +44,20 @@ from typing import Dict, List
 
 import pandas as pd
 
-_EXCEL_PATH = os.path.join(os.path.dirname(__file__), "da_training_data_2020_2026.xlsx")
-_SHEET      = "DA_Price_2020_2026"
-_HOURS      = list(range(1, 25))
+_EXCEL_PATH     = os.path.join(os.path.dirname(__file__), "da_training_data_2020_2026.xlsx")
+_SHEET          = "DA_Price_2020_2026"
+_HOURS          = list(range(1, 25))
+
+# Real ISP-resolution (15-min) OMIE price history. OMIE's published file
+# format itself switched from 24 hourly columns to 96 quarter-hour columns
+# on 2025-10-01 (empirically verified against live OMIE responses -- 2025-09-30
+# still returns 24 cols, 2025-10-01 returns 96). Genuine 15-min settlement
+# price data simply does not exist before that date; this file only ever
+# holds real OMIE_ISP_LIVE / SYNTHETIC_ISP rows from 2025-10-01 onward.
+_EXCEL_ISP_PATH = os.path.join(os.path.dirname(__file__), "da_training_data_isp_2025_2026.xlsx")
+_SHEET_ISP      = "DA_Price_ISP_2025_2026"
+_ISPS           = list(range(1, 97))
+_ISP_FORMAT_CUTOVER = "2025-10-01"
 
 try:
     from common_layer.utilities.logging_utils import get_logger
@@ -112,6 +123,52 @@ def update_training_data(delivery_date: str, zone: str = "PT") -> None:
              f"last date now {updated['Date'].max().date()}")
 
 
+def update_isp_training_data(delivery_date: str, zone: str = "PT") -> None:
+    """Fill the real ISP (15-min) price history up to yesterday. Separate file
+    from the legacy hourly one -- see _ISP_FORMAT_CUTOVER: real quarter-hour
+    OMIE data only exists from 2025-10-01 onward, so this file's history
+    necessarily starts there rather than 2020 like the hourly one."""
+    target_dt = pd.Timestamp(delivery_date)
+    yesterday = target_dt - pd.Timedelta(days=1)
+    cutover = pd.Timestamp(_ISP_FORMAT_CUTOVER)
+
+    existing = _load_excel_isp()
+    last_date = existing["Date"].max() if not existing.empty else (cutover - pd.Timedelta(days=1))
+
+    if last_date >= yesterday:
+        log.info(f"ISP training data already current up to {last_date.date()} — no update needed")
+        return
+
+    start = max(last_date + pd.Timedelta(days=1), cutover)
+    if start > yesterday:
+        return
+    missing = pd.date_range(start=start, end=yesterday, freq="D")
+    log.info(f"Filling {len(missing)} missing ISP date(s): {missing[0].date()} -> {missing[-1].date()}")
+
+    new_rows_all = []
+    for dt in missing:
+        date_str = dt.strftime("%Y-%m-%d")
+        try:
+            prices = _download_omie_da_isp(date_str, zone)
+            source = "OMIE_ISP_LIVE"
+        except Exception as exc:
+            prices = _synthetic_prices_isp(date_str)
+            source = "SYNTHETIC_ISP"
+            log.warning(f"  {date_str} -> OMIE ISP failed ({exc}), using SYNTHETIC_ISP")
+        for isp in _ISPS:
+            new_rows_all.append({
+                "Date": dt, "ISP": isp,
+                "price_DA_PT_EUR_MWh": prices.get(isp),
+                "source": source,
+            })
+
+    new_df = pd.DataFrame(new_rows_all)
+    updated = pd.concat([existing, new_df], ignore_index=True)
+    updated = updated.sort_values(["Date", "ISP"]).reset_index(drop=True)
+    _save_excel_isp(updated)
+    log.info(f"ISP Excel updated: {len(missing)} date(s) added, last date now {updated['Date'].max().date()}")
+
+
 # ---------------------------------------------------------------------------
 # Synthetic-only gap fill (used when internet unavailable / use_synthetic=True)
 # ---------------------------------------------------------------------------
@@ -159,9 +216,23 @@ def _fill_synthetic_gap(delivery_date: str, zone: str = "PT") -> None:
 # OMIE download
 # ---------------------------------------------------------------------------
 
+_N_QUARTERS = 96   # 24 hours x 4 quarter-hour settlement periods (current OMIE format)
+
+
 def _download_omie_da(delivery_date: str, hours: List[int],
                       zone: str) -> Dict[int, float]:
-    """Download and parse OMIE marginalpdbc file. Raises on any failure."""
+    """Download and parse OMIE's daily marginal-price file. Raises on any failure.
+
+    OMIE's current file format (verified against a live response):
+      - One data row per market, labelled "Precio marginal en el sistema
+        espanol (EUR/MWh)" — MIBEL has been a single coupled Iberian market
+        since 2007, so this is the PT price too; there is no separate PT row.
+      - 96 quarter-hour columns (H1Q1..H24Q4), not 24 hourly columns.
+      - Prices use European decimal-comma notation, e.g. "184,99".
+    We average the 4 quarters within each hour to get the hourly price our
+    hourly (dt_h=1.0) MILP model needs. `zone` is accepted for API
+    compatibility but currently unused (PT and ES clear at the same price).
+    """
     import requests
     yyyy, mm, dd = delivery_date.split("-")
     url = (f"https://www.omie.es/sites/default/files/dados/"
@@ -170,25 +241,91 @@ def _download_omie_da(delivery_date: str, hours: List[int],
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
 
-    pt_row_idx = 1 if zone == "PT" else 0
-    price_rows: List[List[str]] = []
+    price_line = None
     for line in resp.text.splitlines():
-        parts = [p.strip() for p in line.split(";") if p.strip() != ""]
-        if len(parts) >= 24 and all(_is_float(p) for p in parts[2:26]):
-            price_rows.append(parts)
-    if len(price_rows) <= pt_row_idx:
-        raise ValueError("PT price row not found in OMIE file")
-    row    = price_rows[pt_row_idx]
-    values = [float(x) for x in row[2:26]]
-    return {h: values[h - 1] for h in hours if h - 1 < len(values)}
+        if "precio marginal" in line.lower():
+            price_line = line
+            break
+    if price_line is None:
+        raise ValueError("Marginal price row not found in OMIE file")
+
+    parts = [p.strip() for p in price_line.split(";") if p.strip() != ""]
+    values = [_parse_eur_comma(p) for p in parts[1:]]   # parts[0] is the row label
+    if len(values) < _N_QUARTERS:
+        raise ValueError(
+            f"Expected {_N_QUARTERS} quarter-hour values, got {len(values)}"
+        )
+
+    hourly = {
+        h: round(sum(values[(h - 1) * 4: h * 4]) / 4.0, 2)
+        for h in range(1, 25)
+    }
+    return {h: hourly[h] for h in hours if h in hourly}
 
 
-def _is_float(s: str) -> bool:
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
+def _parse_eur_comma(s: str) -> float:
+    """Parse a European-format price string, e.g. "1.234,56" or "184,99"."""
+    return float(s.replace(".", "").replace(",", "."))
+
+
+def _download_omie_da_isp(delivery_date: str, zone: str) -> Dict[int, float]:
+    """Download OMIE's daily price file and return all 96 real quarter-hour
+    values, unaveraged. Only valid for dates >= _ISP_FORMAT_CUTOVER, where
+    OMIE actually publishes 96 columns instead of 24."""
+    import requests
+    yyyy, mm, dd = delivery_date.split("-")
+    url = (f"https://www.omie.es/sites/default/files/dados/"
+           f"AGNO_{yyyy}/MES_{mm}/TXT/"
+           f"INT_PBC_EV_H_1_{dd}_{mm}_{yyyy}_{dd}_{mm}_{yyyy}.TXT")
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+
+    price_line = None
+    for line in resp.text.splitlines():
+        if "precio marginal" in line.lower():
+            price_line = line
+            break
+    if price_line is None:
+        raise ValueError("Marginal price row not found in OMIE file")
+
+    parts = [p.strip() for p in price_line.split(";") if p.strip() != ""]
+    values = [_parse_eur_comma(p) for p in parts[1:]]
+    if len(values) != _N_QUARTERS:
+        raise ValueError(f"Expected {_N_QUARTERS} quarter-hour values, got {len(values)}")
+    return {isp: values[isp - 1] for isp in range(1, 97)}
+
+
+def _synthetic_prices_isp(delivery_date: str, mean_level: float = 55.0,
+                           amplitude: float = 22.0) -> Dict[int, float]:
+    """Synthetic fallback at real ISP (96-slot) resolution -- same Iberian
+    shape as the hourly fallback, evaluated at quarter-hour steps with its
+    own independent noise per ISP (not a flat repeat of the hourly value)."""
+    rng = random.Random(f"da-isp-{delivery_date}")
+    prices = {}
+    for isp in range(1, 97):
+        h = (isp - 1) / 4.0 + 1  # fractional hour-of-day, 1.0..24.75
+        morning   = math.exp(-((h - 9)  ** 2) / 8.0)
+        evening   = math.exp(-((h - 20) ** 2) / 6.0)
+        solar_dip = -0.6 * math.exp(-((h - 14) ** 2) / 10.0)
+        shape     = morning + 1.15 * evening + solar_dip
+        night     = -0.8 if h <= 6 or h >= 23 else 0.0
+        noise     = rng.uniform(-3.0, 3.0)
+        prices[isp] = round(max(-600.0, mean_level + amplitude * (shape + night) + noise), 2)
+    return prices
+
+
+def _load_excel_isp() -> pd.DataFrame:
+    if not os.path.exists(_EXCEL_ISP_PATH):
+        return pd.DataFrame(columns=["Date", "ISP", "price_DA_PT_EUR_MWh", "source"])
+    df = pd.read_excel(_EXCEL_ISP_PATH, sheet_name=_SHEET_ISP)
+    df.columns = [c.strip() for c in df.columns]
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
+
+
+def _save_excel_isp(df: pd.DataFrame) -> None:
+    with pd.ExcelWriter(_EXCEL_ISP_PATH, engine="openpyxl", mode="w") as writer:
+        df.to_excel(writer, sheet_name=_SHEET_ISP, index=False)
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +344,7 @@ def _synthetic_prices(delivery_date: str, hours: List[int],
         shape     = morning + 1.15 * evening + solar_dip
         night     = -0.8 if h <= 6 or h >= 23 else 0.0
         noise     = rng.uniform(-3.0, 3.0)
-        prices[h] = round(max(-500.0, mean_level + amplitude * (shape + night) + noise), 2)
+        prices[h] = round(max(-600.0, mean_level + amplitude * (shape + night) + noise), 2)
     return prices
 
 

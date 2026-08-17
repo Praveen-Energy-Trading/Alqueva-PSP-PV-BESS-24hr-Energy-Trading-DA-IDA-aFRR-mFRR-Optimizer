@@ -55,7 +55,7 @@ def _golden(cfg) -> tuple[GateResults, dict]:
         }
         for h in H
     }
-    bess_sched = {h: {"charge_mw": 0.0, "discharge_mw": 0.0} for h in H}
+    bess_sched = {h: {"charge_mw": 0.0, "discharge_mw": 0.0, "total_charge_mw": 0.0} for h in H}
     pv_sched   = {h: {"used_mw": 0.0, "available_mw": 5.0}   for h in H}
     res_traj   = {h: {"spill_m3h": 0.0,
                        "upper_hm3": plant.reservoir.upper_initial_hm3,
@@ -223,9 +223,11 @@ def test_N5_pr5_reservoir_upper_min_raises(cfg):
             "units_pump":    {u: 0.0 for u in range(n_units)},
             "total_turbine_mw": min_load,
             "total_pump_mw": 0.0,
+            "q_turb_total_m3h": turb_flow,
+            "q_pump_total_m3h": 0.0,
         }
 
-    bess_sched = {h: {"charge_mw": 0.0, "discharge_mw": 0.0} for h in H}
+    bess_sched = {h: {"charge_mw": 0.0, "discharge_mw": 0.0, "total_charge_mw": 0.0} for h in H}
     pv_sched   = {h: {"used_mw": 0.0, "available_mw": 5.0}   for h in H}
     res_traj   = {h: {"spill_m3h": 0.0,
                        "upper_hm3": plant.reservoir.upper_initial_hm3,
@@ -309,8 +311,9 @@ def test_N8_pr8_bess_simultaneous_charge_discharge_raises(cfg):
     """PR-8 violation: BESS charges AND discharges in the same hour."""
     results, inputs = _golden(cfg)
     r = copy.deepcopy(results)
-    r.bess_schedule[7]["charge_mw"]    = 0.5
-    r.bess_schedule[7]["discharge_mw"] = 0.5
+    r.bess_schedule[7]["charge_mw"]       = 0.5
+    r.bess_schedule[7]["total_charge_mw"] = 0.5
+    r.bess_schedule[7]["discharge_mw"]    = 0.5
     # net = discharge - charge = 0 → INV-1 still ok (net stays 0).
     with pytest.raises(BidCheckError) as exc:
         check_da_bid(r, inputs, cfg, gate="DA")

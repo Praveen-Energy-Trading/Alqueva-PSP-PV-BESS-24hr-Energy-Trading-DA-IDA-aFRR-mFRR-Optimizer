@@ -30,14 +30,15 @@ import pandas as pd
 from common_layer.database import (
     PositionStore, ReserveStore, DeliveryStore, ActivationStore, ComponentStore,
 )
+from common_layer.configuration.config_loader import load_config
+from common_layer.optimisation_model.reserve_offer_builder import _envelope
 
 # ── Alqueva physical limits — confirmed from plant.yaml / market.yaml ────────
-# Total plant generation envelope = 4×129.6 PSP + 5.0 PV + 1.0 BESS discharge
-#   PSP only: 4×129.6 = 518.4 MW; with PV+BESS: 518.4+5+1 = 524.4 MW (bid_limits.max_generation_mw)
-# Total plant pump envelope = 4×111.6 PSP pump + 1.0 BESS charge
-#   PSP only: 4×111.6 = 446.4 MW; with BESS: 446.4+1 = 447.4 MW (bid_limits.max_pump_mw)
-_P_MAX_GEN_MW  = 524.4      # total plant: 4×129.6 PSP + 5 PV + 1 BESS discharge (MW)
-_P_MAX_PUMP_MW = 447.4      # total plant: 4×111.6 PSP pump + 1 BESS charge (MW)
+# Total plant generation/pump envelope (FCR-aware) is now computed dynamically
+# via _envelope(cfg) at the top of build_dispatch_hourly() — see that call site.
+# The two constants below are PSP-only (not FCR-reduced), used solely for the
+# CF_turbine/CF_pump capacity-factor denominators, which are physical nameplate
+# ratios, not the tradable envelope, so they correctly stay fixed.
 _PSP_MAX_GEN_MW  = 518.4    # PSP turbine only: 4×129.6 (for CF_turbine denominator)
 _PSP_MAX_PUMP_MW = 446.4    # PSP pump only: 4×111.6 (for CF_pump denominator)
 _BESS_CAP_MWH  = 2.0        # BESS capacity (plant.yaml: bess.capacity_mwh)
@@ -57,6 +58,14 @@ _DEFAULT_LOWER_INIT_HM3 = 27.0
 
 def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
     hours = list(range(1, 25))
+
+    # FCR-aware envelope: reuse the SAME function reserve_offer_builder.py uses
+    # (single source of truth) instead of the hardcoded _P_MAX_GEN_MW/_P_MAX_PUMP_MW
+    # constants below, which never subtracted live FCR headroom and would silently
+    # mask a real PR-11 breach if plant.yaml's fcr.mandatory_headroom_mw is ever
+    # set above its current 0.0 (see Codebase_Interview_Prep_Book.md for the fuller
+    # writeup of this bug).
+    p_gen_cap, p_pump_cap = _envelope(load_config())
 
     # ── Load all stores ────────────────────────────────────────────────────────
     pos  = PositionStore()
@@ -243,13 +252,14 @@ def build_dispatch_hourly(delivery_date: str) -> pd.DataFrame:
         mfrr_cdn = mf.get("cap_dn_eur_mw", 0.0)
 
         # --- GROUP K: Physical headroom checks ---
-        # PR-11: use committed net position (final_vol) — matches reserve_offer_builder.py.
+        # PR-11: use committed net position (final_vol) — matches reserve_offer_builder.py
+        # EXACTLY (same _envelope(cfg) call, computed once above — FCR-aware).
         # gen_headroom  = p_gen_cap  - final_vol  - afrr_up - mfrr_up
         # pump_headroom = final_vol  + p_pump_cap - afrr_dn - mfrr_dn
-        # In pump mode (final_vol=-300): gen_hr = 524.4-(-300) = 824.4 MW (full ramp-up range)
-        # In gen mode  (final_vol=+500): gen_hr = 524.4-500     =  24.4 MW (near cap)
-        gen_hr  = round(_P_MAX_GEN_MW  - final_vol - afrr_up - mfrr_up, 2)
-        pump_hr = round(final_vol + _P_MAX_PUMP_MW - afrr_dn - mfrr_dn, 2)
+        # In pump mode (final_vol=-300): gen_hr = p_gen_cap-(-300) (full ramp-up range)
+        # In gen mode  (final_vol=+500): gen_hr = p_gen_cap-500     (near cap)
+        gen_hr  = round(p_gen_cap  - final_vol - afrr_up - mfrr_up, 2)
+        pump_hr = round(final_vol + p_pump_cap - afrr_dn - mfrr_dn, 2)
 
         # --- GROUP L: Energy balance verification ---
         # MILP INV-1: p_net = (PSP_gen − PSP_pump) + pv_used + p_dis − p_chg

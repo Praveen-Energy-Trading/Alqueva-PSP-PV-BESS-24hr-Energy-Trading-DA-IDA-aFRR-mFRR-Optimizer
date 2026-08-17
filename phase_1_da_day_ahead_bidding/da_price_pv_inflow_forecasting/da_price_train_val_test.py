@@ -47,7 +47,7 @@ for _p in (_HERE, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae, metrics, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv
 from da_price_forecaster import _load_history, _build_features, _feature_cols
 
 TEST_MONTHS = 12
@@ -87,12 +87,9 @@ def evaluate_da_price() -> dict:
     selected = min(cv_mae, key=cv_mae.get)
 
     # 2) Retrain selected model on FULL development set
-    if selected == "LightGBM":
-        model     = fit_lgbm(dev_feat, dev_y, fcols)
+    if selected in MODEL_NAMES:
+        model     = fit_selected(selected, dev_feat, dev_y, fcols)
         test_pred = model.predict(test_feat)
-    elif selected == "Ridge":
-        model     = fit_ridge(dev_feat.values, dev_y)
-        test_pred = model.predict(test_feat.values)
     else:  # Naive
         test_pred = test_lag
 
@@ -102,7 +99,7 @@ def evaluate_da_price() -> dict:
 
     # Feature importance (LightGBM only)
     fi = None
-    if selected == "LightGBM" and hasattr(model, "feature_importances_"):
+    if selected in MODEL_NAMES and hasattr(model, "feature_importances_"):
         fi = sorted(zip(fcols, model.feature_importances_),
                     key=lambda x: x[1], reverse=True)
 
@@ -175,9 +172,10 @@ def _write_report(r: dict) -> None:
         "",
         f"| Model | MAE ({u}) |",
         "|-------|-----------|",
-        f"| Naive persistence | {cv['Naive']:.2f} |",
-        f"| Ridge regression  | {cv['Ridge']:.2f} |",
-        f"| LightGBM          | {cv['LightGBM']:.2f} |",
+    ]
+    for name in MODEL_NAMES:
+        lines.append(f"| {name:<18} | {cv.get(name, float('inf')):.2f} |")
+    lines += [
         "",
         "---",
         "",
@@ -196,7 +194,7 @@ def _write_report(r: dict) -> None:
         lines += [
             "---",
             "",
-            "## Feature Importance (LightGBM — top 10)",
+            f"## Feature Importance ({r['selected']} — top 10)",
             "",
             "| Feature | Importance |",
             "|---------|-----------|",
@@ -224,7 +222,7 @@ def main() -> None:
     print(f"\n  Walk-forward CV results (validation — model selection):")
     print(f"  {'Model':<22} {'MAE (EUR/MWh)':>14}")
     print(f"  {'-'*38}")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == r["selected"] else ""
         print(f"  {name:<22} {r['cv_mae'].get(name, float('inf')):>10.2f}{marker}")
 

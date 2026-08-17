@@ -1,6 +1,6 @@
 """
 pv_train_val_test.py — offline train / validation / test evaluation for the
-PV forecaster (GHI W/m² and T_amb °C, Alqueva ERA5 data 2015-2025).
+PV forecaster (GHI W/m² and T_amb °C, Alqueva plant on-site sensor data 2015-2025).
 
 Industry MLOps pattern: evaluation pipeline is SEPARATE from the serving path.
 pv_power_forecaster.py retrains daily on full history — this script measures
@@ -44,7 +44,7 @@ for _p in (_HERE, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae, metrics, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv
 from pv_power_forecaster import _load_history, _build_features, _feature_cols
 
 TEST_MONTHS = 12
@@ -85,12 +85,9 @@ def evaluate_target(full: pd.DataFrame, target_col: str, label: str,
     selected = min(cv_mae, key=cv_mae.get)
 
     # 2) Retrain selected model on FULL development set
-    if selected == "LightGBM":
-        model     = fit_lgbm(dev_feat, dev_y, fcols)
+    if selected in MODEL_NAMES:
+        model     = fit_selected(selected, dev_feat, dev_y, fcols)
         test_pred = model.predict(test_feat)
-    elif selected == "Ridge":
-        model     = fit_ridge(dev_feat.values, dev_y)
-        test_pred = model.predict(test_feat.values)
     else:
         model     = None
         test_pred = test_lag
@@ -101,7 +98,7 @@ def evaluate_target(full: pd.DataFrame, target_col: str, label: str,
 
     # Feature importance (LightGBM only)
     fi = None
-    if selected == "LightGBM" and hasattr(model, "feature_importances_"):
+    if selected in MODEL_NAMES and hasattr(model, "feature_importances_"):
         fi = sorted(zip(fcols, model.feature_importances_),
                     key=lambda x: x[1], reverse=True)
 
@@ -158,9 +155,10 @@ def _fmt_result(r: dict) -> str:
         "",
         f"| Model | MAE ({u}) |",
         "|-------|-----------|",
-        f"| Naive persistence | {cv['Naive']:.2f} |",
-        f"| Ridge regression  | {cv['Ridge']:.2f} |",
-        f"| LightGBM          | {cv['LightGBM']:.2f} |",
+    ]
+    for name in MODEL_NAMES:
+        lines.append(f"| {name:<18} | {cv.get(name, float('inf')):.2f} |")
+    lines += [
         "",
         "**Held-out TEST (unbiased):**",
         "",
@@ -174,7 +172,7 @@ def _fmt_result(r: dict) -> str:
     ]
     if fi:
         lines += [
-            "**Feature Importance (LightGBM — top 10):**",
+            f"**Feature Importance ({r['selected']} — top 10):**",
             "",
             f"| Feature | Importance |",
             "|---------|-----------|",
@@ -217,7 +215,7 @@ def _write_report(results: list) -> None:
 def main() -> None:
     print("\nPV Forecaster — Train / Validation / Test Evaluation")
     print("=" * 60)
-    print("  Loading ERA5 data and building features...")
+    print("  Loading Alqueva plant sensor data and building features...")
 
     full = _build_features(_load_history())
     results = []
@@ -234,7 +232,7 @@ def main() -> None:
         print(f"  Walk-forward CV:")
         print(f"    {'Model':<22} {'MAE (' + unit + ')':>14}")
         print(f"    {'-'*38}")
-        for name in ["Naive", "Ridge", "LightGBM"]:
+        for name in MODEL_NAMES:
             marker = " <-- selected" if name == r["selected"] else ""
             print(f"    {name:<22} {r['cv_mae'].get(name, float('inf')):>10.2f}{marker}")
         print(f"\n  Held-out TEST:")

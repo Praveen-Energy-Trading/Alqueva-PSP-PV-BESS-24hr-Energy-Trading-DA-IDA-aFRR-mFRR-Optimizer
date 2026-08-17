@@ -6,7 +6,13 @@ Verify that the IDA frozen-hour mechanism works correctly:
   * Hours outside fixed_net_position are free to re-optimise.
   * The delta bid (new_net - committed) is zero for frozen hours.
 
-All tests are integration (require CPLEX).  Tag: @pytest.mark.integration.
+I1-I3 are integration tests (require CPLEX) proving the low-level
+`fixed_net_position` MILP primitive works. G1-G3 are fast unit tests (no
+CPLEX) proving each IDA gate derives the CORRECT tradable/frozen window from
+config/market.yaml via the exact call ida_reoptimiser.py makes
+(`cfg.market.gate(gate).hour_in_product(h)`) — I1-I3 alone don't catch a
+gate misconfiguration since they use arbitrary hand-picked hour ranges, not
+each gate's real delivery_hours from config.
 """
 from __future__ import annotations
 
@@ -153,3 +159,49 @@ def test_I3_delta_bid_zero_for_frozen_hours(cfg, cplex_available):
             f"Hour {h}: frozen to {frozen[h]:.4f} MW but re-solve gives "
             f"{r1.net_position_mw[h]:.4f} MW (delta={delta:.6f})"
         )
+
+
+# ---------------------------------------------------------------------------
+# G1-G3: each gate's tradable/frozen window matches config/market.yaml
+# (fast, no CPLEX — exercises ida_reoptimiser.py's actual freeze derivation:
+#  tradable = [h for h in hours if cfg.market.gate(gate).hour_in_product(h)])
+# ---------------------------------------------------------------------------
+
+ALL_HOURS = list(range(1, 25))
+
+
+def _tradable(cfg, gate: str) -> list[int]:
+    gate_cfg = cfg.market.gate(gate)
+    return [h for h in ALL_HOURS if gate_cfg.hour_in_product(h)]
+
+
+def test_G1_ida1_all_24_hours_tradable(cfg):
+    """IDA1 covers the full delivery day (D-1 15:00 gate close, SIDC 3-session regime)."""
+    tradable = _tradable(cfg, "IDA1")
+    assert tradable == ALL_HOURS, (
+        f"IDA1 expected all 24 hours tradable per market.yaml delivery_hours "
+        f"[1, 24], got {tradable}"
+    )
+
+
+def test_G2_ida2_all_24_hours_tradable(cfg):
+    """IDA2 also covers the full delivery day (ENTSO-E SIDC page confirms D [0h-24h])."""
+    tradable = _tradable(cfg, "IDA2")
+    assert tradable == ALL_HOURS, (
+        f"IDA2 expected all 24 hours tradable per market.yaml delivery_hours "
+        f"[1, 24], got {tradable}"
+    )
+
+
+def test_G3_ida3_only_hours_12_to_24_tradable(cfg):
+    """IDA3 covers ONLY hours 12-24; hours 1-11 must be frozen (INV-11)."""
+    tradable = _tradable(cfg, "IDA3")
+    expected = list(range(12, 25))
+    assert tradable == expected, (
+        f"IDA3 expected hours 12-24 tradable per market.yaml delivery_hours "
+        f"[12, 24], got {tradable}"
+    )
+    frozen = [h for h in ALL_HOURS if h not in tradable]
+    assert frozen == list(range(1, 12)), (
+        f"IDA3 expected hours 1-11 frozen, got {frozen}"
+    )

@@ -5,7 +5,7 @@ Integration tests that run the full DA→aFRR offer→mFRR offer→RT dispatch�
 aFRR activation→mFRR activation→settlement chain for a fixed test date and then
 assert correctness of every physical and financial invariant.
 
-Tests cover 9 areas:
+Tests cover 10 areas:
   T1  No simultaneous up+down activation in any ISP (BUG-1)
   T2  Every activation stays within mode-aware FAT deliverable (BUG-7)
   T3  Physical headroom: scheduled ± activated stays within plant envelope (BUG-3)
@@ -14,7 +14,8 @@ Tests cover 9 areas:
   T6  Combined aFRR+mFRR activation stays within plant envelope (BUG-4)
   T7  Settlement uses separate up/dn prices — total activation revenue correct (BUG-2)
   T8  Imbalance excludes instructed activations (no double-count)
-  T9  aFRR capacity offer checker passes (PR-11, PR-12, price cap)
+  T9  aFRR/mFRR capacity offer checker passes (PR-11, PR-12, price cap)
+  T10 Mode-aware FAT: pump-mode hours offered less up reserve than gen-mode (BUG-7, live data)
 
 Run from repo root:
     python -m pytest tests/test_reserve_market_deep.py -v
@@ -54,6 +55,11 @@ def _ensure_pipeline():
     cfg = load_config()
     _pipeline_cfg = cfg
 
+    # REAL REN sequence, CONFIRMED against REN's own MPGGS rulebook (ERSE
+    # Directive 9/2025, Article 80(3)): DA market -> PDVD -> aFRR band market
+    # -> mFRR daily band market (see run_afrr.py for the full citation). An
+    # earlier pass had this reversed based on Germany's regelleistung.net
+    # precedent; reverted once REN's own document was found and confirmed.
     # run_da takes config_dir (not cfg); auto_approve controls prompt.
     from phase_1_da_day_ahead_bidding.run_da import run_da
     r = run_da(TEST_DATE, auto_approve=True)
@@ -366,12 +372,19 @@ class T7_SettlementSeparatePrices(unittest.TestCase):
         self._check_settlement_math("mFRR")
 
     def test_up_price_exceeds_dn_price(self):
-        """Verify price structure: up_price = DA×1.30 > dn_price = DA×0.70 always."""
+        """Verify price structure: up_price = DA×1.30 > dn_price = DA×0.70 when
+        the real underlying DA price is positive (the normal case). Real MIBEL
+        DA prices can go negative (floor -600 EUR/MWh) -- multiplying a
+        negative price by the larger up-factor makes it MORE negative, so the
+        ordering legitimately inverts there; that's real market behavior, not
+        a pricing bug, so this check only applies away from that edge."""
         cfg = _ensure_pipeline()
         from common_layer.database import ActivationStore
         for product in ("aFRR", "mFRR"):
             for r in ActivationStore().load(TEST_DATE, product):
                 if r["up_mw"] > 1e-6 or r["dn_mw"] > 1e-6:
+                    if r["dn_price_eur_mwh"] <= 1e-9:
+                        continue
                     self.assertGreater(
                         r["up_price_eur_mwh"], r["dn_price_eur_mwh"],
                         f"{product} ISP{r['isp']}: up_price {r['up_price_eur_mwh']} "
@@ -481,7 +494,14 @@ class T9_OfferCheckerPasses(unittest.TestCase):
 
 # ── T10 — Mode-aware FAT: pump-mode hours get reduced up deliverable ────────
 class T10_ModeAwareFAT(unittest.TestCase):
-    """BUG-7: pump-mode hours offered less up reserve than generation-mode hours."""
+    """BUG-7: pump-mode hours offered less up reserve than generation-mode hours.
+
+    aFRR is sized from the real DA-committed position (REN's confirmed
+    sequence: DA -> aFRR -> mFRR, see run_afrr.py) so mode information IS
+    known at offer time, and mode-aware reduction (_MIN_SAFE_MODE_SWITCH_MIN,
+    reserve_offer_builder.py line ~38) applies for real, not just at the
+    unit-function level.
+    """
 
     def test_pump_mode_up_lower_than_gen_mode(self):
         cfg = _ensure_pipeline()

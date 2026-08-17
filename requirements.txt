@@ -13,4 +13,10 @@ PyYAML>=6.0           # config files
 openpyxl>=3.1         # Excel report export
 requests>=2.31        # live OMIE / REN data loaders (live mode only)
 
+# Dashboard (dashboard/app.py) — reads runtime/reports + runtime/logs + figures/output,
+# does not run the pipeline itself.
+streamlit>=1.38
+plotly>=5.24
+streamlit-autorefresh>=1.0
+
 # Standard library used elsewhere: sqlite3, zoneinfo, dataclasses, datetime.

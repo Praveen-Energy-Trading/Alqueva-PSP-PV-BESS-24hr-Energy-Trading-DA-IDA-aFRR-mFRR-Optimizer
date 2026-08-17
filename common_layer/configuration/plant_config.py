@@ -33,6 +33,7 @@ class PSPConfig:
     q_pump_min_m3h: float                  # m3/h at minimum pump power, per unit
     startup_cost_eur: float                # cost penalty per cold start in objective
     ramp_rate_mw_per_min_per_unit: float   # MW/min per unit; plant total = ×4
+    min_mode_hours: int                    # min consecutive hours in a mode after switching (ESTIMATE)
 
     # --- derived plant-level totals (4 units) -----------------------------
     @property
@@ -61,6 +62,7 @@ class PSPConfig:
             q_pump_min_m3h=float(d["q_pump_min_m3h"]),
             startup_cost_eur=float(d["startup_cost_eur"]),
             ramp_rate_mw_per_min_per_unit=float(d.get("ramp_rate_mw_per_min_per_unit", 25.0)),
+            min_mode_hours=int(d.get("min_mode_hours", 2)),
         )
 
 
@@ -167,8 +169,9 @@ class ReservoirConfig:
 @dataclass(frozen=True)
 class FCRConfig:
     """FCR (primary frequency control) is a mandatory non-remunerated grid-code obligation
-    in PT/ES. It is reserved headroom only — never sold. Currently 0.0 MW (see plant.yaml)."""
-    mandatory_headroom_mw: float      # MW kept free on both sides; 0.0 for Alqueva
+    in PT/ES. It is reserved headroom only — never sold. Currently 5.0 MW, an estimated
+    obligation (see config/plant.yaml for the reasoning chain)."""
+    mandatory_headroom_mw: float      # MW kept free on both sides; 5.0 (estimated) for Alqueva
 
     @staticmethod
     def from_dict(d: dict) -> "FCRConfig":

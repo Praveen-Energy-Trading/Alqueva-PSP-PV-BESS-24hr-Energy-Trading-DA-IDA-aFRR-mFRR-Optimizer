@@ -1,7 +1,7 @@
 """
 afrr_price_forecaster.py — aFRR capacity (availability) cap-price forecast.
 
-Two separate Ridge/LightGBM models, one per direction:
+Two separate models (LightGBM/XGBoost/RandomForest/CatBoost, best via CV), one per direction:
   cap_up : EUR/MW paid for holding upward reserve available
            rises with scarcity (high DA price hours, peak demand)
   cap_dn : EUR/MW paid for holding downward reserve available
@@ -29,11 +29,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(os.path.dirname(_HERE))
 
 _PHASE1_FCST = os.path.join(_REPO, "phase_1_da_day_ahead_bidding",
-                             "price_and_power_forecasting")
+                             "da_price_pv_inflow_forecasting")
 if _PHASE1_FCST not in sys.path:
     sys.path.insert(0, _PHASE1_FCST)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
 
 _EXCEL_PATH  = os.path.join(_HERE, "afrr_training_data_2019_2025.xlsx")
 _SHEET       = "AFRR_2019_2025"
@@ -76,12 +76,8 @@ def _model_forecast(hours: List[int], delivery_date: str,
         fcols = _feature_cols()
         X     = feat_tr[fcols]
 
-        model_up = (fit_lgbm(X, feat_tr["cap_up_EUR_MW"].values, fcols) if sel_up == "LightGBM"
-                    else fit_ridge(X.values, feat_tr["cap_up_EUR_MW"].values) if sel_up == "Ridge"
-                    else None)
-        model_dn = (fit_lgbm(X, feat_tr["cap_dn_EUR_MW"].values, fcols) if sel_dn == "LightGBM"
-                    else fit_ridge(X.values, feat_tr["cap_dn_EUR_MW"].values) if sel_dn == "Ridge"
-                    else None)
+        model_up = fit_selected(sel_up, X, feat_tr["cap_up_EUR_MW"].values, fcols)
+        model_dn = fit_selected(sel_dn, X, feat_tr["cap_dn_EUR_MW"].values, fcols)
 
         _cache[cache_key] = (model_up, model_dn, sel_up, sel_dn)
 
@@ -91,9 +87,7 @@ def _model_forecast(hours: List[int], delivery_date: str,
     X_pred    = pred_rows[fcols]
 
     def _predict(model, sel):
-        if model is None:
-            return np.zeros(len(pred_rows))
-        return model.predict(X_pred) if sel == "LightGBM" else model.predict(X_pred.values)
+        return model.predict(X_pred)
 
     preds_up = _predict(model_up, sel_up)
     preds_dn = _predict(model_dn, sel_dn)
@@ -134,7 +128,7 @@ def _auto_select_models(feat_tr: pd.DataFrame) -> Tuple[str, str]:
                        "cv_mae": {k: round(v, 4) for k, v in cv_up.items()},
                        "data_end_date": str(excel_last), "updated_on": today}, f, indent=2)
         print(f"\n[aFRR Up Forecaster] Selected => {sel_up}")
-        for name in ["Naive", "Ridge", "LightGBM"]:
+        for name in MODEL_NAMES:
             mark = " <--" if name == sel_up else ""
             print(f"  {name:<12} MAE {cv_up.get(name, float('inf')):.4f} EUR/MW{mark}")
 
@@ -147,7 +141,7 @@ def _auto_select_models(feat_tr: pd.DataFrame) -> Tuple[str, str]:
                        "cv_mae": {k: round(v, 4) for k, v in cv_dn.items()},
                        "data_end_date": str(excel_last), "updated_on": today}, f, indent=2)
         print(f"\n[aFRR Dn Forecaster] Selected => {sel_dn}")
-        for name in ["Naive", "Ridge", "LightGBM"]:
+        for name in MODEL_NAMES:
             mark = " <--" if name == sel_dn else ""
             print(f"  {name:<12} MAE {cv_dn.get(name, float('inf')):.4f} EUR/MW{mark}")
 

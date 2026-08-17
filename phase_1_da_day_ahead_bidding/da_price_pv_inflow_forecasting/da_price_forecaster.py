@@ -6,7 +6,7 @@ Methodology:
     2. Build lag + calendar features
     3. Auto-select best model via da_selected_model.json:
          - On first run OR when Excel has new data since last evaluation:
-             walk-forward CV (4 folds) compares Naive / Ridge / LightGBM
+             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest / CatBoost
              → updates da_selected_model.json automatically
          - Otherwise: reads selected model from json (no CV overhead)
     4. Train selected model on ALL history
@@ -26,7 +26,7 @@ A review of state-of-the-art algorithms, best practices and an open-access
 benchmark" — confirms gradient boosting + lag features best on EPEX/OMIE.
 
 Returned shape: {hour: EUR/MWh} for hours 1..24.
-Floor: -500 EUR/MWh (OMIE SDAC regulatory minimum, effective Jan 2023).
+Floor: -600 EUR/MWh (OMIE SDAC regulatory minimum, effective delivery 29 May 2026).
 """
 from __future__ import annotations
 
@@ -47,13 +47,23 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
 
 _EXCEL_PATH   = os.path.join(_HERE, "da_training_data_2020_2026.xlsx")
 _JSON_PATH    = os.path.join(_HERE, "da_selected_model.json")
 _WARMUP_HOURS = 336
 _N_CV_FOLDS   = 4
 _cache: dict  = {}
+
+# ISP-resolution (15-min) forecaster -- real quarter-hour OMIE data only
+# exists from 2025-10-01 onward (see omie_da_price_loader.py's
+# _ISP_FORMAT_CUTOVER), so this trains on a separate, shorter history file
+# rather than the 2020-2026 hourly one. 336h warmup -> 1344 ISPs (14 days),
+# easily covered by the ~318 real days backfilled.
+_EXCEL_ISP_PATH  = os.path.join(_HERE, "da_training_data_isp_2025_2026.xlsx")
+_JSON_ISP_PATH   = os.path.join(_HERE, "da_selected_model_isp.json")
+_WARMUP_ISPS     = 1344
+_cache_isp: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +138,7 @@ def _model_forecast(hours: List[int], delivery_date: str) -> Dict[int, float]:
         X     = train_df[fcols]
         y     = train_df["price_DA_PT_EUR_MWh"].values
 
-        if selected == "LightGBM":
-            model = fit_lgbm(X, y, fcols)
-        elif selected == "Ridge":
-            model = fit_ridge(X.values, y)
-        else:
-            model = None  # Naive
+        model = fit_selected(selected, X, y, fcols)
 
         _cache[cache_key]            = model
         _cache[f"sel_{delivery_date}"] = selected
@@ -142,17 +147,12 @@ def _model_forecast(hours: List[int], delivery_date: str) -> Dict[int, float]:
     selected = _cache[f"sel_{delivery_date}"]
     X_pred   = pred_df[_feature_cols()]
 
-    if model is None:
-        preds = pred_df["lag_24h"].values
-    elif selected == "Ridge":
-        preds = model.predict(X_pred.values)
-    else:
-        preds = model.predict(X_pred)
+    preds = model.predict(X_pred)
 
     pred_df = pred_df.copy()
     pred_df["pred"] = preds
     lookup = dict(zip(pred_df["hour"].astype(int), pred_df["pred"]))
-    return {h: round(max(-500.0, float(lookup[h])), 2)
+    return {h: round(max(-600.0, float(lookup[h])), 2)
             for h in hours if h in lookup}
 
 
@@ -198,9 +198,9 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     with open(_JSON_PATH, "w") as f:
         json.dump(info, f, indent=2)
 
-    print(f"\n[DA Forecaster] Model selection updated → {selected}")
+    print(f"\n[DA Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
     print()
@@ -269,6 +269,185 @@ def _feature_cols() -> List[str]:
         "roll_mean_24h", "roll_std_24h", "roll_mean_168h",
         "price_diff_24h",
     ]
+
+
+# ---------------------------------------------------------------------------
+# ISP-resolution (15-min) forecasting pipeline
+# ---------------------------------------------------------------------------
+
+def forecast_da_prices_isp(isps: List[int], delivery_date: str,
+                            mean_level: float = 55.0,
+                            amplitude: float = 22.0) -> Dict[int, float]:
+    """Return {isp: EUR/MWh} for the 96 quarter-hours of delivery_date.
+
+    Same methodology as forecast_da_prices (lag + calendar features, CV
+    model selection), trained on real 15-min OMIE history (see
+    _EXCEL_ISP_PATH) instead of the hourly 2020-2026 file."""
+    try:
+        return _model_forecast_isp(isps, delivery_date)
+    except Exception as exc:
+        import warnings
+        warnings.warn(
+            f"[DA ISP Forecaster] Model failed ({exc}); using synthetic fallback. "
+            f"Check {_EXCEL_ISP_PATH} and dependencies.",
+            RuntimeWarning, stacklevel=2
+        )
+        return _synthetic_fallback_isp(isps, delivery_date, mean_level, amplitude)
+
+
+def _model_forecast_isp(isps: List[int], delivery_date: str) -> Dict[int, float]:
+    df = _load_history_isp()
+    target_dt = pd.Timestamp(delivery_date)
+    cutoff = target_dt - pd.Timedelta(minutes=15)
+
+    df = df[df["datetime"] < target_dt].copy()
+    history = df[df["datetime"] <= cutoff]
+    if len(history) < _WARMUP_ISPS:
+        raise ValueError(f"Insufficient ISP history ({len(history)} rows)")
+
+    lag_day = df[df["datetime"].dt.date == (target_dt - pd.Timedelta(days=1)).date()
+                 ].set_index("isp")["price_DA_PT_EUR_MWh"]
+    naive_prices = [float(lag_day.get(isp, lag_day.mean())) for isp in range(1, 97)]
+    placeholder = pd.DataFrame({
+        "datetime": [target_dt + pd.Timedelta(minutes=15 * (isp - 1)) for isp in range(1, 97)],
+        "isp": list(range(1, 97)),
+        "price_DA_PT_EUR_MWh": naive_prices,
+    })
+    df_ext = pd.concat([df, placeholder], ignore_index=True).sort_values("datetime")
+    full = _build_features_isp(df_ext)
+    train_df = full[full["datetime"] <= cutoff].dropna()
+    pred_df = full[full["datetime"].dt.date == target_dt.date()].copy()
+
+    if pred_df.empty:
+        raise ValueError(f"No ISP feature rows for {delivery_date}")
+
+    cache_key = f"model_{delivery_date}"
+    if cache_key not in _cache_isp:
+        selected = _auto_select_model_isp(train_df)
+        fcols = _feature_cols_isp()
+        X = train_df[fcols]
+        y = train_df["price_DA_PT_EUR_MWh"].values
+        model = fit_selected(selected, X, y, fcols)
+        _cache_isp[cache_key] = model
+        _cache_isp[f"sel_{delivery_date}"] = selected
+
+    model = _cache_isp[cache_key]
+    X_pred = pred_df[_feature_cols_isp()]
+    preds = model.predict(X_pred)
+
+    pred_df = pred_df.copy()
+    pred_df["pred"] = preds
+    lookup = dict(zip(pred_df["isp"].astype(int), pred_df["pred"]))
+    return {isp: round(max(-600.0, float(lookup[isp])), 2)
+            for isp in isps if isp in lookup}
+
+
+def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
+    excel_last_date = train_df["datetime"].max().date()
+    if os.path.exists(_JSON_ISP_PATH):
+        with open(_JSON_ISP_PATH, "r") as f:
+            info = json.load(f)
+        saved_end = pd.Timestamp(info.get("data_end_date", "2000-01-01")).date()
+        if saved_end >= excel_last_date:
+            return info["selected"]
+
+    fcols = _feature_cols_isp()
+    feat_df = train_df[fcols]
+    y = train_df["price_DA_PT_EUR_MWh"].values
+    lag_day = train_df["lag_1d"].values
+
+    cv_mae = walk_forward_cv(feat_df, y, lag_day, fcols, _N_CV_FOLDS)
+    selected = min(cv_mae, key=cv_mae.get)
+
+    info = {
+        "selected": selected,
+        "cv_mae": {k: round(v, 4) for k, v in cv_mae.items()},
+        "data_end_date": str(excel_last_date),
+        "updated_on": str(datetime.date.today()),
+        "resolution": "15min_ISP",
+    }
+    with open(_JSON_ISP_PATH, "w") as f:
+        json.dump(info, f, indent=2)
+
+    print(f"\n[DA ISP Forecaster] Model selection updated -> {selected}")
+    print(f"  Data up to : {excel_last_date}")
+    for name in MODEL_NAMES:
+        marker = " <-- selected" if name == selected else ""
+        print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
+    print()
+
+    return selected
+
+
+def _load_history_isp() -> pd.DataFrame:
+    mtime = os.path.getmtime(_EXCEL_ISP_PATH)
+    if "history" not in _cache_isp or _cache_isp.get("history_mtime") != mtime:
+        df = pd.read_excel(_EXCEL_ISP_PATH, sheet_name="DA_Price_ISP_2025_2026")
+        df.columns = [c.strip() for c in df.columns]
+        df["Date"] = pd.to_datetime(df["Date"])
+        df["datetime"] = df["Date"] + pd.to_timedelta((df["ISP"] - 1) * 15, unit="m")
+        df = df.rename(columns={"ISP": "isp"})
+        df = df.sort_values("datetime").reset_index(drop=True)
+        _cache_isp["history"] = df
+        _cache_isp["history_mtime"] = mtime
+    return _cache_isp["history"]
+
+
+def _build_features_isp(df: pd.DataFrame) -> pd.DataFrame:
+    out = df[["datetime", "isp", "price_DA_PT_EUR_MWh"]].copy()
+    p = out["price_DA_PT_EUR_MWh"]
+
+    # Calendar features -- 96-slot cycle instead of 24-hour.
+    out["isp_sin"]    = np.sin(2 * np.pi * (out["isp"] - 1) / 96)
+    out["isp_cos"]    = np.cos(2 * np.pi * (out["isp"] - 1) / 96)
+    out["dow"]        = out["datetime"].dt.dayofweek
+    out["month"]      = out["datetime"].dt.month
+    out["is_weekend"] = (out["dow"] >= 5).astype(int)
+    out["dow_sin"]    = np.sin(2 * np.pi * out["dow"] / 7)
+    out["dow_cos"]    = np.cos(2 * np.pi * out["dow"] / 7)
+    out["month_sin"]  = np.sin(2 * np.pi * (out["month"] - 1) / 12)
+    out["month_cos"]  = np.cos(2 * np.pi * (out["month"] - 1) / 12)
+
+    # Price lags in ISP units: 1 day=96, 2 days=192, 1 week=672, 2 weeks=1344
+    # (same real-world spans as the hourly model's 24/48/168/336h lags).
+    out["lag_1d"]  = p.shift(96)
+    out["lag_2d"]  = p.shift(192)
+    out["lag_1w"]  = p.shift(672)
+    out["lag_2w"]  = p.shift(1344)
+
+    out["roll_mean_1d"] = p.shift(1).rolling(96).mean()
+    out["roll_std_1d"]  = p.shift(1).rolling(96).std()
+    out["roll_mean_1w"] = p.shift(1).rolling(672).mean()
+
+    out["price_diff_1d"] = p.shift(96) - p.shift(192)
+
+    return out
+
+
+def _feature_cols_isp() -> List[str]:
+    return [
+        "isp_sin", "isp_cos", "dow", "month", "is_weekend",
+        "dow_sin", "dow_cos", "month_sin", "month_cos",
+        "lag_1d", "lag_2d", "lag_1w", "lag_2w",
+        "roll_mean_1d", "roll_std_1d", "roll_mean_1w",
+        "price_diff_1d",
+    ]
+
+
+def _synthetic_fallback_isp(isps: List[int], delivery_date: str,
+                             mean_level: float, amplitude: float) -> Dict[int, float]:
+    rng = random.Random(f"da-isp-{delivery_date}")
+    prices = {}
+    for isp in isps:
+        h = (isp - 1) / 4.0 + 1
+        morning   = math.exp(-((h - 9)  ** 2) / 8.0)
+        evening   = math.exp(-((h - 20) ** 2) / 6.0)
+        solar_dip = -0.6 * math.exp(-((h - 14) ** 2) / 10.0)
+        shape     = morning + 1.15 * evening + solar_dip
+        night     = -0.8 if h <= 6 or h >= 23 else 0.0
+        noise     = rng.uniform(-3.0, 3.0)
+        prices[isp] = round(mean_level + amplitude * (shape + night) + noise, 2)
+    return prices
 
 
 # ---------------------------------------------------------------------------

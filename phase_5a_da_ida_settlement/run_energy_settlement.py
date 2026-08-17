@@ -50,7 +50,7 @@ def run_energy_settlement(delivery_date: str, config_dir=None) -> dict:
     print(f"  Total energy      : {total:>14,.2f} EUR")
     print("=" * 56)
 
-    audit.log("ENERGY_SETTLED", da_revenue_eur=da.revenue_eur,
+    audit.log("ENERGY_SETTLED", delivery_date=delivery_date, da_revenue_eur=da.revenue_eur,
               ida_revenue_eur=ida.total_revenue_eur, total_eur=total)
     return {"status": "OK", "da_revenue_eur": da.revenue_eur,
             "ida_revenue_by_gate": ida.revenue_by_gate,

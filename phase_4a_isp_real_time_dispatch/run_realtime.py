@@ -1,10 +1,14 @@
 """
 run_realtime.py — Phase 4A real-time ISP dispatch.
 
-Expands the committed hourly net position into per-ISP setpoints (96 ISPs/day
-since 19 Mar 2025), derives concrete PSP unit + BESS setpoints for each hour,
-simulates actual delivery, and stores scheduled vs actual per ISP for imbalance
-settlement. Run the energy gates first so a committed position exists.
+The DA/IDA/XBID gates now commit their position natively at real ISP (15-min
+MTU) resolution (see run_da.py) -- this module no longer needs to expand an
+hourly commitment into 4 flat ISP setpoints; the committed position already
+IS ISP-resolved. It derives concrete PSP unit + BESS setpoints per ISP
+(each ISP's own setpoint, at its own dt -- not inherited flat from an hourly
+parent), simulates actual delivery, and stores scheduled vs actual per ISP
+for imbalance settlement. Run the energy gates first so a committed position
+exists.
 
     python phase_4a_isp_real_time_dispatch/run_realtime.py --date 2026-06-26
 """
@@ -49,22 +53,21 @@ def run_realtime(delivery_date: str, cfg: AppConfig, no_pause: bool = False) -> 
     psp_disp = PSPSetpointDispatcher(cfg.plant.psp)
     bess_disp = BESSSetpointDispatcher(cfg.plant.bess)
 
-    # Expand hourly net to ISP setpoints; derive PSP+BESS setpoints per hour.
-    scheduled_by_isp = {}
-    isp_to_hour = {}
+    # Committed position is already ISP-native (run_da.py solves at real
+    # 15-min MTU resolution) -- derive PSP+BESS setpoints per ISP directly,
+    # no hourly expansion needed.
+    scheduled_by_isp = dict(committed)
+    isp_to_hour = {isp: du.isp_to_hour(isp, day) for isp in committed}
     soc = cfg.plant.bess.initial_soc_frac * cfg.plant.bess.capacity_mwh
     violations = []
-    for h in sorted(committed):
-        net = committed[h]
+    for isp in sorted(committed):
+        net = committed[isp]
         # PSP covers the bulk; BESS trims the residual (fast response, SOC-limited).
         units = psp_disp.allocate(net)
-        violations += psp_disp.validate(units, label=f"H{h}")
+        violations += psp_disp.validate(units, label=f"ISP{isp}")
         psp_net = PSPSetpointDispatcher.net_mw(units)
         residual = net - psp_net
-        _, soc = bess_disp.setpoint(residual, soc, 1.0)  # dt=1h: setpoint called once per hour
-        for isp in du.hour_to_isps(h, day):
-            scheduled_by_isp[isp] = net
-            isp_to_hour[isp] = h
+        _, soc = bess_disp.setpoint(residual, soc, isp_h)
 
     if violations:
         log.warning(f"[RT] {len(violations)} setpoint feasibility notes (target from net only)")
@@ -73,7 +76,7 @@ def run_realtime(delivery_date: str, cfg: AppConfig, no_pause: bool = False) -> 
     summary = track(scheduled_by_isp, actual_by_isp, isp_to_hour, isp_h)
 
     DeliveryStore().save(delivery_date, summary.rows)
-    audit.log("RT_DELIVERED", n_isp=len(summary.rows),
+    audit.log("RT_DELIVERED", delivery_date=delivery_date, n_isp=len(summary.rows),
               total_abs_deviation_mwh=summary.total_abs_deviation_mwh)
 
     _print_summary(delivery_date, cfg, summary)

@@ -16,6 +16,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
+# Cosmetic labels only, matching config/market.yaml gates.XBID.check_windows —
+# actual open-hour computation happens in xbid_price_loader.tradable_hours_for_window.
+WINDOW_TRIGGER_DESC: Dict[str, str] = {
+    "W1": "D-1 18:30 CET",
+    "W2": "D-1 22:30 CET",
+    "W3": "D 03:00 CET",
+    "W4": "D 06:00 CET",
+    "W5": "D 09:30 CET",
+    "W6": "D 12:00 CET",
+}
+
 
 @dataclass
 class XBIDOrder:
@@ -86,7 +97,7 @@ def to_xbid_payload(orders: List[XBIDOrder], delivery_date: str,
         "delivery_date"         : delivery_date,
         "gate"                  : "XBID",
         "check_window"          : window,
-        "window_description"    : "D-1 18:30 CET" if window == "W1" else "D 09:30 CET",
+        "window_description"    : WINDOW_TRIGGER_DESC.get(window, window),
         "market_type"           : "continuous",
         "resolution"            : "hourly",
         "total_order_mwh"       : round(sum(abs(o.order_mwh) for o in orders), 3),
@@ -108,8 +119,7 @@ def to_xbid_payload(orders: List[XBIDOrder], delivery_date: str,
 
 def render_table(orders: List[XBIDOrder], window: str) -> str:
     """Terminal table for operator review before XBID order submission."""
-    window_desc = "D-1 18:30 CET (W1 — full day open)" if window == "W1" \
-                  else "D 09:30 CET (W2 — hours >= H11 open)"
+    window_desc = WINDOW_TRIGGER_DESC.get(window, window)
     lines = [
         f"  XBID continuous market — check window {window} ({window_desc})",
         f"  {'Hour':<5} {'Committed':>11} {'New':>9} {'Order MWh':>11} "

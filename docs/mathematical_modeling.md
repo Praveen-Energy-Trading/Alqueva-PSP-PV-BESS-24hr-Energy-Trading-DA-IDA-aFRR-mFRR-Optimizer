@@ -809,10 +809,10 @@ $$
 where $s_h$ (EUR/MWh) is the IDA1-DA spread for hour $h$, the regression target trained on historical SIDC IDA1 clearing prices; $\pi^{IDA1}_h$, $\pi^{DA}_h$ are the realized IDA1 and DA prices in the training data. Feature engineering reuses the cyclical calendar encoding of Eq. 64 (hour, day-of-week, month) plus DA-price-level features (24-hour rolling mean and standard deviation of the day's DA curve, the same-hour spread from 7 days prior, and the previous hour's spread), and model selection reuses the walk-forward CV and accuracy-metric machinery of Eq. 68–73 with Naive (zero-spread) as the persistence baseline.
 
 $$
-\pi^{IDA1}_h = \mathrm{clip}\left( \pi^{DA}_h + \hat{s}_h,\ -500,\ 3000 \right) \tag{89}
+\pi^{IDA1}_h = \mathrm{clip}\left( \pi^{DA}_h + \hat{s}_h,\ -600,\ 3000 \right) \tag{89}
 $$
 
-where $\hat{s}_h$ (EUR/MWh) is the model-predicted spread for hour $h$, and the result is clipped to the OMIE regulatory price bounds (floor $-500$ EUR/MWh, ceiling $3000$ EUR/MWh).
+where $\hat{s}_h$ (EUR/MWh) is the model-predicted spread for hour $h$, and the result is clipped to the OMIE regulatory price bounds (floor $-600$ EUR/MWh, effective delivery 29 May 2026; ceiling $3000$ EUR/MWh).
 
 ### 2A.2 IDA1 Re-Optimization
 

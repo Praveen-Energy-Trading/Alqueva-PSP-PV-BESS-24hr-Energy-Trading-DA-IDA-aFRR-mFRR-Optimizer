@@ -29,9 +29,11 @@ def main():
     p.add_argument("--date", required=True, help="delivery date YYYY-MM-DD")
     p.add_argument("--config", default=None)
     p.add_argument("--no-pause", action="store_true")
+    p.add_argument("--real-data", action="store_true", help="use live OMIE training-data backfill")
     args = p.parse_args()
 
-    result = optimise_ida3(args.date, load_config(args.config), no_pause=args.no_pause)
+    result = optimise_ida3(args.date, load_config(args.config), no_pause=args.no_pause,
+                           use_synthetic=not args.real_data)
     status = result.get("status")
     print(f"\n  IDA3 gate result: {status}")
 

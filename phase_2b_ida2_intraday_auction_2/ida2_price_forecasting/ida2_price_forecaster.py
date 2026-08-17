@@ -8,7 +8,7 @@ Training data: ida2_training_data_2024_2025.xlsx
     12,298 rows · H3-H24 · 2024-06-13 to 2025-12-31
     Source: OMIE/ENTSO-E SIDC IDA2 clearing prices.
 
-Floor: -500 EUR/MWh (OMIE regulatory minimum).
+Floor: -600 EUR/MWh (OMIE regulatory minimum, effective delivery 29 May 2026).
 """
 from __future__ import annotations
 
@@ -25,18 +25,18 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(os.path.dirname(_HERE))
 
 _PHASE1_FCST = os.path.join(_REPO, "phase_1_da_day_ahead_bidding",
-                             "price_and_power_forecasting")
+                             "da_price_pv_inflow_forecasting")
 if _PHASE1_FCST not in sys.path:
     sys.path.insert(0, _PHASE1_FCST)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
 
 _EXCEL_PATH  = os.path.join(_HERE, "ida2_training_data_2024_2025.xlsx")
 _SHEET       = "IDA2_2024_2025"
 _JSON_PATH   = os.path.join(_HERE, "ida2_selected_model.json")
 _WARMUP_ROWS = 100
 _N_CV_FOLDS  = 4
-_PRICE_FLOOR = -500.0
+_PRICE_FLOOR = -600.0
 _cache: dict = {}
 
 
@@ -69,28 +69,27 @@ def _model_forecast(hours: List[int], delivery_date: str,
         selected = _auto_select_model(feat_tr)
         fcols    = _feature_cols()
         X, y     = feat_tr[fcols], feat_tr["spread_EUR_MWh"].values
-        model    = (fit_lgbm(X, y, fcols) if selected == "LightGBM"
-                    else fit_ridge(X.values, y) if selected == "Ridge"
-                    else None)
+        model    = fit_selected(selected, X, y, fcols)
         _cache[cache_key]                   = model
         _cache[f"sel_ida2_{delivery_date}"] = selected
 
-    model     = _cache[cache_key]
-    selected  = _cache[f"sel_ida2_{delivery_date}"]
-    pred_rows = _build_pred_rows(delivery_date, hours, da_prices, feat_tr)
+    model    = _cache[cache_key]
+    selected = _cache[f"sel_ida2_{delivery_date}"]
 
-    if model is None:
-        spreads = np.zeros(len(pred_rows))
-    elif selected == "Ridge":
-        spreads = model.predict(pred_rows[_feature_cols()].values)
-    else:
-        spreads = model.predict(pred_rows[_feature_cols()])
+    # Sequential (autoregressive) prediction — see ida1_price_forecaster.py for
+    # the full explanation. spread_lag_h1 must be the model's own predicted
+    # spread for hour h-1, not a static placeholder.
+    fcols = _feature_cols()
+    prices: Dict[int, float] = {}
+    prev_spread = 0.0
+    for h in sorted(hours):
+        row = _build_pred_row(h, delivery_date, da_prices, feat_tr, prev_spread)
+        spread = float(model.predict(row[fcols])[0])
+        prices[h] = round(float(np.clip(da_prices.get(h, 55.0) + spread,
+                                        _PRICE_FLOOR, 3_000.0)), 2)
+        prev_spread = spread
 
-    return {
-        int(h): round(float(np.clip(da_prices.get(int(h), 55.0) + spreads[i],
-                                    _PRICE_FLOOR, 3_000.0)), 2)
-        for i, h in enumerate(pred_rows["hour"].astype(int).tolist())
-    }
+    return prices
 
 
 def _auto_select_model(feat_tr: pd.DataFrame) -> str:
@@ -112,7 +111,7 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
                    "data_end_date": str(excel_last_date),
                    "updated_on": str(datetime.date.today())}, f, indent=2)
     print(f"\n[IDA2 Forecaster] Selected => {selected}")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in MODEL_NAMES:
         mark = " <--" if name == selected else ""
         print(f"  {name:<12} MAE {cv_mae.get(name, float('inf')):.4f} EUR/MWh{mark}")
     return selected
@@ -159,34 +158,32 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _build_pred_rows(delivery_date: str, hours: List[int],
-                     da_prices: Dict[int, float],
-                     feat_tr: pd.DataFrame) -> pd.DataFrame:
+def _build_pred_row(h: int, delivery_date: str, da_prices: Dict[int, float],
+                    feat_tr: pd.DataFrame, prev_spread: float) -> pd.DataFrame:
+    """Build ONE hour's feature row. spread_lag_h1 = prev_spread, the caller's
+    own just-predicted spread for hour h-1 (0.0 only for the first hour)."""
     target_dt  = pd.Timestamp(delivery_date)
     dow, month = target_dt.dayofweek, target_dt.month
     week_ago   = (target_dt - pd.Timedelta(days=7)).date()
     recent     = (feat_tr[feat_tr["Date"].dt.date == week_ago]
                   .groupby("hour")["spread_EUR_MWh"].mean())
-    rows, prev = [], 0.0
-    for h in sorted(hours):
-        da_p = float(da_prices.get(h, 55.0))
-        rows.append({
-            "hour"              : h,
-            "da_price"          : da_p,
-            "hour_sin"          : np.sin(2 * np.pi * (h - 1) / 24),
-            "hour_cos"          : np.cos(2 * np.pi * (h - 1) / 24),
-            "dow_sin"           : np.sin(2 * np.pi * dow / 7),
-            "dow_cos"           : np.cos(2 * np.pi * dow / 7),
-            "month_sin"         : np.sin(2 * np.pi * (month - 1) / 12),
-            "month_cos"         : np.cos(2 * np.pi * (month - 1) / 12),
-            "is_weekend"        : int(dow >= 5),
-            "da_roll_mean_24h"  : float(np.mean(list(da_prices.values()))),
-            "da_roll_std_24h"   : float(np.std(list(da_prices.values()))),
-            "da_lag_168h_spread": float(recent.get(h, 0.0)),
-            "spread_lag_h1"     : prev,
-        })
-        prev = 0.0
-    return pd.DataFrame(rows)
+    da_p = float(da_prices.get(h, 55.0))
+    row = {
+        "hour"              : h,
+        "da_price"          : da_p,
+        "hour_sin"          : np.sin(2 * np.pi * (h - 1) / 24),
+        "hour_cos"          : np.cos(2 * np.pi * (h - 1) / 24),
+        "dow_sin"           : np.sin(2 * np.pi * dow / 7),
+        "dow_cos"           : np.cos(2 * np.pi * dow / 7),
+        "month_sin"         : np.sin(2 * np.pi * (month - 1) / 12),
+        "month_cos"         : np.cos(2 * np.pi * (month - 1) / 12),
+        "is_weekend"        : int(dow >= 5),
+        "da_roll_mean_24h"  : float(np.mean(list(da_prices.values()))),
+        "da_roll_std_24h"   : float(np.std(list(da_prices.values()))),
+        "da_lag_168h_spread": float(recent.get(h, 0.0)),
+        "spread_lag_h1"     : prev_spread,
+    }
+    return pd.DataFrame([row])
 
 
 def _feature_cols() -> List[str]:

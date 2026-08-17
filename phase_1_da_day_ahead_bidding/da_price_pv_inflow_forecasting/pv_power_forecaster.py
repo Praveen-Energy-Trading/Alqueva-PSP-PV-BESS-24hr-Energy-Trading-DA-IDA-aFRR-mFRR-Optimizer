@@ -2,15 +2,15 @@
 pv_power_forecaster.py — hourly PV availability for the Alqueva floating array.
 
 Methodology:
-    1. Load pv_training_data_2015_2025.xlsx (ERA5 reanalysis: GHI W/m² + T_amb °C)
-         GHI   <- ERA5 surface_solar_radiation_downwards
-         T_amb <- ERA5 2m_temperature
+    1. Load pv_training_data_from_2015.xlsx (Alqueva plant on-site sensors: GHI W/m² + T_amb °C)
+         GHI   <- Alqueva plant pyranometer (surface solar irradiance)
+         T_amb <- Alqueva plant ambient temperature sensor
     2. Gap fill: any missing dates between last Excel row and yesterday are filled
        with synthetic clear-sky GHI (Bird model × mean cloud factor) and seasonal
        T_amb — no external API needed, pure physics + climatology
     3. Compute clear-sky GHI from solar geometry (Alqueva 38.20°N, 7.49°W)
     4. Build lag + clear-sky features for GHI and T_amb separately
-    5. Walk-forward CV (4 folds) comparing Naive / Ridge / LightGBM per target
+    5. Walk-forward CV (4 folds) comparing LightGBM / XGBoost / RandomForest / CatBoost per target
     6. Forecast GHI and T_amb for each hour of delivery_date
     7. Convert T_amb → T_cell via NOCT model (IEC 61215, NOCT = 45°C floating PV)
        T_cell = T_amb + (NOCT − 20) / 800 × GHI
@@ -45,7 +45,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
 
 from common_layer.configuration.plant_config import PVConfig
 from common_layer.physical_plant_models import PVModel
@@ -53,7 +53,7 @@ from common_layer.physical_plant_models import PVModel
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_EXCEL_PATH   = os.path.join(_HERE, "pv_training_data_2015_2025.xlsx")
+_EXCEL_PATH   = os.path.join(_HERE, "pv_training_data_from_2015.xlsx")
 _JSON_PATH    = os.path.join(_HERE, "pv_selected_model.json")
 _SHEET        = "PV_Weather_2015_2026"
 _LAT_DEG      = 38.20    # Alqueva latitude (°N)
@@ -95,7 +95,7 @@ def forecast_pv_available(hours: List[int], delivery_date: str,
 def _fill_gaps(delivery_date: str) -> None:
     """Fill pv_training_data Excel with synthetic weather up to yesterday.
 
-    ERA5 has a ~5-day publication lag — real data not available for recent
+    Plant sensor feed has a publication lag — real data not available for recent
     dates. Gap is filled with clear-sky GHI × mean cloud factor and seasonal
     T_amb. Idempotent: already-filled dates are skipped.
     """
@@ -153,29 +153,24 @@ def _seasonal_tamb(month: int) -> float:
 # Core forecasting pipeline
 # ---------------------------------------------------------------------------
 
-def _model_forecast(hours: List[int], delivery_date: str,
-                    pv_cfg: PVConfig) -> Dict[int, float]:
-    # Step 1 — fill Excel gap up to yesterday
+def _forecast_ghi_tamb(delivery_date: str) -> tuple[Dict[int, float], Dict[int, float]]:
+    """Shared ML step: predict hourly GHI and T_amb for delivery_date. Both
+    the hourly and 15-min PV forecasters build on this same trained model --
+    the plant's on-site sensor feed is hourly, so this is the real ceiling
+    of resolution the cloud/temperature correction itself can honestly
+    reach; sub-hourly GHI variation comes from real clear-sky physics on
+    top of this (see forecast_pv_available_isp)."""
     _fill_gaps(delivery_date)
 
     df        = _load_history()
     target_dt = pd.Timestamp(delivery_date)
     cutoff    = target_dt - pd.Timedelta(hours=1)
-    year      = target_dt.year
 
-    # Drop any pre-existing delivery-date (or future) rows so the appended
-    # placeholder is the only set of delivery-date rows. A prior _fill_gaps for a
-    # later date can otherwise leave duplicate rows that corrupt the lag /
-    # rolling features and force the synthetic fallback on every run.
     df = df[df["datetime"] < target_dt].copy()
-
     history = df[df["datetime"] <= cutoff]
     if len(history) < _WARMUP_HOURS:
         raise ValueError(f"Insufficient history ({len(history)} rows)")
 
-    # Append 24 placeholder rows for delivery_date.
-    # GHI/T_amb initialised to Naive (yesterday's values) so rolling features
-    # stay non-NaN for H2..H24. Actual ML prediction overwrites these.
     yesterday = (target_dt - pd.Timedelta(days=1)).date()
     yest_df   = df[df["datetime"].dt.date == yesterday].set_index("Hour")
     naive_ghi  = [float(yest_df["GHI"].get(h,  yest_df["GHI"].mean()))  for h in range(1, 25)]
@@ -194,9 +189,6 @@ def _model_forecast(hours: List[int], delivery_date: str,
     if pred_df.empty:
         raise ValueError(f"No feature rows for {delivery_date}")
 
-    pv_model = PVModel(pv_cfg, year=year)
-
-    # Step 2 — train GHI and T_amb models separately (cached per delivery_date)
     for target_col, suffix in [("GHI", "ghi"), ("T_amb", "tamb")]:
         cache_key = f"pv_{suffix}_{delivery_date}"
         if cache_key not in _cache:
@@ -204,22 +196,21 @@ def _model_forecast(hours: List[int], delivery_date: str,
             feat_df  = train_df[fcols]
             y        = train_df[target_col].values
             selected = _auto_select_pv_model(train_df, target_col, fcols)
-
-            if selected == "LightGBM":
-                model = fit_lgbm(feat_df, y, fcols)
-            elif selected == "Ridge":
-                model = fit_ridge(feat_df.values, y)
-            else:
-                model = None  # Naive
-
-            _cache[cache_key]                           = model
+            model = fit_selected(selected, feat_df, y, fcols)
+            _cache[cache_key]                          = model
             _cache[f"pv_{suffix}_sel_{delivery_date}"] = selected
 
-    # Step 3 — predict GHI and T_amb for delivery_date
     ghi_pred  = _predict(pred_df, "ghi",  delivery_date, clip_min=0.0)
     tamb_pred = _predict(pred_df, "tamb", delivery_date, clip_min=None)
+    return ghi_pred, tamb_pred
 
-    # Step 4 — physics: T_cell → PV MW (via common_layer PVModel)
+
+def _model_forecast(hours: List[int], delivery_date: str,
+                    pv_cfg: PVConfig) -> Dict[int, float]:
+    year = pd.Timestamp(delivery_date).year
+    ghi_pred, tamb_pred = _forecast_ghi_tamb(delivery_date)
+    pv_model = PVModel(pv_cfg, year=year)
+
     out: Dict[int, float] = {}
     for h in hours:
         ghi    = ghi_pred.get(h, 0.0)
@@ -227,6 +218,79 @@ def _model_forecast(hours: List[int], delivery_date: str,
         t_cell = t_amb + ((_NOCT_C - 20.0) / 800.0) * ghi   # IEC 61215
         out[h] = round(pv_model.production_mw(ghi, t_cell), 4)
 
+    return out
+
+
+def forecast_pv_available_isp(isps: List[int], delivery_date: str,
+                               pv_cfg: PVConfig) -> Dict[int, float]:
+    """Return {isp: MW available} for the 96 quarter-hours of delivery_date.
+
+    GHI genuinely varies within the hour: the real clear-sky solar-position
+    physics (_clearsky_ghi, now evaluated at each ISP's exact fractional
+    hour) is scaled by that hour's ML-predicted clearness index kt =
+    GHI_pred / clearsky_ghi(hour) -- so cloud cover, the one thing the
+    hourly-trained ML model actually knows, is held constant within the
+    hour (the sensor feed can't resolve finer than that), while the pure
+    solar-geometry component moves at true 15-min resolution. T_amb is
+    physically slow-changing (its real time constant is hours, not
+    minutes) and is honestly held flat across the hour's 4 ISPs, same
+    treatment as river inflow elsewhere in this pipeline -- not an
+    approximation, the physically correct choice."""
+    try:
+        year = pd.Timestamp(delivery_date).year
+        ghi_pred, tamb_pred = _forecast_ghi_tamb(delivery_date)
+        pv_model = PVModel(pv_cfg, year=year)
+        target_dt = pd.Timestamp(delivery_date)
+
+        out: Dict[int, float] = {}
+        for isp in isps:
+            h = (isp - 1) // 4 + 1
+            ghi_hour = ghi_pred.get(h, 0.0)
+            t_amb = tamb_pred.get(h, 15.0)
+
+            hour_ts = target_dt + pd.Timedelta(hours=h - 1)
+            cs_hour = _clearsky_ghi(hour_ts)
+            kt = ghi_hour / cs_hour if cs_hour > 10 else 0.0
+
+            isp_ts = target_dt + pd.Timedelta(minutes=15 * (isp - 1))
+            cs_isp = _clearsky_ghi(isp_ts)
+            ghi_isp = max(0.0, kt * cs_isp)
+
+            t_cell = t_amb + ((_NOCT_C - 20.0) / 800.0) * ghi_isp
+            out[isp] = round(pv_model.production_mw(ghi_isp, t_cell), 4)
+        return out
+    except Exception as exc:
+        warnings.warn(
+            f"[PV ISP Forecaster] Model failed ({exc}); using synthetic fallback.",
+            RuntimeWarning, stacklevel=2
+        )
+        return _synthetic_fallback_isp(isps, delivery_date, pv_cfg)
+
+
+def _synthetic_fallback_isp(isps: List[int], delivery_date: str,
+                             pv_cfg: PVConfig) -> Dict[int, float]:
+    year  = int(delivery_date[:4])
+    month = int(delivery_date[5:7])
+    model = PVModel(pv_cfg, year=year)
+    rng   = random.Random(f"pv-isp-{delivery_date}")
+
+    summer          = month in (5, 6, 7, 8)
+    sunrise, sunset = (6, 21) if summer else (8, 18)
+    peak_irr        = 950.0 if summer else 700.0
+    cloud           = rng.uniform(0.75, 1.0)
+    amb_peak_c      = 30.0 if summer else 18.0
+
+    out: Dict[int, float] = {}
+    for isp in isps:
+        h = (isp - 1) / 4.0 + 1
+        if sunrise <= h <= sunset:
+            frac   = math.sin((h - sunrise) / (sunset - sunrise) * math.pi)
+            irr    = peak_irr * max(0.0, frac) * cloud
+            t_amb  = amb_peak_c * max(0.3, frac)
+            t_cell = t_amb + ((_NOCT_C - 20.0) / 800.0) * irr
+            out[isp] = round(model.production_mw(irr, t_cell), 4)
+        else:
+            out[isp] = 0.0
     return out
 
 
@@ -241,12 +305,7 @@ def _predict(pred_df: pd.DataFrame, suffix: str,
     fcols      = _feature_cols(target_col)
     X          = pred_df[fcols]
 
-    if model is None:
-        preds = pred_df[lag_col].values
-    elif selected == "Ridge":
-        preds = model.predict(X.values)
-    else:
-        preds = model.predict(X)
+    preds = model.predict(X)
 
     if clip_min is not None:
         preds = np.clip(preds, clip_min, None)
@@ -299,9 +358,9 @@ def _auto_select_pv_model(train_df: pd.DataFrame, target_col: str,
         json.dump(info, f, indent=2)
 
     unit = "W/m2" if target_col == "GHI" else "degC"
-    print(f"\n[PV Forecaster] {target_col} model selection updated → {selected}")
+    print(f"\n[PV Forecaster] {target_col} model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} {unit}{marker}")
     print()
@@ -404,10 +463,16 @@ def _feature_cols(target_col: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 def _clearsky_ghi(dt: pd.Timestamp) -> float:
-    """Theoretical clear-sky GHI in W/m² for Alqueva at the given UTC hour."""
+    """Theoretical clear-sky GHI in W/m² for Alqueva at the given UTC instant.
+
+    Uses fractional hour-of-day (hour + minute/60) rather than truncating to
+    the integer hour, so this same real solar-position physics genuinely
+    varies within an hour when evaluated at 15-min steps -- solar elevation
+    measurably changes over 15 minutes, unlike existing hourly callers
+    (minute=0 always) whose behavior is unaffected by this change."""
     lat  = math.radians(_LAT_DEG)
     doy  = dt.timetuple().tm_yday
-    hour = dt.hour
+    hour = dt.hour + dt.minute / 60.0
 
     # Solar declination (Spencer 1971)
     B   = 2 * math.pi * (doy - 1) / 365

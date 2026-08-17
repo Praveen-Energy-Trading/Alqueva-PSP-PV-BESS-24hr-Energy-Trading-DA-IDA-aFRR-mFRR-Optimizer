@@ -44,7 +44,7 @@ def run_afrr_activation(delivery_date: str, cfg: AppConfig, no_pause: bool = Fal
             input("\n  aFRR activation logged — continue? [ENTER] ")
         except (EOFError, KeyboardInterrupt):
             pass
-    audit.log("AFRR_ACT_DONE", n_isp=s.n_isp_activated, up_mwh=s.up_mwh, dn_mwh=s.dn_mwh)
+    audit.log("AFRR_ACT_DONE", delivery_date=delivery_date, n_isp=s.n_isp_activated, up_mwh=s.up_mwh, dn_mwh=s.dn_mwh)
     return {"status": "OK", "n_isp": s.n_isp_activated, "up_mwh": s.up_mwh, "dn_mwh": s.dn_mwh}
 
 

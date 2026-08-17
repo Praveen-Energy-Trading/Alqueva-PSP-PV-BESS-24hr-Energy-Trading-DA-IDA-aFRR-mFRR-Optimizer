@@ -9,6 +9,7 @@ File: runtime/components/components_<date>.json
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 from typing import Dict, Any, Optional
@@ -71,3 +72,49 @@ class ComponentStore:
         """Return the initial_state dict saved with this date, or empty dict."""
         raw = self.load(delivery_date)
         return raw.get("initial_state", {}) if raw else {}
+
+    def load_chained_initial_state(self, delivery_date: str, bess_capacity_mwh: float,
+                                    default_state: dict, reservoir_bounds: dict | None = None) -> dict:
+        """Real day-to-day state continuity: reservoir levels and BESS SOC
+        carry over from the PREVIOUS calendar day's actual solved ending
+        state (its last-hour reservoir_trajectory/bess_schedule), instead of
+        resetting to a static config constant every day. Without this, the
+        solver has no incentive to ever recharge the BESS -- SOC just resets
+        to the config default each morning regardless of where it actually
+        ended, so any same-day discharge is a free lunch it never needs to
+        pay back. Falls back to default_state when no previous day's
+        ComponentStore record exists (first run, gaps in history) or that
+        record is incomplete.
+
+        Clamped to the same feasible bounds core_milp_builder.py's v_up/v_low
+        constraints enforce (reservoir_bounds: upper_min_hm3, upper_usable_hm3,
+        lower_min_hm3, lower_capacity_hm3) -- the solved ending value can sit
+        fractionally outside those bounds (solver tolerance), which would
+        otherwise make the very next day's own DA bid infeasible."""
+        prev_date = (
+            _dt.datetime.strptime(delivery_date, "%Y-%m-%d").date() - _dt.timedelta(days=1)
+        ).isoformat()
+        prev = self.load(prev_date)
+        if prev is None:
+            return dict(default_state)
+        traj = prev.get("reservoir_trajectory") or {}
+        bess_sched = prev.get("bess_schedule") or {}
+        if not traj or not bess_sched or bess_capacity_mwh <= 0:
+            return dict(default_state)
+        last_traj_hour = max(traj)
+        last_bess_hour = max(bess_sched)
+        soc_frac = bess_sched[last_bess_hour]["soc_mwh"] / bess_capacity_mwh
+
+        upper_hm3 = traj[last_traj_hour]["upper_hm3"]
+        lower_hm3 = traj[last_traj_hour]["lower_hm3"]
+        if reservoir_bounds:
+            upper_hm3 = max(reservoir_bounds["upper_min_hm3"],
+                             min(reservoir_bounds["upper_usable_hm3"], upper_hm3))
+            lower_hm3 = max(reservoir_bounds["lower_min_hm3"],
+                             min(reservoir_bounds["lower_capacity_hm3"], lower_hm3))
+
+        return {
+            "upper_reservoir_hm3": upper_hm3,
+            "lower_reservoir_hm3": lower_hm3,
+            "bess_soc_frac": max(0.0, min(1.0, soc_frac)),
+        }

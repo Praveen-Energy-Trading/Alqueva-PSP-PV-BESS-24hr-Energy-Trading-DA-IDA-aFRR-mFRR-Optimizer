@@ -1,0 +1,306 @@
+"""Overview — the one-glance boardroom page. Every element here mirrors
+run_production.py's own 19-phase table, the same Summary_KPIs/Gate_Decisions
+Excel sheets Trading Desk uses, and the same audit trail Decision Rationale
+uses — nothing computed here that isn't already computed elsewhere; this
+page is a compact front door to the other six, not a new data source."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import streamlit as st
+import streamlit.components.v1 as components
+
+import data
+import gate_ticket
+import delivery_ticket
+import dispatch_ticket
+import theme
+
+st.title("⚡ Overview")
+
+# ---------------------------------------------------------------------------
+# Asset strip — physical plant, straight from config/plant.yaml. Fixed
+# regardless of which run/date is selected, since it's hardware, not a
+# computed result — the same numbers run_production.py prints as its own
+# "PLANT SPECS" header, just five cards instead of a text block.
+# ---------------------------------------------------------------------------
+
+plant_cfg = data.load_plant_config()
+psp, pv, bess, fcr = plant_cfg["psp"], plant_cfg["pv"], plant_cfg["bess"], plant_cfg["fcr"]
+n_units = psp["n_units"]
+
+ASSET_CARDS = [
+    ("🌀", "Turbines", f"{n_units} × {psp['p_turbine_max_mw']:.1f} MW", f"{n_units * psp['p_turbine_max_mw']:.1f} MW total"),
+    ("🔽", "Pumps", f"{n_units} × {psp['p_pump_max_mw']:.1f} MW", f"{n_units * psp['p_pump_max_mw']:.1f} MW total"),
+    ("☀️", "PV", f"{pv['peak_capacity_mw']:.1f} MWp", ""),
+    ("🔋", "BESS", f"{bess['power_mw']:.1f} MW / {bess['capacity_mwh']:.1f} MWh", ""),
+    ("🛡️", "FCR headroom", f"{fcr['mandatory_headroom_mw']:.1f} MW", "49.8–50.2 Hz, <30s"),
+]
+
+st.markdown(
+    f'<div style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500; margin-bottom:8px;">'
+    f'Alqueva PSP + PV + BESS</div>'
+    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin-bottom:1.5rem;">' +
+    "".join(
+        f'<div style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE}; border-radius:10px; padding:0.75rem 0.9rem;">'
+        f'<div style="font-size:12px; color:{theme.INK_SECONDARY}; margin-bottom:4px;">{icon} {label}</div>'
+        f'<div style="font-size:16px; font-weight:500; color:{theme.INK_PRIMARY};">{value}</div>'
+        f'<div style="font-size:12px; color:{theme.INK_MUTED}; margin-top:2px;">{sub}&nbsp;</div>'
+        f'</div>'
+        for icon, label, value, sub in ASSET_CARDS
+    ) +
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+selected_date = st.session_state.get("selected_date")
+report_ready = st.session_state.get("report_ready", False)
+
+if not selected_date:
+    st.warning("No runs found yet — visit Run & Monitor to start one.")
+    st.stop()
+
+run_status = data.load_run_status(selected_date)
+state = data.run_phase_state(selected_date)
+
+if state == "running":
+    st.success(f"🟢 Pipeline is actively running right now for delivery **{selected_date}**.")
+elif state == "idle_running":
+    if run_status and run_status.get("mode") == "trader":
+        st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
+                   f"gone quiet — most likely paused on an Approve/Reject or ENTER "
+                   f"prompt waiting on you in trader mode. Check the terminal, or "
+                   f"Console Log for the last line printed.")
+    else:
+        st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
+                   f"gone quiet — most likely still computing (e.g. a slow model "
+                   f"fit) rather than stuck. Check Console Log for the last line printed.")
+elif state == "stopped":
+    st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
+             f"running — most likely Ctrl+C or a crash while it was paused waiting for "
+             f"input. Start a fresh run when ready.")
+elif state == "none":
+    st.info(f"No run-status record for **{selected_date}** yet — see Run & Monitor.")
+else:
+    results = run_status["results"]
+    n_fail = sum(1 for r in results if r["status"] == "FAIL")
+    n_pass = sum(1 for r in results if r["status"] == "PASS")
+    if n_fail:
+        st.error(f"🔴 **{selected_date}** — {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
+    else:
+        st.success(f"🟢 **{selected_date}** — {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
+
+# ---------------------------------------------------------------------------
+# Live gate tickets — updates gate-by-gate as the pipeline runs, reading
+# PositionStore/ReserveStore directly (SQLite), not the Excel report — so
+# this shows real numbers even mid-run, before analytics has written
+# anything. Every gate that has decided so far gets a compact strip card
+# (so DA doesn't just vanish once aFRR becomes 'latest'); the most recent
+# one also gets the full detailed chart below. See dashboard/gate_ticket.py.
+# ---------------------------------------------------------------------------
+
+all_tickets = data.all_gate_tickets(selected_date)
+if all_tickets:
+    gate_keys = [t["gate"] for t in all_tickets]
+    state_key = f"overview_selected_gate_{selected_date}"
+    if state_key not in st.session_state or st.session_state[state_key] not in gate_keys:
+        st.session_state[state_key] = gate_keys[-1]  # default to the latest decision
+
+    cols = st.columns(len(all_tickets))
+    for i, t in enumerate(all_tickets):
+        icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
+        rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else "—"
+        label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
+        is_selected = t["gate"] == st.session_state[state_key]
+        if cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
+                           use_container_width=True, type="primary" if is_selected else "secondary"):
+            st.session_state[state_key] = t["gate"]
+
+    selected_ticket = next(t for t in all_tickets if t["gate"] == st.session_state[state_key])
+    fig_num = gate_keys.index(st.session_state[state_key]) + 1
+    # Card height varies by content: standard DA/aFRR/mFRR bar-chart cards
+    # are shorter (no tradable-hours section), rebid cards (IDA1-3) are
+    # taller, and XBID's multi-window pill row adds a bit more on top of
+    # that. One fixed height sized for the tallest case left a large blank
+    # gap in the iframe below every shorter card.
+    if selected_ticket.get("xbid_windows"):
+        card_height = 325
+    elif selected_ticket.get("is_rebid_gate"):
+        card_height = 285
+    else:
+        card_height = 345
+    components.html(gate_ticket.render(selected_ticket, selected_date, fig_num=fig_num), height=card_height)
+    st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# Delivery cards — RT dispatch, aFRR activation, mFRR activation, FCR droop
+# response. Not decisions like the gates above, so they get their own tab
+# strip rather than sitting in the gate-ticket buttons. Only rendered once
+# each phase has actually produced data for this date. FCR is the odd one
+# out: it's a standalone, non-remunerated compliance simulation, not read
+# from a pipeline run's audit trail — see data.py::load_fcr_activation.
+# ---------------------------------------------------------------------------
+
+rt = data.load_rt_delivery(selected_date)
+afrr_act = data.load_activation_summary(selected_date, "aFRR")
+mfrr_act = data.load_activation_summary(selected_date, "mFRR")
+fcr_act = data.load_fcr_activation(selected_date)
+afrr_agc = data.load_agc_mechanism_demo(selected_date, "aFRR")
+mfrr_agc = data.load_agc_mechanism_demo(selected_date, "mFRR")
+reservoir_traj = data.load_reservoir_trajectory(selected_date)
+pv_routing = data.load_pv_routing(selected_date)
+multi_asset = data.load_multi_asset_dispatch(selected_date)
+water_balance = data.load_water_balance(selected_date)
+bess_soc_price = data.load_bess_soc_price(selected_date)
+bess_charge_source = data.load_bess_charge_source(selected_date)
+da_vs_activation = data.load_da_vs_activation(selected_date)
+market_cards = [
+    ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=380)) if rt else None,
+    ("aFRR activation", lambda: components.html(delivery_ticket.render_activation_card(afrr_act, "aFRR"), height=440)) if afrr_act else None,
+    ("mFRR activation", lambda: components.html(delivery_ticket.render_activation_card(mfrr_act, "mFRR"), height=440)) if mfrr_act else None,
+    ("FCR response", lambda: components.html(delivery_ticket.render_fcr_card(fcr_act), height=485)) if fcr_act else None,
+    ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=500)) if afrr_agc else None,
+    ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=500)) if mfrr_agc else None,
+]
+technical_cards = [
+    ("Reservoir trajectory", lambda: components.html(dispatch_ticket.render_reservoir_trajectory_card(reservoir_traj), height=470)) if reservoir_traj else None,
+    ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=350)) if pv_routing else None,
+    ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=560)) if multi_asset else None,
+    ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=350)) if water_balance else None,
+    ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=350)) if bess_soc_price else None,
+    ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=380)) if bess_charge_source else None,
+    ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=380)) if da_vs_activation else None,
+]
+market_cards = [c for c in market_cards if c is not None]
+technical_cards = [c for c in technical_cards if c is not None]
+
+if market_cards:
+    st.markdown("##### Market & Delivery")
+    tabs = st.tabs([label for label, _ in market_cards])
+    for tab, (_, render_fn) in zip(tabs, market_cards):
+        with tab:
+            render_fn()
+    st.markdown("---")
+
+if technical_cards:
+    st.markdown("##### Optimization & Physical Dispatch")
+    tabs = st.tabs([label for label, _ in technical_cards])
+    for tab, (_, render_fn) in zip(tabs, technical_cards):
+        with tab:
+            render_fn()
+    st.markdown("---")
+
+if not report_ready:
+    st.info(data.no_report_message(selected_date))
+    st.stop()
+
+report = data.load_daily_report(selected_date)
+dispatch, isp, gates, kpis = report["dispatch"], report["isp"], report["gates"], report["kpis"]
+
+# ---------------------------------------------------------------------------
+# KPI row — same Summary_KPIs values Trading Desk shows
+# ---------------------------------------------------------------------------
+
+total_pnl = data.kpi_value(kpis, "Total daily P&L") or 0.0
+da_rev    = data.kpi_value(kpis, "DA energy revenue") or 0.0
+ida_rev   = data.kpi_value(kpis, "IDA incremental revenue") or 0.0
+reserve   = (data.kpi_value(kpis, "aFRR capacity revenue") or 0.0) + (data.kpi_value(kpis, "aFRR activation revenue") or 0.0) \
+            + (data.kpi_value(kpis, "mFRR capacity revenue") or 0.0) + (data.kpi_value(kpis, "mFRR activation revenue") or 0.0)
+reserve_pct = data.kpi_value(kpis, "Reserve share of P&L")
+
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Total P&L", f"{total_pnl:,.0f} EUR")
+c2.metric("DA", f"{da_rev:,.0f} EUR")
+c3.metric("IDA + XBID", f"{ida_rev:,.0f} EUR")
+c4.metric("Reserve (aFRR+mFRR)", f"{reserve:,.0f} EUR")
+c5.metric("Reserve share", f"{reserve_pct:.1f} %" if reserve_pct is not None else "n/a")
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# Hero: dispatch + price (stacked), and a compact gate-decision list
+# ---------------------------------------------------------------------------
+
+left, right = st.columns([2, 1])
+with left:
+    st.subheader("Dispatch and DA price")
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.6, 0.4])
+    fig.add_trace(go.Bar(x=dispatch["Hour"], y=dispatch["Plant_net_final_MW"],
+                          name="Net dispatch MW", marker_color=theme.COLOR_GEN), row=1, col=1)
+    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["DA_price_EUR_MWh"],
+                              name="DA price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+    theme.style_fig(fig, height=340)
+    fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
+    fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
+    st.plotly_chart(fig, width="stretch")
+
+with right:
+    st.subheader("Gate decisions")
+    GATES = ["IDA1", "IDA2", "IDA3", "XBID"]
+    DECISION_EVENTS = {"SUBMITTED", "NO_CHANGE", "ORDERS_PLACED", "NO_ORDER", "RISK_BLOCKED", "BIDCHECK_FAILED"}
+    LABEL = {"SUBMITTED": "🟢 Re-bid", "ORDERS_PLACED": "🟢 Re-bid", "NO_CHANGE": "⚪ Held",
+             "NO_ORDER": "⚪ Held", "RISK_BLOCKED": "🔴 Blocked", "BIDCHECK_FAILED": "🔴 Blocked"}
+    for gate in GATES:
+        events = data.load_audit_events(selected_date, event_prefix=gate)
+        decisions = [e for e in events if e["event"][len(gate) + 1:] in DECISION_EVENTS]
+        if decisions:
+            latest = decisions[-1]
+            suffix = latest["event"][len(gate) + 1:]
+            st.markdown(f"**{gate}** &nbsp; {LABEL.get(suffix, suffix)}", unsafe_allow_html=True)
+        else:
+            st.markdown(f"**{gate}** &nbsp; ⚪ No decision logged", unsafe_allow_html=True)
+    st.caption("See Decision Rationale for the improvement-vs-threshold detail behind each.")
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# Risk & Portfolio Risk summaries — same numbers as their full pages
+# ---------------------------------------------------------------------------
+
+rc1, rc2 = st.columns(2)
+with rc1:
+    st.subheader("Risk & constraints")
+    plant_cfg = data.load_plant_config()
+    market_cfg = data.load_market_config()
+    fcr_mw = plant_cfg["fcr"]["mandatory_headroom_mw"]
+    gen_cap_fcr_mw = market_cfg["bid_limits"]["max_generation_mw"] - fcr_mw
+    pump_cap_fcr_mw = market_cfg["bid_limits"]["max_pump_mw"] - fcr_mw
+    net = dispatch["Plant_net_final_MW"]
+    peak_gen = (net.clip(lower=0) / gen_cap_fcr_mw * 100).max()
+    peak_pump = ((-net).clip(lower=0) / pump_cap_fcr_mw * 100).max()
+    st.markdown(f"Peak generation utilization: **{peak_gen:.1f}%**")
+    st.markdown(f"Peak pump utilization: **{peak_pump:.1f}%**")
+    if {"Gen_headroom_MW", "Pump_headroom_MW"}.issubset(dispatch.columns):
+        breach = (dispatch["Gen_headroom_MW"].min() < -0.01) or (dispatch["Pump_headroom_MW"].min() < -0.01)
+        st.markdown("FCR headroom: " + ("🔴 Breached" if breach else "🟢 Never breached"))
+    if "BESS_SOC_pct" in dispatch.columns:
+        soc = dispatch["BESS_SOC_pct"]
+        soc_ok = soc.between(9.99, 95.01).all()
+        st.markdown("BESS SOC bounds: " + ("🟢 Within range" if soc_ok else "🔴 Breached"))
+    st.caption("Full detail on Risk & Constraints.")
+
+with rc2:
+    st.subheader("Portfolio risk (latest backtest)")
+    files = data.list_backtest_reports()
+    if not files:
+        st.info("No backtest report found yet.")
+    else:
+        bt_report = data.load_backtest_report(files[0])
+        if "Risk" in bt_report:
+            flat = [(l, v) for l, v, is_hdr in bt_report["Risk"] if not is_hdr]
+            shown = 0
+            for label, value in flat:
+                if any(k in label for k in ("VaR", "CVaR", "Sharpe", "drawdown", "Max drawdown")):
+                    st.markdown(f"{label}: **{value:,.2f}**" if isinstance(value, (int, float)) else f"{label}: **{value}**")
+                    shown += 1
+                if shown >= 4:
+                    break
+        else:
+            st.info("This backtest report has no Risk sheet.")
+    st.caption(f"From `{files[0].name}`" if files else "")
+    st.caption("Full detail on Backtest & Portfolio Risk.")

@@ -72,6 +72,10 @@ class DeliveryStore:
                 "WHERE delivery_date=? ORDER BY isp", (delivery_date,))
             return [dict(r) for r in cur.fetchall()]
 
+    def clear_date(self, delivery_date: str) -> None:
+        with self._c() as conn:
+            conn.execute("DELETE FROM delivery WHERE delivery_date=?", (delivery_date,))
+
 
 class ActivationStore:
     """Per-ISP aFRR/mFRR activated energy written by the delivery monitor.
@@ -158,3 +162,7 @@ class ActivationStore:
                 "FROM activations WHERE delivery_date=? AND product=? ORDER BY isp",
                 (delivery_date, product))
             return [dict(r) for r in cur.fetchall()]
+
+    def clear_date(self, delivery_date: str) -> None:
+        with self._c() as conn:
+            conn.execute("DELETE FROM activations WHERE delivery_date=?", (delivery_date,))

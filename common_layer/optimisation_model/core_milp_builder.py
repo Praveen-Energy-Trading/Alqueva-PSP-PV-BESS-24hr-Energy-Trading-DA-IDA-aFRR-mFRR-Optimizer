@@ -1,12 +1,20 @@
 """
-core_milp_builder.py — the shared 24h MILP for the whole portfolio.
+core_milp_builder.py — the shared portfolio MILP, generic over time resolution.
 
 ONE model serves DA and every IDA gate; they differ only in the price/forecast
-inputs and (for IDA) which hours are frozen to the already-committed position.
-This keeps the physics in exactly one place (DRY) so a constraint fix propagates
-to every gate.
+inputs and (for IDA) which periods are frozen to the already-committed
+position. This keeps the physics in exactly one place (DRY) so a constraint
+fix propagates to every gate.
 
-Decision variables per hour h (and unit u for PSP):
+Genuinely resolution-agnostic: `inputs["hours"]` is just the ordered list of
+period indices and `inputs["dt_h"]` their real duration in hours -- nothing
+in the constraint math assumes 24 periods or dt=1.0. Real MIBEL settlement
+moved to 15-min periods (96/day) from 2025-10-01; this model runs at either
+resolution unchanged (the one period-count-sensitive parameter,
+min_mode_hours, is converted via `L = round(min_mode_hours / dt)` so it
+always means real hours regardless of what a "period" is).
+
+Decision variables per period h (and unit u for PSP):
     p_turb[u,h]             turbine power (MW, >=0)
     p_pump[u,h]             pump power    (MW, >=0)
     on_turb[u,h]            binary: unit u generating at hour h
@@ -130,6 +138,8 @@ def build_core_model(
     inputs: dict,
     cfg: AppConfig,
     fixed_net_position: Optional[Dict[int, float]] = None,
+    reserved_up_mw: Optional[Dict[int, float]] = None,
+    reserved_dn_mw: Optional[Dict[int, float]] = None,
 ) -> tuple[pyo.ConcreteModel, CoreModelMeta]:
     """Build the portfolio MILP.
 
@@ -145,6 +155,13 @@ def build_core_model(
         cfg: AppConfig.
         fixed_net_position: optional {h: MW} — freeze p_net for those hours
             (IDA gates use this to hold hours they cannot re-trade).
+        reserved_up_mw / reserved_dn_mw: optional {h: MW} — capacity already
+            committed to aFRR + mFRR reserve products BEFORE this energy gate
+            runs (real-world sequence: reserve capacity gates close ~08:00
+            D-1, energy DA gate closes ~12:00 D-1 — reserve is committed
+            first, energy trading must fit around it, not the reverse).
+            Subtracted from the FCR-reduced envelope alongside FCR headroom,
+            same mechanism, extended to two more reserved blocks.
 
     Returns (model, meta).
     """
@@ -170,6 +187,12 @@ def build_core_model(
     fcr = max(0.0, p.fcr.mandatory_headroom_mw)
     p_gen_cap = p.p_max_generation_mw - fcr
     p_pump_cap = p.p_max_pump_mw - fcr
+
+    # aFRR + mFRR reserve capacity already committed at their (earlier) real
+    # gate times — subtract per-hour, same principle as FCR above. Energy
+    # trading (DA/IDA) must fit inside what reserve capacity left behind.
+    reserved_up = reserved_up_mw or {}
+    reserved_dn = reserved_dn_mw or {}
 
     # Pump minimum power derived from minimum flow fraction (per unit).
     p_pump_min_mw = psp.p_pump_max_mw * (psp.q_pump_min_m3h / psp.q_pump_max_m3h)
@@ -209,7 +232,7 @@ def build_core_model(
     }
 
     # ── Build model ───────────────────────────────────────────────────────────
-    m = pyo.ConcreteModel("alqueva_portfolio_24h")
+    m = pyo.ConcreteModel("alqueva_portfolio")
     m.H = pyo.Set(initialize=H, ordered=True)
     m.U = pyo.Set(initialize=U, ordered=True)
     m.FI = pyo.Set(initialize=FI, ordered=True)   # flow grid indices  0..4
@@ -229,6 +252,7 @@ def build_core_model(
     m.q_turb = pyo.Var(m.U, m.H, domain=pyo.NonNegativeReals)   # m³/h
     m.q_pump = pyo.Var(m.U, m.H, domain=pyo.NonNegativeReals)   # m³/h
     m.start_turb = pyo.Var(m.U, m.H, domain=pyo.Binary)
+    m.start_pump = pyo.Var(m.U, m.H, domain=pyo.Binary)
 
     # Head and McCormick auxiliaries
     m.H_net = pyo.Var(m.H, domain=pyo.Reals,
@@ -277,6 +301,42 @@ def build_core_model(
             return mm.start_turb[u, h] >= mm.on_turb[u, h]
         return mm.start_turb[u, h] >= mm.on_turb[u, h] - mm.on_turb[u, prev(h)]
     m.turb_start = pyo.Constraint(m.U, m.H, rule=_start_rule)
+
+    # Pump start detection (symmetric to turbine start, for the min-mode-hours
+    # constraint below — no separate startup cost charged for pump starts,
+    # matching the existing turbine-only startup_cost_eur design).
+    def _start_pump_rule(mm, u, h):
+        if h == first:
+            return mm.start_pump[u, h] >= mm.on_pump[u, h]
+        return mm.start_pump[u, h] >= mm.on_pump[u, h] - mm.on_pump[u, prev(h)]
+    m.pump_start = pyo.Constraint(m.U, m.H, rule=_start_pump_rule)
+
+    # Minimum-mode-dwell (ESTIMATE, plant.yaml psp.min_mode_hours, default 2):
+    # once a unit switches into a mode, it must stay in that mode for at
+    # least min_mode_hours consecutive hours before switching again. This is
+    # NOT about FAT deliverability (a Francis reversible unit can physically
+    # complete the switch within ~4-10 min, well inside one hourly period —
+    # see reserve_offer_builder.py _MIN_SAFE_MODE_SWITCH_MIN) — it limits
+    # hour-to-hour mode thrashing, which real hydro scheduling avoids due to
+    # governor/seal wear, using the standard minimum-up-time MILP pattern.
+    # min_mode_hours is a real-hours quantity from config; L is the number of
+    # model PERIODS that spans (periods can be 15-min ISPs, not just hours --
+    # at dt=0.25 an L computed as int(min_mode_hours) would silently be 4x
+    # too short, since 2 "hours" would mean only 2 periods = 30 min).
+    L = max(1, round(psp.min_mode_hours / dt))
+    if L > 1:
+        def _min_dwell_rule(mm, u, h, mode):
+            start_var = mm.start_turb if mode == "turb" else mm.start_pump
+            on_var = mm.on_turb if mode == "turb" else mm.on_pump
+            idx = H.index(h)
+            if idx + L > len(H):
+                return pyo.Constraint.Skip
+            window = H[idx: idx + L]
+            return sum(on_var[u, hh] for hh in window) >= L * start_var[u, h]
+        m.turb_min_dwell = pyo.Constraint(
+            m.U, m.H, rule=lambda mm, u, h: _min_dwell_rule(mm, u, h, "turb"))
+        m.pump_min_dwell = pyo.Constraint(
+            m.U, m.H, rule=lambda mm, u, h: _min_dwell_rule(mm, u, h, "pump"))
 
     # ── HEAD-VOLUME RELATIONSHIP ──────────────────────────────────────────────
     # Dynamic head: H_net[h] = H_MIN_OP + dH_dQ * (v_up[h]*M3_PER_HM3 - Q_ref)
@@ -434,11 +494,12 @@ def build_core_model(
         return mm.p_net[h] == psp_net + mm.pv_used[h] + mm.p_dis[h] - mm.p_chg[h]
     m.pnet_balance = pyo.Constraint(m.H, rule=_pnet_rule)
 
-    # PR-4 / INV-7: net within FCR-reduced envelope.
+    # PR-4 / INV-7: net within FCR-reduced envelope, further reduced by
+    # already-committed aFRR + mFRR reserve capacity (reserve-first ordering).
     m.pnet_hi = pyo.Constraint(m.H,
-        rule=lambda mm, h: mm.p_net[h] <= p_gen_cap)
+        rule=lambda mm, h: mm.p_net[h] <= p_gen_cap - reserved_up.get(h, 0.0))
     m.pnet_lo = pyo.Constraint(m.H,
-        rule=lambda mm, h: mm.p_net[h] >= -p_pump_cap)
+        rule=lambda mm, h: mm.p_net[h] >= -(p_pump_cap - reserved_dn.get(h, 0.0)))
 
     # Freeze hours that an IDA gate cannot re-trade.
     if fixed_net_position:

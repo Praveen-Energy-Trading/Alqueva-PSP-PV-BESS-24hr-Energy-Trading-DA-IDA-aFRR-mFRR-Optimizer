@@ -84,7 +84,7 @@ def generate() -> pd.DataFrame:
             if 19 <= h <= 21:
                 spread += 2.5
 
-            xbid_p = round(float(np.clip(da_p + spread, -500.0, 3000.0)), 2)
+            xbid_p = round(float(np.clip(da_p + spread, -600.0, 3000.0)), 2)
             spread_final = round(xbid_p - da_p, 4)
 
             rows.append({
@@ -108,7 +108,7 @@ def main() -> None:
     solar  = df[(df["Date"].apply(lambda d: pd.Timestamp(d).month in (4,5,6,7,8,9)))
                 & df["Hour"].between(12, 15)]["spread_EUR_MWh"].mean()
     neg_da = df[df["price_DA_PT_EUR_MWh"] < 0]["spread_EUR_MWh"].mean()
-    out_of = ((df["price_XBID_PT_EUR_MWh"] < -500) |
+    out_of = ((df["price_XBID_PT_EUR_MWh"] < -600) |
               (df["price_XBID_PT_EUR_MWh"] > 3000)).sum()
 
     print(f"  Rows             : {len(df):,}")

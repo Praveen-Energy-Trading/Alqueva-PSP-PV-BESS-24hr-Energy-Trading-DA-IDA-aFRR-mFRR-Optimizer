@@ -1,7 +1,11 @@
 """
 run_backtest.py — Phase 6 backtest over a span of delivery days.
 
+Command line:
     python phase_6_backtesting_and_validation/run_backtest.py --start 2026-06-01 --days 7
+
+Or just edit DEFAULT_START / DEFAULT_DAYS below and hit Run (F5) / %runfile with
+no arguments — no command-line args needed for a quick local run.
 """
 from __future__ import annotations
 
@@ -20,11 +24,19 @@ from phase_6_backtesting_and_validation.backtest_excel_reports.backtest_report_e
 
 log = get_logger("phase6.backtest")
 
+# ---------------------------------------------------------------------------
+# Edit these two lines to change the backtest window when running with no
+# command-line arguments (e.g. VS Code's Run button, F5).
+# Command-line --start/--days, if given, always override these.
+# ---------------------------------------------------------------------------
+DEFAULT_START = "2026-06-01"
+DEFAULT_DAYS = 7
+
 
 def main():
     p = argparse.ArgumentParser(description="Run Phase 6 backtest")
-    p.add_argument("--start", required=True, help="start delivery date YYYY-MM-DD")
-    p.add_argument("--days", type=int, default=7)
+    p.add_argument("--start", default=DEFAULT_START, help="start delivery date YYYY-MM-DD")
+    p.add_argument("--days", type=int, default=DEFAULT_DAYS)
     p.add_argument("--config", default=None)
     p.add_argument("--no-excel", action="store_true")
     args = p.parse_args()
@@ -38,12 +50,12 @@ def main():
     print("=" * 64)
     print(f"  {'Date':<12} {'Feas':>5} {'Chk':>4} {'Objective':>12} "
           f"{'Solve s':>8} {'PxMAE':>7} {'PVMAE':>7}")
-    print("  " + "-" * 60)
+    print("  " + "-" * 64)
     for r in res.rows:
         print(f"  {r['date']:<12} {str(r['feasible']):>5} {str(r['checker_pass']):>4} "
               f"{r['objective_eur']:>12,.0f} {r['solve_sec']:>8.3f} "
               f"{r['price_mae']:>7.2f} {r['pv_mae']:>7.3f}")
-    print("  " + "-" * 60)
+    print("  " + "-" * 64)
     print(f"  Feasible: {res.n_feasible}/{res.n_days}   "
           f"Checker pass: {res.n_checker_pass}/{res.n_days}")
     print(f"  Avg objective: {res.avg_objective_eur:,.0f} EUR   "

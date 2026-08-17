@@ -9,7 +9,7 @@ in the gate scheduler, never here.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 
@@ -26,8 +26,7 @@ class GateConfig:
     resolution_h: int = 1
     gate_type: str = "auction"       # "auction" or "continuous"
     gate_closure_hours_before_delivery: Optional[int] = None
-    check_window_1_trigger: Optional[str] = None
-    check_window_2_trigger: Optional[str] = None
+    check_windows: List[Dict[str, str]] = field(default_factory=list)  # [{id, trigger}, ...]
 
     def hour_in_product(self, hour: int) -> bool:
         """True if delivery `hour` (1..24) belongs to this gate's product.
@@ -48,8 +47,7 @@ class GateConfig:
             resolution_h=int(d.get("resolution_h", 1)),
             gate_type=d.get("type", "auction"),
             gate_closure_hours_before_delivery=d.get("gate_closure_hours_before_delivery"),
-            check_window_1_trigger=d.get("check_window_1_trigger"),
-            check_window_2_trigger=d.get("check_window_2_trigger"),
+            check_windows=list(d.get("check_windows", [])),
         )
 
 
@@ -180,7 +178,6 @@ class TradingThresholds:
     Guards against trading noise that costs more in imbalance risk than the spread earns."""
     ida_min_delta_mwh: float          # volume change required to justify a re-bid
     ida_min_spread_eur_mwh: float     # minimum IDA vs DA price spread to trade
-    ida_min_rebid_eur_floor: float    # absolute EUR floor — never re-bid below this
     ida_min_rebid_pct: float          # dynamic: % of DA position value in tradable hours
     xbid_min_spread_eur_mwh: float    # minimum XBID vs committed spread to execute
     xbid_max_slippage_eur: float      # maximum allowed slippage per XBID order
@@ -191,7 +188,6 @@ class TradingThresholds:
         return TradingThresholds(
             ida_min_delta_mwh=float(d["ida_min_delta_mwh"]),
             ida_min_spread_eur_mwh=float(d["ida_min_spread_eur_mwh"]),
-            ida_min_rebid_eur_floor=float(d.get("ida_min_rebid_eur_floor", 30.0)),
             ida_min_rebid_pct=float(d.get("ida_min_rebid_pct", 0.15)),
             xbid_min_spread_eur_mwh=float(d["xbid_min_spread_eur_mwh"]),
             xbid_max_slippage_eur=float(d["xbid_max_slippage_eur"]),

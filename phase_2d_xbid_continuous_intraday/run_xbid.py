@@ -2,9 +2,12 @@
 run_xbid.py — Phase 2D XBID continuous intraday gate.
 
 Evaluates the still-open hours at a check window and places capped opportunistic
-orders when the price beats the spread. Two demo windows:
-    W1  D-1 18:30  (all hours open)
-    W2  D 09:30    (hours 11-24 open; earlier hours closed)
+orders when the price beats the spread. Windows are config-driven (see
+config/market.yaml gates.XBID.check_windows) — six by default, spread across
+D-1 evening through D midday, approximating the real continuous market with
+more checkpoints than a two-window demo:
+    W1  D-1 18:30   W2  D-1 22:30   W3  D 03:00
+    W4  D 06:00     W5  D 09:30     W6  D 12:00
 Run DA (and IDAs) first so a committed baseline exists.
 
     python phase_2d_xbid_continuous_intraday/run_xbid.py --date 2026-06-26 --window W1
@@ -29,14 +32,16 @@ from phase_2d_xbid_continuous_intraday.xbid_bid_formatting.xbid_bid_formatter im
 def main():
     p = argparse.ArgumentParser(description="Run the Phase 2D XBID gate")
     p.add_argument("--date", required=True, help="delivery date YYYY-MM-DD")
-    p.add_argument("--window", default="W1", choices=["W1", "W2"],
-                   help="check window: W1 (D-1 18:30) or W2 (D 09:30)")
+    p.add_argument("--window", default="W1", choices=["W1", "W2", "W3", "W4", "W5", "W6"],
+                   help="check window (see config/market.yaml gates.XBID.check_windows)")
     p.add_argument("--config", default=None)
     p.add_argument("--no-pause", action="store_true")
+    p.add_argument("--real-data", action="store_true", help="use live OMIE training-data backfill")
     args = p.parse_args()
 
     result = optimise_xbid(args.date, load_config(args.config),
-                           window=args.window, no_pause=args.no_pause)
+                           window=args.window, no_pause=args.no_pause,
+                           use_synthetic=not args.real_data)
     status = result.get("status")
     print(f"\n  XBID {args.window} gate result: {status}")
 

@@ -117,11 +117,19 @@ def build_reserve_offers(
 ) -> Dict[int, ReserveOffer]:
     """Size up/down reserve offers per hour from leftover headroom.
 
-    headroom_fraction < 1 (e.g. mFRR 0.20) keeps a margin and avoids committing
-    the entire envelope to a single, slower reserve product. reserved_up/dn are
-    MW already committed to a higher-priority product (e.g. aFRR before mFRR) and
+    headroom_fraction < 1 (e.g. mFRR 0.20, config market.yaml mfrr.max_offer_fraction)
+    keeps a margin and avoids committing the entire envelope to a single,
+    slower reserve product. This is a DISCRETIONARY trading-desk risk policy,
+    not a REN/MPGGS regulatory limit — checked the real MPGGS end to end
+    (Procedimento 19) and found no provision that derates an mFRR offer as a
+    percentage of headroom or because aFRR was committed first; the real
+    per-unit cap there is a certified "Potencia Elegivel" from a physical
+    test, which this repo has no equivalent of. See market.yaml's comment on
+    mfrr.max_offer_fraction for the full citation. reserved_up/dn are MW
+    already committed to a higher-priority product (e.g. aFRR before mFRR) and
     are subtracted from the available headroom so no MW is offered to two
-    products (PR-11 across products).
+    products (PR-11 across products) — that part IS a real physical/no-double-
+    sell constraint, independent of the discretionary fraction.
 
     FAT is applied per-hour using the committed net to determine operating mode,
     so pump-mode hours get the correct (reduced) up deliverable for short FATs.

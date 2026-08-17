@@ -57,7 +57,7 @@ def run_imbalance_settlement(delivery_date: str, config_dir=None) -> dict:
     print(f"  Net imbalance          : {s.net_eur:>12,.2f} EUR")
     print("=" * 56)
 
-    audit.log("IMBALANCE_SETTLED", net_eur=s.net_eur,
+    audit.log("IMBALANCE_SETTLED", delivery_date=delivery_date, net_eur=s.net_eur,
               total_mwh=s.total_imbalance_mwh)
     return {"status": "OK", "net_imbalance_eur": s.net_eur,
             "long_revenue_eur": s.long_revenue_eur, "short_cost_eur": s.short_cost_eur,

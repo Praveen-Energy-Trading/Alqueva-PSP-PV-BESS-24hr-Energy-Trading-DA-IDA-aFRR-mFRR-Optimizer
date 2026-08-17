@@ -33,11 +33,18 @@ delivery_date: auto
 mode: trader
 
 # ── Market data source ────────────────────────────────────────────────────────
-# synthetic  Built-in deterministic price/inflow data (no external APIs needed).
-#            Required for backtesting and development.
-# live       Fetch real-time prices from OMIE / ENTSO-E / REN APIs at runtime.
-#            Use for actual production runs (requires network + credentials).
-data_source: synthetic
+# live       DEFAULT. DA training data tries a live OMIE fetch first for every
+#            date up to today; if the fetch fails (network down, file not yet
+#            published) it automatically falls back to synthetic data for that
+#            date so the pipeline never stalls. Note: only DA has a real live
+#            fetch implemented today (omie_da_price_loader.py) — IDA1/2/3,
+#            aFRR, and mFRR price loaders are always ML-forecast based
+#            regardless of this setting (their live-API hooks are not yet
+#            implemented). Use "live" for actual production runs.
+# synthetic  Built-in deterministic price/inflow data only, no live API calls
+#            attempted at all. Use for backtesting, development, and CI so runs
+#            are fully offline and reproducible. Override per-run with --synthetic.
+data_source: live
 
 # ── Reports ───────────────────────────────────────────────────────────────────
 # Export the daily P&L, KPI and schedule Excel workbook after Phase 5D.

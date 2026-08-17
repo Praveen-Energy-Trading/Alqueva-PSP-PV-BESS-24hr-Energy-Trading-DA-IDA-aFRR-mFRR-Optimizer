@@ -4,10 +4,14 @@ run_mfrr.py — Phase 3B mFRR capacity-offer gate.
 mFRR = manual Frequency Restoration Reserve (tertiary control, supports/replaces
 aFRR on TSO instruction).
   FAT : 12.5 minutes (MARI standard; REN on MARI since 27 Nov 2024)
-  Sizing : from headroom REMAINING after the aFRR commitment (PR-11), x 0.20 margin
+  Sizing : from headroom REMAINING after the DA position AND the aFRR
+           commitment (PR-11), x 0.20 margin
 
-Run DA/IDA and then aFRR first so both an energy position and the aFRR commitment
-exist.
+REAL-WORLD SEQUENCING — CONFIRMED against REN's own official rulebook (see
+run_afrr.py for the full citation): MPGGS Article 80(3) lists the real
+sequence as PDVD (DA-derived program) -> aFRR band market -> mFRR daily band
+market. Run DA and aFRR first so both a committed energy position and the
+aFRR commitment exist.
 
     python phase_3b_mfrr_manual_frequency_reserve/run_mfrr.py --date 2026-06-26
 """
@@ -46,7 +50,7 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
         msg = (f"[mFRR] delivery {delivery_date} is before MARI live date "
                f"{cfg.market.mfrr.mari_live_date} — mFRR not available, skipping.")
         log.info(msg)
-        audit.log("MFRR_SKIPPED", reason="pre-MARI")
+        audit.log("MFRR_SKIPPED", delivery_date=delivery_date, reason="pre-MARI")
         return {"status": "SKIPPED", "reason": msg, "capacity_revenue_eur": 0.0}
 
     committed = PositionStore().committed_position(delivery_date)
@@ -70,9 +74,9 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
         check_mfrr_offers(offers, committed, reserved_up, reserved_dn, cfg)
     except ReserveCheckError as e:
         log.error(str(e))
-        audit.log("MFRR_CHECK_FAILED", reason=str(e))
+        audit.log("MFRR_CHECK_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "CHECK_FAILED", "reason": str(e)}
-    audit.log("MFRR_CHECK_PASSED")
+    audit.log("MFRR_CHECK_PASSED", delivery_date=delivery_date)
 
     revenue = sum(o.up_mw * o.cap_price_up_eur_mw + o.dn_mw * o.cap_price_dn_eur_mw
                   for o in offers.values())
@@ -89,7 +93,7 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
             "cap_up_eur_mw": o.cap_price_up_eur_mw, "cap_dn_eur_mw": o.cap_price_dn_eur_mw}
         for h, o in offers.items()})
     ref = f"MFRR-{delivery_date.replace('-', '')}-001"
-    audit.log("MFRR_SUBMITTED", ref=ref, capacity_revenue_eur=revenue, n_hours=len(offers))
+    audit.log("MFRR_SUBMITTED", delivery_date=delivery_date, ref=ref, capacity_revenue_eur=revenue, n_hours=len(offers))
     log.info(f"mFRR offer saved (stub submit) ref {ref}; capacity revenue {revenue:,.2f} EUR")
     return {"status": "SUBMITTED", "ref": ref, "capacity_revenue_eur": revenue,
             "price_source": source}
@@ -97,22 +101,30 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
 
 def _print_offers(cfg, source, offers, committed, reserved_up, reserved_dn, revenue):
     freq = cfg.market.frequency
-    print("\n" + "=" * 68)
+    print("\n" + "=" * 82)
     print("  mFRR CAPACITY OFFER  (manual Frequency Restoration Reserve)")
-    print("=" * 68)
+    print("=" * 82)
+    print(f"  Band   : {freq.nominal_hz - freq.mfrr_band_hz:.3f} - "
+          f"{freq.nominal_hz + freq.mfrr_band_hz:.3f} Hz   "
+          f"(nominal {freq.nominal_hz:.3f} Hz)")
     print(f"  FAT    : {cfg.market.mfrr.fat_min:.1f} min   |   Platform: MARI")
     print(f"  Sizing : <= {cfg.market.mfrr.max_offer_fraction:.0%} of headroom AFTER aFRR")
     print(f"  Source : {source}")
-    print(f"\n  {'Hour':<5} {'Energy MW':>10} {'aFRRup':>7} {'mFRRup':>7} "
-          f"{'mFRRdn':>7} {'CapUp':>7}")
-    print("  " + "-" * 52)
+    print(f"  Gate closes (CET): {cfg.market.mfrr.gate_close}   <-- submit before this   [hour ESTIMATE]")
+    print("  Note   : FAT = time to reach full offered MW after TSO's MANUAL")
+    print("           call (not automatic). Used when aFRR alone isn't enough;")
+    print("           sustained for as long as the TSO instructs.")
+    print(f"\n  {'Hour':<5} {'Energy MW':>10} {'aFRRup MW':>10} {'mFRRup MW':>10} "
+          f"{'mFRRdn MW':>10} {'CapUp €/MW':>11} {'CapDn €/MW':>11}")
+    print("  " + "-" * 82)
     for h in sorted(offers):
         o = offers[h]
-        print(f"  H{h:02d}  {committed.get(h,0.0):>+10.1f} {reserved_up.get(h,0.0):>7.1f} "
-              f"{o.up_mw:>7.1f} {o.dn_mw:>7.1f} {o.cap_price_up_eur_mw:>7.1f}")
-    print("  " + "-" * 52)
+        print(f"  H{h:02d}  {committed.get(h,0.0):>+10.1f} {reserved_up.get(h,0.0):>10.1f} "
+              f"{o.up_mw:>10.1f} {o.dn_mw:>10.1f} {o.cap_price_up_eur_mw:>11.1f} "
+              f"{o.cap_price_dn_eur_mw:>11.1f}")
+    print("  " + "-" * 82)
     print(f"  Expected mFRR capacity revenue: {revenue:>12,.2f} EUR")
-    print("=" * 68)
+    print("=" * 82)
 
 
 def main():

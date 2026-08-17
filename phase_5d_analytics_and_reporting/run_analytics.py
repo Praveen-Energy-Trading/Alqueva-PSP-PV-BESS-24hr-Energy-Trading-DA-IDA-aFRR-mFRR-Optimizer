@@ -72,7 +72,7 @@ def run_analytics(delivery_date: str, cfg: AppConfig, export_excel: bool = True)
             print(f"\n  [ERROR] Excel export failed: {exc}", file=__import__("sys").stderr)
             print(traceback.format_exc(), file=__import__("sys").stderr)
 
-    audit.log("ANALYTICS_DONE", total_pnl_eur=pnl.total_eur, report=path)
+    audit.log("ANALYTICS_DONE", delivery_date=delivery_date, total_pnl_eur=pnl.total_eur, report=path)
     return {"status": "OK", "total_pnl_eur": pnl.total_eur,
             "components": pnl.components, "report_path": path}
 

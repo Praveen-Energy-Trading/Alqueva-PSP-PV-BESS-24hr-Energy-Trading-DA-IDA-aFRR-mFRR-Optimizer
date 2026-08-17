@@ -4,7 +4,7 @@ ida1_price_train_val_test.py — offline evaluation of the IDA1 lead-time spread
 Mirrors the DA / PV / inflow evaluation pattern:
     - Walk-forward CV (4 folds) on the 2020-2024 training window
     - Hold-out TEST on 2025 (12 months, unseen during any model selection)
-    - Per-session breakdown: Naive vs Ridge vs LightGBM
+    - Per-session breakdown: Naive vs LightGBM/XGBoost/RandomForest/CatBoost
 
 Naive baseline for spread forecasting: spread = 0  (IDA1 price = DA price).
 This is the natural no-model baseline: without any ML, the best guess for the
@@ -35,7 +35,7 @@ _FCST_DIR = os.path.join(_REPO,
 
 sys.path.insert(0, _REPO)
 sys.path.insert(0, _FCST_DIR)
-from ml_train_val_test_common import fit_ridge, fit_lgbm, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae as _mae, walk_forward_cv
 
 _EXCEL_PATH = os.path.join(_HERE, "ida1_training_data_2024_2025.xlsx")
 _SHEET      = "IDA1_2024_2025"
@@ -111,7 +111,7 @@ def evaluate_ida() -> None:
     cv_mae = walk_forward_cv(X_tr, y_tr, naive, fcols, _N_FOLDS)
     selected = min(cv_mae, key=cv_mae.get)
     print(f"  CV results (MAE EUR/MWh spread):")
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in ["Naive"] + MODEL_NAMES:
         marker = "  <-- SELECTED" if name == selected else ""
         print(f"    {name:<22} {cv_mae.get(name, float('inf')):.4f}{marker}")
 
@@ -119,12 +119,9 @@ def evaluate_ida() -> None:
     X_te = test[fcols]
     y_te = test["spread_EUR_MWh"].values
 
-    if selected == "LightGBM":
-        model = fit_lgbm(X_tr, y_tr, fcols)
+    if selected in MODEL_NAMES:
+        model = fit_selected(selected, X_tr, y_tr, fcols)
         preds = model.predict(X_te)
-    elif selected == "Ridge":
-        model = fit_ridge(X_tr.values, y_tr)
-        preds = model.predict(X_te.values)
     else:
         preds = np.zeros_like(y_te)
 
@@ -180,14 +177,14 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"- Source: `ida1_training_data_2024_2025.xlsx` (OMIE/ENTSO-E SIDC intraday results)",
         f"- Range : 2024-06-13 to {excel_last}",
         f"- Gate   : IDA1 (H1-H24, closes D-1 15:00 CET)",
-        f"- Model : gate-specific spread model (Ridge or LightGBM, auto-selected by walk-forward CV)",
+        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest/CatBoost, auto-selected by walk-forward CV)",
         f"- Target: spread = price_IDA - price_DA [EUR/MWh]",
         f"",
         f"## Walk-forward CV (2024-06-13 to 2024-12-31, 4 folds)",
         f"| Model | MAE EUR/MWh (spread) |",
         f"|---|---|",
     ]
-    for name in ["Naive", "Ridge", "LightGBM"]:
+    for name in ["Naive"] + MODEL_NAMES:
         marker = " **SELECTED**" if name == selected else ""
         lines.append(f"| {name} | {cv_mae.get(name, float('inf')):.4f}{marker} |")
 

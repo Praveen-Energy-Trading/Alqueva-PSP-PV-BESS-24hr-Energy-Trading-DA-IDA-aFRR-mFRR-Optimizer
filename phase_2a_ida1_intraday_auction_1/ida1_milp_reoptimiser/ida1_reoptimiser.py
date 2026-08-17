@@ -10,5 +10,7 @@ from common_layer.configuration.config_loader import AppConfig
 from common_layer.optimisation_model.ida_reoptimiser import reoptimise_ida
 
 
-def optimise_ida1(delivery_date: str, cfg: AppConfig, no_pause: bool = False) -> dict:
-    return reoptimise_ida("IDA1", delivery_date, cfg, no_pause=no_pause)
+def optimise_ida1(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
+                  use_synthetic: bool = True) -> dict:
+    return reoptimise_ida("IDA1", delivery_date, cfg, no_pause=no_pause,
+                          use_synthetic=use_synthetic)

@@ -74,6 +74,12 @@ class ReserveStore:
                 """, rows,
             )
 
+    def clear_date(self, delivery_date: str) -> None:
+        """Delete every product's rows for this delivery date. See
+        PositionStore.clear_date — same reasoning."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM reserve WHERE delivery_date=?", (delivery_date,))
+
     def load_reserve(self, delivery_date: str, product: str) -> Dict[int, dict]:
         with self._connect() as conn:
             cur = conn.execute(

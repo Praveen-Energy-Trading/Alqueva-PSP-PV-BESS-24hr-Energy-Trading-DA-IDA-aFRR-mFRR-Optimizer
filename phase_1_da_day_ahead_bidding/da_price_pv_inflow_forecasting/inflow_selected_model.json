@@ -1,10 +1,11 @@
 {
-  "selected": "Ridge",
+  "selected": "RandomForest",
   "cv_mae": {
-    "Naive": 115689.2,
-    "Ridge": 110099.5,
-    "LightGBM": 117205.9
+    "LightGBM": 117650.0,
+    "XGBoost": 112540.6,
+    "RandomForest": 108797.8,
+    "CatBoost": 115825.2
   },
-  "data_end_date": "2027-03-14",
-  "updated_on": "2026-06-26"
+  "data_end_date": "2026-12-21",
+  "updated_on": "2026-08-14"
 }

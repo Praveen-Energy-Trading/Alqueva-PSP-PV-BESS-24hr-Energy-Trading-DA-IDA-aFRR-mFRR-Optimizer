@@ -30,10 +30,15 @@ gates:
     delivery_hours: [1, 24]
     resolution_h: 1
   IDA2:
-    description: "Intraday Auction 2 — covers delivery hours H3-H24 (H1-H2 frozen after IDA1)"
+    # CORRECTED: ENTSO-E's own official SIDC page states IDA2's allocated
+    # period is D [0h-24h] - the full day, same as IDA1. The earlier
+    # "H1-H2 frozen after IDA1" restriction was an invented assumption, not
+    # a real SIDC rule. Source: https://www.entsoe.eu/network_codes/cacm/implementation/ida/
+    # ("IDA2: Gate Closure Time D-1 22h. Allocated period D [0h-24h]").
+    description: "Intraday Auction 2 (SIDC) — covers ALL 24 delivery hours, same as IDA1"
     pipeline_trigger: "D-1 21:10"
     gate_close: "D-1 22:00"
-    delivery_hours: [3, 24]          # H1-H2 frozen after IDA1; spec INV-11
+    delivery_hours: [1, 24]
     resolution_h: 1
   IDA3:
     description: "Intraday Auction 3 — covers delivery hours 12-24 ONLY"
@@ -45,8 +50,17 @@ gates:
     description: "Continuous intraday (SIDC/XBID). Closes 1h before each delivery period."
     type: "continuous"
     gate_closure_hours_before_delivery: 1
-    check_window_1_trigger: "D-1 18:30"
-    check_window_2_trigger: "D 09:30"
+    # XBID is genuinely continuous in the real market; our batch pipeline
+    # approximates that by checking in at several points across the day
+    # instead of watching the order book live. More windows = closer to
+    # continuous, at the cost of more solver calls per day.
+    check_windows:
+      - {id: "W1", trigger: "D-1 18:30"}
+      - {id: "W2", trigger: "D-1 22:30"}
+      - {id: "W3", trigger: "D 03:00"}
+      - {id: "W4", trigger: "D 06:00"}
+      - {id: "W5", trigger: "D 09:30"}
+      - {id: "W6", trigger: "D 12:00"}
     delivery_hours: [1, 24]
 
 # -----------------------------------------------------------------------------
@@ -91,7 +105,9 @@ frequency:
 # Bid limits (physical envelope; price bounds are OMIE technical limits).
 # -----------------------------------------------------------------------------
 bid_limits:
-  price_min_eur_mwh: -500.0         # OMIE technical floor (harmonised SDAC)
+  price_min_eur_mwh: -600.0         # OMIE technical floor (harmonised SDAC) — raised from -500 to -600
+                                     # effective trading session 28 May 2026 / delivery from 29 May 2026
+                                     # (source: OKTE announcement, verified 2026-08-16)
   price_max_eur_mwh: 4000.0         # OMIE technical cap (harmonised SDAC)
   max_generation_mw: 524.4          # 4x129.6 turbine + 5 PV + 1 BESS discharge (matches PlantConfig.p_max_generation_mw)
   max_pump_mw: 447.4                # 4x111.6 pump + 1 BESS charge (matches PlantConfig.p_max_pump_mw) — pump ESTIMATED
@@ -103,9 +119,30 @@ bid_limits:
 afrr:
   platform: "NATIONAL"              # "NATIONAL" or "PICASSO" — update on REN accession
   ren_picasso_accession_estimate: "2026-Q3"
-  gate_close: "D-1 08:00"           # ESTIMATE — verify with REN market rules
-  max_offer_up_mw: 100.0
-  max_offer_dn_mw: 100.0
+  # gate_close: sequencing CONFIRMED against REN's own MPGGS rulebook (ERSE
+  # Directive 9/2025, Article 80(3)): the real order is DA market -> PDVD
+  # (REN's grid-security-checked version of the DA result, Article 81) ->
+  # aFRR band market (Article 82) -> mFRR daily band market (Article 83).
+  # aFRR closes AFTER DA (~12:00 D-1), sized from DA's leftover headroom —
+  # NOT before it. The exact clock hour is deferred by the manual itself to
+  # a separately-published "Aviso do GGS" (REN operational notice), not
+  # stated in the MPGGS text — genuinely unconfirmable with tools available
+  # in this session (no REN portal access). "D-1 afternoon/evening,
+  # after DA" is the confirmed real order; the specific hour stays ESTIMATE.
+  gate_close: "D-1 (after DA gate close ~12:00, before IDA1 15:00)"  # ESTIMATE (order confirmed, hour not)
+  # max_offer_up/dn_mw: previously a flat, unsourced 100.0 MW with no comment
+  # or REN reference — it silently capped aFRR/mFRR offers below the plant's
+  # real physical headroom (up to 524.4 MW gen / 447.4 MW pump) on hours where
+  # DA commitment was low, suppressing real revenue for no documented reason.
+  # REN does not publish a fixed per-BSP MW offer ceiling for aFRR/mFRR — the
+  # real limits on any offer are the plant's own physical envelope (PR-11,
+  # enforced via p_gen_cap/p_pump_cap in reserve_offer_builder._envelope) and
+  # FAT deliverability (PR-12, ramp rate x FAT minutes). Setting the market
+  # cap equal to the plant's own nameplate envelope makes it a non-binding
+  # safety ceiling instead of an arbitrary, revenue-suppressing one — the
+  # physical/FAT limits remain the real, binding constraints, unchanged.
+  max_offer_up_mw: 524.4             # = plant.p_max_generation_mw (4x129.6 + 5 PV + 1 BESS)
+  max_offer_dn_mw: 447.4             # = plant.p_max_pump_mw (4x111.6 + 1 BESS)
   cap_price_max_eur_mw: 250.0       # CONFIRMED REN mercado portal cap
 
 # -----------------------------------------------------------------------------
@@ -114,8 +151,34 @@ afrr:
 # -----------------------------------------------------------------------------
 mfrr:
   mari_live_date: "2024-11-27"
-  gate_close: "D-1 08:00"           # ESTIMATE — verify with REN market rules
-  max_offer_fraction: 0.20          # cap offer at 20% of available headroom
+  # gate_close: sequencing CONFIRMED against REN's MPGGS Article 80(3) — mFRR
+  # daily band market runs right after the aFRR band market (see afrr.gate_close
+  # comment above for the full citation). Exact hour deferred to REN's
+  # "Aviso do GGS" notice, not stated in the manual — ESTIMATE stays honest.
+  gate_close: "D-1 (right after aFRR band market, before IDA1 15:00)"  # ESTIMATE (order confirmed, hour not)
+  # max_offer_fraction: INTERNAL RISK-MANAGEMENT POLICY, NOT A REN/MPGGS RULE.
+  # Checked the real MPGGS (ERSE-approved, Jan 2025 revision, Procedimento 19
+  # "Banda de reserva de restabelecimento da frequencia com ativacao manual",
+  # https://www.erse.pt/media/wyrktp5l/mpggs_articulado.pdf) end to end: the
+  # actual regulatory cap on mFRR band offers is a per-unit certified
+  # "Potencia Elegivel" (Pel) established by a mandatory 15-minute physical
+  # qualification test (SS4.2, para 18-20) plus the standard bid-format rules
+  # (min 1 MW block, <=10 price/quantity blocks, price <= reserve price;
+  # SS5.6 para 42). There is NO provision anywhere in the manual that derates
+  # an offer as a percentage of headroom, nor any rule that reduces mFRR
+  # capacity because aFRR was committed first — the two products are procured
+  # through independent auctions against independently certified capacity.
+  # (The document DOES use "20%" eleven times, but always as an imbalance/
+  # deviation PRICE surcharge, e.g. "120% of the DA marginal price" — an
+  # unrelated mechanism; likely where this number got borrowed from.)
+  # This plant has no real Pel certification test to model, so
+  # max_offer_fraction is kept here as a deliberate, honestly-labelled
+  # trading-desk risk margin: PR-11/PR-12 already prevent overselling
+  # physical/FAT capacity, so this isn't a safety derating — it's discretionary
+  # optionality retained against later intraday gates and forecast error.
+  # 20% (vs 100%, i.e. same treatment as aFRR) is not a calculated figure;
+  # change it to reflect actual desk risk appetite, not a compliance target.
+  max_offer_fraction: 0.20
   price_fraction_of_afrr: 0.40      # synthetic price fallback only
 
 # -----------------------------------------------------------------------------
@@ -135,8 +198,7 @@ imbalance:
 trading_thresholds:
   ida_min_delta_mwh: 0.5            # per-hour volume noise filter: ignore |delta| below this
   ida_min_spread_eur_mwh: 5.0       # per-hour price-move materiality (and XBID spread)
-  ida_min_rebid_eur_floor: 30.0     # absolute floor — never re-bid for less than this EUR gain
-  ida_min_rebid_pct: 0.15           # dynamic threshold: 0.15% of DA position value in tradable hours
+  ida_min_rebid_pct: 0.15           # threshold: 0.15% of DA position value in tradable hours — the only rule now
   xbid_min_spread_eur_mwh: 5.0
   xbid_max_slippage_eur: 2.0
   xbid_max_volume_per_order_mw: 10.0

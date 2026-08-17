@@ -32,8 +32,18 @@ Group G  Reserve checker (check_reserve_offers)
     G6  Negative reserve offer detected
     G7  PV-gated BESS: offer sized without BESS when PV=0 still passes checker
 
-Group H  Combined activation headroom
-    H1  check_combined_activation_headroom concept: logic verified on mock data
+Group H  Operational analytics (pure computation, unrelated to reserve checking —
+         included here for now; consider relocating to a dedicated analytics
+         test file)
+    H1  compute_operational_patterns returns expected keys
+    H2  Turbine hours computed correctly
+    H3  Pump hours computed correctly
+    H4  Temporal pattern bands (night/morning/afternoon/evening) all present
+    H5  aFRR/mFRR strategy PV-gating: BESS blocked when PV unavailable all day
+    H6  PV-gating: half-day PV availability split correctly
+
+Note: check_combined_activation_headroom (PR-11 combined aFRR+mFRR headroom)
+is tested in test_bug_regressions.py::TestBug4CombinedHeadroom, not here.
 """
 from __future__ import annotations
 

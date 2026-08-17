@@ -283,31 +283,44 @@ class TestBug5MinHoldTime:
             )
 
     def test_B5_without_hold_single_isp_spikes_are_common(self):
-        """Without hold machine, single-ISP activations occur frequently."""
+        """Without hold machine (independent per-ISP draws), single-ISP runs occur frequently."""
         import random
         rng = random.Random(99)
+        min_hold = 3
         p_up, p_dn = 0.12, 0.10
-        single_isp_runs = 0
+        _NONE, _UP, _DN = 0, 1, -1
 
-        prev_dir = 0
-        for i in range(1000):
+        directions = []
+        for _ in range(1000):
             r = rng.random()
             if r < p_up:
-                direction = 1
+                directions.append(_UP)
             elif r < p_up + p_dn:
-                direction = -1
+                directions.append(_DN)
             else:
-                direction = 0
+                directions.append(_NONE)
 
-            if prev_dir != 0 and direction == 0:
-                # End of a run — we don't know its length without tracking, but
-                # the next independent draw might have restarted immediately.
-                pass
-            prev_dir = direction
+        # Find all runs (consecutive non-zero direction) — same run-finding
+        # logic as the fixed-state-machine test above, applied to the buggy
+        # (independent-draw) direction sequence.
+        runs = []
+        i = 0
+        while i < len(directions):
+            if directions[i] != _NONE:
+                j = i
+                while j < len(directions) and directions[j] == directions[i]:
+                    j += 1
+                runs.append(j - i)
+                i = j
+            else:
+                i += 1
 
-        # Simply verify the state machine prevents the single-ISP problem.
-        # (The preceding test already proves the fix works.)
-        assert True  # placeholder — BUG-5 is proven by the positive test above
+        short_runs = [r for r in runs if r < min_hold]
+        assert len(short_runs) > 0, (
+            "BUG-5 condition demonstrated: independent per-ISP draws must "
+            "produce at least one run shorter than min_hold "
+            f"({min_hold} ISPs); got runs={runs}"
+        )
 
 
 # ---------------------------------------------------------------------------
