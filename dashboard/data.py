@@ -1208,6 +1208,7 @@ def load_fcr_activation(delivery_date: str) -> dict | None:
         "rows": rows,
         "tick_freq_mhz": tick_freq_mhz,
         "tick_response_mw": tick_response_mw,
+        "delivery_date": delivery_date,
     }
 
 

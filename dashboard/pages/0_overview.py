@@ -181,6 +181,7 @@ technical_cards = [
     ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=460)) if isp_dispatch else None,
     ("aFRR dispatch (BESS vs PSP)", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch), height=520)) if afrr_dispatch else None,
     ("mFRR dispatch (BESS vs PSP)", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch), height=520)) if mfrr_dispatch else None,
+    ("FCR dispatch (droop + headroom)", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=560)) if fcr_act else None,
 ]
 market_cards = [c for c in market_cards if c is not None]
 technical_cards = [c for c in technical_cards if c is not None]

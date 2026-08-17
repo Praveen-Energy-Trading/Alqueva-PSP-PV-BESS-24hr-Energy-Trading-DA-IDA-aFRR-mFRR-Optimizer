@@ -1186,3 +1186,126 @@ def render_afrr_dispatch_card(dv: dict) -> str:
     </div>
   </div>
 </div>'''
+
+
+def render_fcr_dispatch_card(fcr: dict) -> str:
+    """FCR dispatch, two real dimensions the existing 'FCR response' card
+    doesn't show (no per-resource split exists for FCR -- reserved_headroom_mw
+    is one flat plant-wide number, no BESS/PSP/PV term in the droop
+    function, so this stays plant-level throughout):
+
+      Panel A -- droop transfer curve: every real 30s tick (2,880/day)
+      plotted as frequency deviation (x) vs response MW (y). Verifies the
+      real physics -- flat inside +/-10 mHz deadband, linear ramp to full
+      headroom at +/-200 mHz.
+
+      Panel B -- 96-ISP headroom utilization strip: signed mean response
+      per ISP (derived honestly from each ISP's real direction + mean |
+      response|, both already aggregated from ticks by fcr_activation.py)
+      against the flat reserved-headroom ceiling/floor -- same visual
+      language as the ISP/aFRR/mFRR dispatch widgets' envelope-vs-response
+      pattern.
+    """
+    headroom = max(fcr["reserved_headroom_mw"], 1e-6)
+    freq = fcr["tick_freq_mhz"]
+    resp = fcr["tick_response_mw"]
+    freq_max = max(max((abs(f) for f in freq), default=0.0), 200.0)
+
+    # -- Panel A: droop transfer scatter --------------------------------
+    ax0, ax1 = 40, 380
+    ay0, ay1 = 8, 60
+    a_mid_y = (ay0 + ay1) / 2
+
+    def afx(v: float) -> float:
+        return ax0 + (v + freq_max) / (2 * freq_max) * (ax1 - ax0)
+
+    def afy(v: float) -> float:
+        return a_mid_y - (v / headroom) * (a_mid_y - ay0)
+
+    deadband_x0, deadband_x1 = afx(-10.0), afx(10.0)
+    dots = "".join(
+        f'<circle cx="{afx(f):.1f}" cy="{afy(r):.1f}" r="0.7" fill="{theme.COLOR_UP}" fill-opacity="0.35"/>'
+        for f, r in zip(freq, resp)
+    )
+    droop_x = [-freq_max, -200.0, -10.0, 10.0, 200.0, freq_max]
+    droop_y = [headroom, headroom, 0.0, 0.0, -headroom, -headroom]
+    droop_pts = " L".join(f"{afx(x):.1f},{afy(y):.1f}" for x, y in zip(droop_x, droop_y))
+
+    # -- Panel B: 96-ISP headroom utilization strip ----------------------
+    rows = sorted(fcr["rows"], key=lambda r: r["isp"])
+    isps = [r["isp"] for r in rows]
+    n = len(isps)
+    signed_resp = [
+        r["response_mw"] if r["direction"] == "up"
+        else (-r["response_mw"] if r["direction"] == "down" else 0.0)
+        for r in rows
+    ]
+    bx0, bx1 = 40, 380
+    by0, by1 = 8, 60
+    b_mid_y = (by0 + by1) / 2
+
+    def bfx(i: int) -> float:
+        return bx0 + i / max(n - 1, 1) * (bx1 - bx0)
+
+    def bfy(v: float) -> float:
+        return b_mid_y - (v / headroom) * (b_mid_y - by0)
+
+    strip_pts = " ".join(f"{bfx(i):.1f},{bfy(v):.1f}" for i, v in enumerate(signed_resp))
+    tick_idx = [0, round((n - 1) * 0.25), round((n - 1) * 0.5), round((n - 1) * 0.75), n - 1]
+    ticks_x = "".join(
+        f'<line x1="{bfx(i):.1f}" y1="{by1:.1f}" x2="{bfx(i):.1f}" y2="{by1+3:.1f}" stroke="#000"/>'
+        f'<text x="{bfx(i):.1f}" y="{by1+12:.1f}" font-size="9" fill="#000" text-anchor="middle">{isps[i]}</text>'
+        for i in tick_idx
+    )
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Delivery</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Mandatory, non-remunerated</span>
+    </div>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">FCR dispatch</div>
+    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Reserved headroom {headroom:.1f} MW, plant-level only &mdash; FCR has no per-resource attribution (no BESS/PSP/PV term in the droop response function)</p>
+
+    <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Response, <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 68" style="width:100%; height:64px; display:block;">
+            <rect x="{deadband_x0:.1f}" y="{ay0}" width="{deadband_x1-deadband_x0:.1f}" height="{ay1-ay0}" fill="#000" fill-opacity="0.05"/>
+            <line x1="{ax0}" y1="{a_mid_y}" x2="{ax1}" y2="{a_mid_y}" stroke="#000" stroke-width="1"/>
+            <line x1="{afx(0):.1f}" y1="{ay0}" x2="{afx(0):.1f}" y2="{ay1}" stroke="#000" stroke-width="1"/>
+            {dots}
+            <path d="M{droop_pts}" fill="none" stroke="{theme.COLOR_PUMP}" stroke-width="1.3"/>
+            <text x="{ax0}" y="{ay0-1}" font-size="8" fill="#000">+{headroom:.1f} MW</text>
+            <text x="{ax0}" y="{ay1+8}" font-size="8" fill="#000">&minus;{headroom:.1f} MW</text>
+            <text x="{ax1}" y="{a_mid_y-3}" font-size="8" fill="#000" text-anchor="end">0 mHz</text>
+            <text x="{deadband_x0-2:.1f}" y="{ay1+8}" font-size="7" fill="#666" text-anchor="end">&minus;10</text>
+            <text x="{deadband_x1+2:.1f}" y="{ay1+8}" font-size="7" fill="#666">+10 mHz</text>
+          </svg>
+          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">Frequency deviation, &Delta;<i>f</i> (mHz) &mdash; {len(resp)} real 30&#8209;s ticks, shaded band = &plusmn;10 mHz deadband</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-top:14px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Response, <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 78" style="width:100%; height:72px; display:block;">
+            <line x1="{bx0}" y1="{b_mid_y}" x2="{bx1}" y2="{b_mid_y}" stroke="#000" stroke-width="1"/>
+            <line x1="{bx0}" y1="{by0}" x2="{bx1}" y2="{by0}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,2"/>
+            <line x1="{bx0}" y1="{by1}" x2="{bx1}" y2="{by1}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
+            <polyline points="{strip_pts}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            <text x="{bx0+4}" y="{by0-1}" font-size="8" fill="#22c55e">reserved headroom (+{headroom:.1f} MW)</text>
+            <text x="{bx0+4}" y="{by1+9}" font-size="8" fill="#ef4444">reserved headroom (&minus;{headroom:.1f} MW)</text>
+            {ticks_x}
+          </svg>
+          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">ISP index, <i>k</i> (15-min periods, <i>k</i> = 1&hellip;{n})</div>
+        </div>
+      </div>
+      <p style="font-size:11px; color:#000; margin:12px 0 4px; line-height:1.5;">
+        Fig. 1.&nbsp;&nbsp;FCR droop dispatch across the delivery day. Top: real 30-second-tick droop transfer curve (frequency deviation vs response, all {len(resp)} ticks) against the theoretical droop line. Bottom: 96-ISP signed response vs the flat reserved-headroom envelope ({headroom:.1f} MW). Delivery date {fcr.get('delivery_date', '')}.
+      </p>
+    </div>
+  </div>
+</div>'''
