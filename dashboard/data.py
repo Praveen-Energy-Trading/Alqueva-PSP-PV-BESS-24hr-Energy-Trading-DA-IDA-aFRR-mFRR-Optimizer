@@ -30,6 +30,7 @@ FIGURES_DIR = REPO_ROOT / "figures" / "output"
 CONFIG_DIR  = REPO_ROOT / "config"
 
 from common_layer.database import PositionStore, ReserveStore, DeliveryStore, ActivationStore, ComponentStore  # noqa: E402
+from common_layer.utilities import date_utils as du  # noqa: E402
 from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
@@ -714,6 +715,49 @@ def load_activation_summary(delivery_date: str, product: str) -> dict | None:
     }
 
 
+
+
+_MIN_REAL_ISP_COUNT = 90  # 96 nominal, 92/100 on DST days -- below this, the
+# stored components are still hourly-resolution (pre state-continuity-fix
+# runs), and repeating them as "ISP data" would fabricate resolution that
+# doesn't exist. This widget only renders for dates genuinely re-solved at
+# real ISP granularity.
+
+
+@st.cache_data
+def load_isp_dispatch(delivery_date: str) -> dict | None:
+    """Real per-asset dispatch at true ISP (15-min) resolution -- PV, BESS
+    discharge, and PSP turbine, straight from ComponentStore's
+    pv_schedule/bess_schedule/psp_schedule. Since the DA/IDA/XBID gates now
+    solve natively at 96-ISP resolution (see run_da.py), these are 96 real,
+    independently-solved values per day, not a repeated hourly number.
+    Returns None for dates that predate that fix (still hourly-resolution
+    components) -- never fabricates ISP-level detail that isn't real."""
+    comp = ComponentStore().load(delivery_date)
+    if comp is None:
+        return None
+    psp_sched = comp.get("psp_schedule") or {}
+    bess_sched = comp.get("bess_schedule") or {}
+    pv_sched = comp.get("pv_schedule") or {}
+    if len(psp_sched) < _MIN_REAL_ISP_COUNT:
+        return None
+
+    isps = sorted(psp_sched)
+    day = du.parse_date(delivery_date)
+
+    pv_mw = [pv_sched.get(isp, {}).get("used_mw", 0.0) for isp in isps]
+    bess_dis_mw = [bess_sched.get(isp, {}).get("discharge_mw", 0.0) for isp in isps]
+    psp_turb_mw = [psp_sched[isp]["turbine_mw"] for isp in isps]
+    hours = [du.isp_to_hour(isp, day) for isp in isps]
+
+    return {
+        "isps": isps,
+        "hours": hours,
+        "pv_mw": pv_mw,
+        "bess_dis_mw": bess_dis_mw,
+        "psp_turb_mw": psp_turb_mw,
+        "delivery_date": delivery_date,
+    }
 
 
 @st.cache_data

@@ -988,3 +988,97 @@ def render_da_vs_activation_card(dv: dict) -> str:
 </div>
 {_REPLAY_STYLE}
 {_DAACT_REPLAY_SCRIPT}'''
+
+
+def render_isp_dispatch_card(dv: dict) -> str:
+    """Real per-asset dispatch (PV, BESS discharge, PSP turbine) at true
+    96-ISP (15-min) resolution -- every point is a genuinely different
+    solved value now that DA/IDA/XBID run natively at ISP resolution, not a
+    repeated hourly number. Rendered as an IEEE-figure-style plot (serif
+    text, black axes with tick marks, numbered caption below instead of an
+    in-plot title) per explicit request, with real asset colors."""
+    isps = dv["isps"]
+    hours = dv["hours"]
+    n = len(isps)
+    pv_mw, bess_mw, psp_mw = dv["pv_mw"], dv["bess_dis_mw"], dv["psp_turb_mw"]
+
+    x0, x1 = 30, 390
+    y0, y1 = 10, 48
+    band_h = y1 - y0
+
+    def fx(i: int) -> float:
+        return x0 + i / max(n - 1, 1) * (x1 - x0)
+
+    def area_path(vals: list[float], vmax: float) -> str:
+        def fy(v: float) -> float:
+            return y1 - (v / vmax * band_h if vmax > 1e-9 else 0.0)
+        pts = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(vals))
+        return f"M{fx(0):.1f},{y1:.1f} L{pts} L{fx(n-1):.1f},{y1:.1f} Z"
+
+    def line_path(vals: list[float], vmax: float) -> str:
+        def fy(v: float) -> float:
+            return y1 - (v / vmax * band_h if vmax > 1e-9 else 0.0)
+        return " ".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(vals))
+
+    pv_bess_max = max(max(pv_mw, default=0.0), max(bess_mw, default=0.0), 1e-6)
+    psp_max = max(max(psp_mw, default=0.0), 1e-6)
+
+    pv_area = area_path(pv_mw, pv_bess_max)
+    bess_line = line_path(bess_mw, pv_bess_max)
+    psp_area = area_path(psp_mw, psp_max)
+
+    tick_idx = [0, round((n - 1) * 0.25), round((n - 1) * 0.5), round((n - 1) * 0.75), n - 1]
+    ticks_x = "".join(
+        f'<line x1="{fx(i):.1f}" y1="{y1}" x2="{fx(i):.1f}" y2="{y1+3}" stroke="#000"/>'
+        f'<text x="{fx(i):.1f}" y="{y1+12}" font-size="9" fill="#000" text-anchor="middle">{isps[i]}</text>'
+        for i in tick_idx
+    )
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+    </div>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">ISP dispatch</div>
+    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Real per-asset dispatch at true 96-ISP (15-min) resolution &mdash; every point independently solved, not a repeated hourly value</p>
+
+    <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Power, <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 60" style="width:100%; height:55px; display:block;">
+            <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{pv_bess_max:.1f}</text>
+            <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
+            <path d="{pv_area}" fill="{theme.YELLOW}" fill-opacity="0.35" stroke="{theme.YELLOW}" stroke-width="1.5"/>
+            <polyline points="{bess_line}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            <text x="{x0+8}" y="{y0+3}" font-size="9" fill="{theme.YELLOW}" font-weight="bold">PV</text>
+            <text x="{x0+34}" y="{y0+3}" font-size="9" fill="{theme.COLOR_UP}" font-weight="bold">BESS discharge</text>
+          </svg>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:flex-start; margin-top:10px;">
+        <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Power, <i>P</i> (MW)</div>
+        <div style="flex:1;">
+          <svg viewBox="0 0 400 62" style="width:100%; height:58px; display:block;">
+            <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
+            <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{psp_max:.0f}</text>
+            <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
+            <path d="{psp_area}" fill="{theme.COLOR_GEN}" fill-opacity="0.35" stroke="{theme.COLOR_GEN}" stroke-width="1.5"/>
+            <text x="{x0+8}" y="{y0+3}" font-size="9" fill="{theme.COLOR_GEN}" font-weight="bold">PSP turbine</text>
+            {ticks_x}
+          </svg>
+          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">ISP index, <i>k</i> (15-min periods, <i>k</i> = 1&hellip;{n})</div>
+        </div>
+      </div>
+      <p style="font-size:11px; color:#000; margin:12px 0 4px; line-height:1.5;">
+        Fig. 1.&nbsp;&nbsp;Alqueva PSP&ndash;PV&ndash;BESS dispatch across the delivery day, resolved at {n} real 15-min imbalance settlement periods (ISP). Top: PV and BESS discharge (own scale, max {pv_bess_max:.1f} MW). Bottom: PSP turbine output (own scale, max {psp_max:.0f} MW). Delivery date {dv['delivery_date']}.
+      </p>
+    </div>
+  </div>
+</div>'''

@@ -17,6 +17,8 @@ import os
 import sqlite3
 from typing import Dict
 
+from ..utilities import date_utils as du
+
 # Chronological gate order — determines which gate's schedule wins per hour.
 GATE_ORDER = ["DA", "IDA1", "IDA2", "IDA3", "XBID"]
 
@@ -104,15 +106,25 @@ class PositionStore:
 
     def committed_position(self, delivery_date: str,
                            as_of_gate: str | None = None) -> Dict[int, float]:
-        """Running net committed volume per hour up to and including `as_of_gate`.
+        """Running net committed POWER (MW) per hour/ISP up to and including
+        `as_of_gate`.
 
         Applies gates in GATE_ORDER; each gate overwrites only the hours present
-        in its stored schedule, so IDA3 (hours 12-24) leaves 1-11 untouched."""
+        in its stored schedule, so IDA3 (hours 12-24) leaves 1-11 untouched.
+
+        Stored rows hold volume_mwh = p_net_mw * dt (see run_da.py / ida_reoptimiser.py
+        / xbid_optimiser.py), so this converts back to MW using the real period
+        duration for the date -- at dt=1.0 (legacy hourly runs) this is a no-op,
+        but at dt=0.25 (real 15-min ISPs) treating volume_mwh directly as MW would
+        silently under-report the committed position 4x, which breaks anything that
+        freezes/compares it against MW quantities (fixed_net_position, reserve
+        headroom sizing, RT residual dispatch)."""
+        dt = du.isp_duration_min(du.parse_date(delivery_date)) / 60.0
         net: Dict[int, float] = {}
         for gate in GATE_ORDER:
             sched = self.load_position(delivery_date, gate)
             for h, v in sched.items():
-                net[h] = v["volume_mwh"]          # later gate overwrites earlier
+                net[h] = v["volume_mwh"] / dt      # later gate overwrites earlier
             if as_of_gate is not None and gate == as_of_gate:
                 break
         return net
