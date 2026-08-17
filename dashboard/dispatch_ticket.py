@@ -990,6 +990,41 @@ def render_da_vs_activation_card(dv: dict) -> str:
 {_DAACT_REPLAY_SCRIPT}'''
 
 
+_ISP_REPLAY_SCRIPT = '''
+<script>
+window.dtIspReplay = function(btn) {
+  var block = btn.closest('.ispd-chart-block');
+  if (!block || block.dataset.replaying === '1') return;
+  block.dataset.replaying = '1';
+  var data = JSON.parse(block.dataset.ispd);
+  var n = data.isps.length;
+  var clipA = block.querySelector('#ispd-clip-rect-a');
+  var clipB = block.querySelector('#ispd-clip-rect-b');
+  var playhead = block.querySelector('#ispd-playhead');
+  var readout = block.querySelector('#ispd-readout');
+  var steps = n;
+  var stepMs = 6000 / steps;
+  clipA.setAttribute('width', '0');
+  clipB.setAttribute('width', '0');
+  for (var s = 1; s <= steps; s++) {
+    (function(s) {
+      setTimeout(function() {
+        var idx = Math.min(s - 1, n - 1);
+        var frac = s / steps;
+        clipA.setAttribute('width', (400 * frac).toFixed(1));
+        clipB.setAttribute('width', (400 * frac).toFixed(1));
+        if (playhead) playhead.style.left = (frac * 100) + '%';
+        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ' (H' + data.hours[idx] + '): PV ' +
+          data.pvMw[idx].toFixed(2) + ' MW · BESS ' + data.bessMw[idx].toFixed(2) + ' MW · PSP ' +
+          data.pspMw[idx].toFixed(1) + ' MW';
+        if (s === steps) block.dataset.replaying = '0';
+      }, s * stepMs);
+    })(s);
+  }
+};
+</script>'''
+
+
 def render_isp_dispatch_card(dv: dict) -> str:
     """Real per-asset dispatch (PV, BESS discharge, PSP turbine) at true
     96-ISP (15-min) resolution -- every point is a genuinely different
@@ -1034,6 +1069,9 @@ def render_isp_dispatch_card(dv: dict) -> str:
         for i in tick_idx
     )
 
+    payload = {"isps": isps, "hours": hours, "pvMw": pv_mw, "bessMw": bess_mw, "pspMw": psp_mw}
+    payload_json = _json.dumps(payload)
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
@@ -1045,18 +1083,21 @@ def render_isp_dispatch_card(dv: dict) -> str:
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">ISP dispatch</div>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Real per-asset dispatch at true 96-ISP (15-min) resolution &mdash; every point independently solved, not a repeated hourly value</p>
 
-
+    <div class="ispd-chart-block" data-ispd='{payload_json}'>
     <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
       <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Power, <i>P</i> (MW)</div>
         <div style="flex:1;">
           <svg viewBox="0 0 400 60" style="width:100%; height:55px; display:block;">
+            <defs><clipPath id="ispd-clip-a"><rect id="ispd-clip-rect-a" x="0" y="0" width="400" height="60"/></clipPath></defs>
             <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{pv_bess_max:.1f}</text>
             <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
-            <path d="{pv_area}" fill="{theme.YELLOW}" fill-opacity="0.35" stroke="{theme.YELLOW}" stroke-width="1.5"/>
-            <polyline points="{bess_line}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            <g clip-path="url(#ispd-clip-a)">
+              <path d="{pv_area}" fill="{theme.YELLOW}" fill-opacity="0.35" stroke="{theme.YELLOW}" stroke-width="1.5"/>
+              <polyline points="{bess_line}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            </g>
             <text x="{x0+8}" y="{y0+3}" font-size="9" fill="{theme.YELLOW}" font-weight="bold">PV</text>
             <text x="{x0+34}" y="{y0+3}" font-size="9" fill="{theme.COLOR_UP}" font-weight="bold">BESS discharge</text>
           </svg>
@@ -1066,11 +1107,14 @@ def render_isp_dispatch_card(dv: dict) -> str:
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Power, <i>P</i> (MW)</div>
         <div style="flex:1;">
           <svg viewBox="0 0 400 62" style="width:100%; height:58px; display:block;">
+            <defs><clipPath id="ispd-clip-b"><rect id="ispd-clip-rect-b" x="0" y="0" width="400" height="62"/></clipPath></defs>
             <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{psp_max:.0f}</text>
             <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
-            <path d="{psp_area}" fill="{theme.COLOR_GEN}" fill-opacity="0.35" stroke="{theme.COLOR_GEN}" stroke-width="1.5"/>
+            <g clip-path="url(#ispd-clip-b)">
+              <path d="{psp_area}" fill="{theme.COLOR_GEN}" fill-opacity="0.35" stroke="{theme.COLOR_GEN}" stroke-width="1.5"/>
+            </g>
             <text x="{x0+8}" y="{y0+3}" font-size="9" fill="{theme.COLOR_GEN}" font-weight="bold">PSP turbine</text>
             {ticks_x}
           </svg>
@@ -1081,8 +1125,57 @@ def render_isp_dispatch_card(dv: dict) -> str:
         Fig. 1.&nbsp;&nbsp;Alqueva PSP&ndash;PV&ndash;BESS dispatch across the delivery day, resolved at {n} real 15-min imbalance settlement periods (ISP). Top: PV and BESS discharge (own scale, max {pv_bess_max:.1f} MW). Bottom: PSP turbine output (own scale, max {psp_max:.0f} MW). Delivery date {dv['delivery_date']}.
       </p>
     </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+      <span id="ispd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
+        <div id="ispd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
+      </div>
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+    </div>
+    </div>
   </div>
-</div>'''
+</div>
+{_REPLAY_STYLE}
+{_ISP_REPLAY_SCRIPT}'''
+
+
+_AFRR_REPLAY_SCRIPT = '''
+<script>
+window.dtAfrrReplay = function(btn) {
+  var block = btn.closest('.afrrd-chart-block');
+  if (!block || block.dataset.replaying === '1') return;
+  block.dataset.replaying = '1';
+  var data = JSON.parse(block.dataset.afrrd);
+  var n = data.isps.length;
+  var clipUp = block.querySelector('#afrrd-clip-rect-up');
+  var clipDn = block.querySelector('#afrrd-clip-rect-dn');
+  var playhead = block.querySelector('#afrrd-playhead');
+  var readout = block.querySelector('#afrrd-readout');
+  var steps = n;
+  var stepMs = 6000 / steps;
+  clipUp.setAttribute('width', '0');
+  clipDn.setAttribute('width', '0');
+  for (var s = 1; s <= steps; s++) {
+    (function(s) {
+      setTimeout(function() {
+        var idx = Math.min(s - 1, n - 1);
+        var frac = s / steps;
+        clipUp.setAttribute('width', (400 * frac).toFixed(1));
+        clipDn.setAttribute('width', (400 * frac).toFixed(1));
+        if (playhead) playhead.style.left = (frac * 100) + '%';
+        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ': up BESS ' +
+          data.bessUp[idx].toFixed(2) + ' + PSP ' + data.pspUp[idx].toFixed(2) + ' MW · dn BESS ' +
+          data.bessDn[idx].toFixed(2) + ' + PSP ' + data.pspDn[idx].toFixed(2) + ' MW';
+        if (s === steps) block.dataset.replaying = '0';
+      }, s * stepMs);
+    })(s);
+  }
+};
+</script>'''
 
 
 def render_afrr_dispatch_card(dv: dict) -> str:
@@ -1134,6 +1227,9 @@ def render_afrr_dispatch_card(dv: dict) -> str:
         for i in tick_idx
     )
 
+    payload = {"isps": isps, "bessUp": bess_up, "pspUp": psp_up, "bessDn": bess_dn, "pspDn": psp_dn}
+    payload_json = _json.dumps(payload)
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
@@ -1145,18 +1241,22 @@ def render_afrr_dispatch_card(dv: dict) -> str:
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Reserved capacity vs actual activation at 96-ISP resolution, split by resource &mdash; BESS (fast responder) base, PSP (ramp) on top. PV never contributes: no PV term in the call-sizing logic.</p>
 
+    <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
     <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
       <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Up-reg., <i>P</i> (MW)</div>
         <div style="flex:1;">
           <svg viewBox="0 0 400 60" style="width:100%; height:55px; display:block;">
+            <defs><clipPath id="afrrd-clip-up"><rect id="afrrd-clip-rect-up" x="0" y="0" width="400" height="60"/></clipPath></defs>
             <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y0}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,2"/>
             <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">{up_max:.1f}</text>
             <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">0</text>
-            <path d="{up_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
-            <path d="{up_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            <g clip-path="url(#afrrd-clip-up)">
+              <path d="{up_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
+              <path d="{up_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            </g>
             <text x="{x0+8}" y="{y0+11}" font-size="8" fill="#22c55e">reserved up (ceiling)</text>
             <text x="{x0+8}" y="{y0+21}" font-size="9" fill="{theme.COLOR_UP}" font-weight="bold">BESS</text>
             <text x="{x0+40}" y="{y0+21}" font-size="9" fill="{theme.COLOR_GEN}" font-weight="bold">PSP</text>
@@ -1167,13 +1267,16 @@ def render_afrr_dispatch_card(dv: dict) -> str:
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Dn-reg., <i>P</i> (MW)</div>
         <div style="flex:1;">
           <svg viewBox="0 0 400 90" style="width:100%; height:84px; display:block;">
+            <defs><clipPath id="afrrd-clip-dn"><rect id="afrrd-clip-rect-dn" x="0" y="0" width="400" height="90"/></clipPath></defs>
             <line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y1}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y0}" stroke="#000" stroke-width="1"/>
             <line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
             <text x="{x0-6}" y="{y0+3}" font-size="9" fill="#000" text-anchor="end">0</text>
             <text x="{x0-6}" y="{y1+3}" font-size="9" fill="#000" text-anchor="end">{dn_max:.1f}</text>
-            <path d="{dn_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
-            <path d="{dn_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            <g clip-path="url(#afrrd-clip-dn)">
+              <path d="{dn_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
+              <path d="{dn_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+            </g>
             <text x="{x0+8}" y="{y1+11}" font-size="8" fill="#ef4444">reserved dn (floor)</text>
             {ticks_x}
           </svg>
@@ -1184,8 +1287,53 @@ def render_afrr_dispatch_card(dv: dict) -> str:
         Fig. 1.&nbsp;&nbsp;{product} reserve delivery across the delivery day, resolved at {n} real 15-min imbalance settlement periods (ISP). Top: up-regulation vs reserved ceiling ({up_max:.1f} MW). Bottom: down-regulation vs reserved floor ({dn_max:.1f} MW). Stacked fill: BESS (fast responder) base, PSP (ramp) remainder. Delivery date {dv['delivery_date']}.
       </p>
     </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+      <span id="afrrd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
+        <div id="afrrd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
+      </div>
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+    </div>
+    </div>
   </div>
-</div>'''
+</div>
+{_REPLAY_STYLE}
+{_AFRR_REPLAY_SCRIPT}'''
+
+
+_FCRD_REPLAY_SCRIPT = '''
+<script>
+window.dtFcrdReplay = function(btn) {
+  var block = btn.closest('.fcrd-chart-block');
+  if (!block || block.dataset.replaying === '1') return;
+  block.dataset.replaying = '1';
+  var data = JSON.parse(block.dataset.fcrd);
+  var n = data.isps.length;
+  var clip = block.querySelector('#fcrd-clip-rect-b');
+  var playhead = block.querySelector('#fcrd-playhead');
+  var readout = block.querySelector('#fcrd-readout');
+  var steps = n;
+  var stepMs = 6000 / steps;
+  clip.setAttribute('width', '0');
+  for (var s = 1; s <= steps; s++) {
+    (function(s) {
+      setTimeout(function() {
+        var idx = Math.min(s - 1, n - 1);
+        var frac = s / steps;
+        clip.setAttribute('width', (400 * frac).toFixed(1));
+        if (playhead) playhead.style.left = (frac * 100) + '%';
+        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ': response ' +
+          data.respMw[idx].toFixed(3) + ' MW';
+        if (s === steps) block.dataset.replaying = '0';
+      }, s * stepMs);
+    })(s);
+  }
+};
+</script>'''
 
 
 def render_fcr_dispatch_card(fcr: dict) -> str:
@@ -1258,6 +1406,9 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
         for i in tick_idx
     )
 
+    payload = {"isps": isps, "respMw": signed_resp}
+    payload_json = _json.dumps(payload)
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
@@ -1269,6 +1420,7 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">FCR dispatch</div>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 12px;">Reserved headroom {headroom:.1f} MW, plant-level only &mdash; FCR has no per-resource attribution (no BESS/PSP/PV term in the droop response function)</p>
 
+    <div class="fcrd-chart-block" data-fcrd='{payload_json}'>
     <div style="font-family: 'Times New Roman', Times, serif; border:1px solid #333; border-radius:2px; padding:14px 16px 8px; background:#fff;">
       <div style="display:flex; gap:6px; align-items:flex-start; margin-bottom:4px;">
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Response, <i>P</i> (MW)</div>
@@ -1285,17 +1437,20 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
             <text x="{deadband_x0-2:.1f}" y="{ay1+8}" font-size="7" fill="#666" text-anchor="end">&minus;10</text>
             <text x="{deadband_x1+2:.1f}" y="{ay1+8}" font-size="7" fill="#666">+10 mHz</text>
           </svg>
-          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">Frequency deviation, &Delta;<i>f</i> (mHz) &mdash; {len(resp)} real 30&#8209;s ticks, shaded band = &plusmn;10 mHz deadband</div>
+          <div style="text-align:center; font-size:11px; color:#000; margin-top:2px;">Frequency deviation, &Delta;<i>f</i> (mHz) &mdash; {len(resp)} real 30&#8209;s ticks, shaded band = &plusmn;10 mHz deadband &mdash; static reference (not time-ordered, so not part of Replay)</div>
         </div>
       </div>
       <div style="display:flex; gap:6px; align-items:flex-start; margin-top:14px;">
         <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; color:#000; padding:2px 0;">Response, <i>P</i> (MW)</div>
         <div style="flex:1;">
           <svg viewBox="0 0 400 78" style="width:100%; height:72px; display:block;">
+            <defs><clipPath id="fcrd-clip-b"><rect id="fcrd-clip-rect-b" x="0" y="0" width="400" height="78"/></clipPath></defs>
             <line x1="{bx0}" y1="{b_mid_y}" x2="{bx1}" y2="{b_mid_y}" stroke="#000" stroke-width="1"/>
             <line x1="{bx0}" y1="{by0}" x2="{bx1}" y2="{by0}" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,2"/>
             <line x1="{bx0}" y1="{by1}" x2="{bx1}" y2="{by1}" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
-            <polyline points="{strip_pts}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            <g clip-path="url(#fcrd-clip-b)">
+              <polyline points="{strip_pts}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+            </g>
             <text x="{bx0+4}" y="{by0-1}" font-size="8" fill="#22c55e">reserved headroom (+{headroom:.1f} MW)</text>
             <text x="{bx0+4}" y="{by1+9}" font-size="8" fill="#ef4444">reserved headroom (&minus;{headroom:.1f} MW)</text>
             {ticks_x}
@@ -1307,5 +1462,19 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
         Fig. 1.&nbsp;&nbsp;FCR droop dispatch across the delivery day. Top: real 30-second-tick droop transfer curve (frequency deviation vs response, all {len(resp)} ticks) against the theoretical droop line. Bottom: 96-ISP signed response vs the flat reserved-headroom envelope ({headroom:.1f} MW). Delivery date {fcr.get('delivery_date', '')}.
       </p>
     </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+      <span id="fcrd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps the ISP strip only (droop curve is static, not time-ordered)</span>
+      <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
+        <div id="fcrd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_UP}; transform:translateX(-50%);"></div>
+      </div>
+      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+    </div>
+    </div>
   </div>
-</div>'''
+</div>
+{_REPLAY_STYLE}
+{_FCRD_REPLAY_SCRIPT}'''
