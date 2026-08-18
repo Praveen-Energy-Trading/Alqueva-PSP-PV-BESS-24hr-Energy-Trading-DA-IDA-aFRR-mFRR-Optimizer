@@ -8,9 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 from plotly.subplots import make_subplots
 
 import data
+import dispatch_ticket
 import theme
 
 st.title("💰 Trading Desk")
@@ -47,6 +49,29 @@ c5.metric("mFRR (cap+act)", f"{mfrr_cap + mfrr_act:,.0f} EUR")
 c6, c7 = st.columns(2)
 c6.metric("Imbalance settlement", f"{imbalance:,.0f} EUR")
 c7.metric("Reserve share of P&L", f"{reserve_pct:.1f} %" if reserve_pct is not None else "n/a")
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------------
+# P&L breakdown card — same widget as Overview's "P&L Breakdown" (moved here
+# too, ownership-wise this is the money page; Overview's copy left in place
+# pending merge/dedup review).
+# ---------------------------------------------------------------------------
+
+pnl_lines = [
+    ("DA",                da_rev,   theme.COLOR_GEN),
+    ("IDA1",              data.kpi_value(kpis, "IDA1 incremental revenue") or 0.0, theme.COLOR_PRICE),
+    ("IDA2",              data.kpi_value(kpis, "IDA2 incremental revenue") or 0.0, theme.COLOR_PRICE),
+    ("IDA3",              data.kpi_value(kpis, "IDA3 incremental revenue") or 0.0, theme.COLOR_PRICE),
+    ("XBID",              data.kpi_value(kpis, "XBID incremental revenue") or 0.0, theme.STATUS_NEUTRAL),
+    ("aFRR capacity",     afrr_cap, theme.COLOR_UP),
+    ("aFRR activation",   afrr_act, theme.COLOR_UP),
+    ("mFRR capacity",     mfrr_cap, theme.COLOR_PUMP),
+    ("mFRR activation",   mfrr_act, theme.COLOR_PUMP),
+    ("Imbalance settlement", imbalance, theme.STATUS_GOOD),
+]
+st.subheader("P&L Breakdown")
+components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
 
 st.markdown("---")
 

@@ -10,8 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
+from plotly.subplots import make_subplots
 
 import data
 import gate_ticket
@@ -33,6 +35,7 @@ st.markdown(
     # scrolling to reach the later tabs. Wrapping onto 2-3 rows instead
     # keeps every button visible without side-scrolling to find one.
     'div[data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; overflow-x: visible; row-gap: 4px; }'
+    'div[data-testid="stSegmentedControl"] div[role="radiogroup"] { flex-wrap: wrap; row-gap: 4px; }'
     '</style>',
     unsafe_allow_html=True,
 )
@@ -200,21 +203,29 @@ technical_cards = [
 market_cards = [c for c in market_cards if c is not None]
 technical_cards = [c for c in technical_cards if c is not None]
 
-if market_cards:
-    st.markdown("##### Market & Delivery")
-    tabs = st.tabs([label for label, _ in market_cards])
-    for tab, (_, render_fn) in zip(tabs, market_cards):
-        with tab:
-            render_fn()
+# Plain st.tabs has no session_state key, so its selected tab is pure
+# client-side DOM state — a full script rerun (e.g. every auto-refresh
+# tick while a pipeline is live) always snaps it back to the first tab.
+# st.segmented_control is keyed in session_state, so the selection
+# survives reruns instead of visibly jumping back every couple of seconds.
+def _render_section(title: str, cards: list, state_key: str) -> None:
+    if not cards:
+        return
+    st.markdown(f"##### {title}")
+    labels = [label for label, _ in cards]
+    if st.session_state.get(state_key) not in labels:
+        st.session_state[state_key] = labels[0]
+    selected = st.session_state[state_key]
+    if len(labels) > 1:
+        selected = st.segmented_control(
+            title, labels, key=state_key, label_visibility="collapsed",
+        ) or labels[0]
+    dict(cards)[selected]()
     st.markdown("---")
 
-if technical_cards:
-    st.markdown("##### Optimization & Physical Dispatch")
-    tabs = st.tabs([label for label, _ in technical_cards])
-    for tab, (_, render_fn) in zip(tabs, technical_cards):
-        with tab:
-            render_fn()
-    st.markdown("---")
+
+_render_section("Market & Delivery", market_cards, "overview_market_tab")
+_render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
 
 if not report_ready:
     st.info(data.no_report_message(selected_date))
@@ -222,6 +233,7 @@ if not report_ready:
 
 report = data.load_daily_report(selected_date)
 kpis = report["kpis"]
+dispatch = report["dispatch"]
 
 # ---------------------------------------------------------------------------
 # P&L breakdown — every real revenue line item as its own proportion bar,
@@ -246,7 +258,32 @@ pnl_lines = [
 st.markdown("##### P&L Breakdown")
 components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
 
-# Dispatch + price, Gate decisions, Risk & constraints, and Portfolio risk
-# summaries were all dropped from Overview -- each already has its own
-# dedicated page (Trading Desk / Decision Rationale / Risk & Constraints /
-# Backtest & Portfolio Risk), so repeating them here was pure duplication.
+# ---------------------------------------------------------------------------
+# Dispatch profile + Reserve capacity offered -- same widgets as Trading
+# Desk's (moved here too, ownership-wise this is the physical/delivery
+# page; Trading Desk's copy left in place pending merge/dedup review).
+# ---------------------------------------------------------------------------
+
+st.markdown("##### Dispatch profile (hourly)")
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                     row_heights=[0.6, 0.4])
+fig.add_trace(go.Bar(x=dispatch["Hour"], y=dispatch["Plant_net_final_MW"],
+                      name="Net dispatch MW", marker_color=theme.COLOR_GEN), row=1, col=1)
+fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["DA_price_EUR_MWh"],
+                          name="DA price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+theme.style_fig(fig, height=460)
+fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
+fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
+fig.update_xaxes(title_text="Hour", row=2, col=1)
+st.plotly_chart(fig, width="stretch")
+
+st.markdown("##### Reserve capacity offered (aFRR / mFRR, hourly)")
+fig = go.Figure()
+if "aFRR_up_MW" in dispatch.columns:
+    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["aFRR_up_MW"], name="aFRR up", line=dict(color=theme.COLOR_UP)))
+    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["aFRR_dn_MW"], name="aFRR dn", line=dict(color=theme.COLOR_DOWN)))
+if "mFRR_up_MW" in dispatch.columns:
+    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["mFRR_up_MW"], name="mFRR up", line=dict(color=theme.COLOR_UP, dash="dot")))
+    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["mFRR_dn_MW"], name="mFRR dn", line=dict(color=theme.COLOR_DOWN, dash="dot")))
+theme.style_fig(fig, height=380, yaxis_title="MW", xaxis_title="Hour")
+st.plotly_chart(fig, width="stretch")
