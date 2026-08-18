@@ -1079,43 +1079,48 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
 
 @st.cache_data
 def load_da_vs_activation(delivery_date: str) -> dict | None:
-    """Two independent obligations stacked on the same hour, NOT a delivery
-    reconciliation: the hourly DA-committed net position (Plant_net_final_MW,
-    a day-ahead energy schedule) versus the real per-ISP aFRR/mFRR activation
-    that hour (ActivationStore, driven by system-wide Area Control Error --
-    see reserve_activation.py's simulate_ace_series docstring). Alqueva's own
-    DA delivery accuracy has nothing to do with whether the control area's
-    ACE calls it for balancing; these are two separate obligations that
-    happen to land on the same plant at the same hour, shown honestly as
-    such -- not "did we deliver our promise". Combined aFRR+mFRR, plant-level
-    only (no per-asset attribution exists in the real activation pipeline,
-    same caveat as the Multi-asset dispatch widget)."""
-    report = load_daily_report(delivery_date)
-    if report is None:
+    """Two independent obligations at true 96-ISP (15-min) resolution, NOT a
+    delivery reconciliation: the real per-ISP DA-committed net position
+    (PositionStore.committed_position, ISP-keyed since the DA/IDA/XBID gates
+    solve natively at ISP resolution) versus the real per-ISP aFRR/mFRR
+    activation that ISP (ActivationStore, driven by system-wide Area Control
+    Error -- see reserve_activation.py's simulate_ace_series docstring).
+    Alqueva's own DA delivery accuracy has nothing to do with whether the
+    control area's ACE calls it for balancing; these are two separate
+    obligations that happen to land on the same plant at the same moment,
+    shown honestly as such -- not "did we deliver our promise". Raw
+    up_mw - dn_mw is used directly (not the eff_isp_h ramp-corrected energy
+    factor settlement uses) since this compares two instantaneous MW
+    quantities at native ISP grain, not an hourly-aggregated energy total.
+    Combined aFRR+mFRR, plant-level only (no per-asset attribution exists in
+    the real activation pipeline, same caveat as the Multi-asset dispatch
+    widget). None for dates that predate ISP-native resolution."""
+    committed = PositionStore().committed_position(delivery_date)
+    if len(committed) < _MIN_REAL_ISP_COUNT:
         return None
-    df = report["dispatch"]
-    if "Plant_net_final_MW" not in df.columns:
-        return None
-    hours = df["Hour"].tolist()
-    da_net = df["Plant_net_final_MW"].tolist()
+    day = du.parse_date(delivery_date)
+    isps = sorted(committed)
+    da_net = [committed[isp] for isp in isps]
 
-    activation_mw = {h: 0.0 for h in hours}
+    activation_mw = {isp: 0.0 for isp in isps}
     any_activation = False
     for product in ("aFRR", "mFRR"):
         rows = ActivationStore().load(delivery_date, product)
         for r in rows:
-            h = r["hour"]
-            if h not in activation_mw:
+            isp = r["isp"]
+            if isp not in activation_mw:
                 continue
-            delta = (r["up_mw"] - r["dn_mw"]) * r["eff_isp_h"]
+            delta = r["up_mw"] - r["dn_mw"]
             if abs(delta) > 1e-9:
                 any_activation = True
-            activation_mw[h] += delta
+            activation_mw[isp] += delta
 
-    activation_delta_mw = [activation_mw[h] for h in hours]
-    delivered_mw = [da_net[i] + activation_delta_mw[i] for i in range(len(hours))]
+    activation_delta_mw = [activation_mw[isp] for isp in isps]
+    delivered_mw = [da_net[i] + activation_delta_mw[i] for i in range(len(isps))]
+    hours = [du.isp_to_hour(isp, day) for isp in isps]
 
     return {
+        "isps": isps,
         "hours": hours,
         "da_net_mw": da_net,
         "activation_delta_mw": activation_delta_mw,

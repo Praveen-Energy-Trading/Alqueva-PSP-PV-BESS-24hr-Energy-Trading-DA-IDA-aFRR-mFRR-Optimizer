@@ -147,7 +147,6 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Reservoir trajectory</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Two lakes, one dam: water is pumped up to Alqueva when power is cheap, released back down through turbines when it's profitable. Each panel is zoomed to its own day's range, since Alqueva holds ~100&times; more water and barely moves in comparison.</p>
     <div class="res-chart-block" data-res='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
       <span style="font-size:10.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake)</span>
@@ -460,12 +459,6 @@ def render_multi_asset_dispatch_card(mx: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
-    headroom_note = (
-        "Reserve headroom (aFRR+mFRR) is combined-plant only in the real model &mdash; no per-asset split exists in reserve_offer_builder.py/reserve_activation.py, so none is shown here."
-        if mx["has_headroom"] else
-        "Reserve headroom data unavailable for this date."
-    )
-
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
@@ -475,10 +468,8 @@ def render_multi_asset_dispatch_card(mx: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Multi-asset dispatch</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Per-hour asset coordination, split onto two scales &mdash; PV/BESS (MW-scale) and PSP (hundreds-of-MW scale) would crush each other on one axis</p>
     <div class="mx-chart-block" data-mx='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">Above zero = generation &middot; below = consumption</span>
+    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:6px;">
       <button class="gt-replay" onclick="dtMultiReplay(this)">&#9654; Replay</button>
     </div>
     <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
@@ -507,11 +498,8 @@ def render_multi_asset_dispatch_card(mx: dict) -> str:
       <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
       <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
     </div>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="mx-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+    <span id="mx-readout" style="display:none;"></span>
     </div>
-    </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:8px 0 0;">{headroom_note}</p>
   </div>
 </div>
 {_REPLAY_STYLE}
@@ -912,29 +900,25 @@ window.dtDaactReplay = function(btn) {
   var data = JSON.parse(block.dataset.da2);
   var n = data.hours.length;
   var readout = block.querySelector('#da2-readout');
-  var bars = block.querySelectorAll('.da2-bar');
-  var ticks = block.querySelectorAll('.da2-tick');
-  var dots = block.querySelectorAll('.da2-dot');
+  var daBars = block.querySelectorAll('.da2-bar');
+  var deltaBars = block.querySelectorAll('.da2-delta-bar');
   var steps = n;
   var stepMs = 8000 / steps;
 
-  bars.forEach(function(b) { b.setAttribute('height', '0'); });
-  ticks.forEach(function(t) { t.style.opacity = '0'; });
-  dots.forEach(function(d) { d.style.opacity = '0'; });
+  daBars.forEach(function(b) { b.setAttribute('height', '0'); });
+  deltaBars.forEach(function(b) { b.setAttribute('height', '0'); });
 
   for (var s = 1; s <= steps; s++) {
     (function(s) {
       setTimeout(function() {
         var idx = s - 1;
         var bar = block.querySelector('.da2-bar[data-hidx="' + idx + '"]');
-        var tick = block.querySelector('.da2-tick[data-hidx="' + idx + '"]');
-        var dot = block.querySelector('.da2-dot[data-hidx="' + idx + '"]');
+        var dbar = block.querySelector('.da2-delta-bar[data-hidx="' + idx + '"]');
         if (bar) { bar.setAttribute('height', bar.dataset.finalH); bar.setAttribute('y', bar.dataset.finalY); bar.style.opacity = '1'; }
-        if (tick) tick.style.opacity = '1';
-        if (dot) dot.style.opacity = '1';
+        if (dbar) { dbar.setAttribute('height', dbar.dataset.finalH); dbar.setAttribute('y', dbar.dataset.finalY); dbar.style.opacity = '1'; }
         if (readout) {
-          readout.textContent = 'H' + data.hours[idx] + ': DA ' + data.daMw[idx].toFixed(0) +
-            ' MW committed, ISP activation ' + (data.deltaMw[idx] >= 0 ? '+' : '') + data.deltaMw[idx].toFixed(0) +
+          readout.textContent = 'ISP ' + data.isps[idx] + ' (H' + data.hours[idx] + '): DA ' + data.daMw[idx].toFixed(0) +
+            ' MW committed, grid asked for ' + (data.deltaMw[idx] >= 0 ? '+' : '') + data.deltaMw[idx].toFixed(0) +
             ' MW \\u2192 ' + data.deliveredMw[idx].toFixed(0) + ' MW actual';
         }
         if (s === steps) block.dataset.replaying = '0';
@@ -946,48 +930,55 @@ window.dtDaactReplay = function(btn) {
 
 
 def render_da_vs_activation_card(dv: dict) -> str:
-    """Hourly DA-committed net position (blue bar) with the real per-ISP
-    aFRR/mFRR activation delta overlaid as a tick+dot on top -- two
-    independent obligations on the same hour, not a reconciliation. DA is a
-    day-ahead energy schedule; activation is a real-time response to
-    system-wide Area Control Error, unrelated to Alqueva's own DA delivery
-    accuracy. Combined aFRR+mFRR, plant-level only (no per-asset split
-    exists in the real pipeline)."""
+    """Two clearly separate panels instead of one overlaid chart, at true
+    96-ISP (15-min) resolution: Panel 1 is the DA-committed net position
+    (what the plant already agreed yesterday to sell/buy each ISP). Panel 2
+    is the real per-ISP aFRR/mFRR activation delta as its own signed bar
+    chart, colored green ("grid asked for more") / red ("grid asked for
+    less") on its own scale -- these are two independent obligations, not a
+    reconciliation, and a tick+dot riding on top of the DA bar read as a
+    bar-height error mark rather than its own event. DA is a day-ahead
+    energy schedule; activation is a real-time response to system-wide
+    Area Control Error, unrelated to Alqueva's own DA delivery accuracy.
+    Combined aFRR+mFRR, plant-level only (no per-asset split exists in
+    the real pipeline)."""
+    isps = dv["isps"]
     hours = dv["hours"]
-    n = len(hours)
+    n = len(isps)
     da_net = dv["da_net_mw"]
     delta = dv["activation_delta_mw"]
     delivered = dv["delivered_mw"]
-    max_mag = max([abs(v) for v in delivered + da_net] + [1.0])
+    da_max = max([abs(v) for v in da_net] + [1.0])
+    delta_max = max([abs(v) for v in delta] + [1.0])
 
     x0, x1 = 10, 1390
-    zero_y, half_h = 55, 48
+    zero_y1, half_h1 = 45, 38
+    zero_y2, half_h2 = 45, 38
     slot_w = (x1 - x0) / n
     bar_w = max(min(28.0, slot_w * 0.7), 4.0)
 
-    def y(v: float) -> float:
-        return zero_y - (v / max_mag) * half_h
+    def y1(v: float) -> float:
+        return zero_y1 - (v / da_max) * half_h1
 
-    bars, ticks, dots = [], [], []
+    def y2(v: float) -> float:
+        return zero_y2 - (v / delta_max) * half_h2
+
+    da_bars, delta_bars = [], []
     for i in range(n):
         x_center = x0 + i * slot_w + (slot_w - bar_w) / 2
-        y_da = y(da_net[i])
-        y_delivered = y(delivered[i])
-        bar_top = min(zero_y, y_da)
-        bar_h = abs(y_da - zero_y)
-        bars.append(f'<rect class="da2-bar" data-hidx="{i}" data-final-h="{bar_h:.1f}" data-final-y="{bar_top:.1f}" x="{x_center:.1f}" y="{bar_top:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{theme.COLOR_GEN}" opacity="0.8"/>')
-        tick_x = x_center + bar_w / 2
-        ticks.append(f'<line class="da2-tick" data-hidx="{i}" x1="{tick_x:.1f}" y1="{y_da:.1f}" x2="{tick_x:.1f}" y2="{y_delivered:.1f}" stroke="{theme.STATUS_CRITICAL}" stroke-width="2"/>')
-        dots.append(f'<circle class="da2-dot" data-hidx="{i}" cx="{tick_x:.1f}" cy="{y_delivered:.1f}" r="3" fill="{theme.STATUS_CRITICAL}"/>')
+        y_da = y1(da_net[i])
+        bar_top = min(zero_y1, y_da)
+        bar_h = abs(y_da - zero_y1)
+        da_bars.append(f'<rect class="da2-bar" data-hidx="{i}" data-final-h="{bar_h:.1f}" data-final-y="{bar_top:.1f}" x="{x_center:.1f}" y="{bar_top:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{theme.COLOR_GEN}" opacity="0.85"/>')
 
-    payload = {"hours": hours, "daMw": da_net, "deltaMw": delta, "deliveredMw": delivered}
+        y_delta = y2(delta[i])
+        dbar_top = min(zero_y2, y_delta)
+        dbar_h = abs(y_delta - zero_y2)
+        dcolor = theme.STATUS_GOOD if delta[i] >= 0 else theme.STATUS_CRITICAL
+        delta_bars.append(f'<rect class="da2-delta-bar" data-hidx="{i}" data-final-h="{dbar_h:.1f}" data-final-y="{dbar_top:.1f}" x="{x_center:.1f}" y="{dbar_top:.1f}" width="{bar_w:.1f}" height="{dbar_h:.1f}" fill="{dcolor}" opacity="0.85"/>')
+
+    payload = {"isps": isps, "hours": hours, "daMw": da_net, "deltaMw": delta, "deliveredMw": delivered}
     payload_json = _json.dumps(payload)
-
-    activation_note = (
-        "Real ISP activation shown as red tick + dot on top of each hour's DA commitment."
-        if dv["any_activation"] else
-        "No aFRR/mFRR activation recorded for this date &mdash; DA bars shown alone."
-    )
 
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
@@ -997,30 +988,31 @@ def render_da_vs_activation_card(dv: dict) -> str:
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">DA schedule vs ISP activation</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Two independent obligations, not a reconciliation &mdash; DA is a day-ahead energy commitment, aFRR/mFRR activation responds to system-wide grid balance, unrelated to whether Alqueva delivered its own DA position</p>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">DA schedule vs grid activation</div>
     <div class="da2-chart-block" data-da2='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">{activation_note}</span>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;">
+      <span style="font-size:10.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday)</span>
       <button class="gt-replay" onclick="dtDaactReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:110px;">
-      <svg viewBox="0 0 1400 110" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        {''.join(bars)}
-        {''.join(ticks)}
-        {''.join(dots)}
+    <div style="position:relative; height:60px;">
+      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+        <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        {''.join(da_bars)}
+      </svg>
+    </div>
+    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time)</p>
+    <div style="position:relative; height:60px;">
+      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+        <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        {''.join(delta_bars)}
       </svg>
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.8;"></span>DA commitment</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:2px; background:{theme.STATUS_CRITICAL}; margin-right:4px; vertical-align:middle;"></span>ISP activation delta</span>
+      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_GOOD}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for more power</span>
+      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for less power</span>
     </div>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="da2-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+    <span id="da2-readout" style="display:none;"></span>
     </div>
-    </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:8px 0 0;">Activation is combined aFRR+mFRR, plant-level only &mdash; the real pipeline has no per-asset attribution of which unit delivered a balancing call.</p>
   </div>
 </div>
 {_REPLAY_STYLE}
