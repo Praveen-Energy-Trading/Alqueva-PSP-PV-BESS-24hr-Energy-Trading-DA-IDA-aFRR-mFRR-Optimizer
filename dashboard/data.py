@@ -724,7 +724,7 @@ _MIN_REAL_ISP_COUNT = 90  # 96 nominal, 92/100 on DST days -- below this, the
 # real ISP granularity.
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_isp_dispatch(delivery_date: str) -> dict | None:
     """Real per-asset dispatch at true ISP (15-min) resolution -- PV, BESS
     discharge, and PSP turbine, straight from ComponentStore's
@@ -760,7 +760,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None:
     """Real per-ISP reserved capacity (ReserveStore) vs actually activated MW
     (ActivationStore), split by resource -- BESS (fast responder, up to its
@@ -799,7 +799,7 @@ def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     """Real solved MILP reservoir trajectory (upper=Alqueva, lower=Pedrogao)
     -- ComponentStore.reservoir_trajectory is written straight from the
@@ -837,7 +837,7 @@ def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_pv_routing(delivery_date: str) -> dict | None:
     """Real per-hour PV allocation from the solved MILP -- ComponentStore's
     pv_schedule is written straight from pv_used/pv_to_bess/pv_curt/pv_av
@@ -891,7 +891,7 @@ def load_pv_routing(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_multi_asset_dispatch(delivery_date: str) -> dict | None:
     """Per-hour DA dispatch decomposed by physical asset -- PV (to grid),
     BESS (discharge/charge), PSP (turbine/pump) -- from ComponentStore's
@@ -939,7 +939,7 @@ def load_multi_asset_dispatch(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_water_balance(delivery_date: str) -> dict | None:
     """Per-hour hydrological water balance for the upper reservoir (Alqueva)
     -- inflow_m3h (natural river inflow, real forecast input) + pump-return
@@ -992,7 +992,7 @@ def load_water_balance(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_bess_soc_price(delivery_date: str) -> dict | None:
     """BESS state-of-charge trajectory vs DA clearing price, the real
     storage-arbitrage decision the solver actually made -- soc_mwh,
@@ -1033,7 +1033,7 @@ def load_bess_soc_price(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_bess_charge_source(delivery_date: str) -> dict | None:
     """Real per-hour split of what BESS charging power actually came from --
     grid (bess_schedule.charge_mw, the p_chg solver variable) vs PV
@@ -1077,7 +1077,7 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_da_vs_activation(delivery_date: str) -> dict | None:
     """Two independent obligations at true 96-ISP (15-min) resolution, NOT a
     delivery reconciliation: the real per-ISP DA-committed net position
@@ -1129,7 +1129,7 @@ def load_da_vs_activation(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_agc_mechanism_demo(delivery_date: str, product: str) -> dict | None:
     """Illustrative, standalone AGC merit-order dispatch demo (see
     agc_mechanism_demo.py) -- NOT settlement data, purely explains the
@@ -1167,7 +1167,7 @@ def load_agc_mechanism_demo(delivery_date: str, product: str) -> dict | None:
     }
 
 
-@st.cache_data
+@st.cache_data(ttl=5)
 def load_fcr_activation(delivery_date: str) -> dict | None:
     """FCR droop-response compliance simulation. Unlike every other delivery
     card, this is NOT read from a pipeline run's audit trail or database --
