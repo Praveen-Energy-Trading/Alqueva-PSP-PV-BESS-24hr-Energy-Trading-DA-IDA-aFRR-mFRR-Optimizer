@@ -20,7 +20,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 
 import data
 import runner
@@ -95,11 +94,27 @@ else:
 pipeline_live = bool(selected_date) and data.is_pipeline_active(selected_date)
 
 st.sidebar.markdown("---")
+
+# Auto-refresh should default on when something's actually running (so a
+# fresh tab live-follows it with no extra click) and default off otherwise
+# -- polling every few seconds after a run has finished does nothing useful,
+# since load_daily_report/load_run_status are mtime-keyed and won't change
+# again until a new run starts. Detect the running -> finished transition
+# and switch the toggle off automatically at that point, once, rather than
+# leaving it polling forever; the user can still re-enable it by hand.
+_live_flag_key = f"_auto_refresh_was_live_{selected_date}"
+_was_live = st.session_state.get(_live_flag_key, pipeline_live)
+if _was_live and not pipeline_live:
+    st.session_state["auto_refresh_toggle"] = False
+st.session_state[_live_flag_key] = pipeline_live
+
 auto_refresh = st.sidebar.toggle(
     "⏱️ Auto-refresh while pipeline runs", key="auto_refresh_toggle",
-    value=True,  # a fresh tab should live-follow whatever's running, no extra click
+    value=pipeline_live,  # only used the first time this key is set
     help="Polls the report/log/audit files on disk and reloads whatever "
-         "changed — on by default. Turn off for a static snapshot.",
+         "changed — on automatically while a run is live, off once it "
+         "finishes (nothing left to poll for). Turn on for a static "
+         "snapshot to periodically re-check anyway.",
 )
 if auto_refresh:
     if pipeline_live:
@@ -108,9 +123,22 @@ if auto_refresh:
                             "VS Code, terminal, or this dashboard)")
     else:
         interval_s = st.sidebar.slider("Refresh interval (seconds)", 3, 30, 5)
-    st_autorefresh(interval=interval_s * 1000, key="pipeline_autorefresh")
     st.sidebar.caption(f"Auto-refreshing every {interval_s}s — mtime-based, "
                         f"so only changed files are actually reloaded.")
+else:
+    interval_s = None
+
+# Each page wraps its own body in st.fragment(run_every=...) (see
+# theme.auto_refresh_interval()) instead of this sidebar forcing a
+# streamlit_autorefresh-driven full-script rerun. That old approach reran
+# EVERYTHING on a timer, including whatever widget you were mid-click on
+# elsewhere on the page -- streamlit_autorefresh's own "debounce" runs
+# inside its own sandboxed iframe and can't see clicks happening in the
+# rest of the DOM, so a poorly-timed tick could silently swallow a click
+# (e.g. a gate ticket button doing nothing). A page-scoped fragment rerun
+# is isolated by the Streamlit runtime itself, so it can't race a click on
+# an unrelated widget the same way.
+st.session_state["_auto_refresh_interval_s"] = interval_s
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
@@ -132,6 +160,7 @@ pages = {
     ],
     "Analyse": [
         st.Page("pages/5_backtest_risk.py", title="Backtest & Portfolio Risk", icon="📈"),
+        st.Page("pages/9_ml_forecasting.py", title="ML Forecasting", icon="🤖"),
         st.Page("pages/6_figures.py", title="Figures", icon="🖼️"),
         st.Page("pages/7_console_log.py", title="Console Log", icon="🖥️"),
     ],

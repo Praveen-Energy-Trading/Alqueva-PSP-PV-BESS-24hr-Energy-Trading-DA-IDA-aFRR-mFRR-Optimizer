@@ -7,8 +7,10 @@ markdown-injected <script> tags do not (Streamlit strips them).
 from __future__ import annotations
 
 import html as _html
+import json as _json
 
 import theme
+from dispatch_ticket import _HOVER_CROSSHAIR_SCRIPT, _hover_svg_elems, _hover_tooltip_div
 
 _STATUS_BG = {"good": "#eaf3de", "neutral": "#f1efe8", "critical": "#fcebeb"}
 _STATUS_FG = {"good": "#173404", "neutral": "#444441", "critical": "#4a1b0c"}
@@ -26,7 +28,7 @@ def gate_caption_name(gate: str) -> str:
     return _CAPTION_GATE_NAME.get(gate, gate)
 
 
-def _bars_svg(ticket: dict) -> tuple[str, str, str, int]:
+def _bars_svg(ticket: dict) -> tuple[str, str, str, int, str]:
     """Returns (svg_groups_markup, y_axis_labels_html, hour_row_html, n_bars)
     for the hourly bars + tick marks. Geometry only in the SVG (bars/lines,
     rendered with preserveAspectRatio="none" so they stretch to fill the
@@ -38,7 +40,7 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int]:
     hourly = ticket["hourly"]
     n = len(hourly)
     if n == 0:
-        return "", "", "", 0
+        return "", "", "", 0, ""
 
     plot_x0, plot_x1 = 0, 1000
     plot_y0, plot_y1, zero_y = 4, 96, 50
@@ -106,7 +108,34 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int]:
       <line data-kind="gt-playhead" data-x0="{playhead_x0:.1f}" data-x1="{playhead_x1:.1f}"
             x1="{playhead_x0:.1f}" y1="{plot_y0}" x2="{playhead_x0:.1f}" y2="{plot_y1}"
             stroke="#0b0b0b" stroke-width="1" stroke-dasharray="2,2" style="opacity:0;"/>
+      {_hover_svg_elems("gt-bars", plot_x0, plot_x1, 116, 0)}
     '''
+
+    if ticket["is_reserve"]:
+        hover_traces = [
+            {"label": "Up", "yvals": [h["up_mw"] for h in hourly], "py": [h["up_mw"] for h in hourly], "color": theme.COLOR_UP, "unit": "MW", "decimals": 2},
+            {"label": "Down", "yvals": [h["dn_mw"] for h in hourly], "py": [h["dn_mw"] for h in hourly], "color": theme.COLOR_DOWN, "unit": "MW", "decimals": 2},
+        ]
+    else:
+        hover_traces = [
+            {"label": "Volume", "yvals": [h["volume_mwh"] for h in hourly], "py": [h["volume_mwh"] for h in hourly],
+             "color": theme.COLOR_GEN, "negColor": theme.COLOR_PUMP, "unit": "MWh", "decimals": 2, "signed": True},
+        ]
+    hover_cfg = _json.dumps({
+        "n": n, "x0": plot_x0, "x1": plot_x1, "viewW": 1000,
+        "catchSelector": "#gt-bars-hover-catch", "lineSelector": "#gt-bars-hover-line",
+        "tooltipSelector": "#gt-bars-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": hover_traces,
+    })
+    hover_tooltip = _hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="gt-bars-tooltip"')
+    hover_script = f'''
+    {_HOVER_CROSSHAIR_SCRIPT}
+    <script>
+    (function() {{
+      var block = document.querySelector('.gt-bars-chart-block');
+      if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+    }})();
+    </script>'''
 
     # Real HTML labels, positioned by percentage over the chart box (which
     # is position:relative in the caller) -- see docstring for why not SVG
@@ -126,13 +155,14 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int]:
       <div style="position:absolute; left:0; top:{_y_pct(plot_y1):.1f}%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">-{max_label}</div>
     '''
     hour_row = f'<div style="display:flex; justify-content:space-between; margin-top:4px;">{hour_labels}</div>'
-    return svg, overlay, hour_row, n
+    overlay = hover_tooltip + overlay
+    return svg, overlay, hour_row, n, hover_script
 
 
 def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str:
     """DA/aFRR/mFRR: the full 24h absolute bar chart + Replay button."""
     unit = "MW" if ticket["is_reserve"] else "MWh"
-    bars_svg, y_axis_html, hour_row_html, n_hours = _bars_svg(ticket)
+    bars_svg, y_axis_html, hour_row_html, n_hours, hover_script = _bars_svg(ticket)
     if ticket["is_reserve"]:
         legend_items = [(theme.COLOR_UP, "Up"), (theme.COLOR_DOWN, "Down")]
     else:
@@ -148,7 +178,7 @@ def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str
       <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0;">Hourly {'reserve capacity' if ticket['is_reserve'] else 'bid volume'} ({unit})</p>
       <button class="gt-replay" id="gt-replay-btn">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:100px; padding-left:26px; box-sizing:border-box;">
+    <div class="gt-bars-chart-block" style="position:relative; height:100px; padding-left:26px; box-sizing:border-box;">
       <svg viewBox="0 0 1000 116" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         {bars_svg}
       </svg>
@@ -161,6 +191,7 @@ def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str
     <p style="font-size:10.5px; color:{theme.INK_SECONDARY}; text-align:center; margin:4px 0 0;">
       <b>Fig. {fig_num}.</b>&nbsp; {_html.escape(gate_caption_name(ticket['gate']))} hourly {'reserve capacity' if ticket['is_reserve'] else 'bid volume'}, delivery {_html.escape(delivery_date)}.
     </p>
+    {hover_script}
     ''', n_hours
 
 
@@ -257,19 +288,24 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
 
     hours_html = ""
     if tradable_hours:
+        strip_id = f"gt-strip{('-' + wrapper_id) if wrapper_id else ''}"
         strip_vb_w = 1400
         seg_w = strip_vb_w / n_total
         traded_set = set(traded_hours)
         tradable_set = set(tradable_hours)
         segs = []
+        status_labels = []
         for h in range(1, n_total + 1):
             x = (h - 1) * seg_w
             if h in traded_set:
                 color = theme.COLOR_PRICE
+                status_labels.append("Traded")
             elif h in tradable_set:
                 color = _TRADABLE_LIGHT
+                status_labels.append("Tradable")
             else:
                 color = _FROZEN_GRAY
+                status_labels.append("Frozen")
             segs.append(f'<rect data-kind="gt-tradable-seg" data-final-fill="{color}" '
                         f'x="{x:.1f}" y="4" width="{seg_w * 0.8:.1f}" height="10" rx="1" fill="{color}"/>')
         legend_bits = [
@@ -282,16 +318,55 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
             )
         strip_label = (f"Hours traded ({len(traded_hours)} of {len(tradable_hours)} tradable)" if traded_hours
                         else f"Tradable hours ({len(tradable_hours)} of {n_total})")
+        # Categorical strip (Frozen/Tradable/Traded per hour) -- the color
+        # alone already tells the full story, so this doesn't reuse the
+        # generic numeric dtHoverInit module (which formats values with
+        # toFixed). Just enough bespoke JS to snap a line to the hovered
+        # hour and show its status as text; no dots, nothing numeric.
+        status_json = _json.dumps(status_labels)
         hours_html = f'''
         <div style="border-top:1px solid {theme.GRIDLINE}; padding-top:10px; margin-top:12px;">
           <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 6px;">{strip_label}</p>
-          <svg viewBox="0 0 {strip_vb_w} 22" preserveAspectRatio="none" style="width:100%; height:20px; display:block;">{''.join(segs)}</svg>
+          <div style="position:relative;">
+            <svg viewBox="0 0 {strip_vb_w} 22" preserveAspectRatio="none" style="width:100%; height:20px; display:block;">
+              {''.join(segs)}
+              <rect id="{strip_id}-hover-catch" x="0" y="0" width="{strip_vb_w}" height="22" fill="transparent"/>
+              <line id="{strip_id}-hover-line" x1="0" y1="0" x2="0" y2="22" stroke="{theme.INK_PRIMARY}" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+            </svg>
+            {_hover_tooltip_div().replace('dt-hover-tooltip"', f'dt-hover-tooltip" id="{strip_id}-tooltip"')}
+          </div>
           <div style="display:flex; justify-content:space-between; margin-top:2px;">
             <span style="font-size:9px; color:{theme.INK_MUTED};">H1</span>
             <span style="font-size:9px; color:{theme.INK_MUTED};">H{n_total}</span>
           </div>
           <div style="display:flex; gap:12px; margin-top:6px;">{''.join(legend_bits)}</div>
-        </div>'''
+        </div>
+        <script>
+        (function() {{
+          var catchEl = document.getElementById("{strip_id}-hover-catch");
+          var line = document.getElementById("{strip_id}-hover-line");
+          var tooltip = document.getElementById("{strip_id}-tooltip");
+          var statuses = {status_json};
+          var n = statuses.length;
+          var vbW = {strip_vb_w};
+          if (!catchEl) return;
+          catchEl.addEventListener('mousemove', function(evt) {{
+            var svg = catchEl.ownerSVGElement;
+            var rect = svg.getBoundingClientRect();
+            var vbX = (evt.clientX - rect.left) / rect.width * vbW;
+            var idx = Math.max(0, Math.min(n - 1, Math.floor(vbX / (vbW / n))));
+            var cx = (idx + 0.5) * (vbW / n);
+            line.setAttribute('x1', cx); line.setAttribute('x2', cx); line.setAttribute('opacity', '1');
+            tooltip.innerHTML = '<div style="color:{theme.INK_SECONDARY};">Hour ' + (idx + 1) + '</div>' +
+              '<div style="font-weight:600;">' + statuses[idx] + '</div>';
+            tooltip.style.display = 'block';
+          }});
+          catchEl.addEventListener('mouseleave', function() {{
+            line.setAttribute('opacity', '0');
+            tooltip.style.display = 'none';
+          }});
+        }})();
+        </script>'''
     elif improvement is not None and threshold is not None:
         # No tradable-hours data on this event (an older run, before this
         # field was added) -- say so plainly instead of just omitting the

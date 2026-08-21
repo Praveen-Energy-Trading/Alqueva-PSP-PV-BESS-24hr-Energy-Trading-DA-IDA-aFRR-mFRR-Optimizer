@@ -8,10 +8,146 @@ not what was bid or settled. All data here is real solved-model output
 from __future__ import annotations
 
 import json as _json
+import math as _math
 
 import theme
 
-_REPLAY_STYLE = f'<style>.gt-replay {{ font-size:11px; padding:2px 10px; border:1px solid {theme.GRIDLINE}; border-radius:6px; background:{theme.SURFACE}; cursor:pointer; }}</style>'
+
+def _nice_max(raw_max: float) -> float:
+    """Round an axis ceiling up to a round step instead of an arbitrary
+    padded data max, so a reader sees a number like 600 on the axis instead
+    of whatever the data happened to peak at (e.g. 377). Finer step ladder
+    than the textbook 1/2/5/10 -- that coarser version rounds anything from
+    5.01x to 10x a decade up to a full 10x, e.g. a real max of 525 becomes
+    1000, nearly doubling the ceiling and wasting half the chart on empty
+    space above the highest point. 1/1.5/2/2.5/3/4/5/6/8/10 keeps every
+    jump under ~33%."""
+    if raw_max <= 0:
+        return 10.0
+    exp = _math.floor(_math.log10(raw_max))
+    base = 10 ** exp
+    frac = raw_max / base
+    for nice_frac in (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10):
+        if frac <= nice_frac:
+            return nice_frac * base
+    return 10 * base
+
+_REPLAY_STYLE = f'<style>.gt-replay {{ font-size:14px; padding:2px 10px; border:1px solid {theme.GRIDLINE}; border-radius:6px; background:{theme.SURFACE}; cursor:pointer; }}</style>'
+
+# One generic mousemove-crosshair module, reused by every hand-drawn SVG
+# chart in this file instead of duplicating hover-tracking JS per widget.
+# A widget opts in by (1) adding a transparent catch-rect + a hover line +
+# one <circle> per trace to its SVG, (2) embedding a dtHoverInit(block, cfg)
+# call with cfg.traces[i].py already holding that trace's PRECOMPUTED pixel
+# y-coordinates (Python already builds these to draw the path, so passing
+# them again costs nothing and keeps every widget's differing y-scale math
+# in Python, not duplicated in JS). Native Plotly charts elsewhere in this
+# app (Gate Position Evolution, etc.) get this behavior for free; this file
+# only draws raw SVG, so it needs its own.
+_HOVER_CROSSHAIR_SCRIPT = '''
+<script>
+window.dtHoverInit = function(block, cfg) {
+  var svg = block.querySelector(cfg.svgSelector || 'svg');
+  var catchRect = block.querySelector(cfg.catchSelector);
+  var line = block.querySelector(cfg.lineSelector);
+  var tooltip = block.querySelector(cfg.tooltipSelector);
+  if (!svg || !catchRect) return;
+  function fx(i) { return cfg.x0 + i / Math.max(cfg.n - 1, 1) * (cfg.x1 - cfg.x0); }
+  function move(evt) {
+    var rect = svg.getBoundingClientRect();
+    var vbX = (evt.clientX - rect.left) / rect.width * (cfg.viewW || 1400);
+    var frac = Math.max(0, Math.min(1, (vbX - cfg.x0) / (cfg.x1 - cfg.x0)));
+    var idx = Math.round(frac * (cfg.n - 1));
+    var cx = fx(idx);
+    if (line) { line.setAttribute('x1', cx); line.setAttribute('x2', cx); line.setAttribute('opacity', '1'); }
+    var html = '<div style="color:#52514e;">' + (cfg.indexLabel || 'Point') + ' ' +
+      (cfg.indexVals ? cfg.indexVals[idx] : (idx + 1)) + '</div>';
+    for (var t = 0; t < cfg.traces.length; t++) {
+      var tr = cfg.traces[t];
+      var v = tr.yvals[idx];
+      var dot = tr.dotSelector ? block.querySelector(tr.dotSelector) : null;
+      if (dot) {
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', tr.py[idx].toFixed(1));
+        dot.setAttribute('opacity', '1');
+        if (tr.negColor != null) dot.setAttribute('fill', v >= 0 ? tr.color : tr.negColor);
+      }
+      var decimals = tr.decimals != null ? tr.decimals : 1;
+      var disp = (tr.signed ? (v >= 0 ? '+' : '') : '') + v.toFixed(decimals);
+      html += '<div style="color:' + tr.color + '; font-weight:600;">' + tr.label + ' ' + disp +
+        (tr.unit ? ' ' + tr.unit : '') + '</div>';
+    }
+    if (tooltip) { tooltip.innerHTML = html; tooltip.style.display = 'block'; }
+  }
+  function leave() {
+    if (line) line.setAttribute('opacity', '0');
+    for (var t = 0; t < cfg.traces.length; t++) {
+      var dot = cfg.traces[t].dotSelector ? block.querySelector(cfg.traces[t].dotSelector) : null;
+      if (dot) dot.setAttribute('opacity', '0');
+    }
+    if (tooltip) tooltip.style.display = 'none';
+  }
+  catchRect.addEventListener('mousemove', move);
+  catchRect.addEventListener('mouseleave', leave);
+};
+</script>'''
+
+
+def _hover_svg_elems(prefix: str, x0: float, x1: float, total_h: float, n_traces: int) -> str:
+    """Catch-rect + hover line + one dot per trace -- the SVG-side half of
+    the generic hover module. n_traces dots get ids f'{prefix}-hover-dot-0',
+    '-1', etc., matching the dotSelector list a caller passes to cfg.traces."""
+    dots = "".join(
+        f'<circle id="{prefix}-hover-dot-{i}" r="5" fill="{theme.INK_PRIMARY}" stroke="white" stroke-width="1.5" opacity="0"/>'
+        for i in range(n_traces)
+    )
+    return (
+        f'<rect id="{prefix}-hover-catch" x="{x0}" y="0" width="{x1-x0}" height="{total_h}" fill="transparent"/>'
+        f'<line id="{prefix}-hover-line" x1="{x0}" y1="4" x2="{x0}" y2="{total_h-4}" stroke="{theme.INK_PRIMARY}" '
+        f'stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'
+        f'{dots}'
+    )
+
+
+def _sparse_edge_path(fx, y_of, vals: list) -> str:
+    """Border trace for a filled up/down area against a zero baseline,
+    drawn as a SEPARATE path from the fill polygon so the stroke only
+    appears where the value actually leaves zero. Stroking the whole
+    closed fill polygon (which always includes a flat return-to-baseline
+    edge) draws a solid colored line coincident with the 0 gridline across
+    every stretch that's genuinely at 0 -- e.g. down-regulation on an ISP
+    that only delivered up-regulation -- which reads as a persistent
+    colored x-axis even though nothing is being delivered in that
+    direction. This traces through the real zero-crossing points so the
+    line still visually rises/falls from baseline exactly where the
+    excursion starts/ends; it just doesn't linger there when flat."""
+    parts: list = []
+    pen_down = False
+    for i, v in enumerate(vals):
+        x, y = fx(i), y_of(v)
+        if v == 0:
+            if pen_down:
+                parts.append(f"L{x:.1f},{y:.1f}")
+                pen_down = False
+        else:
+            if not pen_down:
+                if i > 0:
+                    parts.append(f"M{fx(i-1):.1f},{y_of(0.0):.1f}")
+                    parts.append(f"L{x:.1f},{y:.1f}")
+                else:
+                    parts.append(f"M{x:.1f},{y:.1f}")
+                pen_down = True
+            else:
+                parts.append(f"L{x:.1f},{y:.1f}")
+    return " ".join(parts)
+
+
+def _hover_tooltip_div() -> str:
+    return (
+        f'<div class="dt-hover-tooltip" style="position:absolute; top:6px; right:6px; background:{theme.SURFACE}; '
+        f'border:1px solid {theme.GRIDLINE}; border-radius:6px; padding:6px 10px; font-size:12.5px; display:none; '
+        f'pointer-events:none; box-shadow:0 2px 6px rgba(0,0,0,0.08); white-space:nowrap; z-index:2;"></div>'
+    )
 
 _RESERVOIR_REPLAY_SCRIPT = '''
 <script>
@@ -116,6 +252,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     lower_fill = fill_path(lower_pct)
     terminal_y = fy(terminal_pct)
     mid_y = fy(50.0)
+    upper_py = [fy(p) for p in upper_pct]
+    lower_py = [fy(p) for p in lower_pct]
 
     payload = {
         "hours": hours,
@@ -126,10 +264,25 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    hover_cfg_a = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#res-a-hover-catch", "lineSelector": "#res-a-hover-line",
+        "tooltipSelector": "#res-a-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [{"label": "Alqueva", "yvals": upper_hm3, "py": upper_py, "dotSelector": "#res-a-hover-dot-0",
+                    "color": theme.COLOR_GEN, "unit": "hm³", "decimals": 1}],
+    })
+    hover_cfg_b = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#res-b-hover-catch", "lineSelector": "#res-b-hover-line",
+        "tooltipSelector": "#res-b-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [{"label": "Pedrógão", "yvals": lower_hm3, "py": lower_py, "dotSelector": "#res-b-hover-dot-0",
+                    "color": theme.COLOR_PUMP, "unit": "hm³", "decimals": 1}],
+    })
+
     terminal_badge = (
-        f'<span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:10.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10003; Ended the day at least as full as it started</span>'
+        f'<span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10003; Ended the day at least as full as it started</span>'
         if traj["terminal_ok"] else
-        f'<span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; font-size:10.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10007; Ended the day emptier than it started</span>'
+        f'<span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; font-size:13.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10007; Ended the day emptier than it started</span>'
     )
     spill_total = sum(traj["spill_m3h"])
     spill_note = (
@@ -144,83 +297,94 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Reservoir trajectory</div>
     <div class="res-chart-block" data-res='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:10.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake)</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake)</span>
       <button class="gt-replay" onclick="dtReservoirReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:64px;">
+    <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-a"><rect id="res-clip-rect-a" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{mid_y:.1f}" x2="{x1}" y2="{mid_y:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#res-clip-a)">
-          <path d="{upper_fill}" fill="{theme.COLOR_GEN}" fill-opacity="0.3" stroke="{theme.COLOR_GEN}" stroke-width="1.8"/>
+          <path d="{upper_fill}" fill="{theme.COLOR_GEN}" fill-opacity="0.3" stroke="{theme.COLOR_GEN}" stroke-width="2.5"/>
         </g>
         <line x1="{x0}" y1="{terminal_y:.1f}" x2="{x1}" y2="{terminal_y:.1f}" stroke="{theme.STATUS_WARNING}" stroke-width="1" stroke-dasharray="4,3"/>
-        <text x="{x0-4}" y="{top_y+3}" font-size="9" fill="{theme.INK_MUTED}" text-anchor="end">{u_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="9" fill="{theme.INK_MUTED}" text-anchor="end">{u_min:,.0f}</text>
+        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{u_max:,.0f}</text>
+        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{u_min:,.0f}</text>
+        {_hover_svg_elems("res-a", x0, x1, 76, 1)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
-    <p style="font-size:9px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range (Alqueva barely moves day-to-day vs. its full size)</p>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake)</p>
-    <div style="position:relative; height:64px;">
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range (Alqueva barely moves day-to-day vs. its full size)</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake)</p>
+    <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-b"><rect id="res-clip-rect-b" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{mid_y:.1f}" x2="{x1}" y2="{mid_y:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#res-clip-b)">
-          <path d="{lower_fill}" fill="{theme.COLOR_PUMP}" fill-opacity="0.3" stroke="{theme.COLOR_PUMP}" stroke-width="1.8"/>
+          <path d="{lower_fill}" fill="{theme.COLOR_PUMP}" fill-opacity="0.3" stroke="{theme.COLOR_PUMP}" stroke-width="2.5"/>
         </g>
-        <text x="{x0-4}" y="{top_y+3}" font-size="9" fill="{theme.INK_MUTED}" text-anchor="end">{l_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="9" fill="{theme.INK_MUTED}" text-anchor="end">{l_min:,.0f}</text>
+        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{l_max:,.0f}</text>
+        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{l_min:,.0f}</text>
+        {_hover_svg_elems("res-b", x0, x1, 76, 1)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
     </div>
-    <p style="font-size:9px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range</p>
     <div style="display:flex; gap:16px; margin-top:8px;">
       <div style="flex:1;">
-        <p style="font-size:11px; color:{theme.INK_MUTED}; margin:0 0 2px;">Alqueva now</p>
+        <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Alqueva now</p>
         <p style="font-size:14px; font-weight:500; margin:0;"><span id="res-upper-val">{upper_hm3[0]:.1f} hm&sup3;</span></p>
       </div>
       <div style="flex:1;">
-        <p style="font-size:11px; color:{theme.INK_MUTED}; margin:0 0 2px;">Pedr&oacute;g&atilde;o now</p>
+        <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Pedr&oacute;g&atilde;o now</p>
         <p style="font-size:14px; font-weight:500; margin:0;"><span id="res-lower-val">{lower_hm3[0]:.1f} hm&sup3;</span></p>
       </div>
       <div style="flex:1;">
-        <p style="font-size:11px; color:{theme.INK_MUTED}; margin:0 0 2px;">Height between lakes</p>
+        <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Height between lakes</p>
         <p style="font-size:14px; font-weight:500; margin:0;"><span id="res-head-val">{traj['head_m'][0]:.1f} m</span></p>
       </div>
       <div style="flex:1;">
-        <p style="font-size:11px; color:{theme.INK_MUTED}; margin:0 0 2px;">Water wasted (this hour)</p>
+        <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Water wasted (this hour)</p>
         <p style="font-size:14px; font-weight:500; margin:0;"><span id="res-spill-val">{traj['spill_m3h'][0]:.0f} m&sup3;/h</span></p>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">H1</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">H1</span>
       <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
         <div id="res-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
       </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">H24</span>
-      <span id="res-clock" style="font-size:11px; color:{theme.INK_SECONDARY}; min-width:30px; text-align:right;"></span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">H24</span>
+      <span id="res-clock" style="font-size:14px; color:{theme.INK_SECONDARY}; min-width:30px; text-align:right;"></span>
     </div>
     </div>
     <div style="display:flex; gap:14px; margin-top:8px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.STATUS_WARNING}; margin-right:4px; vertical-align:middle;"></span>Level the day must end at or above</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.STATUS_WARNING}; margin-right:4px; vertical-align:middle;"></span>Level the day must end at or above</span>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
       {terminal_badge}
-      <span style="font-size:10.5px; color:{theme.INK_MUTED};">Day total wasted: {spill_total:,.0f} m&sup3;/h</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED};">Day total wasted: {spill_total:,.0f} m&sup3;/h</span>
     </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:4px 0 0;">{spill_note}</p>
+    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:4px 0 0;">{spill_note}</p>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_RESERVOIR_REPLAY_SCRIPT}'''
+{_RESERVOIR_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.res-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg_a}); dtHoverInit(block, {hover_cfg_b}); }}
+}})();
+</script>'''
 
 
 _PV_REPLAY_SCRIPT = '''
@@ -310,6 +474,17 @@ def render_pv_routing_card(pv: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#pv-hover-catch", "lineSelector": "#pv-hover-line",
+        "tooltipSelector": "#pv-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "Used", "yvals": used, "py": used, "color": theme.YELLOW, "unit": "MW", "decimals": 1},
+            {"label": "BESS", "yvals": to_bess, "py": to_bess, "color": theme.COLOR_UP, "unit": "MW", "decimals": 1},
+            {"label": "Curtailed", "yvals": curtailed, "py": curtailed, "color": theme.STATUS_CRITICAL, "unit": "MW", "decimals": 1},
+        ],
+    })
+
     curt_note = (
         f"No curtailment this day &mdash; every available PV MWh was exported or stored."
         if pv["total_curtailed_mwh"] <= 1e-6 else
@@ -322,45 +497,54 @@ def render_pv_routing_card(pv: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">PV routing &amp; curtailment</div>
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px;">
-      <span style="background:{theme.YELLOW}22; color:{theme.YELLOW}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:12px;">&#9728; PV</span>
-      <span style="color:{theme.INK_MUTED}; font-size:12px;">splits into</span>
-      <span style="background:{theme.COLOR_GEN}22; color:{theme.COLOR_GEN}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:12px;">&#9889; Grid</span>
-      <span style="color:{theme.INK_MUTED}; font-size:12px;">/</span>
-      <span style="background:{theme.COLOR_UP}22; color:{theme.COLOR_UP}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:12px;">&#128267; Battery</span>
-      <span style="color:{theme.INK_MUTED}; font-size:12px;">/</span>
-      <span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:12px;">&#10005; Curtailed</span>
+      <span style="background:{theme.YELLOW}22; color:{theme.YELLOW}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#9728; PV</span>
+      <span style="color:{theme.INK_MUTED}; font-size:15px;">splits into</span>
+      <span style="background:{theme.COLOR_GEN}22; color:{theme.COLOR_GEN}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#9889; Grid</span>
+      <span style="color:{theme.INK_MUTED}; font-size:15px;">/</span>
+      <span style="background:{theme.COLOR_UP}22; color:{theme.COLOR_UP}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#128267; Battery</span>
+      <span style="color:{theme.INK_MUTED}; font-size:15px;">/</span>
+      <span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#10005; Curtailed</span>
     </div>
     <div class="pv-chart-block" data-pv='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">Stacked per hour, normalized to available PV each hour</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Stacked per hour, normalized to available PV each hour</span>
       <button class="gt-replay" onclick="dtPvReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:100px;">
+    <div style="position:relative; height:130px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(used_bars)}
         {''.join(bess_bars)}
         {''.join(curt_bars)}
+        {_hover_svg_elems("pv", x0, x1, 100, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="pv-tooltip"')}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Used (to grid)</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>To BESS</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.55;"></span>Curtailed</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Used (to grid)</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>To BESS</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.55;"></span>Curtailed</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="pv-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
     </div>
     </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>
+    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_PV_REPLAY_SCRIPT}'''
+{_PV_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.pv-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+}})();
+</script>'''
 
 
 _MULTI_REPLAY_SCRIPT = '''
@@ -459,51 +643,82 @@ def render_multi_asset_dispatch_card(mx: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    hover_cfg_top = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#mx-top-hover-catch", "lineSelector": "#mx-top-hover-line",
+        "tooltipSelector": "#mx-top-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "PV", "yvals": pv, "py": pv, "color": theme.YELLOW, "unit": "MW", "decimals": 2},
+            {"label": "BESS dis", "yvals": bess_dis, "py": bess_dis, "color": theme.COLOR_UP, "unit": "MW", "decimals": 2},
+            {"label": "BESS chg", "yvals": bess_chg, "py": bess_chg, "color": theme.COLOR_DOWN, "unit": "MW", "decimals": 2},
+        ],
+    })
+    hover_cfg_bot = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#mx-bot-hover-catch", "lineSelector": "#mx-bot-hover-line",
+        "tooltipSelector": "#mx-bot-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "PSP turbine", "yvals": turb, "py": turb, "color": theme.COLOR_GEN, "unit": "MW", "decimals": 1},
+            {"label": "PSP pump", "yvals": pump, "py": pump, "color": theme.COLOR_PUMP, "unit": "MW", "decimals": 1},
+        ],
+    })
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Multi-asset dispatch</div>
     <div class="mx-chart-block" data-mx='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:6px;">
       <button class="gt-replay" onclick="dtMultiReplay(this)">&#9654; Replay</button>
     </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
-    <div style="position:relative; height:80px;">
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
+    <div style="position:relative; height:104px;">
       <svg viewBox="0 0 1400 110" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(pv_bars)}
         {''.join(dis_bars)}
         {''.join(chg_bars)}
+        {_hover_svg_elems("mx-top", x0, x1, 110, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="mx-top-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS charge</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS charge</span>
     </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine &amp; pump (own scale, max {psp_max:.0f} MW)</p>
-    <div style="position:relative; height:80px;">
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine &amp; pump (own scale, max {psp_max:.0f} MW)</p>
+    <div style="position:relative; height:104px;">
       <svg viewBox="0 0 1400 110" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(turb_bars)}
         {''.join(pump_bars)}
+        {_hover_svg_elems("mx-bot", x0, x1, 110, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="mx-bot-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
     </div>
     <span id="mx-readout" style="display:none;"></span>
     </div>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_MULTI_REPLAY_SCRIPT}'''
+{_MULTI_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.mx-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg_top}); dtHoverInit(block, {hover_cfg_bot}); }}
+}})();
+</script>'''
 
 
 _WATER_REPLAY_SCRIPT = '''
@@ -587,6 +802,18 @@ def render_water_balance_card(wb: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#wb-hover-catch", "lineSelector": "#wb-hover-line",
+        "tooltipSelector": "#wb-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "Inflow", "yvals": [r["inflow_m3h"] for r in rows], "py": [r["inflow_m3h"] for r in rows], "color": theme.COLOR_UP, "unit": "m³/h", "decimals": 0},
+            {"label": "Pump return", "yvals": [r["pump_m3h"] for r in rows], "py": [r["pump_m3h"] for r in rows], "color": theme.COLOR_PUMP, "unit": "m³/h", "decimals": 0},
+            {"label": "Turbine draw", "yvals": [r["turb_m3h"] for r in rows], "py": [r["turb_m3h"] for r in rows], "color": theme.COLOR_GEN, "unit": "m³/h", "decimals": 0},
+            {"label": "Spill", "yvals": [r["spill_m3h"] for r in rows], "py": [r["spill_m3h"] for r in rows], "color": theme.STATUS_CRITICAL, "unit": "m³/h", "decimals": 0},
+        ],
+    })
+
     spill_note = (
         f"No spill this day &mdash; every m&sup3; of inflow and pumped water stayed usable."
         if wb["total_spill_m3h"] <= 1e-6 else
@@ -599,39 +826,48 @@ def render_water_balance_card(wb: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Water balance</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, per hour</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, per hour</p>
     <div class="wb-chart-block" data-wb='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">Above zero = inflows &middot; below = outflows</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Above zero = inflows &middot; below = outflows</span>
       <button class="gt-replay" onclick="dtWaterReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:100px;">
+    <div style="position:relative; height:130px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(in_bars)}
         {''.join(pump_bars)}
         {''.join(turb_bars)}
         {''.join(spill_bars)}
+        {_hover_svg_elems("wb", x0, x1, 100, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="wb-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin-top:4px; flex-wrap:wrap;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Natural inflow</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Pump return</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Turbine draw</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.6;"></span>Spill</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Natural inflow</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Pump return</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Turbine draw</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.6;"></span>Spill</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="wb-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
     </div>
     </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>
+    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_WATER_REPLAY_SCRIPT}'''
+{_WATER_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.wb-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+}})();
+</script>'''
 
 
 _BESS_REPLAY_SCRIPT = '''
@@ -725,45 +961,64 @@ def render_bess_soc_price_card(bs: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#bs-hover-catch", "lineSelector": "#bs-hover-line",
+        "tooltipSelector": "#bs-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "SOC", "yvals": soc_pct, "py": [y for _, y in soc_pts], "dotSelector": "#bs-hover-dot-0", "color": theme.COLOR_GEN, "unit": "%", "decimals": 0},
+            {"label": "DA price", "yvals": price, "py": [y for _, y in price_pts], "dotSelector": "#bs-hover-dot-1", "color": theme.COLOR_PRICE, "unit": "EUR/MWh", "decimals": 1},
+        ],
+    })
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">BESS SOC vs price</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Storage arbitrage the solver actually chose &mdash; SOC (% of usable band) against DA clearing price</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Storage arbitrage the solver actually chose &mdash; SOC (% of usable band) against DA clearing price</p>
     <div class="bs-chart-block" data-bs='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">Shaded = charge (blue) / discharge (aqua) hours</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Shaded = charge (blue) / discharge (aqua) hours</span>
       <button class="gt-replay" onclick="dtBessReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:100px;">
+    <div style="position:relative; height:130px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="bs-clip"><rect id="bs-clip-rect" x="0" y="-20" width="1400" height="140"/></clipPath></defs>
         {''.join(shades)}
         <g clip-path="url(#bs-clip)">
-          <polyline points="{price_line}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="1.5" opacity="0.85" stroke-dasharray="3,2"/>
-          <polyline points="{soc_line}" fill="none" stroke="{theme.COLOR_GEN}" stroke-width="1.8"/>
+          <polyline points="{price_line}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="2.3" opacity="0.85" stroke-dasharray="3,2"/>
+          <polyline points="{soc_line}" fill="none" stroke="{theme.COLOR_GEN}" stroke-width="2.5"/>
         </g>
-        <circle id="bs-dot" cx="0" cy="{fy_soc(soc_pct[0]):.1f}" r="4" fill="{theme.COLOR_GEN}" style="opacity:0;"/>
+        <circle id="bs-dot" cx="0" cy="{fy_soc(soc_pct[0]):.1f}" r="6" fill="{theme.COLOR_GEN}" style="opacity:0;"/>
+        {_hover_svg_elems("bs", x0, x1, 100, 2)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="bs-tooltip"')}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_GEN}; margin-right:4px; vertical-align:middle;"></span>SOC %</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.COLOR_PRICE}; margin-right:4px; vertical-align:middle;"></span>DA price</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_GEN}; margin-right:4px; vertical-align:middle;"></span>SOC %</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.COLOR_PRICE}; margin-right:4px; vertical-align:middle;"></span>DA price</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bs-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="bs-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
     </div>
     </div>
-    <p style="font-size:10px; color:{theme.INK_MUTED}; margin:8px 0 0;">Usable SOC band: {bs['e_min_mwh']:.2f}&ndash;{bs['e_max_mwh']:.2f} MWh &mdash; small (2 MWh) BESS, so absolute swings are modest even when the % band moves a lot.</p>
+    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">Usable SOC band: {bs['e_min_mwh']:.2f}&ndash;{bs['e_max_mwh']:.2f} MWh &mdash; small (2 MWh) BESS, so absolute swings are modest even when the % band moves a lot.</p>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_BESS_REPLAY_SCRIPT}'''
+{_BESS_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.bs-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+}})();
+</script>'''
 
 
 _BESSCHG_REPLAY_SCRIPT = '''
@@ -837,6 +1092,16 @@ def render_bess_charge_source_card(bc: dict) -> str:
     payload = {"hours": hours, "gridMw": grid_mw, "pvMw": pv_mw}
     payload_json = _json.dumps(payload)
 
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#bc2-hover-catch", "lineSelector": "#bc2-hover-line",
+        "tooltipSelector": "#bc2-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "traces": [
+            {"label": "Grid", "yvals": grid_mw, "py": grid_mw, "color": theme.COLOR_DOWN, "unit": "MW", "decimals": 2},
+            {"label": "PV", "yvals": pv_mw, "py": pv_mw, "color": theme.YELLOW, "unit": "MW", "decimals": 2},
+        ],
+    })
+
     if bc["any_charging"]:
         summary = f"{bc['grid_share_pct']:.0f}% from grid, {bc['pv_share_pct']:.0f}% from PV this day"
         empty_badge = ""
@@ -844,7 +1109,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
         summary = "No charging this day"
         empty_badge = (
             f'<div style="background:{theme.STATUS_WARNING}18; border:1px solid {theme.STATUS_WARNING}55; '
-            f'border-radius:8px; padding:10px 12px; margin-top:8px; font-size:11.5px; color:{theme.INK_PRIMARY}; line-height:1.5;">'
+            f'border-radius:8px; padding:10px 12px; margin-top:8px; font-size:14.5px; color:{theme.INK_PRIMARY}; line-height:1.5;">'
             f'<strong>Verified honest finding, not a bug:</strong> the BESS never charges on any date in this pipeline\'s history. '
             f'Round-trip efficiency is {bc["round_trip_eff_pct"]:.0f}% and the degradation cost '
             f'(&euro;{bc["degradation_cost_eur_mwh"]:.1f}/MWh, charged on both legs of a cycle) prices out same-day arbitrage '
@@ -860,35 +1125,44 @@ def render_bess_charge_source_card(bc: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">BESS charge source</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from &mdash; grid vs PV &mdash; {summary}</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from &mdash; grid vs PV &mdash; {summary}</p>
     <div class="bc2-chart-block" data-bc2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};">Stacked per hour, charging only</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Stacked per hour, charging only</span>
       <button class="gt-replay" onclick="dtBesschgReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:100px;">
+    <div style="position:relative; height:130px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(grid_bars)}
         {''.join(pv_bars)}
+        {_hover_svg_elems("bc2", x0, x1, 100, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="bc2-tooltip"')}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bc2-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
     </div>
     {empty_badge}
     </div>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_BESSCHG_REPLAY_SCRIPT}'''
+{_BESSCHG_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.bc2-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+}})();
+</script>'''
 
 
 _DAACT_REPLAY_SCRIPT = '''
@@ -980,43 +1254,67 @@ def render_da_vs_activation_card(dv: dict) -> str:
     payload = {"isps": isps, "hours": hours, "daMw": da_net, "deltaMw": delta, "deliveredMw": delivered}
     payload_json = _json.dumps(payload)
 
+    hover_cfg_top = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#da2-top-hover-catch", "lineSelector": "#da2-top-hover-line",
+        "tooltipSelector": "#da2-top-tooltip", "indexLabel": "ISP", "indexVals": isps,
+        "traces": [{"label": "DA committed", "yvals": da_net, "py": da_net, "color": theme.COLOR_GEN, "unit": "MW", "decimals": 1, "signed": True}],
+    })
+    hover_cfg_bot = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#da2-bot-hover-catch", "lineSelector": "#da2-bot-hover-line",
+        "tooltipSelector": "#da2-bot-tooltip", "indexLabel": "ISP", "indexVals": isps,
+        "traces": [{"label": "Activation delta", "yvals": delta, "py": delta, "color": theme.STATUS_GOOD, "negColor": theme.STATUS_CRITICAL, "unit": "MW", "decimals": 1, "signed": True}],
+    })
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">DA schedule vs grid activation</div>
     <div class="da2-chart-block" data-da2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;">
-      <span style="font-size:10.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday)</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday)</span>
       <button class="gt-replay" onclick="dtDaactReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:60px;">
+    <div style="position:relative; height:78px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(da_bars)}
+        {_hover_svg_elems("da2-top", x0, x1, 90, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-top-tooltip"')}
     </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time)</p>
-    <div style="position:relative; height:60px;">
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time)</p>
+    <div style="position:relative; height:78px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(delta_bars)}
+        {_hover_svg_elems("da2-bot", x0, x1, 90, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-bot-tooltip"')}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_GOOD}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for more power</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for less power</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_GOOD}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for more power</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for less power</span>
     </div>
     <span id="da2-readout" style="display:none;"></span>
     </div>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_DAACT_REPLAY_SCRIPT}'''
+{_DAACT_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.da2-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg_top}); dtHoverInit(block, {hover_cfg_bot}); }}
+}})();
+</script>'''
 
 
 _ISP_REPLAY_SCRIPT = '''
@@ -1044,8 +1342,8 @@ window.dtIspReplay = function(btn) {
         clipB.setAttribute('width', (1400 * frac).toFixed(1));
         if (playhead) playhead.style.left = (frac * 100) + '%';
         if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ' (H' + data.hours[idx] + '): PV ' +
-          data.pvMw[idx].toFixed(2) + ' MW · BESS ' + data.bessMw[idx].toFixed(2) + ' MW · PSP ' +
-          data.pspMw[idx].toFixed(1) + ' MW';
+          data.pvMw[idx].toFixed(2) + ' MW · BESS ' + data.bessMw[idx].toFixed(2) + ' MW · PSP turbine ' +
+          data.pspMw[idx].toFixed(1) + ' MW · PSP pump ' + data.pspPumpMw[idx].toFixed(1) + ' MW';
         if (s === steps) block.dataset.replaying = '0';
       }, s * stepMs);
     })(s);
@@ -1101,17 +1399,22 @@ def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines
 
 
 def render_isp_dispatch_card(dv: dict) -> str:
-    """Real per-asset dispatch (PV, BESS discharge, PSP turbine) at true
-    96-ISP (15-min) resolution -- every point is a genuinely different
+    """Real per-asset dispatch (PV, BESS discharge, PSP turbine/pump) at
+    true 96-ISP (15-min) resolution -- every point is a genuinely different
     solved value now that DA/IDA/XBID run natively at ISP resolution, not a
     repeated hourly number. Same minimal chart language as the other
     Optimization cards (Multi-asset dispatch, Water balance, etc.): no
     boxed frame or axis tick labels, just a zero line, colored traces, and
-    a small legend row below each panel."""
+    a small legend row below each panel. PSP is mirrored around a mid-panel
+    zero baseline -- turbine (generation) up, pump (consumption) down --
+    same convention as Multi-asset dispatch, instead of the earlier
+    turbine-only version of this panel which silently dropped every
+    pumping hour."""
     isps = dv["isps"]
     hours = dv["hours"]
     n = len(isps)
-    pv_mw, bess_mw, psp_mw = dv["pv_mw"], dv["bess_dis_mw"], dv["psp_turb_mw"]
+    pv_mw, bess_mw = dv["pv_mw"], dv["bess_dis_mw"]
+    psp_turb_mw, psp_pump_mw = dv["psp_turb_mw"], dv["psp_pump_mw"]
 
     x0, x1 = 10, 1390
 
@@ -1132,16 +1435,57 @@ def render_isp_dispatch_card(dv: dict) -> str:
         return " ".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(vals))
 
     pv_bess_max = max(max(pv_mw, default=0.0), max(bess_mw, default=0.0), 1e-6)
-    psp_max = max(max(psp_mw, default=0.0), 1e-6)
+    psp_max = max(max(psp_turb_mw, default=0.0), max(psp_pump_mw, default=0.0), 1e-6)
 
     zero_a, top_a = 70, 10
-    zero_b, top_b = 70, 10
+    zero_b, half_b = 44, 34
     pv_area = area_path(pv_mw, pv_bess_max, zero_a, top_a)
     bess_line = line_path(bess_mw, pv_bess_max, zero_a, top_a)
-    psp_area = area_path(psp_mw, psp_max, zero_b, top_b)
 
-    payload = {"isps": isps, "hours": hours, "pvMw": pv_mw, "bessMw": bess_mw, "pspMw": psp_mw}
+    def psp_y(v: float) -> float:
+        return zero_b - (v / psp_max * half_b if psp_max > 1e-9 else 0.0)
+
+    psp_pump_signed = [-w for w in psp_pump_mw]
+    pos_pts = " L".join(f"{fx(i):.1f},{psp_y(max(v, 0.0)):.1f}" for i, v in enumerate(psp_turb_mw))
+    neg_pts = " L".join(f"{fx(i):.1f},{psp_y(min(v, 0.0)):.1f}" for i, v in enumerate(psp_pump_signed))
+    psp_pos_path = f"M{fx(0):.1f},{zero_b} L{pos_pts} L{fx(n-1):.1f},{zero_b} Z"
+    psp_neg_path = f"M{fx(0):.1f},{zero_b} L{neg_pts} L{fx(n-1):.1f},{zero_b} Z"
+    psp_pos_edge = _sparse_edge_path(fx, psp_y, [max(v, 0.0) for v in psp_turb_mw])
+    psp_neg_edge = _sparse_edge_path(fx, psp_y, [min(v, 0.0) for v in psp_pump_signed])
+
+    payload = {
+        "isps": isps, "hours": hours, "pvMw": pv_mw, "bessMw": bess_mw,
+        "pspMw": psp_turb_mw, "pspPumpMw": psp_pump_mw,
+    }
     payload_json = _json.dumps(payload)
+
+    def fy_a(v: float) -> float:
+        band_h = zero_a - top_a
+        return zero_a - (v / pv_bess_max * band_h if pv_bess_max > 1e-9 else 0.0)
+
+    pv_py = [fy_a(v) for v in pv_mw]
+    bess_py = [fy_a(v) for v in bess_mw]
+    psp_turb_py = [psp_y(v) for v in psp_turb_mw]
+    psp_pump_py = [psp_y(v) for v in psp_pump_signed]
+
+    hover_cfg_top = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#ispd-top-hover-catch", "lineSelector": "#ispd-top-hover-line",
+        "tooltipSelector": "#ispd-top-tooltip", "indexLabel": "ISP", "indexVals": isps,
+        "traces": [
+            {"label": "PV", "yvals": pv_mw, "py": pv_py, "dotSelector": "#ispd-top-hover-dot-0", "color": theme.YELLOW, "unit": "MW", "decimals": 2},
+            {"label": "BESS discharge", "yvals": bess_mw, "py": bess_py, "dotSelector": "#ispd-top-hover-dot-1", "color": theme.COLOR_UP, "unit": "MW", "decimals": 2},
+        ],
+    })
+    hover_cfg_bot = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#ispd-bot-hover-catch", "lineSelector": "#ispd-bot-hover-line",
+        "tooltipSelector": "#ispd-bot-tooltip", "indexLabel": "ISP", "indexVals": isps,
+        "traces": [
+            {"label": "PSP turbine", "yvals": psp_turb_mw, "py": psp_turb_py, "dotSelector": "#ispd-bot-hover-dot-0", "color": theme.COLOR_GEN, "unit": "MW", "decimals": 1},
+            {"label": "PSP pump", "yvals": psp_pump_signed, "py": psp_pump_py, "dotSelector": "#ispd-bot-hover-dot-1", "color": theme.COLOR_PUMP, "unit": "MW", "decimals": 1, "signed": True},
+        ],
+    })
 
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
@@ -1149,56 +1493,71 @@ def render_isp_dispatch_card(dv: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">ISP dispatch</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Real per-asset dispatch at 96-ISP (15-min) resolution</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Real per-asset dispatch at 96-ISP (15-min) resolution</p>
 
     <div class="ispd-chart-block" data-ispd='{payload_json}'>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
-    <div style="position:relative; height:70px;">
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
+    <div style="position:relative; height:92px;">
       <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="ispd-clip-a"><rect id="ispd-clip-rect-a" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_a}" x2="{x1}" y2="{zero_a}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#ispd-clip-a)">
-          <path d="{pv_area}" fill="{theme.YELLOW}" fill-opacity="0.35" stroke="{theme.YELLOW}" stroke-width="1.5"/>
-          <polyline points="{bess_line}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
+          <path d="{pv_area}" fill="{theme.YELLOW}" fill-opacity="0.35" stroke="{theme.YELLOW}" stroke-width="2.3"/>
+          <polyline points="{bess_line}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="2.3"/>
         </g>
+        {_hover_svg_elems("ispd-top", x0, x1, 80, 2)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="ispd-top-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
     </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine (own scale, max {psp_max:.0f} MW)</p>
-    <div style="position:relative; height:70px;">
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine vs pump (own scale, max {psp_max:.0f} MW)</p>
+    <div style="position:relative; height:92px;">
       <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="ispd-clip-b"><rect id="ispd-clip-rect-b" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_b}" x2="{x1}" y2="{zero_b}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#ispd-clip-b)">
-          <path d="{psp_area}" fill="{theme.COLOR_GEN}" fill-opacity="0.35" stroke="{theme.COLOR_GEN}" stroke-width="1.5"/>
+          <path d="{psp_pos_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.35"/>
+          <path d="{psp_neg_path}" fill="{theme.COLOR_PUMP}" fill-opacity="0.35"/>
+          <path d="{psp_pos_edge}" fill="none" stroke="{theme.COLOR_GEN}" stroke-width="2.3"/>
+          <path d="{psp_neg_edge}" fill="none" stroke="{theme.COLOR_PUMP}" stroke-width="2.3"/>
         </g>
+        {_hover_svg_elems("ispd-bot", x0, x1, 80, 2)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="ispd-bot-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="ispd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <span id="ispd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
       <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 1</span>
       <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
         <div id="ispd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
       </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP {n}</span>
     </div>
     </div>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_ISP_REPLAY_SCRIPT}'''
+{_ISP_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.ispd-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg_top}); dtHoverInit(block, {hover_cfg_bot}); }}
+}})();
+</script>'''
 
 
 _AFRR_REPLAY_SCRIPT = '''
@@ -1209,23 +1568,21 @@ window.dtAfrrReplay = function(btn) {
   block.dataset.replaying = '1';
   var data = JSON.parse(block.dataset.afrrd);
   var n = data.isps.length;
-  var clipUp = block.querySelector('#afrrd-clip-rect-up');
-  var clipDn = block.querySelector('#afrrd-clip-rect-dn');
+  var clip = block.querySelector('#afrrd-clip-rect');
   var playhead = block.querySelector('#afrrd-playhead');
   var readout = block.querySelector('#afrrd-readout');
   var steps = n;
   var stepMs = 6000 / steps;
-  clipUp.setAttribute('width', '0');
-  clipDn.setAttribute('width', '0');
+  clip.setAttribute('width', '0');
   for (var s = 1; s <= steps; s++) {
     (function(s) {
       setTimeout(function() {
         var idx = Math.min(s - 1, n - 1);
         var frac = s / steps;
-        clipUp.setAttribute('width', (1400 * frac).toFixed(1));
-        clipDn.setAttribute('width', (1400 * frac).toFixed(1));
+        clip.setAttribute('width', (1400 * frac).toFixed(1));
         if (playhead) playhead.style.left = (frac * 100) + '%';
-        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ': up BESS ' +
+        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ': ACE ' +
+          (data.ace[idx] >= 0 ? '+' : '') + data.ace[idx].toFixed(1) + ' MW · up BESS ' +
           data.bessUp[idx].toFixed(2) + ' + PSP ' + data.pspUp[idx].toFixed(2) + ' MW · dn BESS ' +
           data.bessDn[idx].toFixed(2) + ' + PSP ' + data.pspDn[idx].toFixed(2) + ' MW';
         if (s === steps) block.dataset.replaying = '0';
@@ -1233,6 +1590,64 @@ window.dtAfrrReplay = function(btn) {
     })(s);
   }
 };
+
+// Hover crosshair -- runs immediately (not gated behind Replay) on every
+// .afrrd-chart-block in this iframe, so the chart is interactively probeable
+// the moment it renders, matching Gate Position Evolution's native Plotly
+// hover instead of only reacting to the Replay button.
+(function () {
+  var blocks = document.querySelectorAll('.afrrd-chart-block');
+  for (var b = 0; b < blocks.length; b++) {
+    (function (block) {
+      var data = JSON.parse(block.dataset.afrrd);
+      var n = data.isps.length;
+      var svg = block.querySelector('svg');
+      var catchRect = block.querySelector('#afrrd-hover-catch');
+      var hoverLine = block.querySelector('#afrrd-hover-line');
+      var dotAce = block.querySelector('#afrrd-hover-dot-ace');
+      var dotReg = block.querySelector('#afrrd-hover-dot-reg');
+      var tooltip = block.querySelector('#afrrd-tooltip');
+      var ttIsp = block.querySelector('#afrrd-tt-isp');
+      var ttAce = block.querySelector('#afrrd-tt-ace');
+      var ttReg = block.querySelector('#afrrd-tt-reg');
+      var ttRegLabel = block.querySelector('#afrrd-tt-reg-label');
+      if (!svg || !catchRect) return;
+
+      function fx(i) { return data.x0 + i / Math.max(n - 1, 1) * (data.x1 - data.x0); }
+      function aceY(v) { return data.aceMid - (v / data.aceMax) * data.aceHalf; }
+      function regY(v) { return data.regMid - (v / data.regMax) * data.regHalf; }
+
+      function move(evt) {
+        var rect = svg.getBoundingClientRect();
+        var vbX = (evt.clientX - rect.left) / rect.width * 1400;
+        var frac = Math.max(0, Math.min(1, (vbX - data.x0) / (data.x1 - data.x0)));
+        var idx = Math.round(frac * (n - 1));
+        var cx = fx(idx);
+        var aceVal = data.ace[idx], regVal = data.net[idx];
+        hoverLine.setAttribute('x1', cx); hoverLine.setAttribute('x2', cx); hoverLine.setAttribute('opacity', '1');
+        dotAce.setAttribute('cx', cx); dotAce.setAttribute('cy', aceY(aceVal).toFixed(1)); dotAce.setAttribute('opacity', '1');
+        dotReg.setAttribute('cx', cx); dotReg.setAttribute('cy', regY(regVal).toFixed(1)); dotReg.setAttribute('opacity', '1');
+        dotReg.setAttribute('fill', regVal >= 0 ? '#1baf7a' : '#e87ba4');
+        if (tooltip) {
+          ttIsp.textContent = data.isps[idx];
+          ttAce.textContent = (aceVal >= 0 ? '+' : '') + aceVal.toFixed(1);
+          ttReg.textContent = Math.abs(regVal).toFixed(2);
+          ttRegLabel.textContent = regVal >= 0 ? 'Up' : 'Down';
+          ttRegLabel.parentElement.style.color = regVal >= 0 ? '#1baf7a' : '#e87ba4';
+          tooltip.style.display = 'block';
+        }
+      }
+      function leave() {
+        hoverLine.setAttribute('opacity', '0');
+        dotAce.setAttribute('opacity', '0');
+        dotReg.setAttribute('opacity', '0');
+        if (tooltip) tooltip.style.display = 'none';
+      }
+      catchRect.addEventListener('mousemove', move);
+      catchRect.addEventListener('mouseleave', leave);
+    })(blocks[b]);
+  }
+})();
 </script>'''
 
 
@@ -1241,45 +1656,102 @@ def render_afrr_dispatch_card(dv: dict) -> str:
     mFRR), split by resource: BESS (fast responder up to its power rating,
     base of the fill) vs PSP (ramp covers the remainder, stacked on top).
     PV is never a contributor -- the activation model has no PV term in its
-    call-sizing logic, so it's correctly absent, not omitted. Same minimal
-    chart language as the other Optimization cards -- no boxed frame or
-    axis tick labels, a dashed reserved-capacity reference line, and a
-    small legend row below each panel."""
+    call-sizing logic, so it's correctly absent, not omitted.
+
+    Same combined-SVG, single-connector layout as the FCR dispatch card
+    (dispatch_ticket.py::render_fcr_dispatch_card): ACE (the real signal
+    this product's activation responds to -- see
+    reserve_activation.py::simulate_ace_series -- the same role frequency
+    deviation plays for FCR) on top, and up/down-regulation activation
+    merged into ONE panel below it sharing a single 0 MW baseline and a
+    single common scale (not two separately-ceilinged panels) -- up
+    positive, down negative, the same mirrored convention used everywhere
+    else in this app. Axis ceilings round up to a 'nice' number
+    (_nice_max) with 3 gridlines (-max/0/+max), not an arbitrary padded data
+    max. One connector links both panels at the ISP with the widest ACE
+    swing. Panel spacing is generous on purpose -- the first cut had the
+    second panel's title sitting almost on top of the first panel's bottom
+    tick label; there's now a full title-height gap between them.
+    Up/down colors are theme.COLOR_UP/COLOR_DOWN (aqua/magenta) -- the
+    same semantic pair used everywhere else in the app that shows
+    up-regulation vs down-regulation (ACE activation chart, FCR dispatch,
+    gate ticket reserve bars), not COLOR_GEN/RED."""
     isps = dv["isps"]
     n = len(isps)
     product = dv["product"]
-    res_up, res_dn = dv["reserved_up_mw"], dv["reserved_dn_mw"]
     bess_up, psp_up = dv["bess_up_mw"], dv["psp_up_mw"]
     bess_dn, psp_dn = dv["bess_dn_mw"], dv["psp_dn_mw"]
+    ace = dv.get("ace_mw") or [0.0] * n
 
-    x0, x1 = 10, 1390
-    zero_y, top_y = 70, 10
-    band_h = zero_y - top_y
-    up_max = max(max(res_up, default=0.0), 1e-6)
-    dn_max = max(max(res_dn, default=0.0), 1e-6)
+    x0, x1 = 68, 1390   # left margin wide enough for axis value labels
+
+    ace_mid_y, ace_half = 46, 24
+    ace_bottom = ace_mid_y + ace_half
+    reg_title_y = ace_bottom + 24        # clear title-height gap before the second panel starts
+    reg_half = 64
+    reg_mid_y = reg_title_y + 14 + reg_half
+    total_h = reg_mid_y + reg_half + 16
+
+    total_up = [b + p for b, p in zip(bess_up, psp_up)]
+    total_dn = [b + p for b, p in zip(bess_dn, psp_dn)]
+    ace_max = _nice_max(max((abs(v) for v in ace), default=0.0) * 1.05 or 15.0)
+    reg_max = _nice_max(max((max(total_up, default=0.0), max(total_dn, default=0.0))) * 1.05 or 10.0)
 
     def fx(i: int) -> float:
         return x0 + i / max(n - 1, 1) * (x1 - x0)
 
-    def stacked_area(base: list[float], top_extra: list[float], vmax: float, up: bool) -> tuple[str, str]:
-        """base = BESS fill (from axis), top = base+extra = BESS+PSP fill."""
-        def fy(v: float) -> float:
-            frac = v / vmax if vmax > 1e-9 else 0.0
-            return (zero_y - frac * band_h) if up else (zero_y + frac * band_h)
-        base_pts = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(base))
-        base_path = f"M{fx(0):.1f},{zero_y:.1f} L{base_pts} L{fx(n-1):.1f},{zero_y:.1f} Z"
-        total = [b + e for b, e in zip(base, top_extra)]
-        top_pts_fwd = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(total))
-        top_pts_bwd = " L".join(f"{fx(n-1-i):.1f},{fy(v):.1f}" for i, v in enumerate(reversed(base)))
-        top_path = f"M{fx(0):.1f},{fy(total[0]):.1f} L{top_pts_fwd} L{top_pts_bwd} Z"
-        return base_path, top_path
+    def ace_y(v: float) -> float:
+        return ace_mid_y - (v / ace_max) * ace_half
 
-    up_base_path, up_top_path = stacked_area(bess_up, psp_up, up_max, True)
-    dn_base_path, dn_top_path = stacked_area(bess_dn, psp_dn, dn_max, False)
-    up_ceiling_y = zero_y - band_h
-    dn_floor_y = zero_y + band_h
+    def reg_y(v: float) -> float:
+        return reg_mid_y - (v / reg_max) * reg_half
 
-    payload = {"isps": isps, "bessUp": bess_up, "pspUp": psp_up, "bessDn": bess_dn, "pspDn": psp_dn}
+    def axis_ticks(mid_y: float, half: float, vmax: float, unit_suffix: str = "") -> str:
+        """3 gridlines/labels: -max, 0, +max -- same convention as every
+        other panel in this app (FCR included), not a busier 5-tick axis."""
+        out = []
+        for frac in (1.0, 0.0, -1.0):
+            y = mid_y - frac * half
+            val = frac * vmax
+            is_zero = val == 0
+            label = "0" if is_zero else f"{val:+.0f}{unit_suffix}"
+            # The 0 tick sits exactly on the boundary between the red
+            # (down) and sky-blue (up) fill areas -- muted gray there reads
+            # as tinted by whichever fill is more prominent that day, so it
+            # gets a distinct near-black/neutral color and a bolder line
+            # instead of blending into either direction's color.
+            line_stroke = theme.INK_PRIMARY if is_zero else theme.GRIDLINE
+            text_fill = theme.INK_PRIMARY if is_zero else theme.INK_MUTED
+            weight = 1.4 if is_zero else 1.0
+            out.append(
+                f'<line x1="{x0}" y1="{y:.1f}" x2="{x1}" y2="{y:.1f}" stroke="{line_stroke}" stroke-width="{weight}"/>'
+                f'<text x="{x0-8}" y="{y+4:.1f}" font-size="11" fill="{text_fill}" text-anchor="end" font-weight="{"700" if is_zero else "400"}">{label}</text>'
+            )
+        return "".join(out)
+
+    net = [u - d for u, d in zip(total_up, total_dn)]
+    ace_pts = " L".join(f"{fx(i):.1f},{ace_y(v):.1f}" for i, v in enumerate(ace))
+    pos_pts = " L".join(f"{fx(i):.1f},{reg_y(max(v, 0.0)):.1f}" for i, v in enumerate(net))
+    neg_pts = " L".join(f"{fx(i):.1f},{reg_y(min(v, 0.0)):.1f}" for i, v in enumerate(net))
+    pos_path = f"M{fx(0):.1f},{reg_mid_y} L{pos_pts} L{fx(n-1):.1f},{reg_mid_y} Z"
+    neg_path = f"M{fx(0):.1f},{reg_mid_y} L{neg_pts} L{fx(n-1):.1f},{reg_mid_y} Z"
+    pos_edge = _sparse_edge_path(fx, reg_y, [max(v, 0.0) for v in net])
+    neg_edge = _sparse_edge_path(fx, reg_y, [min(v, 0.0) for v in net])
+
+    # Connector: the ISP with the widest ACE swing, marked with a dot in
+    # both panels and joined by one vertical line.
+    peak_idx = max(range(n), key=lambda i: abs(ace[i])) if n else 0
+    peak_x = fx(peak_idx)
+    peak_ace_y = ace_y(ace[peak_idx])
+    peak_reg_y = reg_y(net[peak_idx])
+    peak_color = theme.COLOR_UP if net[peak_idx] >= 0 else theme.COLOR_DOWN
+
+    payload = {
+        "isps": isps, "bessUp": bess_up, "pspUp": psp_up, "bessDn": bess_dn, "pspDn": psp_dn, "ace": ace,
+        "net": net, "x0": x0, "x1": x1,
+        "aceMid": ace_mid_y, "aceHalf": ace_half, "aceMax": ace_max,
+        "regMid": reg_mid_y, "regHalf": reg_half, "regMax": reg_max,
+    }
     payload_json = _json.dumps(payload)
 
     return f'''
@@ -1287,51 +1759,60 @@ def render_afrr_dispatch_card(dv: dict) -> str:
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Reserve delivery</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY}; font-weight:500;">Reserve delivery</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved capacity vs activation, split by resource &mdash; PV never contributes</p>
 
     <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Up-regulation (dashed = reserved ceiling, {up_max:.1f} MW)</p>
-    <div style="position:relative; height:70px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <defs><clipPath id="afrrd-clip-up"><rect id="afrrd-clip-rect-up" x="0" y="0" width="1400" height="80"/></clipPath></defs>
-        <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        <line x1="{x0}" y1="{up_ceiling_y}" x2="{x1}" y2="{up_ceiling_y}" stroke="{theme.STATUS_GOOD}" stroke-width="1" stroke-dasharray="4,2"/>
-        <g clip-path="url(#afrrd-clip-up)">
-          <path d="{up_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
-          <path d="{up_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 10px; font-weight:500;">ACE deviation (top), and regulation activated at those same moments &mdash; {n} real ISPs</p>
+    <div style="position:relative; height:{total_h*0.92:.0f}px;">
+      <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+        <defs><clipPath id="afrrd-clip"><rect id="afrrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
+        <text x="{x0}" y="16" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">ACE deviation (MW)</text>
+        {axis_ticks(ace_mid_y, ace_half, ace_max)}
+
+        <text x="{x0}" y="{reg_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Regulation activated (MW)</text>
+        {axis_ticks(reg_mid_y, reg_half, reg_max)}
+
+        <g clip-path="url(#afrrd-clip)">
+          <path d="M{fx(0):.1f},{ace_y(ace[0] if ace else 0):.1f} L{ace_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="2.2"/>
+          <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>
+          <path d="{neg_path}" fill="{theme.COLOR_DOWN}" fill-opacity="0.4"/>
+          <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="2"/>
+          <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="2"/>
         </g>
+        <line x1="{peak_x:.1f}" y1="{peak_ace_y+6:.1f}" x2="{peak_x:.1f}" y2="{peak_reg_y-6:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.6" stroke-dasharray="3,3" opacity="0.55"/>
+        <circle cx="{peak_x:.1f}" cy="{peak_ace_y:.1f}" r="5.5" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="2"/>
+        <circle cx="{peak_x:.1f}" cy="{peak_reg_y:.1f}" r="5.5" fill="{peak_color}" stroke="white" stroke-width="2"/>
+
+        <rect id="afrrd-hover-catch" x="{x0}" y="0" width="{x1-x0}" height="{total_h}" fill="transparent"/>
+        <line id="afrrd-hover-line" x1="{x0}" y1="4" x2="{x0}" y2="{total_h-4}" stroke="{theme.INK_PRIMARY}" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+        <circle id="afrrd-hover-dot-ace" r="5" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="1.5" opacity="0"/>
+        <circle id="afrrd-hover-dot-reg" r="5" fill="{theme.COLOR_UP}" stroke="white" stroke-width="1.5" opacity="0"/>
       </svg>
+      <div id="afrrd-tooltip" style="position:absolute; top:6px; right:6px; background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+           border-radius:6px; padding:6px 10px; font-size:12.5px; display:none; pointer-events:none; box-shadow:0 2px 6px rgba(0,0,0,0.08); white-space:nowrap;">
+        <div style="color:{theme.INK_SECONDARY};">ISP <span id="afrrd-tt-isp"></span></div>
+        <div style="color:{theme.COLOR_PRICE}; font-weight:600;">ACE <span id="afrrd-tt-ace"></span> MW</div>
+        <div id="afrrd-tt-reg-row" style="font-weight:600;"><span id="afrrd-tt-reg-label"></span> <span id="afrrd-tt-reg"></span> MW</div>
+      </div>
     </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Down-regulation (dashed = reserved floor, {dn_max:.1f} MW)</p>
-    <div style="position:relative; height:70px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <defs><clipPath id="afrrd-clip-dn"><rect id="afrrd-clip-rect-dn" x="0" y="0" width="1400" height="80"/></clipPath></defs>
-        <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        <line x1="{x0}" y1="{dn_floor_y}" x2="{x1}" y2="{dn_floor_y}" stroke="{theme.STATUS_CRITICAL}" stroke-width="1" stroke-dasharray="4,2"/>
-        <g clip-path="url(#afrrd-clip-dn)">
-          <path d="{dn_base_path}" fill="{theme.COLOR_UP}" fill-opacity="0.55" stroke="{theme.COLOR_UP}" stroke-width="1"/>
-          <path d="{dn_top_path}" fill="{theme.COLOR_GEN}" fill-opacity="0.4" stroke="{theme.COLOR_GEN}" stroke-width="1"/>
-        </g>
-      </svg>
-    </div>
-    <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP</span>
+    <div style="font-size:13.5px; color:{theme.INK_SECONDARY}; margin:8px 0 8px;">
+      <span style="color:{theme.COLOR_UP}; font-weight:600;">&#9679;</span> Up-regulation &nbsp;&nbsp;
+      <span style="color:{theme.COLOR_DOWN}; font-weight:600;">&#9679;</span> Down-regulation &nbsp;&nbsp;
+      <span style="color:{theme.COLOR_PRICE}; font-weight:600;">&#9679;</span> ACE
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="afrrd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <span id="afrrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
       <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 1</span>
       <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
         <div id="afrrd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
       </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP {n}</span>
     </div>
     </div>
   </div>
@@ -1347,23 +1828,46 @@ window.dtFcrdReplay = function(btn) {
   if (!block || block.dataset.replaying === '1') return;
   block.dataset.replaying = '1';
   var data = JSON.parse(block.dataset.fcrd);
-  var n = data.isps.length;
-  var clip = block.querySelector('#fcrd-clip-rect-b');
-  var playhead = block.querySelector('#fcrd-playhead');
+  var n = data.freq.length;
+  var clip = block.querySelector('#fcrd-clip-rect');
+  var lineEl = block.querySelector('#fcrd-playhead-line');
+  var dotF = block.querySelector('#fcrd-playhead-f');
+  var dotR = block.querySelector('#fcrd-playhead-r');
   var readout = block.querySelector('#fcrd-readout');
-  var steps = n;
-  var stepMs = 6000 / steps;
+  var playhead = block.querySelector('#fcrd-playhead');
+  [lineEl, dotF, dotR].forEach(function(el) { if (el) el.style.opacity = '1'; });
+
+  function fy(v) { return data.fMidY - (v / data.freqScale) * data.fHalf; }
+  function ry(v) { return data.rMidY - (v / data.headroom) * data.rHalf; }
+  function fx(i) { return data.x0 + i / Math.max(n - 1, 1) * (data.x1 - data.x0); }
+
+  var steps = Math.min(n, 160);   // 2,880 real ticks sampled to ~160 animation steps
+  var stepMs = 8000 / steps;
   clip.setAttribute('width', '0');
+
   for (var s = 1; s <= steps; s++) {
     (function(s) {
       setTimeout(function() {
-        var idx = Math.min(s - 1, n - 1);
+        var idx = Math.min(Math.round((s / steps) * (n - 1)), n - 1);
         var frac = s / steps;
+        var px = fx(idx);
         clip.setAttribute('width', (1400 * frac).toFixed(1));
         if (playhead) playhead.style.left = (frac * 100) + '%';
-        if (readout) readout.textContent = 'ISP ' + data.isps[idx] + ': response ' +
-          data.respMw[idx].toFixed(3) + ' MW';
-        if (s === steps) block.dataset.replaying = '0';
+        if (lineEl) { lineEl.setAttribute('x1', px.toFixed(1)); lineEl.setAttribute('x2', px.toFixed(1)); }
+        if (dotF) { dotF.setAttribute('cx', px.toFixed(1)); dotF.setAttribute('cy', fy(data.freq[idx]).toFixed(1)); }
+        if (dotR) { dotR.setAttribute('cx', px.toFixed(1)); dotR.setAttribute('cy', ry(data.resp[idx]).toFixed(1));
+          dotR.setAttribute('fill', data.resp[idx] > 0 ? '#1baf7a' : (data.resp[idx] < 0 ? '#e87ba4' : '#898781')); }
+        if (readout) {
+          var totalSec = idx * 30;
+          var hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+          var mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+          var ss = String(totalSec % 60).padStart(2, '0');
+          readout.textContent = hh + ':' + mm + ':' + ss + '  ·  ' + data.freq[idx].toFixed(1) + ' mHz  ·  ' + data.resp[idx].toFixed(2) + ' MW';
+        }
+        if (s === steps) {
+          block.dataset.replaying = '0';
+          [lineEl, dotF, dotR].forEach(function(el) { if (el) el.style.opacity = '0'; });
+        }
       }, s * stepMs);
     })(s);
   }
@@ -1372,70 +1876,95 @@ window.dtFcrdReplay = function(btn) {
 
 
 def render_fcr_dispatch_card(fcr: dict) -> str:
-    """FCR dispatch, two real dimensions the existing 'FCR response' card
-    doesn't show (no per-resource split exists for FCR -- reserved_headroom_mw
-    is one flat plant-wide number, no BESS/PSP/PV term in the droop
-    function, so this stays plant-level throughout):
+    """FCR dispatch -- frequency deviation and the plant's compensating
+    response, plotted on the SAME time axis, stacked directly on top of
+    each other, at the real 30s tick resolution (2,880/day). This is
+    deliberately NOT a frequency-vs-response scatter (which shows the
+    droop relationship but not WHEN anything happened, so a non-technical
+    reader can't connect cause and effect). Stacked time series let you
+    trace a single moment straight down: frequency wobbles here, response
+    reacts here, same instant -- the whole "why" without needing to know
+    what mHz or droop mean.
 
-      Panel A -- droop transfer curve: every real 30s tick (2,880/day)
-      plotted as frequency deviation (x) vs response MW (y). Verifies the
-      real physics -- flat inside +/-10 mHz deadband, linear ramp to full
-      headroom at +/-200 mHz.
+      Panel A -- grid frequency deviation over the day (mHz from 50.000 Hz),
+      shaded band = the +/-10 mHz safe zone where no response is required.
 
-      Panel B -- 96-ISP headroom utilization strip: signed mean response
-      per ISP (derived honestly from each ISP's real direction + mean |
-      response|, both already aggregated from ticks by fcr_activation.py)
-      against the flat reserved-headroom ceiling/floor -- same visual
-      language as the ISP/aFRR/mFRR dispatch widgets' envelope-vs-response
-      pattern.
+      Panel B -- the plant's response (MW) at that same moment, green =
+      pushed more power, red = pulled back, mirrored below zero the same
+      way every other up/down chart in this app is drawn.
     """
     headroom = max(fcr["reserved_headroom_mw"], 1e-6)
     freq = fcr["tick_freq_mhz"]
     resp = fcr["tick_response_mw"]
-    freq_max = max(max((abs(f) for f in freq), default=0.0), 200.0)
+    n = len(freq)
+    x0, x1 = 46, 1390   # left margin wide enough for axis value labels on both panels
 
-    # -- Panel A: droop transfer scatter (frequency axis, not time -- kept
-    # at a moderate aspect since it isn't part of the 96-ISP timeline) -----
-    ax0, ax1 = 10, 1390
-    a_mid_y, a_half = 40, 32
+    def fx(i: int) -> float:
+        return x0 + i / max(n - 1, 1) * (x1 - x0)
 
-    def afx(v: float) -> float:
-        return ax0 + (v + freq_max) / (2 * freq_max) * (ax1 - ax0)
+    # Zoom the frequency panel to the day's actual swing (padded) instead of
+    # the full +/-200 mHz droop range -- real deviations are typically a few
+    # dozen mHz, so the full range would flatten the line near zero.
+    freq_obs_max = max((abs(f) for f in freq), default=0.0)
+    freq_scale = max(freq_obs_max * 1.2, 15.0)
+    f_mid_y, f_half = 40, 32
 
-    def afy(v: float) -> float:
-        return a_mid_y - (v / headroom) * a_half
+    def fy(v: float) -> float:
+        return f_mid_y - (v / freq_scale) * f_half
 
-    deadband_x0, deadband_x1 = afx(-10.0), afx(10.0)
-    dots = "".join(
-        f'<circle cx="{afx(f):.1f}" cy="{afy(r):.1f}" r="1.4" fill="{theme.COLOR_UP}" fill-opacity="0.35"/>'
-        for f, r in zip(freq, resp)
-    )
-    droop_x = [-freq_max, -200.0, -10.0, 10.0, 200.0, freq_max]
-    droop_y = [headroom, headroom, 0.0, 0.0, -headroom, -headroom]
-    droop_pts = " L".join(f"{afx(x):.1f},{afy(y):.1f}" for x, y in zip(droop_x, droop_y))
+    deadband_top, deadband_bot = fy(10.0), fy(-10.0)
+    freq_pts = " L".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(freq))
 
-    # -- Panel B: 96-ISP headroom utilization strip ----------------------
-    rows = sorted(fcr["rows"], key=lambda r: r["isp"])
-    isps = [r["isp"] for r in rows]
-    n = len(isps)
-    signed_resp = [
-        r["response_mw"] if r["direction"] == "up"
-        else (-r["response_mw"] if r["direction"] == "down" else 0.0)
-        for r in rows
-    ]
-    bx0, bx1 = 10, 1390
-    b_mid_y, b_half = 40, 32
+    # Response panel sits below the frequency panel in the SAME svg (not a
+    # separate one) so a single vertical line can physically connect one
+    # moment across both -- that connector is the whole point of this
+    # widget, and two independent <svg> coordinate spaces couldn't host it.
+    gap_h = 46          # room for the connector + its label pill
+    r_base_y = 80 + gap_h
+    r_mid_y, r_half = r_base_y + 40, 32
 
-    def bfx(i: int) -> float:
-        return bx0 + i / max(n - 1, 1) * (bx1 - bx0)
+    def ry(v: float) -> float:
+        return r_mid_y - (v / headroom) * r_half
 
-    def bfy(v: float) -> float:
-        return b_mid_y - (v / headroom) * b_half
+    pos_pts = " L".join(f"{fx(i):.1f},{ry(max(v, 0.0)):.1f}" for i, v in enumerate(resp))
+    neg_pts = " L".join(f"{fx(i):.1f},{ry(min(v, 0.0)):.1f}" for i, v in enumerate(resp))
+    pos_path = f"M{fx(0):.1f},{r_mid_y} L{pos_pts} L{fx(n-1):.1f},{r_mid_y} Z"
+    neg_path = f"M{fx(0):.1f},{r_mid_y} L{neg_pts} L{fx(n-1):.1f},{r_mid_y} Z"
+    pos_edge = _sparse_edge_path(fx, ry, [max(v, 0.0) for v in resp])
+    neg_edge = _sparse_edge_path(fx, ry, [min(v, 0.0) for v in resp])
 
-    strip_pts = " ".join(f"{bfx(i):.1f},{bfy(v):.1f}" for i, v in enumerate(signed_resp))
+    # Callout: the single tick with the widest frequency swing -- a marker
+    # dot on each panel at that exact moment, joined by one vertical line
+    # and a plain-English label, so the cause-and-effect reads on its own
+    # without the viewer having to trace two separate lines by eye.
+    peak_idx = max(range(n), key=lambda i: abs(freq[i])) if n else 0
+    peak_x = fx(peak_idx)
+    peak_fy = fy(freq[peak_idx])
+    peak_ry = ry(resp[peak_idx])
+    if resp[peak_idx] > 0:
+        callout_color = theme.COLOR_UP
+    elif resp[peak_idx] < 0:
+        callout_color = theme.COLOR_DOWN
+    else:
+        callout_color = theme.INK_MUTED
+    total_h = r_base_y + 80
 
-    payload = {"isps": isps, "respMw": signed_resp}
-    payload_json = _json.dumps(payload)
+    payload_json = _json.dumps({
+        "freq": freq, "resp": resp, "fMidY": f_mid_y, "fHalf": f_half, "freqScale": freq_scale,
+        "rMidY": r_mid_y, "rHalf": r_half, "headroom": headroom, "x0": x0, "x1": x1,
+    })
+
+    freq_py = [fy(v) for v in freq]
+    resp_py = [ry(v) for v in resp]
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": "#fcrd-hv-hover-catch", "lineSelector": "#fcrd-hv-hover-line",
+        "tooltipSelector": "#fcrd-hv-tooltip", "indexLabel": "Tick", "indexVals": list(range(1, n + 1)),
+        "traces": [
+            {"label": "Frequency", "yvals": freq, "py": freq_py, "dotSelector": "#fcrd-hv-hover-dot-0", "color": theme.COLOR_PRICE, "unit": "mHz", "decimals": 1, "signed": True},
+            {"label": "Response", "yvals": resp, "py": resp_py, "dotSelector": "#fcrd-hv-hover-dot-1", "color": theme.COLOR_UP, "negColor": theme.COLOR_DOWN, "unit": "MW", "decimals": 2, "signed": True},
+        ],
+    })
 
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
@@ -1443,51 +1972,72 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Delivery</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Mandatory, non-remunerated</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Mandatory, non-remunerated</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">FCR dispatch</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved headroom {headroom:.1f} MW, plant-level only &mdash; no per-resource split exists</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved headroom {headroom:.1f} MW, plant-level only &mdash; no per-resource split exists</p>
 
     <div class="fcrd-chart-block" data-fcrd='{payload_json}'>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Droop response vs frequency deviation ({len(resp)} real 30-s ticks)</p>
-    <div style="position:relative; height:64px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <rect x="{deadband_x0:.1f}" y="{a_mid_y-a_half:.1f}" width="{deadband_x1-deadband_x0:.1f}" height="{2*a_half}" fill="{theme.INK_MUTED}" fill-opacity="0.08"/>
-        <line x1="{ax0}" y1="{a_mid_y}" x2="{ax1}" y2="{a_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        {dots}
-        <path d="M{droop_pts}" fill="none" stroke="{theme.COLOR_PUMP}" stroke-width="1.5"/>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Grid frequency deviation from 50.000 Hz, and the plant's response at those same moments ({n:,} real 30-s ticks)</p>
+    <div style="position:relative; height:{total_h*0.95:.0f}px;">
+      <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+        <defs><clipPath id="fcrd-clip"><rect id="fcrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
+        <rect x="{x0}" y="{deadband_top:.1f}" width="{x1-x0}" height="{deadband_bot-deadband_top:.1f}" fill="{theme.STATUS_GOOD}" fill-opacity="0.10"/>
+        <line x1="{x0}" y1="{f_mid_y}" x2="{x1}" y2="{f_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        <line x1="{x0}" y1="{r_mid_y}" x2="{x1}" y2="{r_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+
+        <text x="{x0-6}" y="{f_mid_y-f_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">+{freq_scale:.0f}</text>
+        <text x="{x0-6}" y="{f_mid_y+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">0 mHz</text>
+        <text x="{x0-6}" y="{f_mid_y+f_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">-{freq_scale:.0f}</text>
+
+        <text x="{x0-6}" y="{r_mid_y-r_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">+{headroom:.1f}</text>
+        <text x="{x0-6}" y="{r_mid_y+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
+        <text x="{x0-6}" y="{r_mid_y+r_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">-{headroom:.1f}</text>
+
+        <g clip-path="url(#fcrd-clip)">
+          <path d="M{fx(0):.1f},{fy(freq[0]):.1f} L{freq_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="2.3"/>
+          <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>
+          <path d="{neg_path}" fill="{theme.COLOR_DOWN}" fill-opacity="0.4"/>
+          <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="2.1"/>
+          <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="2.1"/>
+        </g>
+
+        <line x1="{peak_x:.1f}" y1="{peak_fy+6:.1f}" x2="{peak_x:.1f}" y2="{peak_ry-6:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="2.2" stroke-dasharray="4,3"/>
+        <circle cx="{peak_x:.1f}" cy="{peak_fy:.1f}" r="6" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="2.1"/>
+        <circle cx="{peak_x:.1f}" cy="{peak_ry:.1f}" r="6" fill="{callout_color}" stroke="white" stroke-width="2.1"/>
+
+        <line id="fcrd-playhead-line" x1="{x0}" y1="0" x2="{x0}" y2="{total_h}" stroke="{theme.INK_SECONDARY}" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+        <circle id="fcrd-playhead-f" cx="{x0}" cy="{f_mid_y}" r="6" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="2.1" opacity="0"/>
+        <circle id="fcrd-playhead-r" cx="{x0}" cy="{r_mid_y}" r="6" fill="{theme.COLOR_UP}" stroke="white" stroke-width="2.1" opacity="0"/>
+        {_hover_svg_elems("fcrd-hv", x0, x1, total_h, 2)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="fcrd-hv-tooltip"')}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Real ticks</span>
-      <span style="font-size:10.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:2px; background:{theme.COLOR_PUMP}; margin-right:4px; vertical-align:middle;"></span>Theoretical droop line</span>
-      <span style="font-size:10.5px; color:{theme.INK_MUTED};">shaded = &plusmn;10 mHz deadband</span>
-    </div>
-    <p style="font-size:10.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">96-ISP response (dashed = reserved headroom, &plusmn;{headroom:.1f} MW)</p>
-    <div style="position:relative; height:64px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <defs><clipPath id="fcrd-clip-b"><rect id="fcrd-clip-rect-b" x="0" y="0" width="1400" height="80"/></clipPath></defs>
-        <line x1="{bx0}" y1="{b_mid_y}" x2="{bx1}" y2="{b_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        <line x1="{bx0}" y1="{b_mid_y-b_half}" x2="{bx1}" y2="{b_mid_y-b_half}" stroke="{theme.STATUS_GOOD}" stroke-width="1" stroke-dasharray="4,2"/>
-        <line x1="{bx0}" y1="{b_mid_y+b_half}" x2="{bx1}" y2="{b_mid_y+b_half}" stroke="{theme.STATUS_CRITICAL}" stroke-width="1" stroke-dasharray="4,2"/>
-        <g clip-path="url(#fcrd-clip-b)">
-          <polyline points="{strip_pts}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
-        </g>
-      </svg>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};">shaded = &plusmn;10 mHz safe band</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Pushed more power</span>
+      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Pulled back</span>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="fcrd-readout" style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps the ISP strip only (droop curve is static, not time-ordered)</span>
+      <span id="fcrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through every 30-s tick</span>
       <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP 1</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">00:00:00</span>
       <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
-        <div id="fcrd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_UP}; transform:translateX(-50%);"></div>
+        <div id="fcrd-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_PRICE}; transform:translateX(-50%);"></div>
       </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">ISP {n}</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">23:59:30</span>
     </div>
     </div>
   </div>
 </div>
 {_REPLAY_STYLE}
-{_FCRD_REPLAY_SCRIPT}'''
+{_FCRD_REPLAY_SCRIPT}
+{_HOVER_CROSSHAIR_SCRIPT}
+<script>
+(function() {{
+  var block = document.querySelector('.fcrd-chart-block');
+  if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+}})();
+</script>'''

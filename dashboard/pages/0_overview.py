@@ -75,215 +75,282 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-selected_date = st.session_state.get("selected_date")
-report_ready = st.session_state.get("report_ready", False)
+@st.fragment(run_every=theme.auto_refresh_interval())
+def _render() -> None:
+    theme.inject_scroll_restore()
+    selected_date = st.session_state.get("selected_date")
+    report_ready = st.session_state.get("report_ready", False)
 
-if not selected_date:
-    st.warning("No runs found yet — visit Run & Monitor to start one.")
-    st.stop()
-
-run_status = data.load_run_status(selected_date)
-state = data.run_phase_state(selected_date)
-
-if state == "running":
-    st.success(f"🟢 Pipeline is actively running right now for delivery **{selected_date}**.")
-elif state == "idle_running":
-    if run_status and run_status.get("mode") == "trader":
-        st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                   f"gone quiet — most likely paused on an Approve/Reject or ENTER "
-                   f"prompt waiting on you in trader mode. Check the terminal, or "
-                   f"Console Log for the last line printed.")
-    else:
-        st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                   f"gone quiet — most likely still computing (e.g. a slow model "
-                   f"fit) rather than stuck. Check Console Log for the last line printed.")
-elif state == "stopped":
-    st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
-             f"running — most likely Ctrl+C or a crash while it was paused waiting for "
-             f"input. Start a fresh run when ready.")
-elif state == "none":
-    st.info(f"No run-status record for **{selected_date}** yet — see Run & Monitor.")
-else:
-    results = run_status["results"]
-    n_fail = sum(1 for r in results if r["status"] == "FAIL")
-    n_pass = sum(1 for r in results if r["status"] == "PASS")
-    if n_fail:
-        st.error(f"🔴 **{selected_date}** — {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
-    else:
-        st.success(f"🟢 **{selected_date}** — {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
-
-# ---------------------------------------------------------------------------
-# Live gate tickets — updates gate-by-gate as the pipeline runs, reading
-# PositionStore/ReserveStore directly (SQLite), not the Excel report — so
-# this shows real numbers even mid-run, before analytics has written
-# anything. Every gate that has decided so far gets a compact strip card
-# (so DA doesn't just vanish once aFRR becomes 'latest'); the most recent
-# one also gets the full detailed chart below. See dashboard/gate_ticket.py.
-# ---------------------------------------------------------------------------
-
-all_tickets = data.all_gate_tickets(selected_date)
-if all_tickets:
-    gate_keys = [t["gate"] for t in all_tickets]
-    state_key = f"overview_selected_gate_{selected_date}"
-    if state_key not in st.session_state or st.session_state[state_key] not in gate_keys:
-        st.session_state[state_key] = gate_keys[-1]  # default to the latest decision
-
-    cols = st.columns(len(all_tickets))
-    for i, t in enumerate(all_tickets):
-        icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
-        rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else "—"
-        label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
-        is_selected = t["gate"] == st.session_state[state_key]
-        if cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
-                           use_container_width=True, type="primary" if is_selected else "secondary"):
-            st.session_state[state_key] = t["gate"]
-
-    selected_ticket = next(t for t in all_tickets if t["gate"] == st.session_state[state_key])
-    fig_num = gate_keys.index(st.session_state[state_key]) + 1
-    # Card height varies by content: standard DA/aFRR/mFRR bar-chart cards
-    # are shorter (no tradable-hours section), rebid cards (IDA1-3) are
-    # taller, and XBID's multi-window pill row adds a bit more on top of
-    # that. One fixed height sized for the tallest case left a large blank
-    # gap in the iframe below every shorter card.
-    if selected_ticket.get("xbid_windows"):
-        card_height = 325
-    elif selected_ticket.get("is_rebid_gate"):
-        card_height = 285
-    else:
-        card_height = 345
-    components.html(gate_ticket.render(selected_ticket, selected_date, fig_num=fig_num), height=card_height)
-    st.markdown("---")
-
-# ---------------------------------------------------------------------------
-# Delivery cards — RT dispatch, aFRR activation, mFRR activation, FCR droop
-# response. Not decisions like the gates above, so they get their own tab
-# strip rather than sitting in the gate-ticket buttons. Only rendered once
-# each phase has actually produced data for this date. FCR is the odd one
-# out: it's a standalone, non-remunerated compliance simulation, not read
-# from a pipeline run's audit trail — see data.py::load_fcr_activation.
-# ---------------------------------------------------------------------------
-
-rt = data.load_rt_delivery(selected_date)
-afrr_act = data.load_activation_summary(selected_date, "aFRR")
-mfrr_act = data.load_activation_summary(selected_date, "mFRR")
-fcr_act = data.load_fcr_activation(selected_date)
-afrr_agc = data.load_agc_mechanism_demo(selected_date, "aFRR")
-mfrr_agc = data.load_agc_mechanism_demo(selected_date, "mFRR")
-reservoir_traj = data.load_reservoir_trajectory(selected_date)
-pv_routing = data.load_pv_routing(selected_date)
-multi_asset = data.load_multi_asset_dispatch(selected_date)
-water_balance = data.load_water_balance(selected_date)
-bess_soc_price = data.load_bess_soc_price(selected_date)
-bess_charge_source = data.load_bess_charge_source(selected_date)
-da_vs_activation = data.load_da_vs_activation(selected_date)
-isp_dispatch = data.load_isp_dispatch(selected_date)
-afrr_dispatch = data.load_afrr_dispatch(selected_date, "aFRR")
-mfrr_dispatch = data.load_afrr_dispatch(selected_date, "mFRR")
-market_cards = [
-    ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
-    ("aFRR activation", lambda: components.html(delivery_ticket.render_activation_card(afrr_act, "aFRR"), height=448)) if afrr_act else None,
-    ("mFRR activation", lambda: components.html(delivery_ticket.render_activation_card(mfrr_act, "mFRR"), height=448)) if mfrr_act else None,
-    ("FCR response", lambda: components.html(delivery_ticket.render_fcr_card(fcr_act), height=485)) if fcr_act else None,
-    ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=497)) if afrr_agc else None,
-    ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=497)) if mfrr_agc else None,
-]
-technical_cards = [
-    ("Reservoir trajectory", lambda: components.html(dispatch_ticket.render_reservoir_trajectory_card(reservoir_traj), height=458)) if reservoir_traj else None,
-    ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=347)) if pv_routing else None,
-    ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=377)) if multi_asset else None,
-    ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=340)) if water_balance else None,
-    ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=341)) if bess_soc_price else None,
-    ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=320)) if bess_charge_source else None,
-    ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=296)) if da_vs_activation else None,
-    ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=374)) if isp_dispatch else None,
-    ("aFRR dispatch (BESS vs PSP)", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch), height=380)) if afrr_dispatch else None,
-    ("mFRR dispatch (BESS vs PSP)", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch), height=380)) if mfrr_dispatch else None,
-    ("FCR dispatch (droop + headroom)", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=366)) if fcr_act else None,
-]
-market_cards = [c for c in market_cards if c is not None]
-technical_cards = [c for c in technical_cards if c is not None]
-
-# Plain st.tabs has no session_state key, so its selected tab is pure
-# client-side DOM state — a full script rerun (e.g. every auto-refresh
-# tick while a pipeline is live) always snaps it back to the first tab.
-# st.segmented_control is keyed in session_state, so the selection
-# survives reruns instead of visibly jumping back every couple of seconds.
-def _render_section(title: str, cards: list, state_key: str) -> None:
-    if not cards:
+    if not selected_date:
+        st.warning("No runs found yet — visit Run & Monitor to start one.")
         return
-    st.markdown(f"##### {title}")
-    labels = [label for label, _ in cards]
-    if st.session_state.get(state_key) not in labels:
-        st.session_state[state_key] = labels[0]
-    selected = st.session_state[state_key]
-    if len(labels) > 1:
-        selected = st.segmented_control(
-            title, labels, key=state_key, label_visibility="collapsed",
-        ) or labels[0]
-    dict(cards)[selected]()
-    st.markdown("---")
+
+    run_status = data.load_run_status(selected_date)
+    state = data.run_phase_state(selected_date)
+
+    if state == "running":
+        st.success(f"🟢 Pipeline is actively running right now for delivery **{selected_date}**.")
+    elif state == "idle_running":
+        if run_status and run_status.get("mode") == "trader":
+            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
+                       f"gone quiet — most likely paused on an Approve/Reject or ENTER "
+                       f"prompt waiting on you in trader mode. Check the terminal, or "
+                       f"Console Log for the last line printed.")
+        else:
+            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
+                       f"gone quiet — most likely still computing (e.g. a slow model "
+                       f"fit) rather than stuck. Check Console Log for the last line printed.")
+    elif state == "stopped":
+        st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
+                 f"running — most likely Ctrl+C or a crash while it was paused waiting for "
+                 f"input. Start a fresh run when ready.")
+    elif state == "none":
+        st.info(f"No run-status record for **{selected_date}** yet — see Run & Monitor.")
+    else:
+        results = run_status["results"]
+        n_fail = sum(1 for r in results if r["status"] == "FAIL")
+        n_pass = sum(1 for r in results if r["status"] == "PASS")
+        if n_fail:
+            st.error(f"🔴 **{selected_date}** — {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
+        else:
+            st.success(f"🟢 **{selected_date}** — {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
+
+    # ---------------------------------------------------------------------------
+    # Live gate tickets — updates gate-by-gate as the pipeline runs, reading
+    # PositionStore/ReserveStore directly (SQLite), not the Excel report — so
+    # this shows real numbers even mid-run, before analytics has written
+    # anything. Every gate that has decided so far gets a compact strip card
+    # (so DA doesn't just vanish once aFRR becomes 'latest'); the most recent
+    # one also gets the full detailed chart below. See dashboard/gate_ticket.py.
+    # ---------------------------------------------------------------------------
+
+    all_tickets = data.all_gate_tickets(selected_date)
+    if all_tickets:
+        gate_keys = [t["gate"] for t in all_tickets]
+        state_key = f"overview_selected_gate_{selected_date}"
+        if state_key not in st.session_state or st.session_state[state_key] not in gate_keys:
+            st.session_state[state_key] = gate_keys[-1]  # default to the latest decision
+
+        cols = st.columns(len(all_tickets))
+        for i, t in enumerate(all_tickets):
+            icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
+            rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else "—"
+            label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
+            is_selected = t["gate"] == st.session_state[state_key]
+            if cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
+                               use_container_width=True, type="primary" if is_selected else "secondary"):
+                st.session_state[state_key] = t["gate"]
+
+        selected_ticket = next(t for t in all_tickets if t["gate"] == st.session_state[state_key])
+        fig_num = gate_keys.index(st.session_state[state_key]) + 1
+        # Card height varies by content: standard DA/aFRR/mFRR bar-chart cards
+        # are shorter (no tradable-hours section), rebid cards (IDA1-3) are
+        # taller, and XBID's multi-window pill row adds a bit more on top of
+        # that. One fixed height sized for the tallest case left a large blank
+        # gap in the iframe below every shorter card.
+        if selected_ticket.get("xbid_windows"):
+            card_height = 325
+        elif selected_ticket.get("is_rebid_gate"):
+            card_height = 285
+        else:
+            card_height = 345
+        components.html(gate_ticket.render(selected_ticket, selected_date, fig_num=fig_num), height=card_height)
+        st.markdown("---")
+
+    # ---------------------------------------------------------------------------
+    # Delivery cards — RT dispatch, aFRR activation, mFRR activation, FCR droop
+    # response. Not decisions like the gates above, so they get their own tab
+    # strip rather than sitting in the gate-ticket buttons. Only rendered once
+    # each phase has actually produced data for this date. FCR is the odd one
+    # out: it's a standalone, non-remunerated compliance simulation, not read
+    # from a pipeline run's audit trail — see data.py::load_fcr_activation.
+    # ---------------------------------------------------------------------------
+
+    rt = data.load_rt_delivery(selected_date)
+    afrr_act = data.load_activation_summary(selected_date, "aFRR")
+    mfrr_act = data.load_activation_summary(selected_date, "mFRR")
+    fcr_act = data.load_fcr_activation(selected_date)
+    afrr_agc = data.load_agc_mechanism_demo(selected_date, "aFRR")
+    mfrr_agc = data.load_agc_mechanism_demo(selected_date, "mFRR")
+    reservoir_traj = data.load_reservoir_trajectory(selected_date)
+    pv_routing = data.load_pv_routing(selected_date)
+    multi_asset = data.load_multi_asset_dispatch(selected_date)
+    water_balance = data.load_water_balance(selected_date)
+    bess_soc_price = data.load_bess_soc_price(selected_date)
+    bess_charge_source = data.load_bess_charge_source(selected_date)
+    da_vs_activation = data.load_da_vs_activation(selected_date)
+    isp_dispatch = data.load_isp_dispatch(selected_date)
+    afrr_dispatch = data.load_afrr_dispatch(selected_date, "aFRR")
+    mfrr_dispatch = data.load_afrr_dispatch(selected_date, "mFRR")
+    market_cards = [
+        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
+        ("aFRR activation", lambda: components.html(delivery_ticket.render_activation_card(afrr_act, "aFRR"), height=448)) if afrr_act else None,
+        ("mFRR activation", lambda: components.html(delivery_ticket.render_activation_card(mfrr_act, "mFRR"), height=448)) if mfrr_act else None,
+        ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=497)) if afrr_agc else None,
+        ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=497)) if mfrr_agc else None,
+    ]
+    technical_cards = [
+        ("Reservoir trajectory", lambda: components.html(dispatch_ticket.render_reservoir_trajectory_card(reservoir_traj), height=560)) if reservoir_traj else None,
+        ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
+        ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
+        ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=390)) if water_balance else None,
+        ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=400)) if bess_soc_price else None,
+        ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
+        ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
+        ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
+        ("aFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch), height=520)) if afrr_dispatch else None,
+        ("mFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch), height=520)) if mfrr_dispatch else None,
+        ("FCR dispatch", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=460)) if fcr_act else None,
+    ]
+    market_cards = [c for c in market_cards if c is not None]
+    technical_cards = [c for c in technical_cards if c is not None]
+
+    # Plain st.tabs has no session_state key, so its selected tab is pure
+    # client-side DOM state — a full script rerun (e.g. every auto-refresh
+    # tick while a pipeline is live) always snaps it back to the first tab.
+    # st.segmented_control is keyed in session_state, so the selection
+    # survives reruns instead of visibly jumping back every couple of seconds.
+    def _render_section(title: str, cards: list, state_key: str) -> None:
+        if not cards:
+            return
+        st.markdown(f"##### {title}")
+        labels = [label for label, _ in cards]
+        if state_key not in st.session_state:
+            st.session_state[state_key] = labels[0]  # only seed on first render
+
+        if len(labels) > 1 and st.session_state[state_key] in labels:
+            selected = st.segmented_control(
+                title, labels, key=state_key, label_visibility="collapsed",
+            )
+        else:
+            # The remembered selection's data isn't in this refresh tick's list
+            # (e.g. a cache re-fetch briefly raced a mid-run write) -- render
+            # whatever we can without touching session_state, so the real
+            # selection is still there and resumes on its own once the data
+            # reappears, instead of being permanently knocked onto another tab.
+            selected = st.session_state[state_key]
+
+        render_fn = dict(cards).get(selected) or cards[0][1]
+        render_fn()
+        st.markdown("---")
 
 
-_render_section("Market & Delivery", market_cards, "overview_market_tab")
-_render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
+    _render_section("Market & Delivery", market_cards, "overview_market_tab")
+    _render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
 
-if not report_ready:
-    st.info(data.no_report_message(selected_date))
-    st.stop()
+    # ---------------------------------------------------------------------------
+    # Gate Position Evolution -- net MW position as of each gate's close
+    # (DA/IDA1/IDA2/IDA3/XBID), so a re-bid's actual physical effect is visible,
+    # not just its revenue (see Decision Rationale for that side). Live
+    # PositionStore read, same as the sections above, so it renders mid-run too.
+    # ---------------------------------------------------------------------------
 
-report = data.load_daily_report(selected_date)
-kpis = report["kpis"]
-dispatch = report["dispatch"]
+    gate_pos = data.load_gate_position_evolution(selected_date)
+    if gate_pos:
+        st.markdown("##### Gate Position Evolution")
+        gate_order = gate_pos["gate_order"]
+        gate_key = "overview_gate_pos_tab"
+        if gate_key not in st.session_state:
+            st.session_state[gate_key] = gate_order[0]
+        if st.session_state[gate_key] in gate_order:
+            selected_gate = st.segmented_control(
+                "Gate Position Evolution", gate_order, key=gate_key, label_visibility="collapsed",
+            )
+        else:
+            selected_gate = st.session_state[gate_key]
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                             row_heights=[0.6, 0.4])
+        if selected_gate == "DA":
+            fig.add_trace(go.Bar(x=gate_pos["hours"], y=gate_pos["gates_mw"]["DA"],
+                                  name="Net MW", marker_color=theme.COLOR_GEN), row=1, col=1)
+            fig.add_trace(go.Scatter(x=gate_pos["hours"], y=gate_pos["gates_price"]["DA"],
+                                      name="Price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+            theme.style_fig(fig, height=460)
+            fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
+            fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
+            fig.update_xaxes(title_text="Hour", row=2, col=1)
+            st.plotly_chart(fig, width="stretch")
+            st.caption("**DA** is the fixed reference position -- every other gate below is "
+                       "shown as its deviation from this chart, not from each other.")
+        else:
+            n_diverged = gate_pos["diverged_isps"][selected_gate]
+            net_delta = gate_pos["net_mw_delta"][selected_gate]
+            if n_diverged == 0:
+                # An all-zero delta drawn as a chart -- bar or line -- is
+                # visually indistinguishable from an empty/broken widget (a
+                # flat line at 0 sits exactly on top of the 0 gridline). There
+                # is nothing to plot here, so say so plainly instead of
+                # rendering a graph that looks empty.
+                st.info(f"**{selected_gate}** held — position is unchanged from DA at every "
+                        f"ISP. Nothing to plot; the DA chart above is still the live position.")
+            else:
+                mw_d = gate_pos["gates_mw_delta"][selected_gate]
+                price_d = gate_pos["gates_price_delta"][selected_gate]
+                fig.add_trace(go.Bar(x=gate_pos["hours"], y=mw_d,
+                                      name="MW vs DA", marker_color=theme.COLOR_GEN), row=1, col=1)
+                fig.add_trace(go.Scatter(x=gate_pos["hours"], y=price_d, mode="lines",
+                                          name="Price vs DA (EUR/MWh)", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+                fig.add_hline(y=0, line_color=theme.GRIDLINE, row=1, col=1)
+                fig.add_hline(y=0, line_color=theme.GRIDLINE, row=2, col=1)
+                theme.style_fig(fig, height=460)
+                fig.update_yaxes(title_text="MW vs DA", gridcolor=theme.GRIDLINE, row=1, col=1)
+                fig.update_yaxes(title_text="EUR/MWh vs DA", gridcolor=theme.GRIDLINE, row=2, col=1)
+                fig.update_xaxes(title_text="Hour", row=2, col=1)
+                st.plotly_chart(fig, width="stretch")
+                st.caption(f"**{selected_gate}** diverged from DA at **{n_diverged}** ISP(s), "
+                           f"net **{net_delta:+.1f} MW** vs the DA baseline.")
+        st.markdown("---")
 
-# ---------------------------------------------------------------------------
-# P&L breakdown — every real revenue line item as its own proportion bar,
-# not folded into "IDA + XBID" or "Reserve" buckets, since those hide which
-# gate/product actually moved the needle.
-# ---------------------------------------------------------------------------
+    if not report_ready:
+        st.info(data.no_report_message(selected_date))
+        return
 
-total_pnl = data.kpi_value(kpis, "Total daily P&L") or 0.0
-reserve_pct = data.kpi_value(kpis, "Reserve share of P&L")
-pnl_lines = [
-    ("DA",                data.kpi_value(kpis, "DA energy revenue") or 0.0,               theme.COLOR_GEN),
-    ("IDA1",              data.kpi_value(kpis, "IDA1 incremental revenue") or 0.0,         theme.COLOR_PRICE),
-    ("IDA2",              data.kpi_value(kpis, "IDA2 incremental revenue") or 0.0,         theme.COLOR_PRICE),
-    ("IDA3",              data.kpi_value(kpis, "IDA3 incremental revenue") or 0.0,         theme.COLOR_PRICE),
-    ("XBID",              data.kpi_value(kpis, "XBID incremental revenue") or 0.0,         theme.STATUS_NEUTRAL),
-    ("aFRR capacity",     data.kpi_value(kpis, "aFRR capacity revenue") or 0.0,            theme.COLOR_UP),
-    ("aFRR activation",   data.kpi_value(kpis, "aFRR activation revenue") or 0.0,          theme.COLOR_UP),
-    ("mFRR capacity",     data.kpi_value(kpis, "mFRR capacity revenue") or 0.0,            theme.COLOR_PUMP),
-    ("mFRR activation",   data.kpi_value(kpis, "mFRR activation revenue") or 0.0,          theme.COLOR_PUMP),
-    ("Imbalance settlement", data.kpi_value(kpis, "Imbalance settlement") or 0.0,          theme.STATUS_GOOD),
-]
-st.markdown("##### P&L Breakdown")
-components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
+    report = data.load_daily_report(selected_date)
+    kpis = report["kpis"]
+    dispatch = report["dispatch"]
 
-# ---------------------------------------------------------------------------
-# Dispatch profile + Reserve capacity offered -- same widgets as Trading
-# Desk's (moved here too, ownership-wise this is the physical/delivery
-# page; Trading Desk's copy left in place pending merge/dedup review).
-# ---------------------------------------------------------------------------
+    # P&L Breakdown lives on Trading Desk only (the money page) -- removed from
+    # here to avoid the same figures appearing on two pages.
 
-st.markdown("##### Dispatch profile (hourly)")
-fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
-                     row_heights=[0.6, 0.4])
-fig.add_trace(go.Bar(x=dispatch["Hour"], y=dispatch["Plant_net_final_MW"],
-                      name="Net dispatch MW", marker_color=theme.COLOR_GEN), row=1, col=1)
-fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["DA_price_EUR_MWh"],
-                          name="DA price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-theme.style_fig(fig, height=460)
-fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
-fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
-fig.update_xaxes(title_text="Hour", row=2, col=1)
-st.plotly_chart(fig, width="stretch")
+    # ---------------------------------------------------------------------------
+    # Reserve capacity offered -- physical/delivery detail, so this (not
+    # Trading Desk) is the correct home for it. "Dispatch profile (hourly)"
+    # used to live here too -- removed, superseded by Gate Position Evolution
+    # above, which covers the same net-MW-vs-price shape per gate (including
+    # the final/XBID position) instead of just one fixed snapshot.
+    # ---------------------------------------------------------------------------
 
-st.markdown("##### Reserve capacity offered (aFRR / mFRR, hourly)")
-fig = go.Figure()
-if "aFRR_up_MW" in dispatch.columns:
-    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["aFRR_up_MW"], name="aFRR up", line=dict(color=theme.COLOR_UP)))
-    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["aFRR_dn_MW"], name="aFRR dn", line=dict(color=theme.COLOR_DOWN)))
-if "mFRR_up_MW" in dispatch.columns:
-    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["mFRR_up_MW"], name="mFRR up", line=dict(color=theme.COLOR_UP, dash="dot")))
-    fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch["mFRR_dn_MW"], name="mFRR dn", line=dict(color=theme.COLOR_DOWN, dash="dot")))
-theme.style_fig(fig, height=380, yaxis_title="MW", xaxis_title="Hour")
-st.plotly_chart(fig, width="stretch")
+    st.markdown("##### Reserve capacity offered (aFRR / mFRR, hourly)")
+    # aFRR (up to ~500 MW) and mFRR (up to ~85 MW) are ~6x apart in scale --
+    # sharing one axis flattened mFRR into a barely-visible line hugging
+    # zero. Split into two stacked panels, each with its own scale, so both
+    # products are legible. "dn" (down-regulation) is still mirrored below
+    # zero -- negative = capacity to reduce output, positive = capacity to
+    # increase output, the plant's own physical direction, matching the
+    # figures/ pipeline's reserve-capacity chart. Filled areas (instead of
+    # bare lines) make the offered-capacity envelope read at a glance.
+    if "aFRR_up_MW" in dispatch.columns and "mFRR_up_MW" in dispatch.columns:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+                             subplot_titles=("aFRR", "mFRR"))
+        for row, (up_col, dn_col) in [(1, ("aFRR_up_MW", "aFRR_dn_MW")), (2, ("mFRR_up_MW", "mFRR_dn_MW"))]:
+            fig.add_trace(go.Scatter(x=dispatch["Hour"], y=dispatch[up_col], name="Up",
+                                      mode="lines", line=dict(color=theme.COLOR_UP, width=2),
+                                      fill="tozeroy", fillcolor=theme.rgba(theme.COLOR_UP, 0.15),
+                                      legendgroup="up", showlegend=(row == 1)), row=row, col=1)
+            fig.add_trace(go.Scatter(x=dispatch["Hour"], y=-dispatch[dn_col], name="Down",
+                                      mode="lines", line=dict(color=theme.COLOR_DOWN, width=2),
+                                      fill="tozeroy", fillcolor=theme.rgba(theme.COLOR_DOWN, 0.15),
+                                      legendgroup="down", showlegend=(row == 1)), row=row, col=1)
+            fig.add_hline(y=0, line_color=theme.GRIDLINE, row=row, col=1)
+        theme.style_fig(fig, height=460)
+        fig.update_layout(margin=dict(t=32))  # subplot title ("aFRR") otherwise sits under the modebar icons
+        fig.update_yaxes(title_text="aFRR (MW)", gridcolor=theme.GRIDLINE, row=1, col=1)
+        fig.update_yaxes(title_text="mFRR (MW)", gridcolor=theme.GRIDLINE, row=2, col=1)
+        fig.update_xaxes(title_text="Hour", row=2, col=1)
+        for ann in fig["layout"]["annotations"]:
+            ann["font"] = dict(color=theme.INK_SECONDARY, size=13)
+        st.plotly_chart(fig, width="stretch")
+        st.caption("Up = capacity to increase output · Down = capacity to reduce output (shown negative).")
+
+
+_render()

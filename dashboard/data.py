@@ -748,6 +748,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
     pv_mw = [pv_sched.get(isp, {}).get("used_mw", 0.0) for isp in isps]
     bess_dis_mw = [bess_sched.get(isp, {}).get("discharge_mw", 0.0) for isp in isps]
     psp_turb_mw = [psp_sched[isp]["turbine_mw"] for isp in isps]
+    psp_pump_mw = [psp_sched[isp]["pump_mw"] for isp in isps]
     hours = [du.isp_to_hour(isp, day) for isp in isps]
 
     return {
@@ -756,6 +757,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
         "pv_mw": pv_mw,
         "bess_dis_mw": bess_dis_mw,
         "psp_turb_mw": psp_turb_mw,
+        "psp_pump_mw": psp_pump_mw,
         "delivery_date": delivery_date,
     }
 
@@ -786,6 +788,13 @@ def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None
     psp_up_mw = [max(0.0, u - b) for u, b in zip(up_mw, bess_up_mw)]
     psp_dn_mw = [max(0.0, d - b) for d, b in zip(dn_mw, bess_dn_mw)]
 
+    # Same signal load_activation_summary's ACE panel uses (see that
+    # function's docstring) -- a pure, deterministic function of (product,
+    # date), so pulling it in here too is the exact signal that drove this
+    # dispatch's real up_mw/dn_mw rows, not a separately-approximated one.
+    ace_by_isp = simulate_ace_series(product, delivery_date)
+    ace_mw = [round(ace_by_isp.get(isp, 0.0), 1) for isp in isps]
+
     return {
         "isps": isps,
         "product": product,
@@ -795,6 +804,7 @@ def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None
         "psp_up_mw": psp_up_mw,
         "bess_dn_mw": bess_dn_mw,
         "psp_dn_mw": psp_dn_mw,
+        "ace_mw": ace_mw,
         "delivery_date": delivery_date,
     }
 
@@ -1078,6 +1088,76 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
 
 
 @st.cache_data(ttl=5)
+def load_gate_position_evolution(delivery_date: str) -> dict | None:
+    """Net committed position (MW) AND effective price (EUR/MWh) as of each
+    gate's close, true ISP resolution -- shows how each re-bid (IDA1-3/XBID)
+    moved the position (and what it traded at) away from the original DA
+    commitment, the same net-MW-vs-price pairing the Dispatch profile widget
+    uses for the final position, but per gate. gates_mw uses
+    PositionStore.committed_position per gate cutoff (same store
+    dispatch_sheet_builder.py's committed_final sources from). gates_price
+    chains each gate's own stored price forward ISP-by-ISP -- an ISP a gate
+    didn't touch keeps whatever the previous gate traded it at, mirroring
+    dispatch_sheet_builder.py's eff_after_idaN chains used for revenue.
+
+    DA is the fixed reference -- its own chart is always the plain absolute
+    position. Every later gate is shown as its DELTA against DA specifically
+    (gates_mw_delta/gates_price_delta), not against the gate right before it,
+    so each button always answers "how far has this moved from the original
+    DA commitment by now" against one constant baseline. A held gate's delta
+    is exactly zero everywhere -- an honest, visibly flat line, not a
+    disguised repeat of the previous chart."""
+    from common_layer.database.position_store import GATE_ORDER
+
+    store = PositionStore()
+    da_pos = store.load_position(delivery_date, "DA")
+    if len(da_pos) < _MIN_REAL_ISP_COUNT:
+        return None
+    day = du.parse_date(delivery_date)
+    isps = sorted(da_pos)
+    hours = [du.isp_to_hour(isp, day) for isp in isps]
+
+    gates_mw = {}
+    for gate in GATE_ORDER:
+        net = store.committed_position(delivery_date, as_of_gate=gate)
+        gates_mw[gate] = [net.get(isp, 0.0) for isp in isps]
+
+    gates_price = {}
+    eff_price = {isp: da_pos.get(isp, {}).get("price_eur_mwh", 0.0) for isp in isps}
+    gates_price["DA"] = [eff_price[isp] for isp in isps]
+    for gate in GATE_ORDER[1:]:
+        raw = store.load_position(delivery_date, gate)
+        for isp in isps:
+            if isp in raw:
+                eff_price[isp] = raw[isp]["price_eur_mwh"]
+        gates_price[gate] = [eff_price[isp] for isp in isps]
+
+    gates_mw_delta = {"DA": [0.0] * len(isps)}
+    gates_price_delta = {"DA": [0.0] * len(isps)}
+    diverged_isps = {"DA": 0}
+    net_mw_delta = {"DA": 0.0}
+    for gate in GATE_ORDER[1:]:
+        mw_d = [gates_mw[gate][i] - gates_mw["DA"][i] for i in range(len(isps))]
+        price_d = [gates_price[gate][i] - gates_price["DA"][i] for i in range(len(isps))]
+        gates_mw_delta[gate] = mw_d
+        gates_price_delta[gate] = price_d
+        diverged_isps[gate] = sum(1 for v in mw_d if abs(v) > 1e-6)
+        net_mw_delta[gate] = sum(mw_d)
+
+    return {
+        "isps": isps,
+        "hours": hours,
+        "gate_order": GATE_ORDER,
+        "gates_mw": gates_mw,
+        "gates_price": gates_price,
+        "gates_mw_delta": gates_mw_delta,
+        "gates_price_delta": gates_price_delta,
+        "diverged_isps": diverged_isps,
+        "net_mw_delta": net_mw_delta,
+    }
+
+
+@st.cache_data(ttl=5)
 def load_da_vs_activation(delivery_date: str) -> dict | None:
     """Two independent obligations at true 96-ISP (15-min) resolution, NOT a
     delivery reconciliation: the real per-ISP DA-committed net position
@@ -1233,4 +1313,147 @@ def latest_gate_ticket(delivery_date: str) -> dict | None:
     tickets = all_gate_tickets(delivery_date)
     return tickets[-1] if tickets else None
 
-    return None
+
+# ---------------------------------------------------------------------------
+# ML Forecasting overview -- reads the *_selected_model.json bake-off
+# results every forecaster already writes (never recomputed here) plus the
+# row count of the training data workbook each one trains from, straight
+# off disk. Real numbers, same ones run_production.py's own forecasters
+# used to pick a model this run -- nothing here is illustrative.
+# ---------------------------------------------------------------------------
+
+_MODEL_ROSTER = [
+    # (group, target label, json path, training data path or None, unit)
+    ("Day-Ahead (DA)", "DA price (hourly)",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model.json",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
+     "EUR/MWh"),
+    ("Day-Ahead (DA)", "DA price (96-ISP)",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model_isp.json",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
+     "EUR/MWh"),
+    ("Day-Ahead (DA)", "PV output — solar irradiance (GHI)",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:GHI",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "W/m²"),
+    ("Day-Ahead (DA)", "PV output — ambient temperature",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:T_amb",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "°C"),
+    ("Day-Ahead (DA)", "Reservoir inflow",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_selected_model.json",
+     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_training_data_from_2015.xlsx", "m³/h"),
+    ("IDA1", "IDA1 price",
+     "phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_selected_model.json",
+     "phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_training_data_2024_2025.xlsx",
+     "EUR/MWh"),
+    ("IDA2", "IDA2 price",
+     "phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_selected_model.json",
+     "phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_training_data_2024_2025.xlsx",
+     "EUR/MWh"),
+    ("IDA3", "IDA3 price",
+     "phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_selected_model.json",
+     "phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_training_data_2024_2025.xlsx",
+     "EUR/MWh"),
+    ("XBID", "XBID price",
+     "phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_selected_model.json",
+     "phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_training_data_2024_2025.xlsx",
+     "EUR/MWh"),
+    ("aFRR", "aFRR up-regulation price",
+     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_up_selected_model.json",
+     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
+     "EUR/MW"),
+    ("aFRR", "aFRR down-regulation price",
+     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_dn_selected_model.json",
+     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
+     "EUR/MW"),
+    ("mFRR", "mFRR up-regulation price",
+     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_up_selected_model.json",
+     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
+     "EUR/MW"),
+    ("mFRR", "mFRR down-regulation price",
+     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_dn_selected_model.json",
+     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
+     "EUR/MW"),
+]
+
+_MODEL_BLURBS = {
+    "LightGBM":     "Fast gradient-boosted trees — usually the quickest to train.",
+    "XGBoost":      "Gradient-boosted trees with strong regularisation — a steady all-rounder.",
+    "RandomForest": "Many independent decision trees averaged together — robust to noisy days.",
+    "CatBoost":     "Gradient-boosted trees tuned to resist overfitting on smaller datasets.",
+}
+
+
+@st.cache_data(ttl=60)
+def load_ml_models_overview() -> dict:
+    """One row per forecasting target: which of the 4 candidate models won
+    its bake-off, by how much, and how much history it trained on. Reads
+    everything straight from disk -- the *_selected_model.json files
+    written by each forecaster's own _auto_select_model() (see
+    da_price_forecaster.py etc.) and the training workbook row counts.
+    A target whose json is missing (forecaster never run yet) is simply
+    omitted, not faked."""
+    rows = []
+    for group, target, json_rel, train_rel, unit in _MODEL_ROSTER:
+        json_path = json_rel.split(":")
+        path = REPO_ROOT / json_path[0]
+        sub_key = json_path[1] if len(json_path) > 1 else None
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if sub_key:
+            payload = payload.get(sub_key)
+            if payload is None:
+                continue
+
+        cv_mae = payload.get("cv_mae", {})
+        selected = payload.get("selected")
+        if not selected or not cv_mae:
+            continue
+        ranked = sorted(cv_mae.items(), key=lambda kv: kv[1])
+        best_name, best_mae = ranked[0]
+        runner_up_gap_pct = None
+        if len(ranked) > 1 and ranked[1][1] > 0:
+            runner_up_gap_pct = (ranked[1][1] - best_mae) / ranked[1][1] * 100
+
+        # openpyxl's read-only mode just walks the worksheet's dimensions
+        # instead of parsing every cell -- pd.read_excel on the largest of
+        # these workbooks (66k+ rows) took several seconds each; max_row
+        # alone takes milliseconds, and a row count is all this needs.
+        n_rows = None
+        if train_rel:
+            train_path = REPO_ROOT / train_rel
+            if train_path.exists():
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(train_path, read_only=True)
+                    n_rows = wb.active.max_row - 1  # minus header
+                    wb.close()
+                except Exception:
+                    n_rows = None
+
+        rows.append({
+            "group": group,
+            "target": target,
+            "selected": selected,
+            "cv_mae": cv_mae,
+            "best_mae": round(best_mae, 4),
+            "unit": unit,
+            "runner_up_gap_pct": runner_up_gap_pct,
+            "n_training_rows": n_rows,
+            "data_end_date": payload.get("data_end_date"),
+            "updated_on": payload.get("updated_on"),
+        })
+
+    win_counts: dict[str, int] = {}
+    for r in rows:
+        win_counts[r["selected"]] = win_counts.get(r["selected"], 0) + 1
+
+    return {
+        "rows": rows,
+        "win_counts": win_counts,
+        "model_blurbs": _MODEL_BLURBS,
+        "n_targets": len(rows),
+    }

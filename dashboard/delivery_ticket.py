@@ -11,8 +11,7 @@ import html as _html
 import json as _json
 
 import theme
-
-_FROZEN_GRAY = "#c3c2b7"
+from dispatch_ticket import _HOVER_CROSSHAIR_SCRIPT, _hover_svg_elems, _hover_tooltip_div, _sparse_edge_path
 
 # Shared by both delivery cards below. Each render_*_card() is its own
 # components.html() iframe (a separate document), so unlike gate_ticket.py's
@@ -81,6 +80,15 @@ def _deviation_strip(rows: list[dict], plot_x0: float, plot_x1: float, max_dev: 
             bars.append(f'<rect data-kind="dt-bar" data-final-y="{zero_y:.1f}" data-final-h="{h:.1f}" data-dir="dn" '
                         f'x="{x:.1f}" y="{zero_y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="1" fill="{theme.COLOR_DOWN}"/>')
 
+    hover_cfg = _json.dumps({
+        "n": n, "x0": plot_x0, "x1": plot_x1, "viewW": 1400,
+        "catchSelector": "#dt-strip-hover-catch", "lineSelector": "#dt-strip-hover-line",
+        "tooltipSelector": "#dt-strip-tooltip", "indexLabel": "ISP", "indexVals": list(range(1, n + 1)),
+        "traces": [{"label": "Deviation", "yvals": [r["actual_mw"] - r["scheduled_mw"] for r in rows],
+                    "py": [r["actual_mw"] - r["scheduled_mw"] for r in rows], "color": theme.COLOR_UP,
+                    "negColor": theme.COLOR_DOWN, "unit": "MW", "decimals": 2, "signed": True}],
+    })
+
     max_label = f"{max_dev:.1f}"
     # HTML overlay for the +/-max labels, not SVG <text> -- same reasoning
     # as gate_ticket.py's _bars_svg: SVG's uniform scaling shrinks
@@ -95,7 +103,9 @@ def _deviation_strip(rows: list[dict], plot_x0: float, plot_x1: float, max_dev: 
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{plot_x0}" y1="{zero_y}" x2="{plot_x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(bars)}
+        {_hover_svg_elems("dt-strip", plot_x0, plot_x1, 100, 0)}
       </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="dt-strip-tooltip"')}
       <div style="position:absolute; left:0; top:0; font-size:12px; color:{theme.INK_MUTED};">+{max_label}</div>
       <div style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">0</div>
       <div style="position:absolute; left:0; bottom:0; font-size:12px; color:{theme.INK_MUTED};">-{max_label}</div>
@@ -103,239 +113,14 @@ def _deviation_strip(rows: list[dict], plot_x0: float, plot_x1: float, max_dev: 
     <div style="display:flex; gap:14px; margin-top:2px;">
       <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Over-delivered</span>
       <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Under-delivered</span>
-    </div>'''
-
-
-def _fcr_replay_chart(fcr: dict) -> str:
-    """Option E: grid frequency (dashed, behind, shaded deadband) overlaid
-    with the plant's droop response (filled, in front) in ONE chart instead
-    of two stacked ones -- cause and effect read in a single glance. Static
-    by default (fully drawn); Replay resets a clip-path to width 0 and
-    sweeps it back to full width via requestAnimationFrame over ~3s, with a
-    dot tracking the current point on the response curve and a live
-    HH:MM clock -- a real playback of the day's 2,880 actual 30s ticks,
-    not a generic bar reveal."""
-    freq = fcr["tick_freq_mhz"]
-    resp = fcr["tick_response_mw"]
-    n = len(resp)
-    headroom = max(fcr["reserved_headroom_mw"], 1e-6)
-    freq_max = max(max((abs(f) for f in freq), default=0.0), 15.0)
-
-    x0, x1 = 0, 1400
-    zero_y = 50
-    ampl_freq = ampl_resp = 34  # same pixel amplitude for both -- neither trace gets a visual size advantage
-    deadband_half_h = (10.0 / freq_max) * ampl_freq
-
-    def fx(i: int) -> float:
-        return x0 + i / max(n - 1, 1) * (x1 - x0)
-
-    freq_pts = " ".join(f"{fx(i):.1f},{zero_y - (v / freq_max) * ampl_freq:.1f}" for i, v in enumerate(freq))
-    resp_line_pts = [(fx(i), zero_y - (v / headroom) * ampl_resp) for i, v in enumerate(resp)]
-    resp_line_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in resp_line_pts)
-    resp_poly_str = resp_line_str + f" {x1},{zero_y:.1f} {x0},{zero_y:.1f}"
-
-    resp_json = "[" + ",".join(f"{v:.2f}" for v in resp) + "]"
-    freq_json = "[" + ",".join(f"{v:.1f}" for v in freq) + "]"
-    # Gauge needle: fixed semicircular pivot/radius, angle 180deg (empty,
-    # left) to 0deg (full headroom, right) driven purely by |response|/
-    # headroom -- direction (up/down) is conveyed by the colored UP/DOWN
-    # label next to it instead of needle side, since a magnitude gauge
-    # reads more like a real speedometer than a signed one would.
-    gx, gy, gr = 60.0, 65.0, 45.0
-
-    ce_pool_mw = 3000.0
-    pool_share_pct = headroom / ce_pool_mw * 100
-    return f'''
-    <div class="fcr-chart-block">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin:14px 0 6px;">
-      <p style="font-size:12px; color:{theme.INK_PRIMARY}; margin:0; font-weight:500;">Grid frequency droop response</p>
-      <button class="gt-replay" onclick="dtFcrReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="background:{theme.STATUS_WARNING}22; border-left:3px solid {theme.STATUS_WARNING}; padding:6px 10px; margin-bottom:8px;">
-      <span style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">This plant is {pool_share_pct:.2f}% of the Continental Europe FCR pool &mdash; it does not restore grid frequency alone. Its response tracks the deviation's shape (droop is proportional by design); it does not cause or fix it.</span>
-    </div>
-    <div style="display:flex; gap:16px; align-items:center;">
-      <div class="dt-fcr-scope" data-headroom="{headroom}" data-resp='{resp_json}' data-freq='{freq_json}'
-           data-gx="{gx}" data-gy="{gy}" data-gr="{gr}"
-           style="position:relative; height:100px; box-sizing:border-box; flex:1; min-width:0;">
-        <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-          <defs><clipPath id="fcr-clip"><rect id="fcr-clip-rect" x="0" y="-20" width="1400" height="140"/></clipPath></defs>
-          <g clip-path="url(#fcr-clip)">
-            <rect x="0" y="{zero_y - deadband_half_h:.1f}" width="1400" height="{2 * deadband_half_h:.1f}" fill="{_FROZEN_GRAY}" opacity="0.35"/>
-            <line x1="0" y1="{zero_y}" x2="1400" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-            <polygon points="{resp_poly_str}" fill="{theme.COLOR_UP}" opacity="0.3"/>
-            <polyline points="{resp_line_str}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
-            <polyline points="{freq_pts}" fill="none" stroke="{theme.COLOR_PUMP}" stroke-width="1.5" opacity="0.9" stroke-dasharray="3,2"/>
-          </g>
-          <circle id="fcr-dot" cx="0" cy="{zero_y}" r="4" fill="{theme.COLOR_UP}" style="opacity:0;"/>
-        </svg>
-      </div>
-      <div style="width:1px; align-self:stretch; background:{theme.GRIDLINE};"></div>
-      <div style="width:130px; flex-shrink:0; text-align:center;">
-        <svg viewBox="0 0 120 70" style="width:110px; height:64px;">
-          <path d="M {gx - gr} {gy} A {gr} {gr} 0 0 1 {gx} {gy - gr}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="9"/>
-          <path d="M {gx} {gy - gr} A {gr} {gr} 0 0 1 {gx + gr} {gy}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="9"/>
-          <line id="fcr-needle" x1="{gx}" y1="{gy}" x2="{gx}" y2="{gy - gr * 0.85:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="2"/>
-          <circle cx="{gx}" cy="{gy}" r="3.5" fill="{theme.INK_PRIMARY}"/>
-          <text x="{gx - gr:.1f}" y="{gy + 4:.1f}" font-size="7" fill="{theme.COLOR_DOWN}">DOWN</text>
-          <text x="{gx + gr:.1f}" y="{gy + 4:.1f}" font-size="7" fill="{theme.COLOR_UP}" text-anchor="end">UP</text>
-        </svg>
-        <p style="font-size:18px; font-weight:500; margin:2px 0 0;"><span id="fcr-mw">0.0</span> <span style="font-size:11px; font-weight:400; color:{theme.INK_MUTED};">MW</span></p>
-        <p id="fcr-pct" style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">0% of headroom</p>
-        <p id="fcr-mhz" style="font-size:11px; color:{theme.COLOR_PUMP}; margin:4px 0 0;">0 mHz</p>
-      </div>
-    </div>
-    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">00:00</span>
-      <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
-        <div id="fcr-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_UP}; transform:translateX(-50%);"></div>
-      </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">24:00</span>
-      <span id="fcr-clock" style="font-size:11px; color:{theme.INK_SECONDARY}; min-width:36px; text-align:right;"></span>
-    </div>
-    </div>
-    <div style="display:flex; gap:14px; margin-top:8px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_PUMP}; margin-right:4px; vertical-align:middle;"></span>Grid frequency deviation</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_UP}; margin-right:4px; vertical-align:middle;"></span>Plant response</span>
-    </div>
-    <div style="margin-top:10px;">
-      <div style="display:flex; justify-content:space-between; font-size:10px; color:{theme.INK_MUTED}; margin-bottom:3px;">
-        <span>Alqueva ({headroom:.0f} MW)</span>
-        <span>Continental Europe FCR pool (~{ce_pool_mw:.0f} MW, ENTSO-E)</span>
-      </div>
-      <div style="height:8px; background:{theme.GRIDLINE}; border-radius:4px; overflow:hidden; display:flex;">
-        <div style="width:{max(pool_share_pct, 1.5):.2f}%; background:{theme.COLOR_UP}; height:100%;"></div>
-      </div>
-    </div>
-    '''
-
-
-_FCR_REPLAY_SCRIPT = '''
-<script>
-window.dtFcrReplay = function(btn) {
-  // Layout: header row (button) -> chart+gauge flex row -> playhead row -> legend row.
-  // .dt-fcr-scope is the chart div INSIDE the chart+gauge row, so it's one
-  // level deeper than it used to be before the gauge was added alongside
-  // the chart -- playhead/clock are outside that row entirely, one level up.
-  var block = btn.closest('.fcr-chart-block');
-  var scope = block ? block.querySelector('.dt-fcr-scope') : null;
-  if (!scope || scope.dataset.replaying === '1') return;
-  scope.dataset.replaying = '1';
-  var clipRect = scope.querySelector('#fcr-clip-rect');
-  var dot = scope.querySelector('#fcr-dot');
-  var needle = block.querySelector('#fcr-needle');
-  var mwLabel = block.querySelector('#fcr-mw');
-  var pctLabel = block.querySelector('#fcr-pct');
-  var mhzLabel = block.querySelector('#fcr-mhz');
-  var playhead = block.querySelector('#fcr-playhead');
-  var clock = block.querySelector('#fcr-clock');
-  var resp = JSON.parse(scope.dataset.resp);
-  var freq = JSON.parse(scope.dataset.freq);
-  var headroom = parseFloat(scope.dataset.headroom);
-  var gx = parseFloat(scope.dataset.gx), gy = parseFloat(scope.dataset.gy), gr = parseFloat(scope.dataset.gr);
-  var n = resp.length;
-
-  // setTimeout-stepped, NOT requestAnimationFrame -- rAF only fires while
-  // the tab is actually compositing visible frames, so it silently never
-  // progresses in a background/inactive tab (verified: clip stayed at
-  // width 0 indefinitely in exactly that state). setTimeout keeps firing
-  // regardless, the same reason gate_ticket.py's bar-reveal animations
-  // avoid CSS animation-delay in favor of setTimeout.
-  //
-  // Duration deliberately slow: at the original 3000ms/90-step pace the
-  // needle and MW/%/mHz numbers were changing ~30x/second -- far faster
-  // than a human can read three simultaneous numbers, so it just looked
-  // like flicker. Line-sweep stays smooth (160 steps, ~62.5ms each = 10s
-  // total), but the gauge numbers are throttled to update only every 8th
-  // step (~500ms, 2x/second) -- reading three fields at once needs closer
-  // to half a second each, not a quarter, to actually register before the
-  // next value replaces it.
-  var steps = 160;
-  var stepMs = 10000 / steps;
-  var numberEvery = 8;
-  clipRect.setAttribute('width', '0');
-  if (dot) dot.style.opacity = '1';
-
-  for (var s = 1; s <= steps; s++) {
-    (function(s) {
-      setTimeout(function() {
-        var frac = s / steps;
-        clipRect.setAttribute('width', (1400 * frac).toFixed(1));
-        var idx = Math.min(Math.floor(frac * (n - 1)), n - 1);
-        var x = frac * 1400;
-        var respVal = resp[idx];
-        var y = 50 - (respVal / headroom) * 34;
-        if (dot) { dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1)); }
-        if (playhead) playhead.style.left = (frac * 100) + '%';
-        if (clock) {
-          var totalSec = Math.floor(frac * 86400);
-          var hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-          var mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-          clock.textContent = hh + ':' + mm;
-        }
-        // Gauge: split bidirectional dial -- left half (coral) = DOWN,
-        // right half (green) = UP, needle rests pointing straight up at
-        // zero. displayFrac 0->1 maps response/headroom -1->+1 onto the
-        // semicircle's 180deg(left)->0deg(right) sweep, so which side the
-        // needle leans IS the direction -- no text label needed to read it,
-        // unlike the single-magnitude version this replaced.
-        // Throttled to numberEvery steps (see above) so the reading is
-        // legible instead of flickering through 2,880 values in 8s.
-        if (s % numberEvery === 0 || s === steps) {
-          if (needle) {
-            var signedFrac = Math.max(-1, Math.min(respVal / headroom, 1));
-            var displayFrac = (signedFrac + 1) / 2;
-            var angle = Math.PI * (1 - displayFrac);
-            var nx = gx + gr * 0.85 * Math.cos(angle);
-            var ny = gy - gr * 0.85 * Math.sin(angle);
-            needle.setAttribute('x2', nx.toFixed(1));
-            needle.setAttribute('y2', ny.toFixed(1));
-          }
-          if (mwLabel) mwLabel.textContent = (respVal >= 0 ? '+' : '') + respVal.toFixed(1);
-          if (pctLabel) pctLabel.textContent = Math.round(Math.abs(respVal) / headroom * 100) + '% of headroom';
-          if (mhzLabel) mhzLabel.textContent = (freq[idx] >= 0 ? '+' : '') + freq[idx].toFixed(1) + ' mHz';
-        }
-        if (s === steps) {
-          if (dot) dot.style.opacity = '0';
-          scope.dataset.replaying = '0';
-        }
-      }, s * stepMs);
-    })(s);
-  }
-};
-</script>'''
-
-
-def render_fcr_card(fcr: dict) -> str:
-    """FCR droop-response compliance card. No revenue metric on purpose --
-    FCR is non-remunerated in Portugal (mandatory grid-code obligation, not
-    a market-procured product), so showing a fake €0 next to the other
-    cards' real euro figures would misleadingly imply this one just happens
-    to earn nothing rather than structurally never earning anything. See
-    dashboard/data.py::load_fcr_activation and fcr_activation.py."""
-    n = len(fcr["rows"])
-    chart = _fcr_replay_chart(fcr)
-    reserved_budget_mwh = fcr["reserved_headroom_mw"] * 24
-    return f'''
-<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
-  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Delivery</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">{fcr['n_isp_responding']}/{n} ISPs responding</span>
-    </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">FCR droop response</div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">Mandatory, non-remunerated (Portuguese grid code) &middot; reserved headroom {fcr['reserved_headroom_mw']:.1f} MW</p>
-    {chart}
-    <div style="display:flex; gap:14px; margin-top:10px; padding-top:10px; border-top:1px solid {theme.GRIDLINE};">
-      <div><p style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">Activated (up / down)</p><p style="font-size:15px; font-weight:500; margin:0;">{fcr['up_mwh']:.1f} / {fcr['dn_mwh']:.1f} MWh</p></div>
-      <div><p style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">Reserved all day</p><p style="font-size:15px; font-weight:500; margin:0;">{reserved_budget_mwh:.0f} MWh</p></div>
-      <div><p style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">Max response</p><p style="font-size:15px; font-weight:500; margin:0;">{fcr['max_response_mw']:.2f} MW</p></div>
-    </div>
-  </div>
-</div>
-{_REPLAY_STYLE}
-{_FCR_REPLAY_SCRIPT}'''
+    {_HOVER_CROSSHAIR_SCRIPT}
+    <script>
+    (function() {{
+      var block = document.querySelector('.dt-strip-scope');
+      if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+    }})();
+    </script>'''
 
 
 def render_rt_card(rt: dict, fig_num: int = 1) -> str:
@@ -387,35 +172,75 @@ _FAT_BY_PRODUCT = {
 
 
 def _ace_replay_chart(summary: dict, product: str) -> str:
-    """ACE (Area Control Error, background, dashed) overlaid with this
-    product's activated response (foreground) in one chart, same Option E
-    layout as the FCR card's frequency/droop chart -- and for the same
-    reason: ACE is the actual signal aFRR/mFRR activation responds to (see
-    reserve_activation.py::simulate_ace_series), so overlaying cause and
-    effect is honest here the way it wasn't for a made-up frequency line.
-    96 ISPs (this product's real resolution), not FCR's 2,880 30s ticks, but
-    Replay runs at the same 10s pace and ~500ms numeric-readout cadence as
-    the FCR card so all three widgets feel consistent."""
+    """ACE (Area Control Error) and this product's activated response,
+    stacked as two time-aligned panels with a connector at the peak-ACE
+    moment -- the same layout as the FCR dispatch card's frequency/response
+    chart (see dispatch_ticket.py::render_fcr_dispatch_card), because ACE is
+    to aFRR/mFRR what frequency deviation is to FCR: the real signal the
+    product responds to (see reserve_activation.py::simulate_ace_series),
+    so the two widgets should read as one family, not as different chart
+    languages for the same idea. 96 ISPs (this product's real resolution),
+    not FCR's 2,880 30s ticks, but Replay runs at the same relative pace.
+    The direction gauge + numeric readouts sit alongside, unchanged."""
     ace = summary["ace_mw"]
     resp = summary["response_mw"]
     n = len(resp)
     ref_mw = max(summary.get("max_offer_mw", 0.0), 1e-6)
     ace_max = max(max((abs(a) for a in ace), default=0.0), 15.0)
 
-    x0, x1 = 0, 1400
-    zero_y = 50
-    ampl_ace = ampl_resp = 34
+    x0, x1 = 40, 1400
 
     def fx(i: int) -> float:
         return x0 + i / max(n - 1, 1) * (x1 - x0)
 
-    ace_pts = " ".join(f"{fx(i):.1f},{zero_y - (v / ace_max) * ampl_ace:.1f}" for i, v in enumerate(ace))
-    resp_line_pts = [(fx(i), zero_y - (v / ref_mw) * ampl_resp) for i, v in enumerate(resp)]
-    resp_line_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in resp_line_pts)
-    resp_poly_str = resp_line_str + f" {x1},{zero_y:.1f} {x0},{zero_y:.1f}"
+    a_mid_y, a_half = 26, 20
+    gap_h = 16
+    b_base_y = (a_mid_y + a_half) + gap_h
+    b_mid_y, b_half = b_base_y + 20, 20
+    total_h = b_mid_y + b_half + 6
+
+    def ay(v: float) -> float:
+        return a_mid_y - (v / ace_max) * a_half
+
+    def by(v: float) -> float:
+        return b_mid_y - (v / ref_mw) * b_half
+
+    ace_pts = " L".join(f"{fx(i):.1f},{ay(v):.1f}" for i, v in enumerate(ace))
+    pos_pts = " L".join(f"{fx(i):.1f},{by(max(v, 0.0)):.1f}" for i, v in enumerate(resp))
+    neg_pts = " L".join(f"{fx(i):.1f},{by(min(v, 0.0)):.1f}" for i, v in enumerate(resp))
+    pos_path = f"M{fx(0):.1f},{b_mid_y} L{pos_pts} L{fx(n-1):.1f},{b_mid_y} Z"
+    neg_path = f"M{fx(0):.1f},{b_mid_y} L{neg_pts} L{fx(n-1):.1f},{b_mid_y} Z"
+    pos_edge = _sparse_edge_path(fx, by, [max(v, 0.0) for v in resp])
+    neg_edge = _sparse_edge_path(fx, by, [min(v, 0.0) for v in resp])
+
+    # Connector: the ISP with the widest ACE swing, marked on both panels
+    # and joined by one line -- same "trace this moment down" idea as FCR.
+    peak_idx = max(range(n), key=lambda i: abs(ace[i])) if n else 0
+    peak_x = fx(peak_idx)
+    peak_ay = ay(ace[peak_idx])
+    peak_by = by(resp[peak_idx])
+    if resp[peak_idx] > 0:
+        callout_color = theme.COLOR_UP
+    elif resp[peak_idx] < 0:
+        callout_color = theme.COLOR_DOWN
+    else:
+        callout_color = theme.INK_MUTED
 
     resp_json = "[" + ",".join(f"{v:.2f}" for v in resp) + "]"
     ace_json = "[" + ",".join(f"{v:.1f}" for v in ace) + "]"
+
+    hover_prefix = f"ace-{product}"
+    ace_py = [ay(v) for v in ace]
+    resp_py = [by(v) for v in resp]
+    hover_cfg = _json.dumps({
+        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
+        "catchSelector": f"#{hover_prefix}-hover-catch", "lineSelector": f"#{hover_prefix}-hover-line",
+        "tooltipSelector": f"#{hover_prefix}-tooltip", "indexLabel": "ISP", "indexVals": list(range(1, n + 1)),
+        "traces": [
+            {"label": "ACE", "yvals": ace, "py": ace_py, "dotSelector": f"#{hover_prefix}-hover-dot-0", "color": theme.COLOR_PUMP, "unit": "MW", "decimals": 1, "signed": True},
+            {"label": "Response", "yvals": resp, "py": resp_py, "dotSelector": f"#{hover_prefix}-hover-dot-1", "color": theme.COLOR_UP, "negColor": theme.COLOR_DOWN, "unit": "MW", "decimals": 2, "signed": True},
+        ],
+    })
 
     gx, gy, gr = 60.0, 65.0, 45.0
 
@@ -431,17 +256,33 @@ def _ace_replay_chart(summary: dict, product: str) -> str:
     <div style="display:flex; gap:16px; align-items:center;">
       <div class="dt-ace-scope" data-ref="{ref_mw}" data-resp='{resp_json}' data-ace='{ace_json}'
            data-gx="{gx}" data-gy="{gy}" data-gr="{gr}"
-           style="position:relative; height:100px; box-sizing:border-box; flex:1; min-width:0;">
-        <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-          <defs><clipPath id="ace-clip-{product}"><rect id="ace-clip-rect-{product}" x="0" y="-20" width="1400" height="140"/></clipPath></defs>
+           data-ace-max="{ace_max}" data-a-mid="{a_mid_y}" data-a-half="{a_half}"
+           data-b-mid="{b_mid_y}" data-b-half="{b_half}" data-total-h="{total_h:.0f}"
+           style="position:relative; height:{total_h:.0f}px; box-sizing:border-box; flex:1; min-width:0;">
+        <svg viewBox="0 0 1400 {total_h:.0f}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+          <defs><clipPath id="ace-clip-{product}"><rect id="ace-clip-rect-{product}" x="0" y="0" width="0" height="{total_h:.0f}"/></clipPath></defs>
+          <line x1="{x0}" y1="{a_mid_y}" x2="{x1}" y2="{a_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+          <line x1="{x0}" y1="{b_mid_y}" x2="{x1}" y2="{b_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+          <text x="{x0-4}" y="{a_mid_y-a_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">+{ace_max:.0f}</text>
+          <text x="{x0-4}" y="{a_mid_y+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
+          <text x="{x0-4}" y="{a_mid_y+a_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">-{ace_max:.0f}</text>
+          <text x="{x0-4}" y="{b_mid_y-b_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">+{ref_mw:.0f}</text>
+          <text x="{x0-4}" y="{b_mid_y+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
+          <text x="{x0-4}" y="{b_mid_y+b_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">-{ref_mw:.0f}</text>
           <g clip-path="url(#ace-clip-{product})">
-            <line x1="0" y1="{zero_y}" x2="1400" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-            <polygon points="{resp_poly_str}" fill="{theme.COLOR_UP}" opacity="0.3"/>
-            <polyline points="{resp_line_str}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.5"/>
-            <polyline points="{ace_pts}" fill="none" stroke="{theme.COLOR_PUMP}" stroke-width="1.5" opacity="0.9" stroke-dasharray="3,2"/>
+            <path d="M{fx(0):.1f},{ay(ace[0] if ace else 0):.1f} L{ace_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="1.5"/>
+            <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>
+            <path d="{neg_path}" fill="{theme.COLOR_DOWN}" fill-opacity="0.4"/>
+            <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.3"/>
+            <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="1.3"/>
           </g>
-          <circle id="ace-dot-{product}" cx="0" cy="{zero_y}" r="4" fill="{theme.COLOR_UP}" style="opacity:0;"/>
+          <line x1="{peak_x:.1f}" y1="{peak_ay+5:.1f}" x2="{peak_x:.1f}" y2="{peak_by-5:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.2" stroke-dasharray="3,3" opacity="0.7"/>
+          <circle cx="{peak_x:.1f}" cy="{peak_ay:.1f}" r="3.5" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="1.2"/>
+          <circle cx="{peak_x:.1f}" cy="{peak_by:.1f}" r="3.5" fill="{callout_color}" stroke="white" stroke-width="1.2"/>
+          <circle id="ace-dot-{product}" cx="0" cy="{b_mid_y}" r="4" fill="{theme.COLOR_UP}" style="opacity:0;"/>
+          {_hover_svg_elems(hover_prefix, x0, x1, total_h, 2)}
         </svg>
+        {_hover_tooltip_div().replace('dt-hover-tooltip"', f'dt-hover-tooltip" id="{hover_prefix}-tooltip"')}
       </div>
       <div style="width:1px; align-self:stretch; background:{theme.GRIDLINE};"></div>
       <div style="width:130px; flex-shrink:0; text-align:center;">
@@ -455,7 +296,7 @@ def _ace_replay_chart(summary: dict, product: str) -> str:
         </svg>
         <p style="font-size:18px; font-weight:500; margin:2px 0 0;"><span id="ace-mw-{product}">0.0</span> <span style="font-size:11px; font-weight:400; color:{theme.INK_MUTED};">MW</span></p>
         <p id="ace-pct-{product}" style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">0% of offered</p>
-        <p id="ace-val-{product}" style="font-size:11px; color:{theme.COLOR_PUMP}; margin:4px 0 0;">ACE 0 MW</p>
+        <p id="ace-val-{product}" style="font-size:11px; color:{theme.COLOR_PRICE}; margin:4px 0 0;">ACE 0 MW</p>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
@@ -470,7 +311,14 @@ def _ace_replay_chart(summary: dict, product: str) -> str:
     <div style="display:flex; gap:14px; margin-top:8px;">
       <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_PUMP}; margin-right:4px; vertical-align:middle;"></span>Area Control Error</span>
       <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_UP}; margin-right:4px; vertical-align:middle;"></span>Plant response</span>
-    </div>'''
+    </div>
+    {_HOVER_CROSSHAIR_SCRIPT}
+    <script>
+    (function() {{
+      var block = document.querySelector('.dt-ace-scope');
+      if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+    }})();
+    </script>'''
 
 
 _ACE_REPLAY_SCRIPT = '''
@@ -492,6 +340,8 @@ window.dtAceReplay = function(btn) {
   var ace = JSON.parse(scope.dataset.ace);
   var ref = parseFloat(scope.dataset.ref);
   var gx = parseFloat(scope.dataset.gx), gy = parseFloat(scope.dataset.gy), gr = parseFloat(scope.dataset.gr);
+  var bMid = parseFloat(scope.dataset.bMid), bHalf = parseFloat(scope.dataset.bHalf);
+  var totalH = parseFloat(scope.dataset.totalH);
   var n = resp.length;
   // Same 10s duration and ~500ms (~20 updates total) number-readout cadence
   // as the FCR card's replay, so all three widgets (FCR/aFRR/mFRR) feel like
@@ -499,6 +349,7 @@ window.dtAceReplay = function(btn) {
   var steps = n;
   var stepMs = 10000 / steps;
   var numberEvery = Math.max(1, Math.round(steps / 20));
+  clipRect.setAttribute('height', totalH.toFixed(0));
   clipRect.setAttribute('width', '0');
   if (dot) dot.style.opacity = '1';
 
@@ -510,8 +361,9 @@ window.dtAceReplay = function(btn) {
         var idx = Math.min(Math.floor(frac * (n - 1)), n - 1);
         var x = frac * 1400;
         var respVal = resp[idx];
-        var y = 50 - (respVal / ref) * 34;
-        if (dot) { dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1)); }
+        var y = bMid - (respVal / ref) * bHalf;
+        if (dot) { dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+          dot.setAttribute('fill', respVal > 0 ? '#1baf7a' : (respVal < 0 ? '#e87ba4' : '#898781')); }
         if (playhead) playhead.style.left = (frac * 100) + '%';
         if (clock) {
           var totalSec = Math.floor(frac * 86400);
