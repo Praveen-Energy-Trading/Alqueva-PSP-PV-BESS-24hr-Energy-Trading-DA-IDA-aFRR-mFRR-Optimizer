@@ -167,6 +167,7 @@ def _render() -> None:
     # ---------------------------------------------------------------------------
 
     rt = data.load_rt_delivery(selected_date)
+    imbalance = data.load_imbalance_settlement(selected_date)
     afrr_act = data.load_activation_summary(selected_date, "aFRR")
     mfrr_act = data.load_activation_summary(selected_date, "mFRR")
     fcr_act = data.load_fcr_activation(selected_date)
@@ -183,13 +184,17 @@ def _render() -> None:
     afrr_dispatch = data.load_afrr_dispatch(selected_date, "aFRR")
     mfrr_dispatch = data.load_afrr_dispatch(selected_date, "mFRR")
     market_cards = [
-        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
-        ("aFRR activation", lambda: components.html(delivery_ticket.render_activation_card(afrr_act, "aFRR"), height=448)) if afrr_act else None,
-        ("mFRR activation", lambda: components.html(delivery_ticket.render_activation_card(mfrr_act, "mFRR"), height=448)) if mfrr_act else None,
+        ("Imbalance settlement", lambda: components.html(delivery_ticket.render_imbalance_settlement_card(imbalance), height=560)) if imbalance else None,
         ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=497)) if afrr_agc else None,
         ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=497)) if mfrr_agc else None,
     ]
+    # aFRR/mFRR dispatch cards now carry the settlement stat row (revenue,
+    # MWh, ISPs activated) formerly shown on their own separate "activation"
+    # card in Market & Delivery -- that card's mini ACE/response chart just
+    # duplicated this one in less detail. Taller container heights (650 vs
+    # the old 520) account for the added stat row + caption.
     technical_cards = [
+        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
         ("Reservoir trajectory", lambda: components.html(dispatch_ticket.render_reservoir_trajectory_card(reservoir_traj), height=560)) if reservoir_traj else None,
         ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
         ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
@@ -198,8 +203,8 @@ def _render() -> None:
         ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
         ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
         ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
-        ("aFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch), height=520)) if afrr_dispatch else None,
-        ("mFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch), height=520)) if mfrr_dispatch else None,
+        ("aFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch, afrr_act), height=650)) if afrr_dispatch else None,
+        ("mFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch, mfrr_act), height=650)) if mfrr_dispatch else None,
         ("FCR dispatch", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=460)) if fcr_act else None,
     ]
     market_cards = [c for c in market_cards if c is not None]

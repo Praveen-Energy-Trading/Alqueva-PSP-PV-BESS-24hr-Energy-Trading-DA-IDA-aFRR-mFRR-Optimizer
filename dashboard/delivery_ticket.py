@@ -1,9 +1,16 @@
-"""delivery_ticket.py — renders phase 4A/4B/4C delivery cards (RT dispatch,
-aFRR activation, mFRR activation). Distinct from gate_ticket.py: these
-phases don't "decide" Submitted/Held, they simulate delivery of whatever
-was already committed, so the card shape is metrics + a trace, not a
-decision pill. See dashboard/data.py::load_rt_delivery /
-load_activation_summary for the fields.
+"""delivery_ticket.py — renders phase 4A/4B/4C delivery cards. Distinct
+from gate_ticket.py: these phases don't "decide" Submitted/Held, they
+simulate delivery of whatever was already committed, so the card shape is
+metrics + a trace, not a decision pill. See dashboard/data.py::load_rt_delivery
+for the fields.
+
+aFRR/mFRR activation settlement (revenue, MWh, ISPs activated) used to have
+its own standalone card here, with a miniature ACE-vs-response chart that
+duplicated dispatch_ticket.py::render_afrr_dispatch_card's fuller version in
+smaller/less-detailed form. Removed -- that settlement data is now a stat
+row merged directly into render_afrr_dispatch_card (data.py::
+load_activation_summary's dict passed in as its optional `act` argument),
+so there's one card per product instead of two overlapping ones.
 """
 from __future__ import annotations
 
@@ -165,274 +172,138 @@ def render_rt_card(rt: dict, fig_num: int = 1) -> str:
 {_REPLAY_SCRIPT}'''
 
 
-_FAT_BY_PRODUCT = {
-    "aFRR": ("PICASSO", "5 min"),
-    "mFRR": ("MARI", "12.5 min"),
-}
+def render_imbalance_settlement_card(im: dict) -> str:
+    """Imbalance settlement mechanism explainer: why deviating from a
+    committed DA schedule costs money, and why it costs more to buy back a
+    shortfall than it earns to sell a surplus (dual pricing). Two panels
+    sharing an x-axis: imbalance MW per ISP on top (same actual - scheduled
+    trace as the 'ISP dispatch' widget, real, not recomputed differently),
+    short/long reference price per ISP below (illustrative DA-multiplier
+    fallback formula -- see data.py::load_imbalance_settlement for why this
+    doesn't call REN's live price API from a page render). Net EUR and
+    total MWh in the stat row ARE the real settled numbers from the audit
+    trail, whatever price source that actual run used."""
+    isps, hours = im["isps"], im["hours"]
+    n = len(isps)
+    imbalance_mw = im["imbalance_mw"]
+    short_price, long_price = im["short_price"], im["long_price"]
+    n_long = sum(1 for v in imbalance_mw if v > 1e-6)
+    n_short = sum(1 for v in imbalance_mw if v < -1e-6)
 
-
-def _ace_replay_chart(summary: dict, product: str) -> str:
-    """ACE (Area Control Error) and this product's activated response,
-    stacked as two time-aligned panels with a connector at the peak-ACE
-    moment -- the same layout as the FCR dispatch card's frequency/response
-    chart (see dispatch_ticket.py::render_fcr_dispatch_card), because ACE is
-    to aFRR/mFRR what frequency deviation is to FCR: the real signal the
-    product responds to (see reserve_activation.py::simulate_ace_series),
-    so the two widgets should read as one family, not as different chart
-    languages for the same idea. 96 ISPs (this product's real resolution),
-    not FCR's 2,880 30s ticks, but Replay runs at the same relative pace.
-    The direction gauge + numeric readouts sit alongside, unchanged."""
-    ace = summary["ace_mw"]
-    resp = summary["response_mw"]
-    n = len(resp)
-    ref_mw = max(summary.get("max_offer_mw", 0.0), 1e-6)
-    ace_max = max(max((abs(a) for a in ace), default=0.0), 15.0)
-
-    x0, x1 = 40, 1400
+    x0, x1 = 46, 1390
 
     def fx(i: int) -> float:
         return x0 + i / max(n - 1, 1) * (x1 - x0)
 
-    a_mid_y, a_half = 26, 20
-    gap_h = 16
-    b_base_y = (a_mid_y + a_half) + gap_h
-    b_mid_y, b_half = b_base_y + 20, 20
-    total_h = b_mid_y + b_half + 6
+    imb_mid_y, imb_half = 40, 30
+    price_title_y = imb_mid_y + imb_half + 22
+    price_top, price_bot = price_title_y + 14, price_title_y + 74
+    total_h = price_bot + 12
+    imb_max = max((abs(v) for v in imbalance_mw), default=0.0) or 1.0
+    price_max = max(max(short_price, default=0.0), max(long_price, default=0.0), 1.0) * 1.08
 
-    def ay(v: float) -> float:
-        return a_mid_y - (v / ace_max) * a_half
+    def imb_y(v: float) -> float:
+        return imb_mid_y - (v / imb_max) * imb_half
 
-    def by(v: float) -> float:
-        return b_mid_y - (v / ref_mw) * b_half
+    def price_y(v: float) -> float:
+        return price_bot - (v / price_max) * (price_bot - price_top)
 
-    ace_pts = " L".join(f"{fx(i):.1f},{ay(v):.1f}" for i, v in enumerate(ace))
-    pos_pts = " L".join(f"{fx(i):.1f},{by(max(v, 0.0)):.1f}" for i, v in enumerate(resp))
-    neg_pts = " L".join(f"{fx(i):.1f},{by(min(v, 0.0)):.1f}" for i, v in enumerate(resp))
-    pos_path = f"M{fx(0):.1f},{b_mid_y} L{pos_pts} L{fx(n-1):.1f},{b_mid_y} Z"
-    neg_path = f"M{fx(0):.1f},{b_mid_y} L{neg_pts} L{fx(n-1):.1f},{b_mid_y} Z"
-    pos_edge = _sparse_edge_path(fx, by, [max(v, 0.0) for v in resp])
-    neg_edge = _sparse_edge_path(fx, by, [min(v, 0.0) for v in resp])
+    pos_pts = " L".join(f"{fx(i):.1f},{imb_y(max(v, 0.0)):.1f}" for i, v in enumerate(imbalance_mw))
+    neg_pts = " L".join(f"{fx(i):.1f},{imb_y(min(v, 0.0)):.1f}" for i, v in enumerate(imbalance_mw))
+    pos_path = f"M{fx(0):.1f},{imb_mid_y} L{pos_pts} L{fx(n-1):.1f},{imb_mid_y} Z"
+    neg_path = f"M{fx(0):.1f},{imb_mid_y} L{neg_pts} L{fx(n-1):.1f},{imb_mid_y} Z"
+    pos_edge = _sparse_edge_path(fx, imb_y, [max(v, 0.0) for v in imbalance_mw])
+    neg_edge = _sparse_edge_path(fx, imb_y, [min(v, 0.0) for v in imbalance_mw])
+    short_pts = " L".join(f"{fx(i):.1f},{price_y(v):.1f}" for i, v in enumerate(short_price))
+    long_pts = " L".join(f"{fx(i):.1f},{price_y(v):.1f}" for i, v in enumerate(long_price))
 
-    # Connector: the ISP with the widest ACE swing, marked on both panels
-    # and joined by one line -- same "trace this moment down" idea as FCR.
-    peak_idx = max(range(n), key=lambda i: abs(ace[i])) if n else 0
-    peak_x = fx(peak_idx)
-    peak_ay = ay(ace[peak_idx])
-    peak_by = by(resp[peak_idx])
-    if resp[peak_idx] > 0:
-        callout_color = theme.COLOR_UP
-    elif resp[peak_idx] < 0:
-        callout_color = theme.COLOR_DOWN
-    else:
-        callout_color = theme.INK_MUTED
-
-    resp_json = "[" + ",".join(f"{v:.2f}" for v in resp) + "]"
-    ace_json = "[" + ",".join(f"{v:.1f}" for v in ace) + "]"
-
-    hover_prefix = f"ace-{product}"
-    ace_py = [ay(v) for v in ace]
-    resp_py = [by(v) for v in resp]
+    short_py = [price_y(v) for v in short_price]
+    long_py = [price_y(v) for v in long_price]
+    imb_py = [imb_y(v) for v in imbalance_mw]
     hover_cfg = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
-        "catchSelector": f"#{hover_prefix}-hover-catch", "lineSelector": f"#{hover_prefix}-hover-line",
-        "tooltipSelector": f"#{hover_prefix}-tooltip", "indexLabel": "ISP", "indexVals": list(range(1, n + 1)),
+        "catchSelector": "#imb-hover-catch", "lineSelector": "#imb-hover-line",
+        "tooltipSelector": "#imb-tooltip", "indexLabel": "ISP", "indexVals": isps,
         "traces": [
-            {"label": "ACE", "yvals": ace, "py": ace_py, "dotSelector": f"#{hover_prefix}-hover-dot-0", "color": theme.COLOR_PUMP, "unit": "MW", "decimals": 1, "signed": True},
-            {"label": "Response", "yvals": resp, "py": resp_py, "dotSelector": f"#{hover_prefix}-hover-dot-1", "color": theme.COLOR_UP, "negColor": theme.COLOR_DOWN, "unit": "MW", "decimals": 2, "signed": True},
+            {"label": "Imbalance", "yvals": imbalance_mw, "py": imb_py, "dotSelector": "#imb-hover-dot-0",
+             "color": theme.COLOR_UP, "negColor": theme.COLOR_DOWN, "unit": "MW", "decimals": 2, "signed": True},
+            {"label": "Short price (buy back)", "yvals": short_price, "py": short_py, "dotSelector": "#imb-hover-dot-1",
+             "color": theme.STATUS_CRITICAL, "unit": "EUR/MWh", "decimals": 1},
+            {"label": "Long price (sell)", "yvals": long_price, "py": long_py, "dotSelector": "#imb-hover-dot-2",
+             "color": theme.STATUS_GOOD, "unit": "EUR/MWh", "decimals": 1},
         ],
     })
 
-    gx, gy, gr = 60.0, 65.0, 45.0
-
-    return f'''
-    <div class="ace-chart-block">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin:14px 0 6px;">
-      <p style="font-size:12px; color:{theme.INK_PRIMARY}; margin:0; font-weight:500;">ACE-driven activation response</p>
-      <button class="gt-replay" onclick="dtAceReplay(this)">&#9654; Replay</button>
-    </div>
-    <div style="background:{theme.STATUS_WARNING}22; border-left:3px solid {theme.STATUS_WARNING}; padding:6px 10px; margin-bottom:8px;">
-      <span style="font-size:11.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Synthetic ACE, not real TSO SCADA &mdash; illustrative of the signal this product responds to, not a live grid feed.</span>
-    </div>
-    <div style="display:flex; gap:16px; align-items:center;">
-      <div class="dt-ace-scope" data-ref="{ref_mw}" data-resp='{resp_json}' data-ace='{ace_json}'
-           data-gx="{gx}" data-gy="{gy}" data-gr="{gr}"
-           data-ace-max="{ace_max}" data-a-mid="{a_mid_y}" data-a-half="{a_half}"
-           data-b-mid="{b_mid_y}" data-b-half="{b_half}" data-total-h="{total_h:.0f}"
-           style="position:relative; height:{total_h:.0f}px; box-sizing:border-box; flex:1; min-width:0;">
-        <svg viewBox="0 0 1400 {total_h:.0f}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-          <defs><clipPath id="ace-clip-{product}"><rect id="ace-clip-rect-{product}" x="0" y="0" width="0" height="{total_h:.0f}"/></clipPath></defs>
-          <line x1="{x0}" y1="{a_mid_y}" x2="{x1}" y2="{a_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-          <line x1="{x0}" y1="{b_mid_y}" x2="{x1}" y2="{b_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-          <text x="{x0-4}" y="{a_mid_y-a_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{ace_max:.0f}</text>
-          <text x="{x0-4}" y="{a_mid_y+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 MW</text>
-          <text x="{x0-4}" y="{a_mid_y+a_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{ace_max:.0f}</text>
-          <text x="{x0-4}" y="{b_mid_y-b_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{ref_mw:.0f}</text>
-          <text x="{x0-4}" y="{b_mid_y+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 MW</text>
-          <text x="{x0-4}" y="{b_mid_y+b_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{ref_mw:.0f}</text>
-          <g clip-path="url(#ace-clip-{product})">
-            <path d="M{fx(0):.1f},{ay(ace[0] if ace else 0):.1f} L{ace_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="1.5"/>
-            <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>
-            <path d="{neg_path}" fill="{theme.COLOR_DOWN}" fill-opacity="0.4"/>
-            <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.3"/>
-            <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="1.3"/>
-          </g>
-          <line x1="{peak_x:.1f}" y1="{peak_ay+5:.1f}" x2="{peak_x:.1f}" y2="{peak_by-5:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.2" stroke-dasharray="3,3" opacity="0.7"/>
-          <circle cx="{peak_x:.1f}" cy="{peak_ay:.1f}" r="3.5" fill="{theme.COLOR_PRICE}" stroke="white" stroke-width="1.2"/>
-          <circle cx="{peak_x:.1f}" cy="{peak_by:.1f}" r="3.5" fill="{callout_color}" stroke="white" stroke-width="1.2"/>
-          <circle id="ace-dot-{product}" cx="0" cy="{b_mid_y}" r="4" fill="{theme.COLOR_UP}" style="opacity:0;"/>
-          {_hover_svg_elems(hover_prefix, x0, x1, total_h, 2)}
-        </svg>
-        {_hover_tooltip_div().replace('dt-hover-tooltip"', f'dt-hover-tooltip" id="{hover_prefix}-tooltip"')}
-      </div>
-      <div style="width:1px; align-self:stretch; background:{theme.GRIDLINE};"></div>
-      <div style="width:130px; flex-shrink:0; text-align:center;">
-        <svg viewBox="0 0 120 70" style="width:110px; height:64px;">
-          <path d="M {gx - gr} {gy} A {gr} {gr} 0 0 1 {gx} {gy - gr}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="9"/>
-          <path d="M {gx} {gy - gr} A {gr} {gr} 0 0 1 {gx + gr} {gy}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="9"/>
-          <line id="ace-needle-{product}" x1="{gx}" y1="{gy}" x2="{gx}" y2="{gy - gr * 0.85:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="2"/>
-          <circle cx="{gx}" cy="{gy}" r="3.5" fill="{theme.INK_PRIMARY}"/>
-          <text x="{gx - gr:.1f}" y="{gy + 4:.1f}" font-size="7" fill="{theme.COLOR_DOWN}">DOWN</text>
-          <text x="{gx + gr:.1f}" y="{gy + 4:.1f}" font-size="7" fill="{theme.COLOR_UP}" text-anchor="end">UP</text>
-        </svg>
-        <p style="font-size:18px; font-weight:500; margin:2px 0 0;"><span id="ace-mw-{product}">0.0</span> <span style="font-size:11px; font-weight:400; color:{theme.INK_MUTED};">MW</span></p>
-        <p id="ace-pct-{product}" style="font-size:10px; color:{theme.INK_MUTED}; margin:0;">0% of offered</p>
-        <p id="ace-val-{product}" style="font-size:11px; color:{theme.COLOR_PRICE}; margin:4px 0 0;">ACE 0 MW</p>
-      </div>
-    </div>
-    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-      <span style="font-size:11px; color:{theme.INK_MUTED};">00:00</span>
-      <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
-        <div id="ace-playhead-{product}" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_UP}; transform:translateX(-50%);"></div>
-      </div>
-      <span style="font-size:11px; color:{theme.INK_MUTED};">24:00</span>
-      <span id="ace-clock-{product}" style="font-size:11px; color:{theme.INK_SECONDARY}; min-width:36px; text-align:right;"></span>
-    </div>
-    </div>
-    <div style="display:flex; gap:14px; margin-top:8px;">
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_PUMP}; margin-right:4px; vertical-align:middle;"></span>Area Control Error</span>
-      <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.COLOR_UP}; margin-right:4px; vertical-align:middle;"></span>Plant response</span>
-    </div>
-    {_HOVER_CROSSHAIR_SCRIPT}
-    <script>
-    (function() {{
-      var block = document.querySelector('.dt-ace-scope');
-      if (block) {{ dtHoverInit(block, {hover_cfg}); }}
-    }})();
-    </script>'''
-
-
-_ACE_REPLAY_SCRIPT = '''
-<script>
-window.dtAceReplay = function(btn) {
-  var block = btn.closest('.ace-chart-block');
-  var scope = block ? block.querySelector('.dt-ace-scope') : null;
-  if (!scope || scope.dataset.replaying === '1') return;
-  scope.dataset.replaying = '1';
-  var clipRect = scope.querySelector('rect[id^="ace-clip-rect-"]');
-  var dot = scope.querySelector('circle[id^="ace-dot-"]');
-  var needle = block.querySelector('line[id^="ace-needle-"]');
-  var mwLabel = block.querySelector('span[id^="ace-mw-"]');
-  var pctLabel = block.querySelector('p[id^="ace-pct-"]');
-  var aceLabel = block.querySelector('p[id^="ace-val-"]');
-  var playhead = block.querySelector('div[id^="ace-playhead-"]');
-  var clock = block.querySelector('span[id^="ace-clock-"]');
-  var resp = JSON.parse(scope.dataset.resp);
-  var ace = JSON.parse(scope.dataset.ace);
-  var ref = parseFloat(scope.dataset.ref);
-  var gx = parseFloat(scope.dataset.gx), gy = parseFloat(scope.dataset.gy), gr = parseFloat(scope.dataset.gr);
-  var bMid = parseFloat(scope.dataset.bMid), bHalf = parseFloat(scope.dataset.bHalf);
-  var totalH = parseFloat(scope.dataset.totalH);
-  var n = resp.length;
-  // Same 10s duration and ~500ms (~20 updates total) number-readout cadence
-  // as the FCR card's replay, so all three widgets (FCR/aFRR/mFRR) feel like
-  // one consistent playback speed rather than each having its own pace.
-  var steps = n;
-  var stepMs = 10000 / steps;
-  var numberEvery = Math.max(1, Math.round(steps / 20));
-  clipRect.setAttribute('height', totalH.toFixed(0));
-  clipRect.setAttribute('width', '0');
-  if (dot) dot.style.opacity = '1';
-
-  for (var s = 1; s <= steps; s++) {
-    (function(s) {
-      setTimeout(function() {
-        var frac = s / steps;
-        clipRect.setAttribute('width', (1400 * frac).toFixed(1));
-        var idx = Math.min(Math.floor(frac * (n - 1)), n - 1);
-        var x = frac * 1400;
-        var respVal = resp[idx];
-        var y = bMid - (respVal / ref) * bHalf;
-        if (dot) { dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
-          dot.setAttribute('fill', respVal > 0 ? '#1baf7a' : (respVal < 0 ? '#e87ba4' : '#898781')); }
-        if (playhead) playhead.style.left = (frac * 100) + '%';
-        if (clock) {
-          var totalSec = Math.floor(frac * 86400);
-          var hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-          var mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-          clock.textContent = hh + ':' + mm;
-        }
-        if (s % numberEvery === 0 || s === steps) {
-          if (needle) {
-            var signedFrac = Math.max(-1, Math.min(respVal / ref, 1));
-            var displayFrac = (signedFrac + 1) / 2;
-            var angle = Math.PI * (1 - displayFrac);
-            var nx = gx + gr * 0.85 * Math.cos(angle);
-            var ny = gy - gr * 0.85 * Math.sin(angle);
-            needle.setAttribute('x2', nx.toFixed(1));
-            needle.setAttribute('y2', ny.toFixed(1));
-          }
-          if (mwLabel) mwLabel.textContent = (respVal >= 0 ? '+' : '') + respVal.toFixed(1);
-          if (pctLabel) pctLabel.textContent = Math.round(Math.abs(respVal) / ref * 100) + '% of offered';
-          if (aceLabel) aceLabel.textContent = 'ACE ' + (ace[idx] >= 0 ? '+' : '') + ace[idx].toFixed(1) + ' MW';
-        }
-        if (s === steps) {
-          if (dot) dot.style.opacity = '0';
-          scope.dataset.replaying = '0';
-        }
-      }, s * stepMs);
-    })(s);
-  }
-};
-</script>'''
-
-
-def render_activation_card(summary: dict, product_label: str) -> str:
-    ace_chart = _ace_replay_chart(summary, product_label)
-    platform, fat = _FAT_BY_PRODUCT.get(product_label, ("", ""))
-    fat_badge = (
-        f'<span style="background:{theme.INK_MUTED}22; color:{theme.INK_SECONDARY}; font-size:10.5px; '
-        f'padding:2px 8px; border-radius:5px; font-weight:500; white-space:nowrap; margin-left:8px;">'
-        f'{platform} platform &middot; FAT {fat} (EBGL standard product)</span>'
-        if platform else ""
-    )
+    net_color = theme.STATUS_CRITICAL if (im["net_eur"] or 0) < 0 else theme.STATUS_GOOD
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Delivery</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:12px; padding:3px 10px; border-radius:6px; font-weight:500;">Activated</span>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Mechanism</span>
+      <span style="background:{theme.INK_MUTED}22; color:{theme.INK_SECONDARY}; font-size:11.5px; padding:3px 10px; border-radius:6px; font-weight:500;">Real settlement + illustrative reference price</span>
     </div>
-    <div style="display:flex; align-items:center; margin-bottom:2px;">
-      <span style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY};">{_html.escape(product_label)} activation response</span>
-      {fat_badge}
-    </div>
-    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">{summary['n_isp']} of 96 ISPs activated &middot; decided {_html.escape(summary['timestamp'])}</p>
-    <div style="display:flex; gap:10px;">
-      <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.6rem 0.8rem; flex:1; border:1px solid {theme.GRIDLINE};">
-        <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Activation revenue</p>
-        <p style="font-size:18px; font-weight:500; margin:0;">&euro;{summary['revenue_eur']:,.0f}</p>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Imbalance settlement</div>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 4px;">Deviating from the day-ahead schedule settles at a different buy price and sell price, not the DA price &mdash; that asymmetry is the mechanism.</p>
+    <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">decided {_html.escape(im['timestamp'])}</p>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.55rem 0.75rem; flex:1; border:1px solid {theme.GRIDLINE};">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Net imbalance settlement</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{net_color};">{'-' if (im['net_eur'] or 0) < 0 else ''}&euro;{abs(im['net_eur'] or 0):,.0f}</p>
       </div>
-      <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.6rem 0.8rem; flex:1; border:1px solid {theme.GRIDLINE};">
-        <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Energy up / down</p>
-        <p style="font-size:18px; font-weight:500; margin:0;">{summary['up_mwh']:.1f} / {summary['dn_mwh']:.1f} MWh</p>
+      <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.55rem 0.75rem; flex:1; border:1px solid {theme.GRIDLINE};">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Total imbalance volume</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{im['total_imbalance_mwh'] or 0:.1f} MWh</p>
+      </div>
+      <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.55rem 0.75rem; flex:1; border:1px solid {theme.GRIDLINE};">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Long ISPs / short ISPs</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{n_long} / {n_short}</p>
       </div>
     </div>
-    {ace_chart}
+    <div class="imb-chart-block" style="position:relative; height:{total_h*0.92:.0f}px;">
+      <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+        <text x="{x0}" y="14" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Imbalance (MW)</text>
+        <line x1="{x0}" y1="{imb_mid_y - imb_half:.1f}" x2="{x1}" y2="{imb_mid_y - imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        <line x1="{x0}" y1="{imb_mid_y:.1f}" x2="{x1}" y2="{imb_mid_y:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.2"/>
+        <line x1="{x0}" y1="{imb_mid_y + imb_half:.1f}" x2="{x1}" y2="{imb_mid_y + imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        <text x="{x0-6}" y="{imb_mid_y-imb_half+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{imb_max:.1f}</text>
+        <text x="{x0-6}" y="{imb_mid_y+4:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="700" text-anchor="end">0</text>
+        <text x="{x0-6}" y="{imb_mid_y+imb_half+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{imb_max:.1f}</text>
+        <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>
+        <path d="{neg_path}" fill="{theme.COLOR_DOWN}" fill-opacity="0.4"/>
+        <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.8"/>
+        <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="1.8"/>
+
+        <text x="{x0}" y="{price_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Reference price &mdash; illustrative (EUR/MWh)</text>
+        <line x1="{x0}" y1="{price_top:.1f}" x2="{x1}" y2="{price_top:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        <line x1="{x0}" y1="{price_bot:.1f}" x2="{x1}" y2="{price_bot:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
+        <text x="{x0-6}" y="{price_top+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{price_max:.0f}</text>
+        <text x="{x0-6}" y="{price_bot+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0</text>
+        <path d="M{fx(0):.1f},{price_y(short_price[0] if short_price else 0):.1f} L{short_pts}" fill="none" stroke="{theme.STATUS_CRITICAL}" stroke-width="1.8"/>
+        <path d="M{fx(0):.1f},{price_y(long_price[0] if long_price else 0):.1f} L{long_pts}" fill="none" stroke="{theme.STATUS_GOOD}" stroke-width="1.8"/>
+
+        {_hover_svg_elems("imb", x0, x1, total_h, 3)}
+      </svg>
+      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="imb-tooltip"')}
+    </div>
+    <div style="display:flex; gap:14px; margin-top:8px;">
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Long (over-delivered)</span>
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Short (under-delivered)</span>
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.STATUS_CRITICAL}; margin-right:4px; vertical-align:middle;"></span>Short price (buy back)</span>
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.STATUS_GOOD}; margin-right:4px; vertical-align:middle;"></span>Long price (sell)</span>
+    </div>
+    <div style="background:{theme.STATUS_WARNING}22; border-left:3px solid {theme.STATUS_WARNING}; padding:6px 10px; margin-top:10px;">
+      <span style="font-size:11px; color:{theme.INK_PRIMARY}; font-weight:500;">Short price &gt; long price by design (see config: fallback_short_factor 1.20x DA, fallback_long_factor 0.85x DA) &mdash; that gap is what makes deviating from your schedule a net cost, not a coin flip.</span>
+    </div>
+    {_HOVER_CROSSHAIR_SCRIPT}
+    <script>
+    (function() {{
+      var block = document.querySelector('.imb-chart-block');
+      if (block) {{ dtHoverInit(block, {hover_cfg}); }}
+    }})();
+    </script>
   </div>
-</div>
-{_REPLAY_STYLE}
-{_ACE_REPLAY_SCRIPT}'''
+</div>'''
 
 
 _AGC_REPLAY_SCRIPT = '''

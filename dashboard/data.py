@@ -35,6 +35,7 @@ from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
 from common_layer.optimisation_model.agc_mechanism_demo import simulate_agc_dispatch  # noqa: E402
+from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices_isp  # noqa: E402
 
 
 @st.cache_data
@@ -642,6 +643,56 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
         "max_deviation_mw": max_dev,
         "timestamp": done.get("timestamp_cet", "")[:19],
         "rows": sorted(rows, key=lambda r: r["isp"]),
+    }
+
+
+def load_imbalance_settlement(delivery_date: str) -> dict | None:
+    """Phase 5C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
+    whatever price source that run actually used -- REN live or the
+    DA-multiplier fallback, see ren_imbalance_price_loader.py) plus a
+    per-ISP chart built from data already loaded elsewhere on this page:
+    imbalance MW is the exact same actual_mw - scheduled_mw DeliveryStore
+    trace the 'ISP dispatch' deviation-strip widget shows (not
+    recomputed differently), and the short/long reference price line is
+    the LOCAL fallback formula (DA forecast x cfg.market.imbalance's
+    configured factors) -- illustrative of the dual-pricing MECHANISM
+    (why a deviation costs more to buy back than it earns to sell), not
+    a claim that this is the exact price the real settlement used that
+    day. Deliberately does NOT call ren_imbalance_price_loader's live
+    REN API from a dashboard page render (network call, 15s timeout, not
+    reproducible across reruns) -- same reasoning FCR/ACE keep their
+    signals synthetic-but-honestly-labelled rather than fetching live
+    grid data into every page load."""
+    events = load_audit_events(delivery_date, "IMBALANCE_")
+    done = next((e for e in reversed(events) if e.get("event") == "IMBALANCE_SETTLED"), None)
+    if done is None:
+        return None
+    anchor = _da_anchor(delivery_date)
+    if anchor is not None and done.get("timestamp_cet", "") < anchor:
+        return None
+    rt = load_rt_delivery(delivery_date)
+    if rt is None:
+        return None
+    rows = rt["rows"]
+    isps = [r["isp"] for r in rows]
+    imbalance_mw = [r["actual_mw"] - r["scheduled_mw"] for r in rows]
+
+    cfg = load_config()
+    day = du.parse_date(delivery_date)
+    da = forecast_da_prices_isp(isps, delivery_date)
+    imb = cfg.market.imbalance
+    short_price = [round(da[isp] * imb.fallback_short_factor, 2) for isp in isps]
+    long_price = [round(da[isp] * imb.fallback_long_factor, 2) for isp in isps]
+
+    return {
+        "isps": isps,
+        "hours": [du.isp_to_hour(isp, day) for isp in isps],
+        "imbalance_mw": imbalance_mw,
+        "short_price": short_price,
+        "long_price": long_price,
+        "net_eur": done.get("net_eur"),
+        "total_imbalance_mwh": done.get("total_mwh"),
+        "timestamp": done.get("timestamp_cet", "")[:19],
     }
 
 

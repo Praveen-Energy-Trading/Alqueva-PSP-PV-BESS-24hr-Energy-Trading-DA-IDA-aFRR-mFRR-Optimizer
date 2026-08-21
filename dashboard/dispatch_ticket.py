@@ -7,6 +7,7 @@ not what was bid or settled. All data here is real solved-model output
 """
 from __future__ import annotations
 
+import html as _html
 import json as _json
 import math as _math
 
@@ -1651,7 +1652,13 @@ window.dtAfrrReplay = function(btn) {
 </script>'''
 
 
-def render_afrr_dispatch_card(dv: dict) -> str:
+_FAT_BY_PRODUCT = {
+    "aFRR": ("PICASSO", "5 min"),
+    "mFRR": ("MARI", "12.5 min"),
+}
+
+
+def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
     """Real per-ISP reserved capacity vs actual activation for aFRR (or
     mFRR), split by resource: BESS (fast responder up to its power rating,
     base of the fill) vs PSP (ramp covers the remainder, stacked on top).
@@ -1675,7 +1682,16 @@ def render_afrr_dispatch_card(dv: dict) -> str:
     Up/down colors are theme.COLOR_UP/COLOR_DOWN (aqua/magenta) -- the
     same semantic pair used everywhere else in the app that shows
     up-regulation vs down-regulation (ACE activation chart, FCR dispatch,
-    gate ticket reserve bars), not COLOR_GEN/RED."""
+    gate ticket reserve bars), not COLOR_GEN/RED.
+
+    `act` (optional) is data.py::load_activation_summary()'s dict --
+    settlement numbers (revenue, MWh, ISPs activated, decided timestamp)
+    for the SAME product/day, merged in as a stat row so this one card
+    covers both "what physically happened" and "what it settled for"
+    instead of splitting them across two separate cards (the former
+    Market & Delivery "aFRR/mFRR activation" card, which duplicated this
+    same ACE/response chart in miniature -- removed, not preserved
+    elsewhere)."""
     isps = dv["isps"]
     n = len(isps)
     product = dv["product"]
@@ -1756,6 +1772,30 @@ def render_afrr_dispatch_card(dv: dict) -> str:
     }
     payload_json = _json.dumps(payload)
 
+    # Settlement stat row -- merged in from the former standalone
+    # "activation" card (see docstring). Only rendered when act is
+    # supplied, so this function still works standalone for callers that
+    # only have the physical dispatch data.
+    stats_html = ""
+    if act is not None:
+        platform, fat = _FAT_BY_PRODUCT.get(product, ("", ""))
+        stats_html = f'''
+    <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 10px;">{act['n_isp']} of {n} ISPs activated &middot; decided {_html.escape(act['timestamp'])}</p>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Activation revenue</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">&euro;{act['revenue_eur']:,.0f}</p>
+      </div>
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Energy up / down</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{act['up_mwh']:.1f} / {act['dn_mwh']:.1f} MWh</p>
+      </div>
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+        <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Platform &middot; FAT</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{platform} &middot; {fat}</p>
+      </div>
+    </div>'''
+
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
@@ -1765,6 +1805,8 @@ def render_afrr_dispatch_card(dv: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 8px;">Area-wide ACE signal &mdash; Alqueva delivers only its own contracted share, not the full response.</p>
+    {stats_html}
 
     <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 10px; font-weight:500;">ACE deviation (top), and regulation activated at those same moments &mdash; {n} real ISPs</p>
