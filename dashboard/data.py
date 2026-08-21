@@ -34,7 +34,6 @@ from common_layer.utilities import date_utils as du  # noqa: E402
 from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
-from common_layer.optimisation_model.agc_mechanism_demo import simulate_agc_dispatch  # noqa: E402
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices_isp  # noqa: E402
 
 
@@ -1294,44 +1293,6 @@ def load_da_vs_activation(delivery_date: str) -> dict | None:
         "activation_delta_mw": activation_delta_mw,
         "delivered_mw": delivered_mw,
         "any_activation": any_activation,
-    }
-
-
-@st.cache_data(ttl=5)
-def load_agc_mechanism_demo(delivery_date: str, product: str) -> dict | None:
-    """Illustrative, standalone AGC merit-order dispatch demo (see
-    agc_mechanism_demo.py) -- NOT settlement data, purely explains the
-    mechanism behind the real activation numbers shown elsewhere. Gated on
-    the same activation summary existing so it doesn't appear before real
-    delivery data does."""
-    if load_activation_summary(delivery_date, product) is None:
-        return None
-    cfg = load_config()
-    ticks = simulate_agc_dispatch(product, delivery_date, cfg)
-    if not ticks:
-        return None
-    provider_names = [p.name for p in ticks[0].providers]
-    dispatched_by_provider = {
-        name: [round(next(p.dispatched_mw for p in t.providers if p.name == name), 2) for t in ticks]
-        for name in provider_names
-    }
-    capacity_by_provider = {
-        name: [round(next(p.capacity_mw for p in t.providers if p.name == name), 1) for t in ticks]
-        for name in provider_names
-    }
-    price_by_provider = {
-        name: [round(next(p.price_eur_mw for p in t.providers if p.name == name), 1) for t in ticks]
-        for name in provider_names
-    }
-    return {
-        "provider_names": provider_names,
-        "ace_mw": [round(t.ace_mw, 1) for t in ticks],
-        "required_mw": [round(t.required_mw, 1) for t in ticks],
-        "direction": [t.direction for t in ticks],
-        "dispatched_by_provider": dispatched_by_provider,
-        "capacity_by_provider": capacity_by_provider,
-        "price_by_provider": price_by_provider,
-        "alqueva_dispatched_mw": [round(t.alqueva_dispatched_mw, 2) for t in ticks],
     }
 
 

@@ -172,8 +172,6 @@ def _render() -> None:
     afrr_act = data.load_activation_summary(selected_date, "aFRR")
     mfrr_act = data.load_activation_summary(selected_date, "mFRR")
     fcr_act = data.load_fcr_activation(selected_date)
-    afrr_agc = data.load_agc_mechanism_demo(selected_date, "aFRR")
-    mfrr_agc = data.load_agc_mechanism_demo(selected_date, "mFRR")
     reservoir_traj = data.load_reservoir_trajectory(selected_date)
     pv_routing = data.load_pv_routing(selected_date)
     multi_asset = data.load_multi_asset_dispatch(selected_date)
@@ -184,33 +182,30 @@ def _render() -> None:
     isp_dispatch = data.load_isp_dispatch(selected_date)
     afrr_dispatch = data.load_afrr_dispatch(selected_date, "aFRR")
     mfrr_dispatch = data.load_afrr_dispatch(selected_date, "mFRR")
-    market_cards = [
-        ("Imbalance settlement", lambda: components.html(delivery_ticket.render_imbalance_settlement_card(imbalance), height=560)) if imbalance else None,
-        ("Capacity vs activation", lambda: components.html(delivery_ticket.render_capacity_vs_activation_card(capacity_vs_activation), height=340)) if capacity_vs_activation else None,
-        ("What is a BRP", lambda: components.html(delivery_ticket.render_brp_explainer_card(), height=300)),
-        ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=497)) if afrr_agc else None,
-        ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=497)) if mfrr_agc else None,
-    ]
     # aFRR/mFRR dispatch cards now carry the settlement stat row (revenue,
     # MWh, ISPs activated) formerly shown on their own separate "activation"
     # card in Market & Delivery -- that card's mini ACE/response chart just
     # duplicated this one in less detail. Taller container heights (650 vs
     # the old 520) account for the added stat row + caption.
+    # Logical order (not the order these were added in): physical resources
+    # -> storage -> aggregate dispatch -> real-time delivery accuracy ->
+    # financial consequence -> reserve products -> reserve revenue summary.
     technical_cards = [
-        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
         ("Reservoir trajectory", lambda: components.html(dispatch_ticket.render_reservoir_trajectory_card(reservoir_traj), height=560)) if reservoir_traj else None,
-        ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
-        ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
         ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=390)) if water_balance else None,
-        ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=400)) if bess_soc_price else None,
+        ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
         ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
-        ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
+        ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=400)) if bess_soc_price else None,
+        ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
         ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
+        ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
+        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
+        ("Imbalance settlement", lambda: components.html(delivery_ticket.render_imbalance_settlement_card(imbalance), height=560)) if imbalance else None,
         ("aFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch, afrr_act), height=650)) if afrr_dispatch else None,
         ("mFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch, mfrr_act), height=650)) if mfrr_dispatch else None,
         ("FCR dispatch", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=460)) if fcr_act else None,
+        ("Capacity vs activation", lambda: components.html(delivery_ticket.render_capacity_vs_activation_card(capacity_vs_activation), height=340)) if capacity_vs_activation else None,
     ]
-    market_cards = [c for c in market_cards if c is not None]
     technical_cards = [c for c in technical_cards if c is not None]
 
     # Plain st.tabs has no session_state key, so its selected tab is pure
@@ -243,7 +238,6 @@ def _render() -> None:
         st.markdown("---")
 
 
-    _render_section("Market & Delivery", market_cards, "overview_market_tab")
     _render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
 
     # ---------------------------------------------------------------------------
