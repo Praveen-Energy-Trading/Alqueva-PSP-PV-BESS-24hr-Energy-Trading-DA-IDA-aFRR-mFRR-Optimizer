@@ -187,6 +187,7 @@ def _render() -> None:
     market_cards = [
         ("Imbalance settlement", lambda: components.html(delivery_ticket.render_imbalance_settlement_card(imbalance), height=560)) if imbalance else None,
         ("Capacity vs activation", lambda: components.html(delivery_ticket.render_capacity_vs_activation_card(capacity_vs_activation), height=340)) if capacity_vs_activation else None,
+        ("What is a BRP", lambda: components.html(delivery_ticket.render_brp_explainer_card(), height=300)),
         ("aFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(afrr_agc, "aFRR"), height=497)) if afrr_agc else None,
         ("mFRR AGC mechanism", lambda: components.html(delivery_ticket.render_agc_mechanism_card(mfrr_agc, "mFRR"), height=497)) if mfrr_agc else None,
     ]

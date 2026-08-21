@@ -356,6 +356,57 @@ def render_capacity_vs_activation_card(cv: dict) -> str:
 </div>'''
 
 
+def render_brp_explainer_card() -> str:
+    """Conceptual, not data-driven -- purely explains WHY the imbalance
+    settlement mechanism above exists: every generator is its own Balance
+    Responsible Party (or delegates to one), contractually on the hook for
+    any gap between its submitted schedule and its actual delivery. No
+    real numbers to gate on, so unlike every other card in this module
+    this one always renders -- it's context for the Imbalance settlement
+    card, not a report on today's data."""
+    steps = [
+        ("1", "Submit DA schedule", theme.COLOR_GEN,
+         "The day before delivery, commit to a MW position for every hour."),
+        ("2", "Deliver against it", theme.COLOR_UP,
+         "Physically dispatch the plant to match that committed schedule."),
+        ("3", "Settle any deviation", theme.STATUS_CRITICAL,
+         "Any gap settles through imbalance pricing, not the DA price."),
+    ]
+    arrow = f'<span style="font-size:18px; color:{theme.INK_MUTED}; margin:0 4px; flex-shrink:0;">&rarr;</span>'
+    boxes = [
+        f'''
+      <div style="flex:1; text-align:center;">
+        <div style="background:{color}18; border-radius:8px; padding:10px 8px;">
+          <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:{color}; color:white; font-size:12px; font-weight:600;">{n}</span>
+          <p style="font-size:12.5px; font-weight:500; color:{theme.INK_PRIMARY}; margin:6px 0 3px;">{label}</p>
+          <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0; line-height:1.4;">{desc}</p>
+        </div>
+      </div>'''
+        for n, label, color, desc in steps
+    ]
+    step_html = arrow.join(boxes)
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Mechanism</span>
+      <span style="background:{theme.INK_MUTED}22; color:{theme.INK_SECONDARY}; font-size:11.5px; padding:3px 10px; border-radius:6px; font-weight:500;">Conceptual, not settlement data</span>
+    </div>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:8px;">What is a Balance Responsible Party</div>
+    <p style="font-size:13.5px; color:{theme.INK_SECONDARY}; line-height:1.65; margin:0 0 18px;">
+      Every generator must submit a schedule the day before delivery and is financially responsible for any deviation from it &mdash;
+      that's the Balance Responsible Party (BRP) role. Alqueva is its own BRP: it doesn't need a separate aggregator, and any gap
+      between what it planned and what it delivered settles through the imbalance mechanism (see the Imbalance settlement card).
+    </p>
+    <div style="display:flex; align-items:center;">
+      {step_html}
+    </div>
+  </div>
+</div>'''
+
+
 _AGC_REPLAY_SCRIPT = '''
 <script>
 window.dtAgcReplay = function(btn) {
