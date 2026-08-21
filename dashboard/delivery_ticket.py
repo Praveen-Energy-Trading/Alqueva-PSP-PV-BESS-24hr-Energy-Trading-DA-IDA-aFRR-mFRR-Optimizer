@@ -106,9 +106,9 @@ def _deviation_strip(rows: list[dict], plot_x0: float, plot_x1: float, max_dev: 
         {_hover_svg_elems("dt-strip", plot_x0, plot_x1, 100, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="dt-strip-tooltip"')}
-      <div style="position:absolute; left:0; top:0; font-size:12px; color:{theme.INK_MUTED};">+{max_label}</div>
-      <div style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">0</div>
-      <div style="position:absolute; left:0; bottom:0; font-size:12px; color:{theme.INK_MUTED};">-{max_label}</div>
+      <div style="position:absolute; left:0; top:0; font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">+{max_label}</div>
+      <div style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">0</div>
+      <div style="position:absolute; left:0; bottom:0; font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">-{max_label}</div>
     </div>
     <div style="display:flex; gap:14px; margin-top:2px;">
       <span style="font-size:11px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Over-delivered</span>
@@ -263,12 +263,12 @@ def _ace_replay_chart(summary: dict, product: str) -> str:
           <defs><clipPath id="ace-clip-{product}"><rect id="ace-clip-rect-{product}" x="0" y="0" width="0" height="{total_h:.0f}"/></clipPath></defs>
           <line x1="{x0}" y1="{a_mid_y}" x2="{x1}" y2="{a_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
           <line x1="{x0}" y1="{b_mid_y}" x2="{x1}" y2="{b_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-          <text x="{x0-4}" y="{a_mid_y-a_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">+{ace_max:.0f}</text>
-          <text x="{x0-4}" y="{a_mid_y+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
-          <text x="{x0-4}" y="{a_mid_y+a_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">-{ace_max:.0f}</text>
-          <text x="{x0-4}" y="{b_mid_y-b_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">+{ref_mw:.0f}</text>
-          <text x="{x0-4}" y="{b_mid_y+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
-          <text x="{x0-4}" y="{b_mid_y+b_half+3:.1f}" font-size="8" fill="{theme.INK_MUTED}" text-anchor="end">-{ref_mw:.0f}</text>
+          <text x="{x0-4}" y="{a_mid_y-a_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{ace_max:.0f}</text>
+          <text x="{x0-4}" y="{a_mid_y+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 MW</text>
+          <text x="{x0-4}" y="{a_mid_y+a_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{ace_max:.0f}</text>
+          <text x="{x0-4}" y="{b_mid_y-b_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{ref_mw:.0f}</text>
+          <text x="{x0-4}" y="{b_mid_y+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 MW</text>
+          <text x="{x0-4}" y="{b_mid_y+b_half+3:.1f}" font-size="10" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{ref_mw:.0f}</text>
           <g clip-path="url(#ace-clip-{product})">
             <path d="M{fx(0):.1f},{ay(ace[0] if ace else 0):.1f} L{ace_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="1.5"/>
             <path d="{pos_path}" fill="{theme.COLOR_UP}" fill-opacity="0.4"/>

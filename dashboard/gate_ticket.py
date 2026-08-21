@@ -150,9 +150,9 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int, str]:
         f'<span style="font-size:12px; color:{theme.INK_MUTED};">{hours[idx]}</span>' for idx in tick_idxs
     )
     overlay = f'''
-      <div style="position:absolute; left:0; top:{_y_pct(plot_y0):.1f}%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">{max_label}</div>
-      <div style="position:absolute; left:0; top:{_y_pct(zero_y):.1f}%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">0</div>
-      <div style="position:absolute; left:0; top:{_y_pct(plot_y1):.1f}%; transform:translateY(-50%); font-size:12px; color:{theme.INK_MUTED};">-{max_label}</div>
+      <div style="position:absolute; left:0; top:{_y_pct(plot_y0):.1f}%; transform:translateY(-50%); font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">{max_label}</div>
+      <div style="position:absolute; left:0; top:{_y_pct(zero_y):.1f}%; transform:translateY(-50%); font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">0</div>
+      <div style="position:absolute; left:0; top:{_y_pct(plot_y1):.1f}%; transform:translateY(-50%); font-size:12px; font-weight:600; color:{theme.INK_PRIMARY};">-{max_label}</div>
     '''
     hour_row = f'<div style="display:flex; justify-content:space-between; margin-top:4px;">{hour_labels}</div>'
     overlay = hover_tooltip + overlay

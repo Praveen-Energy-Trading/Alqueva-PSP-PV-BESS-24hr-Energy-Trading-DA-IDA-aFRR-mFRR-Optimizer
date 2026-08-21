@@ -315,8 +315,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
           <path d="{upper_fill}" fill="{theme.COLOR_GEN}" fill-opacity="0.3" stroke="{theme.COLOR_GEN}" stroke-width="2.5"/>
         </g>
         <line x1="{x0}" y1="{terminal_y:.1f}" x2="{x1}" y2="{terminal_y:.1f}" stroke="{theme.STATUS_WARNING}" stroke-width="1" stroke-dasharray="4,3"/>
-        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{u_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{u_min:,.0f}</text>
+        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_max:,.0f}</text>
+        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_min:,.0f}</text>
         {_hover_svg_elems("res-a", x0, x1, 76, 1)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
@@ -332,8 +332,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
         <g clip-path="url(#res-clip-b)">
           <path d="{lower_fill}" fill="{theme.COLOR_PUMP}" fill-opacity="0.3" stroke="{theme.COLOR_PUMP}" stroke-width="2.5"/>
         </g>
-        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{l_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">{l_min:,.0f}</text>
+        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_max:,.0f}</text>
+        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_min:,.0f}</text>
         {_hover_svg_elems("res-b", x0, x1, 76, 1)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
@@ -1715,17 +1715,19 @@ def render_afrr_dispatch_card(dv: dict) -> str:
             val = frac * vmax
             is_zero = val == 0
             label = "0" if is_zero else f"{val:+.0f}{unit_suffix}"
-            # The 0 tick sits exactly on the boundary between the red
-            # (down) and sky-blue (up) fill areas -- muted gray there reads
-            # as tinted by whichever fill is more prominent that day, so it
-            # gets a distinct near-black/neutral color and a bolder line
-            # instead of blending into either direction's color.
+            # All axis numbers use INK_PRIMARY (near-black), not the lighter
+            # INK_MUTED/INK_SECONDARY reserved for de-emphasized captions --
+            # axis numbers are information a reader has to actually read,
+            # and anything short of near-black is too low-contrast at these
+            # small chart font sizes to read comfortably. The 0 tick gets a
+            # bolder line/weight on top of that so it still stands out from
+            # the +/-max ticks despite sharing the same color now.
             line_stroke = theme.INK_PRIMARY if is_zero else theme.GRIDLINE
-            text_fill = theme.INK_PRIMARY if is_zero else theme.INK_MUTED
+            text_fill = theme.INK_PRIMARY
             weight = 1.4 if is_zero else 1.0
             out.append(
                 f'<line x1="{x0}" y1="{y:.1f}" x2="{x1}" y2="{y:.1f}" stroke="{line_stroke}" stroke-width="{weight}"/>'
-                f'<text x="{x0-8}" y="{y+4:.1f}" font-size="11" fill="{text_fill}" text-anchor="end" font-weight="{"700" if is_zero else "400"}">{label}</text>'
+                f'<text x="{x0-8}" y="{y+4:.1f}" font-size="11" fill="{text_fill}" text-anchor="end" font-weight="{"700" if is_zero else "600"}">{label}</text>'
             )
         return "".join(out)
 
@@ -1986,13 +1988,13 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
         <line x1="{x0}" y1="{f_mid_y}" x2="{x1}" y2="{f_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{r_mid_y}" x2="{x1}" y2="{r_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
 
-        <text x="{x0-6}" y="{f_mid_y-f_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">+{freq_scale:.0f}</text>
-        <text x="{x0-6}" y="{f_mid_y+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">0 mHz</text>
-        <text x="{x0-6}" y="{f_mid_y+f_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">-{freq_scale:.0f}</text>
+        <text x="{x0-6}" y="{f_mid_y-f_half+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{freq_scale:.0f}</text>
+        <text x="{x0-6}" y="{f_mid_y+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 mHz</text>
+        <text x="{x0-6}" y="{f_mid_y+f_half+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{freq_scale:.0f}</text>
 
-        <text x="{x0-6}" y="{r_mid_y-r_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">+{headroom:.1f}</text>
-        <text x="{x0-6}" y="{r_mid_y+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">0 MW</text>
-        <text x="{x0-6}" y="{r_mid_y+r_half+3:.1f}" font-size="12" fill="{theme.INK_MUTED}" text-anchor="end">-{headroom:.1f}</text>
+        <text x="{x0-6}" y="{r_mid_y-r_half+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">+{headroom:.1f}</text>
+        <text x="{x0-6}" y="{r_mid_y+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">0 MW</text>
+        <text x="{x0-6}" y="{r_mid_y+r_half+3:.1f}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">-{headroom:.1f}</text>
 
         <g clip-path="url(#fcrd-clip)">
           <path d="M{fx(0):.1f},{fy(freq[0]):.1f} L{freq_pts}" fill="none" stroke="{theme.COLOR_PRICE}" stroke-width="2.3"/>
