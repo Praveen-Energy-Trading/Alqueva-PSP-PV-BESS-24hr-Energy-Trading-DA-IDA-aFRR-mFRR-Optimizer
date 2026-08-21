@@ -157,6 +157,7 @@ pages = {
         st.Page("pages/2_trading_desk.py", title="Trading Desk", icon="💰"),
         st.Page("pages/3_decision_rationale.py", title="Decision Rationale", icon="🧭"),
         st.Page("pages/4_risk_constraints.py", title="Risk & Constraints", icon="⚠️"),
+        st.Page("pages/8_pipeline_flowchart.py", title="Pipeline Flowchart", icon="🔀"),
     ],
     "Analyse": [
         st.Page("pages/5_backtest_risk.py", title="Backtest & Portfolio Risk", icon="📈"),
