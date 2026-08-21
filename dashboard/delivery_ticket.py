@@ -306,6 +306,56 @@ def render_imbalance_settlement_card(im: dict) -> str:
 </div>'''
 
 
+def render_capacity_vs_activation_card(cv: dict) -> str:
+    """Two separate real payments per reserve product, side by side: paid
+    for OFFERING the reserve (capacity, whether or not the TSO ever calls
+    it) vs paid only for MW actually DELIVERED when called (activation /
+    energy). See data.py::load_capacity_vs_activation for exactly which
+    real audit fields feed each bar -- nothing here is illustrative or
+    invented, both numbers are the same ones already shown elsewhere
+    (gate ticket capacity revenue, activation card revenue), just placed
+    next to each other so the split itself -- the concept a newcomer to
+    reserve markets most needs -- is visible at a glance."""
+    rows = cv["rows"]
+    max_total = max((r["capacity_eur"] + r["activation_eur"] for r in rows), default=0.0) or 1.0
+
+    bar_rows = []
+    for r in rows:
+        total = r["capacity_eur"] + r["activation_eur"]
+        cap_pct = (r["capacity_eur"] / max_total) * 100
+        act_pct = (r["activation_eur"] / max_total) * 100
+        total_label = "&euro;0 (mandatory, unpaid)" if total < 1e-6 else f"&euro;{total:,.0f} total"
+        bar_rows.append(f'''
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:12.5px; color:{theme.INK_SECONDARY}; margin-bottom:4px;">
+            <span style="font-weight:500; color:{theme.INK_PRIMARY};">{_html.escape(r['product'])}</span>
+            <span>{total_label}</span>
+          </div>
+          <div style="height:18px; background:{theme.GRIDLINE}; border-radius:4px; display:flex; overflow:hidden;">
+            <div style="width:{cap_pct:.2f}%; height:100%; background:{theme.COLOR_GEN};" title="Capacity"></div>
+            <div style="width:{act_pct:.2f}%; height:100%; background:{theme.COLOR_UP};" title="Activation"></div>
+          </div>
+        </div>''')
+
+    return f'''
+<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
+              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Mechanism</span>
+      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:11.5px; padding:3px 10px; border-radius:6px; font-weight:500;">Real revenue, both halves</span>
+    </div>
+    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Capacity vs activation revenue</div>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 16px;">Two separate payments per reserve product: paid for being available, paid again only when actually called.</p>
+    {''.join(bar_rows)}
+    <div style="display:flex; gap:14px; margin-top:6px;">
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Capacity (availability)</span>
+      <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Activation (energy)</span>
+    </div>
+  </div>
+</div>'''
+
+
 _AGC_REPLAY_SCRIPT = '''
 <script>
 window.dtAgcReplay = function(btn) {
