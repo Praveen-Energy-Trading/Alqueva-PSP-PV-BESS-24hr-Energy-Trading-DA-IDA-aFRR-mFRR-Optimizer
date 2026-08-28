@@ -1,12 +1,14 @@
 {
   "selected": "XGBoost",
   "cv_mae": {
-    "LightGBM": 17.2764,
-    "XGBoost": 16.7946,
-    "RandomForest": 18.4567,
-    "CatBoost": 17.7483
+    "LightGBM": 17.6606,
+    "XGBoost": 16.9773,
+    "RandomForest": 18.9341,
+    "CatBoost": 17.6286,
+    "ARIMA": 92.8063,
+    "GARCH": 287.3047
   },
-  "data_end_date": "2026-08-16",
-  "updated_on": "2026-08-17",
+  "data_end_date": "2026-08-24",
+  "updated_on": "2026-08-28",
   "resolution": "15min_ISP"
 }

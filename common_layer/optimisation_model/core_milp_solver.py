@@ -27,7 +27,7 @@ from pyomo.core import Constraint
 from pyomo.opt import SolverFactory, TerminationCondition, SolverStatus
 
 from common_layer.configuration.config_loader import AppConfig
-from common_layer.optimisation_model.core_milp_builder import CoreModelMeta
+from common_layer.optimisation_model.core_milp_builder import CoreModelMeta, StochasticModelMeta
 
 # Termination conditions we accept as a usable solution (classic interface).
 _OK_TERMS = {TerminationCondition.optimal, TerminationCondition.feasible,
@@ -273,6 +273,103 @@ def extract_results(model: pyo.ConcreteModel, meta: CoreModelMeta) -> GateResult
         reservoir_trajectory=res_traj,
         efficiency_per_hour=eff_ph,
         energy_revenue_eur=energy_rev,
+        objective_eur=v(model.objective),
+    )
+
+
+@dataclass
+class StochasticGateResults:
+    """Two-stage stochastic extraction: first-stage bid (shared across
+    scenarios) plus a per-scenario recourse breakdown and expected-value
+    summary stats."""
+    net_position_mw: Dict[int, float]          # {hour: MW} — first stage, ONE value per hour
+    da_bids: Dict[int, dict]                   # {hour: {volume_mwh, expected_price_eur_mwh}}
+    scenario_probabilities: Dict[int, float]
+    scenario_prices: Dict[int, Dict[int, float]]
+    per_scenario_dispatch: Dict[int, dict]      # {s: {h: {psp, bess, pv, reservoir}}}
+    per_scenario_revenue_eur: Dict[int, float]  # {s: realised energy revenue if s occurs}
+    expected_energy_revenue_eur: float
+    objective_eur: float                        # probability-weighted, as solved
+
+
+def extract_stochastic_results(
+    model: pyo.ConcreteModel, meta: StochasticModelMeta,
+) -> StochasticGateResults:
+    """Pull a solved two-stage stochastic model into plain dicts.
+
+    Mirrors extract_results() in shape/spirit, but net_position_mw / da_bids
+    carry the single shared first-stage bid, while per_scenario_dispatch
+    carries the scenario-indexed recourse (physically distinct per scenario
+    since dispatch adapts to whichever price actually shows up).
+    """
+    H, U, S, dt = meta.hours, meta.units, meta.scenarios, meta.dt_h
+    v = pyo.value
+
+    net_pos: Dict[int, float] = {h: v(model.p_net[h]) for h in H}
+
+    expected_price: Dict[int, float] = {
+        h: sum(meta.probabilities[s] * meta.scenario_prices[s][h] for s in S)
+        for h in H
+    }
+    da_bids: Dict[int, dict] = {
+        h: {"volume_mwh": net_pos[h] * dt, "expected_price_eur_mwh": expected_price[h]}
+        for h in H
+    }
+
+    per_scenario_dispatch: Dict[int, dict] = {}
+    per_scenario_revenue: Dict[int, float] = {}
+    for s in S:
+        by_hour: Dict[int, dict] = {}
+        rev = 0.0
+        for h in H:
+            psp = {
+                "turbine_mw": sum(v(model.p_turb[u, h, s]) for u in U),
+                "pump_mw": sum(v(model.p_pump[u, h, s]) for u in U),
+                "units_turbine": [v(model.p_turb[u, h, s]) for u in U],
+                "units_pump": [v(model.p_pump[u, h, s]) for u in U],
+                "units_on_turb": [round(v(model.on_turb[u, h, s])) for u in U],
+                "units_on_pump": [round(v(model.on_pump[u, h, s])) for u in U],
+                "units_q_turb": [v(model.q_turb[u, h, s]) for u in U],
+                "units_q_pump": [v(model.q_pump[u, h, s]) for u in U],
+                "q_turb_total_m3h": sum(v(model.q_turb[u, h, s]) for u in U),
+                "q_pump_total_m3h": sum(v(model.q_pump[u, h, s]) for u in U),
+            }
+            pv_to_bess = v(model.pv_to_bess[h, s])
+            charge_mw = v(model.p_chg[h, s])
+            bess = {
+                "charge_mw": charge_mw,
+                "pv_to_bess_mw": pv_to_bess,
+                "total_charge_mw": charge_mw + pv_to_bess,
+                "discharge_mw": v(model.p_dis[h, s]),
+                "soc_mwh": v(model.soc[h, s]),
+            }
+            pv = {
+                "used_mw": v(model.pv_used[h, s]),
+                "to_bess_mw": pv_to_bess,
+                "curtailed_mw": v(model.pv_curt[h, s]),
+                "available_mw": meta.pv_available[h],
+            }
+            reservoir = {
+                "upper_hm3": v(model.v_up[h, s]),
+                "lower_hm3": v(model.v_low[h, s]),
+                "spill_m3h": v(model.spill[h, s]),
+                "head_m": v(model.H_net[h, s]),
+            }
+            by_hour[h] = {"psp": psp, "bess": bess, "pv": pv, "reservoir": reservoir}
+            rev += meta.scenario_prices[s][h] * net_pos[h] * dt
+        per_scenario_dispatch[s] = by_hour
+        per_scenario_revenue[s] = rev
+
+    expected_revenue = sum(meta.probabilities[s] * per_scenario_revenue[s] for s in S)
+
+    return StochasticGateResults(
+        net_position_mw=net_pos,
+        da_bids=da_bids,
+        scenario_probabilities=dict(meta.probabilities),
+        scenario_prices=meta.scenario_prices,
+        per_scenario_dispatch=per_scenario_dispatch,
+        per_scenario_revenue_eur=per_scenario_revenue,
+        expected_energy_revenue_eur=expected_revenue,
         objective_eur=v(model.objective),
     )
 

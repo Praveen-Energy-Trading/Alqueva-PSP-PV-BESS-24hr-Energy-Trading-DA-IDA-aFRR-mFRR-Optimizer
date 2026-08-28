@@ -13,10 +13,26 @@ PyYAML>=6.0           # config files
 openpyxl>=3.1         # Excel report export
 requests>=2.31        # live OMIE / REN data loaders (live mode only)
 
+# DA/IDA/PV/inflow forecasters (ml_train_val_test_common.py) — multi-model
+# walk-forward-CV comparison across all four; lazily imported per-model so
+# any one being absent only breaks that model's candidacy, not the whole
+# pipeline, but all four are required for the full model-selection sweep.
+scikit-learn>=1.4     # RandomForestRegressor baseline
+xgboost>=2.0
+lightgbm>=4.3
+catboost>=1.2
+
+# DA price forecaster only (see ml_train_val_test_common.py DA_MODEL_NAMES):
+# classical econometric candidates alongside the boosting/ensemble models above.
+statsmodels>=0.14     # ARIMA
+arch>=6.3              # GARCH (AR-mean / GARCH-volatility)
+
+# Test suite (tests/, pytest.ini-style discovery via conftest.py).
+pytest>=8.0
+
 # Dashboard (dashboard/app.py) — reads runtime/reports + runtime/logs + figures/output,
 # does not run the pipeline itself.
-streamlit>=1.38
+streamlit>=1.51
 plotly>=5.24
-streamlit-autorefresh>=1.0
 
 # Standard library used elsewhere: sqlite3, zoneinfo, dataclasses, datetime.

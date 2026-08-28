@@ -19,6 +19,7 @@ import yaml
 from common_layer.configuration.plant_config import PlantConfig
 from common_layer.configuration.market_config import MarketConfig
 from common_layer.configuration.solver_config import SolverConfig
+from common_layer.configuration.stochastic_config import StochasticConfig
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class AppConfig:
     plant: PlantConfig
     market: MarketConfig
     solver: SolverConfig
+    stochastic: StochasticConfig
 
 
 def _repo_root() -> str:
@@ -60,8 +62,12 @@ def load_config(config_dir: Optional[str] = None) -> AppConfig:
     market_d = _read_yaml(os.path.join(cfg_dir, "market.yaml"))
     solver_d = _read_yaml(os.path.join(cfg_dir, "solver.yaml"))
 
+    stochastic_path = os.path.join(cfg_dir, "stochastic.yaml")
+    stochastic_d = _read_yaml(stochastic_path) if os.path.isfile(stochastic_path) else {}
+
     return AppConfig(
         plant=PlantConfig.from_dict(plant_d),
         market=MarketConfig.from_dict(market_d),
         solver=SolverConfig.from_dict(solver_d),
+        stochastic=StochasticConfig.from_dict(stochastic_d),
     )

@@ -47,7 +47,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
+from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES, DA_MODEL_NAMES
 
 _EXCEL_PATH   = os.path.join(_HERE, "da_training_data_2020_2026.xlsx")
 _JSON_PATH    = os.path.join(_HERE, "da_selected_model.json")
@@ -185,7 +185,7 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     y       = train_df["price_DA_PT_EUR_MWh"].values
     lag24   = train_df["lag_24h"].values
 
-    cv_mae   = walk_forward_cv(feat_df, y, lag24, fcols, _N_CV_FOLDS)
+    cv_mae   = walk_forward_cv(feat_df, y, lag24, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
     selected = min(cv_mae, key=cv_mae.get)
 
     # Save to json
@@ -200,7 +200,7 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
 
     print(f"\n[DA Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in MODEL_NAMES:
+    for name in DA_MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
     print()
@@ -356,7 +356,7 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
     y = train_df["price_DA_PT_EUR_MWh"].values
     lag_day = train_df["lag_1d"].values
 
-    cv_mae = walk_forward_cv(feat_df, y, lag_day, fcols, _N_CV_FOLDS)
+    cv_mae = walk_forward_cv(feat_df, y, lag_day, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
     selected = min(cv_mae, key=cv_mae.get)
 
     info = {
@@ -371,7 +371,7 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
 
     print(f"\n[DA ISP Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in MODEL_NAMES:
+    for name in DA_MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
     print()
