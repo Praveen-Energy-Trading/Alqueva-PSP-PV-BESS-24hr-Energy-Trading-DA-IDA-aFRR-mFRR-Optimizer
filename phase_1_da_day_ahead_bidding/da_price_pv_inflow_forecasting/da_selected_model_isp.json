@@ -8,7 +8,37 @@
     "ARIMA": 92.8063,
     "GARCH": 287.3047
   },
+  "cv_rmse": {
+    "LightGBM": 23.4703,
+    "XGBoost": 23.0447,
+    "RandomForest": 24.7256,
+    "CatBoost": 23.5843,
+    "ARIMA": 100.7971,
+    "GARCH": 336.9924
+  },
+  "cv_mape": {
+    "LightGBM": 140.51,
+    "XGBoost": 132.9123,
+    "RandomForest": 150.0014,
+    "CatBoost": 138.6291,
+    "ARIMA": 1042.671,
+    "GARCH": 2117.6261
+  },
+  "cv_directional_accuracy": {
+    "LightGBM": 0.6595,
+    "XGBoost": 0.6624,
+    "RandomForest": 0.6355,
+    "CatBoost": 0.6548,
+    "ARIMA": 0.5349,
+    "GARCH": 0.5173
+  },
+  "significance_top2": {
+    "best": "XGBoost",
+    "runner_up": "CatBoost",
+    "p_value": 0.625,
+    "significant_at_0.05": false
+  },
   "data_end_date": "2026-08-24",
-  "updated_on": "2026-08-28",
+  "updated_on": "2026-08-31",
   "resolution": "15min_ISP"
 }

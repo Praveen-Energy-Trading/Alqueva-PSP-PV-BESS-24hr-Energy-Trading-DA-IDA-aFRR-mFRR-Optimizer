@@ -136,6 +136,16 @@ def list_backtest_reports() -> list[Path]:
     return sorted(REPORTS_DIR.glob("backtest_*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def list_risk_comparison_reports() -> list[Path]:
+    """EV-vs-CVaR realized-outcome comparisons written by
+    run_risk_comparison.py::export_risk_comparison (Comparison/Summary/
+    RiskComparison sheets). Reuses load_backtest_report below unchanged --
+    its sheet-reading logic is already generic, only special-casing the
+    "Summary"/"Risk" sheet NAMES for label-value parsing, and this
+    workbook's own "Summary" sheet is genuinely the same label-value shape."""
+    return sorted(REPORTS_DIR.glob("risk_comparison_*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
 def parse_label_value_sheet(raw: pd.DataFrame) -> list[tuple[str, object, bool]]:
     """Summary/Risk sheets are 2-column (label, value) with a title row,
     blank separator rows, and '--- Section Name ---' group headers - not a
@@ -168,6 +178,21 @@ def _load_backtest_report_cached(path_str: str, mtime: float) -> dict:
         if sheet in result:
             raw = pd.read_excel(path, sheet_name=sheet, header=None)
             result[sheet] = parse_label_value_sheet(raw)
+    # RiskComparison (run_risk_comparison.py::export_risk_comparison) is a
+    # 3-column EV/CVaR-per-metric table with its header on row 2, not row 0
+    # (row 0 carries a long title string instead) -- header=0 would
+    # misparse it as a label-value sheet, so read it positionally instead:
+    # row 0 = title (skipped), row 1 = ["EV", "CVaR", ..., "Metric"],
+    # rows 2+ = (ev_value, cvar_value, ..., metric_label).
+    if "RiskComparison" in result:
+        raw = pd.read_excel(path, sheet_name="RiskComparison", header=None)
+        metric_rows: list[tuple[str, float, float]] = []
+        for _, row in raw.iloc[2:].iterrows():
+            ev_val, cvar_val, label = row.iloc[0], row.iloc[1], row.iloc[2]
+            if pd.isna(label):
+                continue
+            metric_rows.append((str(label).strip(), ev_val, cvar_val))
+        result["RiskComparison"] = metric_rows
     return result
 
 
@@ -1461,6 +1486,13 @@ def load_ml_models_overview() -> dict:
         selected = payload.get("selected")
         if not selected or not cv_mae:
             continue
+        # Added this session (DA/IDA1/IDA2/IDA3 only so far) -- default to
+        # {}/None so older *_selected_model.json files (PV/inflow/XBID/
+        # aFRR/mFRR, not yet extended) degrade cleanly instead of crashing.
+        cv_rmse = payload.get("cv_rmse", {})
+        cv_mape = payload.get("cv_mape", {})
+        cv_diracc = payload.get("cv_directional_accuracy", {})
+        significance_top2 = payload.get("significance_top2")
         ranked = sorted(cv_mae.items(), key=lambda kv: kv[1])
         best_name, best_mae = ranked[0]
         runner_up_gap_pct = None
@@ -1488,6 +1520,10 @@ def load_ml_models_overview() -> dict:
             "target": target,
             "selected": selected,
             "cv_mae": cv_mae,
+            "cv_rmse": cv_rmse,
+            "cv_mape": cv_mape,
+            "cv_directional_accuracy": cv_diracc,
+            "significance_top2": significance_top2,
             "best_mae": round(best_mae, 4),
             "unit": unit,
             "runner_up_gap_pct": runner_up_gap_pct,

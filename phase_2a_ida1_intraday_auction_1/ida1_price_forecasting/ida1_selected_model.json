@@ -3,9 +3,33 @@
   "cv_mae": {
     "LightGBM": 13.9016,
     "XGBoost": 13.6314,
-    "RandomForest": 12.8198,
+    "RandomForest": 12.7627,
     "CatBoost": 14.1968
   },
+  "cv_rmse": {
+    "LightGBM": 22.112,
+    "XGBoost": 21.8871,
+    "RandomForest": 20.7131,
+    "CatBoost": 22.7785
+  },
+  "cv_mape": {
+    "LightGBM": 100.5728,
+    "XGBoost": 95.584,
+    "RandomForest": 92.2407,
+    "CatBoost": 95.429
+  },
+  "cv_directional_accuracy": {
+    "LightGBM": 0.677,
+    "XGBoost": 0.687,
+    "RandomForest": 0.6915,
+    "CatBoost": 0.688
+  },
+  "significance_top2": {
+    "best": "RandomForest",
+    "runner_up": "XGBoost",
+    "p_value": 0.125,
+    "significant_at_0.05": false
+  },
   "data_end_date": "2026-08-24",
-  "updated_on": "2026-08-24"
+  "updated_on": "2026-08-31"
 }

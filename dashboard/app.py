@@ -174,6 +174,7 @@ pages = {
     ],
     "Analyse": [
         st.Page("pages/5_backtest_risk.py", title="Backtest & Portfolio Risk", icon="📈"),
+        st.Page("pages/10_risk_comparison.py", title="EV vs CVaR Risk Comparison", icon="⚖️"),
         st.Page("pages/9_ml_forecasting.py", title="ML Forecasting", icon="🤖"),
         st.Page("pages/6_figures.py", title="Figures", icon="🖼️"),
         st.Page("pages/7_console_log.py", title="Console Log", icon="🖥️"),

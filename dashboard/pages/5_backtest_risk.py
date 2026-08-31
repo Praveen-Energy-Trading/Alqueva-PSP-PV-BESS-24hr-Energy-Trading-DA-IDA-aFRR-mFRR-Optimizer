@@ -151,6 +151,31 @@ def _render() -> None:
         fig2.update_yaxes(title_text="PV MAE MW", gridcolor=theme.GRIDLINE, row=2, col=1)
         st.plotly_chart(fig2, width="stretch")
 
+        # Realised revenue by gate (real archived prices, added this
+        # session) -- only series whose column actually exists in this
+        # report are plotted; older backtest reports predate some of these
+        # gates and simply won't have the column, never a blank/fake bar.
+        revenue_cols = [
+            ("realised_revenue_eur", "DA", theme.COLOR_GEN),
+            ("realised_afrr_capacity_eur", "aFRR capacity", theme.COLOR_PUMP),
+            ("realised_mfrr_capacity_eur", "mFRR capacity", theme.COLOR_PRICE),
+            ("realised_ida1_revenue_eur", "IDA1", "#8ecae6"),
+            ("realised_ida2_revenue_eur", "IDA2", "#219ebc"),
+            ("realised_ida3_revenue_eur", "IDA3", "#023047"),
+            ("realised_xbid_revenue_eur", "XBID", "#ffb703"),
+        ]
+        present = [(col, label, color) for col, label, color in revenue_cols if col in bt.columns]
+        if present:
+            st.markdown("**Realised revenue by gate (real archived prices)**")
+            fig_rev = go.Figure()
+            for col, label, color in present:
+                fig_rev.add_trace(go.Bar(x=bt["date"], y=bt[col], name=label, marker_color=color))
+            theme.style_fig(fig_rev, height=360, yaxis_title="Realised EUR", barmode="group")
+            st.plotly_chart(fig_rev, width="stretch")
+            st.caption("Each gate's bar is only present on days with genuine archived real-price "
+                       "coverage for that gate — a missing bar means real data wasn't available "
+                       "that day, never an interpolated or synthetic figure.")
+
         with st.expander("Full per-day table"):
             st.dataframe(bt, width="stretch", height=400)
 

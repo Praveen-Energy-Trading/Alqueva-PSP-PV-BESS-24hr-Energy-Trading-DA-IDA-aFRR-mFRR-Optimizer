@@ -73,15 +73,55 @@ def _render() -> None:
     ) or st.session_state[state_key]
     sel = next(r for r in rows if r["target"] == selected_label)
 
-    model_names = list(sel["cv_mae"].keys())
-    mae_vals = [sel["cv_mae"][m] for m in model_names]
+    # Metric selector: which of the real walk-forward-CV metrics to chart.
+    # MAE always exists (the original bake-off metric); RMSE/MAPE/DirAcc
+    # were added this session for DA/IDA1/IDA2/IDA3 only -- offered only
+    # when actually present for the SELECTED target, never a blank chart.
+    metric_options = {"MAE": ("cv_mae", sel["unit"])}
+    if sel.get("cv_rmse"):
+        metric_options["RMSE"] = ("cv_rmse", sel["unit"])
+    if sel.get("cv_mape"):
+        metric_options["MAPE"] = ("cv_mape", "%")
+    if sel.get("cv_directional_accuracy"):
+        metric_options["Directional accuracy"] = ("cv_directional_accuracy", "fraction correct")
+
+    # Keyed per-target (not a single fixed key): each target's available
+    # metric set differs (MAE-only vs MAE+RMSE+MAPE+DirAcc), and reusing one
+    # widget key across different `options` lists causes Streamlit to reset
+    # the stored value to None on target switch -- confirmed by hitting a
+    # real KeyError this way when verifying against the live dashboard.
+    metric_state_key = f"ml_bakeoff_metric_{selected_label}"
+    metric_labels = list(metric_options.keys())
+    if metric_state_key not in st.session_state or st.session_state[metric_state_key] not in metric_labels:
+        st.session_state[metric_state_key] = metric_labels[0]
+    chosen_metric = st.segmented_control(
+        "Metric", metric_labels, key=metric_state_key, label_visibility="collapsed",
+    )
+    if chosen_metric not in metric_options:
+        chosen_metric = metric_labels[0]
+    metric_key, metric_unit = metric_options[chosen_metric]
+
+    model_names = list(sel[metric_key].keys())
+    metric_vals = [sel[metric_key][m] for m in model_names]
     colors = [theme.STATUS_GOOD if m == sel["selected"] else theme.INK_MUTED for m in model_names]
-    fig = go.Figure(go.Bar(x=model_names, y=mae_vals, marker_color=colors,
-                            text=[f"{v:,.2f}" for v in mae_vals], textposition="outside"))
-    theme.style_fig(fig, height=380, yaxis_title=f"Avg error ({sel['unit']})", legend=False)
+    fig = go.Figure(go.Bar(x=model_names, y=metric_vals, marker_color=colors,
+                            text=[f"{v:,.2f}" for v in metric_vals], textposition="outside"))
+    theme.style_fig(fig, height=380, yaxis_title=f"{chosen_metric} ({metric_unit})", legend=False)
     st.plotly_chart(fig, width="stretch")
     rows_txt = f"{sel['n_training_rows']:,} rows" if sel["n_training_rows"] else "n/a"
     st.caption(f"Green = winner **{sel['selected']}**, live in production · {rows_txt} trained")
+
+    # Real Wilcoxon paired significance test between the top-2 candidates
+    # by MAE (added this session) -- reports honestly when the "winner"
+    # isn't actually distinguishable from the runner-up, not just the
+    # lowest number.
+    sig = sel.get("significance_top2")
+    if sig and sig.get("best") and sig.get("runner_up"):
+        p = sig.get("p_value")
+        if p is not None and p == p:  # not NaN
+            verdict = "statistically significant" if sig.get("significant_at_0.05") else "NOT statistically significant"
+            st.caption(f"Wilcoxon signed-rank test, {sig['best']} vs {sig['runner_up']}: "
+                       f"p = {p:.3f} — the gap is **{verdict}** at the 5% level.")
 
 
 _render()
