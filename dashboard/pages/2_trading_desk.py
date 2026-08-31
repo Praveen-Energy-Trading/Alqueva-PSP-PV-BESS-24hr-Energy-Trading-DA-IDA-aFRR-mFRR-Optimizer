@@ -63,6 +63,36 @@ def _render() -> None:
     st.subheader("P&L Breakdown")
     components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
 
+    # ---------------------------------------------------------------------------
+    # Real-price re-settlement: the SAME committed bid above, valued against
+    # the real archived settlement price instead of each gate's own
+    # forecast/bid price -- a true apples-to-apples check, unlike the
+    # separate Phase 6 backtest (which re-solves a different bid entirely).
+    # Only rendered when a report has been generated for this date
+    # (`python phase_6_backtesting_and_validation/run_live_resettlement.py
+    # --date <date>`) -- never fabricated when absent.
+    # ---------------------------------------------------------------------------
+    live_resettle = data.load_live_resettlement_report(selected_date)
+    if live_resettle is not None:
+        with st.expander("🔁 Real-price re-settlement (same bid, no re-solve)", expanded=False):
+            st.caption(
+                "Same committed position shown above, valued at the real archived "
+                "settlement price instead of the forecast/bid price. Activation and "
+                "imbalance revenue are excluded — no real activation-price source "
+                "exists in this project yet."
+            )
+            gate_rows = live_resettle.get("LiveResettlement")
+            if gate_rows is not None and not gate_rows.empty:
+                st.dataframe(gate_rows, use_container_width=True, hide_index=True)
+            reserve_rows = live_resettle.get("ReserveResettlement")
+            if reserve_rows is not None and not reserve_rows.empty:
+                st.dataframe(reserve_rows, use_container_width=True, hide_index=True)
+            summary = live_resettle.get("Summary")
+            if summary:
+                for label, val, is_header in summary:
+                    if not is_header:
+                        st.caption(f"**{label}:** {val}")
+
     st.markdown("---")
 
     left, right = st.columns([1, 1])

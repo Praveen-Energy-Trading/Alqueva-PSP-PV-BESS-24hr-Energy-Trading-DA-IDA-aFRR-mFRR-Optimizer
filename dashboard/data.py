@@ -136,6 +136,23 @@ def list_backtest_reports() -> list[Path]:
     return sorted(REPORTS_DIR.glob("backtest_*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def load_live_resettlement_report(delivery_date: str) -> dict | None:
+    """Live-bid real-price re-settlement (run_live_resettlement.py::
+    export_live_resettlement) for one delivery date: the ACTUAL
+    historically-committed position valued at real archived price, with
+    zero re-solve — the true apples-to-apples comparison against Trading
+    Desk's own forecast-valued P&L for the same date. Reuses
+    load_backtest_report's generic all-sheets reader unchanged: both of
+    this workbook's tables ("LiveResettlement", "ReserveResettlement")
+    are plain tables with a header on row 0, and its "Summary" sheet is
+    the same label-value shape already handled there. Returns None if no
+    report has been generated for this date yet — never fabricated."""
+    path = REPORTS_DIR / f"live_resettlement_{delivery_date}.xlsx"
+    if not path.exists():
+        return None
+    return load_backtest_report(path)
+
+
 def list_risk_comparison_reports() -> list[Path]:
     """EV-vs-CVaR realized-outcome comparisons written by
     run_risk_comparison.py::export_risk_comparison (Comparison/Summary/

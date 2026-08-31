@@ -14,6 +14,9 @@ from openpyxl.styles import Font
 from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import (
     BacktestResult, StochasticComparisonResult,
 )
+from phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement import (
+    LiveBidResettlement,
+)
 
 
 def _repo_root() -> str:
@@ -254,5 +257,62 @@ def export_risk_comparison(start_date: str, result: StochasticComparisonResult) 
     out_dir = os.path.join(_repo_root(), "runtime", "reports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"risk_comparison_{start_date}_{result.n_days}d.xlsx")
+    wb.save(path)
+    return path
+
+
+def export_live_resettlement(delivery_date: str, result: LiveBidResettlement) -> str:
+    """Write the live-bid real-price re-settlement to Excel: the ACTUAL
+    historically-committed position (per gate + reserve product), valued
+    both at its own forecast/bid price (matching Trading Desk's
+    Summary_KPIs) and at the real archived price, side by side. No
+    re-solve happened to produce these numbers -- see
+    live_bid_resettlement.py's module docstring."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "LiveResettlement"
+    bold = Font(bold=True)
+    headers = ["gate", "committed_mwh", "price_source",
+               "forecast_revenue_eur", "realised_revenue_eur"]
+    ws.append(headers)
+    for c in ws[1]:
+        c.font = bold
+    for g in result.gates:
+        ws.append([g.gate, g.committed_mwh, g.price_source,
+                   g.forecast_revenue_eur, g.realised_revenue_eur])
+
+    # Reserve capacity gets its own sheet (not appended below a blank row
+    # in the same sheet) so the dashboard's existing generic all-sheets
+    # loader can read both as plain tables without special-case parsing.
+    ws3 = wb.create_sheet("ReserveResettlement")
+    ws3.append(["product", "committed_capacity_mwh", "price_source",
+               "forecast_capacity_revenue_eur", "realised_capacity_revenue_eur",
+               "activation_excluded"])
+    for c in ws3[1]:
+        c.font = bold
+    for r in result.reserves:
+        ws3.append([r.product, r.committed_capacity_mwh, r.price_source,
+                   r.forecast_capacity_revenue_eur, r.realised_capacity_revenue_eur,
+                   r.activation_excluded])
+
+    ws2 = wb.create_sheet("Summary")
+    ws2["A1"] = f"Live-bid real-price re-settlement — {delivery_date}"
+    ws2["A1"].font = Font(bold=True, size=13)
+    rows = [
+        ("Gates with real price coverage", f"{result.n_gates_real}/{result.n_gates_total}"),
+        ("Total forecast-valued revenue (EUR, matches Trading Desk)",
+         round(result.total_forecast_revenue_eur, 2)),
+        ("Total real-price-valued revenue (EUR)",
+         round(result.total_realised_revenue_eur, 2)
+         if result.total_realised_revenue_eur is not None else "unavailable (partial gate coverage)"),
+        ("Activation revenue (aFRR/mFRR)", "excluded — no real activation price source exists"),
+    ]
+    for i, (label, val) in enumerate(rows, start=3):
+        ws2[f"A{i}"] = label; ws2[f"A{i}"].font = bold
+        ws2[f"B{i}"] = val
+
+    out_dir = os.path.join(_repo_root(), "runtime", "reports")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"live_resettlement_{delivery_date}.xlsx")
     wb.save(path)
     return path
