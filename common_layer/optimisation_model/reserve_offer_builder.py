@@ -101,6 +101,32 @@ def fat_deliverable_dn_mw(cfg: AppConfig, fat_min: float) -> float:
     return cfg.plant.psp.total_ramp_mw_per_min * fat_min + cfg.plant.bess.power_mw
 
 
+def compute_price_aware_fraction(
+    cap_price_eur_mw: float,
+    da_price_eur_mwh: float,
+    assumed_duty_cycle_h: float,
+    min_fraction: float,
+    max_fraction: float,
+) -> float:
+    """How much of the leftover headroom to actually offer as reserve, given
+    what the reserve capacity price and the DA energy price each say it's
+    worth. A capacity price (EUR/MW) isn't directly comparable to an energy
+    price (EUR/MWh) - assumed_duty_cycle_h converts it into an EUR/MWh
+    equivalent by assuming an average activation duration per award.
+
+    ratio > 1: reserve is worth more than the energy it's holding back ->
+        lean toward max_fraction. ratio < 1: energy is worth more -> lean
+        toward min_fraction. No DA price to compare against -> keep today's
+        fixed behavior (max_fraction) rather than guessing.
+    """
+    if da_price_eur_mwh <= 0 or assumed_duty_cycle_h <= 0:
+        return max_fraction
+    reserve_value_eur_mwh = cap_price_eur_mw / assumed_duty_cycle_h
+    advantage_ratio = reserve_value_eur_mwh / da_price_eur_mwh
+    weight = max(0.0, min(1.0, advantage_ratio - 0.5))
+    return min_fraction + (max_fraction - min_fraction) * weight
+
+
 def build_reserve_offers(
     product: str,
     committed_net: Dict[int, float],
@@ -114,6 +140,7 @@ def build_reserve_offers(
     reserved_up: Optional[Dict[int, float]] = None,
     reserved_dn: Optional[Dict[int, float]] = None,
     pv_available_mw: Optional[Dict[int, float]] = None,
+    headroom_fraction_by_hour: Optional[Dict[int, float]] = None,
 ) -> Dict[int, ReserveOffer]:
     """Size up/down reserve offers per hour from leftover headroom.
 
@@ -147,8 +174,10 @@ def build_reserve_offers(
         fat_up = fat_deliverable_mw(cfg, fat_min, current_net_mw=n, pv_available_mw=pv_mw)
         up_headroom = max(0.0, p_gen_cap - n - reserved_up.get(h, 0.0))
         dn_headroom = max(0.0, n + p_pump_cap - reserved_dn.get(h, 0.0))
-        up = min(up_headroom * headroom_fraction, fat_up, max_up_mw)
-        dn = min(dn_headroom * headroom_fraction, fat_dn, max_dn_mw)
+        hour_fraction = (headroom_fraction_by_hour.get(h, headroom_fraction)
+                          if headroom_fraction_by_hour else headroom_fraction)
+        up = min(up_headroom * hour_fraction, fat_up, max_up_mw)
+        dn = min(dn_headroom * hour_fraction, fat_dn, max_dn_mw)
         # Keep full precision: rounding here could push the offer a hair above the
         # true headroom and trip the PR-11 envelope check. Display rounds instead.
         offers[h] = ReserveOffer(

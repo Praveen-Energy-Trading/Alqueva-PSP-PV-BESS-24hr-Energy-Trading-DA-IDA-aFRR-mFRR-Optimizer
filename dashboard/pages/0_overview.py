@@ -1,7 +1,7 @@
-"""Overview — the one-glance boardroom page. Every element here mirrors
+"""Overview - the one-glance boardroom page. Every element here mirrors
 run_production.py's own 19-phase table, the same Summary_KPIs/Gate_Decisions
 Excel sheets Trading Desk uses, and the same audit trail Decision Rationale
-uses — nothing computed here that isn't already computed elsewhere; this
+uses - nothing computed here that isn't already computed elsewhere; this
 page is a compact front door to the other six, not a new data source."""
 from __future__ import annotations
 
@@ -41,9 +41,9 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Asset strip — physical plant, straight from config/plant.yaml. Fixed
+# Asset strip - physical plant, straight from config/plant.yaml. Fixed
 # regardless of which run/date is selected, since it's hardware, not a
-# computed result — the same numbers run_production.py prints as its own
+# computed result - the same numbers run_production.py prints as its own
 # "PLANT SPECS" header, just five cards instead of a text block.
 # ---------------------------------------------------------------------------
 
@@ -82,7 +82,7 @@ def _render() -> None:
     report_ready = st.session_state.get("report_ready", False)
 
     if not selected_date:
-        st.warning("No runs found yet — visit Run & Monitor to start one.")
+        st.warning("No runs found yet - visit Run & Monitor to start one.")
         return
 
     run_status = data.load_run_status(selected_date)
@@ -93,31 +93,31 @@ def _render() -> None:
     elif state == "idle_running":
         if run_status and run_status.get("mode") == "trader":
             st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                       f"gone quiet — most likely paused on an Approve/Reject or ENTER "
+                       f"gone quiet - most likely paused on an Approve/Reject or ENTER "
                        f"prompt waiting on you in trader mode. Check the terminal, or "
                        f"Console Log for the last line printed.")
         else:
             st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                       f"gone quiet — most likely still computing (e.g. a slow model "
+                       f"gone quiet - most likely still computing (e.g. a slow model "
                        f"fit) rather than stuck. Check Console Log for the last line printed.")
     elif state == "stopped":
         st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
-                 f"running — most likely Ctrl+C or a crash while it was paused waiting for "
+                 f"running - most likely Ctrl+C or a crash while it was paused waiting for "
                  f"input. Start a fresh run when ready.")
     elif state == "none":
-        st.info(f"No run-status record for **{selected_date}** yet — see Run & Monitor.")
+        st.info(f"No run-status record for **{selected_date}** yet - see Run & Monitor.")
     else:
         results = run_status["results"]
         n_fail = sum(1 for r in results if r["status"] == "FAIL")
         n_pass = sum(1 for r in results if r["status"] == "PASS")
         if n_fail:
-            st.error(f"🔴 **{selected_date}** — {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            st.error(f"🔴 **{selected_date}** - {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
         else:
-            st.success(f"🟢 **{selected_date}** — {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            st.success(f"🟢 **{selected_date}** - {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
 
     # ---------------------------------------------------------------------------
-    # Live gate tickets — updates gate-by-gate as the pipeline runs, reading
-    # PositionStore/ReserveStore directly (SQLite), not the Excel report — so
+    # Live gate tickets - updates gate-by-gate as the pipeline runs, reading
+    # PositionStore/ReserveStore directly (SQLite), not the Excel report - so
     # this shows real numbers even mid-run, before analytics has written
     # anything. Every gate that has decided so far gets a compact strip card
     # (so DA doesn't just vanish once aFRR becomes 'latest'); the most recent
@@ -134,7 +134,7 @@ def _render() -> None:
         cols = st.columns(len(all_tickets))
         for i, t in enumerate(all_tickets):
             icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
-            rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else "—"
+            rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else " - "
             label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
             is_selected = t["gate"] == st.session_state[state_key]
             if cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
@@ -158,12 +158,12 @@ def _render() -> None:
         st.markdown("---")
 
     # ---------------------------------------------------------------------------
-    # Delivery cards — RT dispatch, aFRR activation, mFRR activation, FCR droop
+    # Delivery cards - RT dispatch, aFRR activation, mFRR activation, FCR droop
     # response. Not decisions like the gates above, so they get their own tab
     # strip rather than sitting in the gate-ticket buttons. Only rendered once
     # each phase has actually produced data for this date. FCR is the odd one
     # out: it's a standalone, non-remunerated compliance simulation, not read
-    # from a pipeline run's audit trail — see data.py::load_fcr_activation.
+    # from a pipeline run's audit trail - see data.py::load_fcr_activation.
     # ---------------------------------------------------------------------------
 
     rt = data.load_rt_delivery(selected_date)
@@ -209,7 +209,7 @@ def _render() -> None:
     technical_cards = [c for c in technical_cards if c is not None]
 
     # Plain st.tabs has no session_state key, so its selected tab is pure
-    # client-side DOM state — a full script rerun (e.g. every auto-refresh
+    # client-side DOM state - a full script rerun (e.g. every auto-refresh
     # tick while a pipeline is live) always snaps it back to the first tab.
     # st.segmented_control is keyed in session_state, so the selection
     # survives reruns instead of visibly jumping back every couple of seconds.
@@ -283,7 +283,7 @@ def _render() -> None:
                 # flat line at 0 sits exactly on top of the 0 gridline). There
                 # is nothing to plot here, so say so plainly instead of
                 # rendering a graph that looks empty.
-                st.info(f"**{selected_gate}** held — position is unchanged from DA at every "
+                st.info(f"**{selected_gate}** held - position is unchanged from DA at every "
                         f"ISP. Nothing to plot; the DA chart above is still the live position.")
             else:
                 mw_d = gate_pos["gates_mw_delta"][selected_gate]

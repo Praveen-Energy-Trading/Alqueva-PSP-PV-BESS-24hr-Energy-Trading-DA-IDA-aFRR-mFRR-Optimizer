@@ -1,4 +1,4 @@
-"""delivery_ticket.py — renders phase 4A/4B/4C delivery cards. Distinct
+"""delivery_ticket.py - renders phase 4A/4B/4C delivery cards. Distinct
 from gate_ticket.py: these phases don't "decide" Submitted/Held, they
 simulate delivery of whatever was already committed, so the card shape is
 metrics + a trace, not a decision pill. See dashboard/data.py::load_rt_delivery
@@ -66,7 +66,7 @@ window.dtReplay = function(btn) {
 
 def _deviation_strip(rows: list[dict], plot_x0: float, plot_x1: float, max_dev: float) -> str:
     """Deviation-per-ISP bar row: over-delivered (actual > scheduled) in
-    aqua above the zero line, under-delivered in magenta below it — the
+    aqua above the zero line, under-delivered in magenta below it - the
     same up/down color convention used for reserve activation elsewhere in
     this dashboard. Scaled to the ticket's own max_deviation_mw so a single
     outlier ISP doesn't flatten every other bar to invisible."""
@@ -252,7 +252,7 @@ def render_imbalance_settlement_card(im: dict) -> str:
       <span style="background:{theme.INK_MUTED}22; color:{theme.INK_SECONDARY}; font-size:11.5px; padding:3px 10px; border-radius:6px; font-weight:500;">Real settlement + illustrative reference price</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Imbalance settlement</div>
-    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 4px;">Deviating from the day-ahead schedule settles at a different buy price and sell price, not the DA price &mdash; that asymmetry is the mechanism.</p>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 4px;">Deviating from the day-ahead schedule settles at a different buy price and sell price, not the DA price - that asymmetry is the mechanism.</p>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 10px;">decided {_html.escape(im['timestamp'])}</p>
     <div style="display:flex; gap:8px; margin-bottom:14px;">
       <div style="background:{theme.SURFACE}; border-radius:8px; padding:0.55rem 0.75rem; flex:1; border:1px solid {theme.GRIDLINE};">
@@ -282,7 +282,7 @@ def render_imbalance_settlement_card(im: dict) -> str:
         <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.8"/>
         <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="1.8"/>
 
-        <text x="{x0}" y="{price_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Reference price &mdash; illustrative (EUR/MWh)</text>
+        <text x="{x0}" y="{price_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Reference price - illustrative (EUR/MWh)</text>
         <line x1="{x0}" y1="{price_top:.1f}" x2="{x1}" y2="{price_top:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{price_bot:.1f}" x2="{x1}" y2="{price_bot:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <text x="{x0-6}" y="{price_top+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{price_max:.0f}</text>
@@ -301,7 +301,7 @@ def render_imbalance_settlement_card(im: dict) -> str:
       <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.STATUS_GOOD}; margin-right:4px; vertical-align:middle;"></span>Long price (sell)</span>
     </div>
     <div style="background:{theme.STATUS_WARNING}22; border-left:3px solid {theme.STATUS_WARNING}; padding:6px 10px; margin-top:10px;">
-      <span style="font-size:11px; color:{theme.INK_PRIMARY}; font-weight:500;">Short price &gt; long price by design (see config: fallback_short_factor 1.20x DA, fallback_long_factor 0.85x DA) &mdash; that gap is what makes deviating from your schedule a net cost, not a coin flip.</span>
+      <span style="font-size:11px; color:{theme.INK_PRIMARY}; font-weight:500;">Short price &gt; long price by design (see config: fallback_short_factor 1.20x DA, fallback_long_factor 0.85x DA) - that gap is what makes deviating from your schedule a net cost, not a coin flip.</span>
     </div>
     {_HOVER_CROSSHAIR_SCRIPT}
     <script>

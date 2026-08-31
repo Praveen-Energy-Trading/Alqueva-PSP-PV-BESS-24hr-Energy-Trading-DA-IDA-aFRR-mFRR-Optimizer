@@ -117,6 +117,9 @@ class AFRRConfig:
     max_offer_dn_mw: float
     cap_price_max_eur_mw: float
     fat_min: float                    # full activation time (min); 5 min for PICASSO aFRR
+    dynamic_allocation_enabled: bool  # off by default - price-aware sizing, opt-in
+    min_offer_fraction: float         # floor when dynamic allocation is enabled
+    assumed_duty_cycle_h: float       # avg activation duration, for EUR/MW -> EUR/MWh
 
     @staticmethod
     def from_dict(d: dict, fat_min: float) -> "AFRRConfig":
@@ -127,6 +130,9 @@ class AFRRConfig:
             max_offer_dn_mw=float(d["max_offer_dn_mw"]),
             cap_price_max_eur_mw=float(d["cap_price_max_eur_mw"]),
             fat_min=fat_min,
+            dynamic_allocation_enabled=bool(d.get("dynamic_allocation_enabled", False)),
+            min_offer_fraction=float(d.get("min_offer_fraction", 0.0)),
+            assumed_duty_cycle_h=float(d.get("assumed_duty_cycle_h", 0.5)),
         )
 
 
@@ -138,6 +144,9 @@ class MFRRConfig:
     max_offer_fraction: float         # fraction of remaining headroom after aFRR
     price_fraction_of_afrr: float
     fat_min: float                    # full activation time (min); 12.5 min for MARI mFRR
+    dynamic_allocation_enabled: bool  # off by default - price-aware sizing, opt-in
+    min_offer_fraction: float         # floor when dynamic allocation is enabled
+    assumed_duty_cycle_h: float       # avg activation duration, for EUR/MW -> EUR/MWh
 
     @staticmethod
     def from_dict(d: dict, fat_min: float) -> "MFRRConfig":
@@ -147,6 +156,9 @@ class MFRRConfig:
             max_offer_fraction=float(d["max_offer_fraction"]),
             price_fraction_of_afrr=float(d["price_fraction_of_afrr"]),
             fat_min=fat_min,
+            dynamic_allocation_enabled=bool(d.get("dynamic_allocation_enabled", False)),
+            min_offer_fraction=float(d.get("min_offer_fraction", 0.0)),
+            assumed_duty_cycle_h=float(d.get("assumed_duty_cycle_h", 1.0)),
         )
 
 

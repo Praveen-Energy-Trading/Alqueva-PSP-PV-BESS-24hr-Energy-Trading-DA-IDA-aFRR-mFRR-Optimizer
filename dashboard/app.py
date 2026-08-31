@@ -1,11 +1,11 @@
 """
-Alqueva PSP-PV-BESS Trading Dashboard — entry point.
+Alqueva PSP-PV-BESS Trading Dashboard - entry point.
 
 Multipage app organised by audience/purpose (health -> money -> decision
 rationale -> risk/constraints -> backtest -> raw evidence), not by which
 Excel sheet a number happens to live in. Every page reads through
 dashboard/data.py, which mirrors whatever run_production.py has already
-written to runtime/reports, runtime/logs and runtime/audit — this app never
+written to runtime/reports, runtime/logs and runtime/audit - this app never
 runs pipeline logic itself except via the explicit in-app runner on the
 Run & Monitor page.
 
@@ -37,11 +37,11 @@ runner.init_state()
 runner.poll()  # before we list dates below, so a just-finished run's report is picked up this same rerun
 
 # ---------------------------------------------------------------------------
-# Shared sidebar — date selection + refresh, used by every page
+# Shared sidebar - date selection + refresh, used by every page
 # ---------------------------------------------------------------------------
 
 st.sidebar.title("⚡ Alqueva Trading Pipeline")
-st.sidebar.caption("PSP + PV + BESS — DA / IDA / XBID / aFRR / mFRR")
+st.sidebar.caption("PSP + PV + BESS - DA / IDA / XBID / aFRR / mFRR")
 
 if st.sidebar.button("🔄 Refresh now", width="stretch"):
     st.cache_data.clear()
@@ -57,7 +57,7 @@ else:
     def _label(d: str) -> str:
         if d in report_dates:
             return d
-        # No Excel report doesn't necessarily mean "still running" — a run
+        # No Excel report doesn't necessarily mean "still running" - a run
         # can finish (with a failure) before ever reaching the analytics
         # phase that writes the report. run_phase_state distinguishes a
         # genuinely in-progress run (including one paused on interactive
@@ -68,16 +68,16 @@ else:
         if state == "running":
             return f"{d}  (running live)"
         if state == "idle_running":
-            return f"{d}  (running — paused for input?)"
+            return f"{d}  (running - paused for input?)"
         if state == "stopped":
-            return f"{d}  (stopped — Ctrl+C or crash)"
+            return f"{d}  (stopped - Ctrl+C or crash)"
         if state == "none":
             return f"{d}  (no run record)"
         status = data.load_run_status(d)
         n_fail = sum(1 for r in status["results"] if r["status"] == "FAIL")
         if n_fail:
-            return f"{d}  (finished — FAILED, no report)"
-        return f"{d}  (finished — no report)"
+            return f"{d}  (finished - FAILED, no report)"
+        return f"{d}  (finished - no report)"
 
     selected_date = st.sidebar.selectbox(
         "Delivery date", dates, index=0, format_func=_label, key="date_select",
@@ -85,7 +85,7 @@ else:
     st.session_state["selected_date"] = selected_date
     st.session_state["report_ready"] = selected_date in report_dates
 
-# is_pipeline_active checks the log file's own mtime — source-agnostic, so a
+# is_pipeline_active checks the log file's own mtime - source-agnostic, so a
 # VS Code run, a plain terminal run, or the in-app runner ALL count as
 # "live" the same way. This is what makes the dashboard an actual mirror of
 # the terminal rather than something that only catches up once a run
@@ -108,22 +108,35 @@ if _was_live and not pipeline_live:
     st.session_state["auto_refresh_toggle"] = False
 st.session_state[_live_flag_key] = pipeline_live
 
+# Streamlit warns (and silently prefers its own value= over the Session
+# State API write) if a widget gets BOTH a value= default AND has its key
+# already present in session_state - and session_state persists across
+# reruns, so value=pipeline_live only ever "wins" on the very first render
+# of this session, never again. runner.py's start() sets
+# session_state["auto_refresh_toggle"] = True the moment a run launches,
+# which this value= was silently overriding on every later rerun - the
+# toggle would start a run but still show/stay unchecked. Seed the default
+# only when the key doesn't exist yet, then let the widget own it with no
+# value= argument, so later Session State API writes (runner.py, the
+# _was_live block above) actually take effect.
+if "auto_refresh_toggle" not in st.session_state:
+    st.session_state["auto_refresh_toggle"] = pipeline_live
+
 auto_refresh = st.sidebar.toggle(
     "⏱️ Auto-refresh while pipeline runs", key="auto_refresh_toggle",
-    value=pipeline_live,  # only used the first time this key is set
     help="Polls the report/log/audit files on disk and reloads whatever "
-         "changed — on automatically while a run is live, off once it "
+         "changed - on automatically while a run is live, off once it "
          "finishes (nothing left to poll for). Turn on for a static "
          "snapshot to periodically re-check anyway.",
 )
 if auto_refresh:
     if pipeline_live:
         interval_s = 2
-        st.sidebar.success("🟢 LIVE — mirroring an active run (any source: "
+        st.sidebar.success("🟢 LIVE - mirroring an active run (any source: "
                             "VS Code, terminal, or this dashboard)")
     else:
         interval_s = st.sidebar.slider("Refresh interval (seconds)", 3, 30, 5)
-    st.sidebar.caption(f"Auto-refreshing every {interval_s}s — mtime-based, "
+    st.sidebar.caption(f"Auto-refreshing every {interval_s}s - mtime-based, "
                         f"so only changed files are actually reloaded.")
 else:
     interval_s = None
@@ -142,7 +155,7 @@ st.session_state["_auto_refresh_interval_s"] = interval_s
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
-    "Reads run_production.py's saved outputs — this app doesn't run trades "
+    "Reads run_production.py's saved outputs - this app doesn't run trades "
     "on its own except via the explicit Run & Monitor page."
 )
 

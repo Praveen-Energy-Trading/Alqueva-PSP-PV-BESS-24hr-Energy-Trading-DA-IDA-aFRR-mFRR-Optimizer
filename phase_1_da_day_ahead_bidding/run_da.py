@@ -33,6 +33,11 @@ from common_layer.utilities.timezone_utils import resolve_gate_time
 from common_layer.database import PositionStore, ComponentStore, validate_inputs, SchemaError
 from common_layer.optimisation_model import (
     build_core_model, solve_core_model, extract_results, SolveError,
+    build_core_model_stochastic, extract_stochastic_results,
+    generate_price_scenarios, load_selected_model_mae,
+)
+from common_layer.optimisation_model.core_milp_solver import (
+    GateResults, bridge_stochastic_to_gate_results,
 )
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import (
     update_training_data, update_isp_training_data,
@@ -160,20 +165,37 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
     # from DA's leftover headroom (see run_afrr.py / afrr_offer_builder.py).
 
     # 4. solve ---------------------------------------------------------------
+    # Opt-in two-stage stochastic mode (config/stochastic.yaml): the DA bid
+    # is decided under a price scenario fan instead of a single point
+    # forecast. Default OFF -- the deterministic path below is unchanged.
+    stochastic_mode = cfg.stochastic.enabled_for("DA")
     try:
-        model, meta = build_core_model(inputs, cfg)
-        solve_time = solve_core_model(model, cfg, gate="DA")
+        if stochastic_mode:
+            mae_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "da_price_pv_inflow_forecasting", "da_selected_model_isp.json")
+            mae = load_selected_model_mae(mae_path)
+            scenarios, probabilities = generate_price_scenarios(
+                inputs["da_prices"], mae, n_scenarios=cfg.stochastic.n_scenarios)
+            model, meta = build_core_model_stochastic(inputs, cfg, scenarios, probabilities)
+            solve_time = solve_core_model(model, cfg, gate="DA")
+            stoch_results = extract_stochastic_results(model, meta)
+            results = bridge_stochastic_to_gate_results(stoch_results, meta)
+        else:
+            model, meta = build_core_model(inputs, cfg)
+            solve_time = solve_core_model(model, cfg, gate="DA")
+            results = extract_results(model, meta)
     except SolveError as e:
         log.error(str(e))
         audit.log("DA_SOLVE_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "SOLVE_FAILED", "reason": str(e)}
 
-    results = extract_results(model, meta)
     log.info(f"Solved in {solve_time:.2f}s | energy revenue "
-             f"{results.energy_revenue_eur:,.2f} EUR")
+             f"{results.energy_revenue_eur:,.2f} EUR"
+             + (" (stochastic, expected value)" if stochastic_mode else ""))
     audit.log("DA_SOLVED", delivery_date=delivery_date, solve_time=solve_time,
               energy_revenue_eur=results.energy_revenue_eur,
-              objective_eur=results.objective_eur)
+              objective_eur=results.objective_eur, stochastic=stochastic_mode)
 
     # 6. Phase 3A physical bid checker --------------------------------------
     try:

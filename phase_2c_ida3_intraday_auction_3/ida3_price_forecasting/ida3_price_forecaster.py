@@ -29,7 +29,10 @@ _PHASE1_FCST = os.path.join(_REPO, "phase_1_da_day_ahead_bidding",
 if _PHASE1_FCST not in sys.path:
     sys.path.insert(0, _PHASE1_FCST)
 
-from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES
+from ml_train_val_test_common import (
+    fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES,
+    walk_forward_cv_extended, paired_significance_test,
+)
 
 _EXCEL_PATH  = os.path.join(_HERE, "ida3_training_data_2024_2025.xlsx")
 _SHEET       = "IDA3_2024_2025"
@@ -102,18 +105,36 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
 
     fcols    = _feature_cols()
     y        = feat_tr["spread_EUR_MWh"].values
-    cv_mae   = walk_forward_cv(feat_tr[fcols], y, np.zeros_like(y), fcols, _N_CV_FOLDS)
+    # spread_lag_h1 (real previous-hour spread) is the correct "previous
+    # value" for directional_accuracy -- see ida1_price_forecaster.py's
+    # identical comment.
+    lag_prev = feat_tr["spread_lag_h1"].fillna(0.0).values
+    cv_ext = walk_forward_cv_extended(feat_tr[fcols], y, lag_prev, fcols, _N_CV_FOLDS)
+    cv_mae = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
+
+    ranked = sorted(cv_mae, key=cv_mae.get)
+    sig = (paired_significance_test(cv_ext[ranked[0]]["fold_mae"], cv_ext[ranked[1]]["fold_mae"])
+           if len(ranked) >= 2 else {"p_value": float("nan"), "significant_at_0.05": False})
 
     with open(_JSON_PATH, "w") as f:
         json.dump({"selected": selected,
                    "cv_mae": {k: round(v, 4) for k, v in cv_mae.items()},
+                   "cv_rmse": {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
+                   "cv_mape": {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
+                   "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
+                   "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
+                                        "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
                    "data_end_date": str(excel_last_date),
                    "updated_on": str(datetime.date.today())}, f, indent=2)
     print(f"\n[IDA3 Forecaster] Selected => {selected}")
     for name in MODEL_NAMES:
         mark = " <--" if name == selected else ""
-        print(f"  {name:<12} MAE {cv_mae.get(name, float('inf')):.4f} EUR/MWh{mark}")
+        m = cv_ext[name]
+        print(f"  {name:<12} MAE {m['MAE']:.4f}  RMSE {m['RMSE']:.4f}  "
+              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{mark}")
+    print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
+          f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     return selected
 
 

@@ -1,4 +1,4 @@
-"""Decision Rationale — WHY each gate re-bid or held, straight from the
+"""Decision Rationale - WHY each gate re-bid or held, straight from the
 append-only audit trail. Previously this only existed as console scrollback:
 ida_reoptimiser.py/xbid_optimiser.py compute improvement_eur and
 dynamic_threshold_eur for every decision and log them via AuditLogger, but no
@@ -25,7 +25,7 @@ def _render() -> None:
     theme.inject_scroll_restore()
     selected_date = st.session_state.get("selected_date")
     if not selected_date:
-        st.warning("No runs found yet — visit Run & Monitor to start one.")
+        st.warning("No runs found yet - visit Run & Monitor to start one.")
         return
 
     GATES = ["IDA1", "IDA2", "IDA3", "XBID"]
@@ -72,10 +72,10 @@ def _render() -> None:
 
     st.markdown("---")
 
-    st.subheader("Improvement vs. threshold — the 'why' behind each re-bid")
+    st.subheader("Improvement vs. threshold - the 'why' behind each re-bid")
     priced = df.dropna(subset=["Improvement EUR", "Threshold EUR"])
     if priced.empty:
-        st.info("No priced (SUBMITTED/NO_CHANGE) decisions yet — only START/blocked events so far.")
+        st.info("No priced (SUBMITTED/NO_CHANGE) decisions yet - only START/blocked events so far.")
     else:
         # IDA1-3 re-bid the whole gate at once (one threshold each); XBID
         # re-evaluates per rolling window (up to 6/day), so it needs its

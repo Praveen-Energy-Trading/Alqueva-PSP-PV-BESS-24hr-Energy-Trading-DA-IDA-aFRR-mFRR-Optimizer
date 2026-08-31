@@ -9,7 +9,7 @@ physically valid plan.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Dict, Optional
 
 from common_layer.configuration.config_loader import AppConfig
 from common_layer.optimisation_model import (
@@ -39,15 +39,32 @@ class SolveQuality:
     economic_ext: dict = field(default_factory=dict)
 
 
-def check_solution_quality(inputs: dict, cfg: AppConfig) -> SolveQuality:
+def check_solution_quality(
+    inputs: dict, cfg: AppConfig, gate: str = "DA",
+    fixed_net_position: Optional[Dict[int, float]] = None,
+    reserved_up_mw: Optional[Dict[int, float]] = None,
+    reserved_dn_mw: Optional[Dict[int, float]] = None,
+) -> SolveQuality:
+    """Independent, store-free solve-quality probe for any gate.
+
+    `gate` defaults to "DA" and the new kwargs default to None (same as
+    build_core_model's own defaults) so every existing DA-only call site is
+    byte-identical in behavior. Passing gate="IDA1"/etc plus
+    fixed_net_position lets the backtest re-optimize an intraday gate
+    in-memory, without touching PositionStore/ReserveStore (which
+    ida_reoptimiser.reoptimise_ida uses for live/production runs, complete
+    with no-churn threshold, operator pause, and submission -- none of
+    which belong in a backtest loop over many days).
+    """
     try:
-        model, meta = build_core_model(inputs, cfg)
-        st = solve_core_model(model, cfg, gate="DA")
+        model, meta = build_core_model(inputs, cfg, fixed_net_position=fixed_net_position,
+                                        reserved_up_mw=reserved_up_mw, reserved_dn_mw=reserved_dn_mw)
+        st = solve_core_model(model, cfg, gate=gate)
     except SolveError as e:
         return SolveQuality(False, 0.0, 0.0, False, note=str(e))
     results = extract_results(model, meta)
     try:
-        check_da_bid(results, inputs, cfg, gate="DA")
+        check_da_bid(results, inputs, cfg, gate=gate)
         checker_ok = True
         note = ""
     except BidCheckError as e:

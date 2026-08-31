@@ -1,0 +1,34 @@
+# =============================================================================
+# Stochastic Optimization Configuration — two-stage MILP, DA gate.
+# =============================================================================
+# Strictly opt-in. `enabled: false` (the default here) means every gate runs
+# the existing deterministic build_core_model path exactly as before — this
+# file changes nothing about production behavior unless flipped on.
+#
+# When enabled, the DA gate (or any gate listed under `gates`) builds a
+# price scenario fan (see common_layer/optimisation_model/scenario_generator.py)
+# grounded in the DA price forecaster's own real walk-forward-CV MAE, and
+# solves the two-stage stochastic MILP (build_core_model_stochastic) instead
+# of the single-scenario one. The DA bid becomes the "here-and-now" decision;
+# physical dispatch becomes per-scenario recourse.
+# =============================================================================
+
+stochastic:
+  enabled: false
+
+  # Number of discrete price scenarios in the fan. Every physical/dispatch
+  # variable in the MILP is replicated per scenario, so solve time grows
+  # roughly with n_scenarios — keep this small (3-7) unless the DA time
+  # budget (config/solver.yaml: time_limit_sec.DA) is raised to match.
+  n_scenarios: 5
+
+  # Which gates run in stochastic mode. DA and IDA1 are implemented today
+  # (IDA1 via ida_reoptimiser.py, same build_core_model_stochastic engine
+  # with fixed_net_position freezing the ISPs outside its tradable window).
+  gates: ["DA", "IDA1"]
+
+  # "expected_value" (default) maximizes probability-weighted expected
+  # revenue. "cvar" is a documented stretch goal (Rockafellar-Uryasev
+  # linearization) — not implemented in v1; setting it has no effect yet.
+  risk_measure: "expected_value"
+  cvar_alpha: 0.95

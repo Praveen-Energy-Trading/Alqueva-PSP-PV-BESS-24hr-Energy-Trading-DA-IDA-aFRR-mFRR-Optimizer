@@ -1,8 +1,8 @@
-"""ML Forecasting — graphs-first view of every machine-learning model this
+"""ML Forecasting - graphs-first view of every machine-learning model this
 pipeline actually uses. Every number is read straight from the
 *_selected_model.json files each forecaster writes after its own real
 walk-forward bake-off (see da_price_forecaster.py::_auto_select_model and
-friends) — nothing here is illustrative or recomputed."""
+friends) - nothing here is illustrative or recomputed."""
 from __future__ import annotations
 
 import sys
@@ -33,7 +33,7 @@ def _render() -> None:
     ml = data.load_ml_models_overview()
     rows = ml["rows"]
     if not rows:
-        st.info("No trained models found yet — the forecasters write "
+        st.info("No trained models found yet - the forecasters write "
                 "`*_selected_model.json` the first time they run.")
         return
 
@@ -42,7 +42,7 @@ def _render() -> None:
     # -------------------------------------------------------------------
     total_rows = sum(r["n_training_rows"] or 0 for r in rows)
     win_counts = ml["win_counts"]
-    top_model = max(win_counts, key=win_counts.get) if win_counts else "—"
+    top_model = max(win_counts, key=win_counts.get) if win_counts else " - "
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Forecasting targets", ml["n_targets"])

@@ -1,0 +1,48 @@
+name: tests
+
+# Runs the full pytest suite on every push/PR. CI runners have no CPLEX
+# license (it's commercial software), so every test that actually solves the
+# MILP skips gracefully rather than fails: each one checks
+# `cfg.solver.resolve_executable() is None` and raises SkipTest/pytest.skip
+# before calling into the pipeline. CI's real job here is to guarantee the
+# non-solver-dependent code (config loading, scenario generation, checkers,
+# formatters, forecasters' non-model logic) never silently regresses, on
+# every push, without needing a licensed solver to do it.
+#
+# This project's solving is CPLEX-only by design -- config/solver.yaml lists
+# a HiGHS/CBC fallback_order, but it is not relied on for correctness here
+# (confirmed: a CPLEX-less CI run genuinely cannot produce a usable solve on
+# this machine setup). Full solver-backed coverage requires a real CPLEX
+# license and only runs locally, not in CI.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        run: python -m pytest tests/ -v --durations=10
+
+      - name: Compile-check every Python file
+        run: python -m py_compile $(git ls-files '*.py')

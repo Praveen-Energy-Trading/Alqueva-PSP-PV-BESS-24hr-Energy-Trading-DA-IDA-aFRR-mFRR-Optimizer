@@ -116,6 +116,40 @@ class CoreModelMeta:
     eff_pmp: Dict[tuple, float]         # {(fi, hi): eta} pump efficiency surface
 
 
+@dataclass
+class StochasticModelMeta:
+    """Side information the stochastic extractor needs after a solve.
+
+    Mirrors CoreModelMeta but carries the per-scenario price fan and
+    probabilities instead of a single da_prices dict, since the whole point
+    of the two-stage model is that price is scenario-indexed.
+    """
+    hours: List[int]
+    units: List[int]
+    dt_h: float
+    scenarios: List[int]
+    probabilities: Dict[int, float]
+    scenario_prices: Dict[int, Dict[int, float]]   # {s: {h: EUR/MWh}}
+    pv_available: Dict[int, float]
+    mwh_per_hm3: float
+    flow_grid_trb: List[float]
+    flow_grid_pmp: List[float]
+    head_grid: List[float]
+    eff_trb: Dict[tuple, float]
+    eff_pmp: Dict[tuple, float]
+    risk_measure: str = "expected_value"           # "expected_value" | "cvar"
+    cvar_alpha: Optional[float] = None             # set only when risk_measure == "cvar"
+    # Econ constants the extractor needs to recompute the exact per-scenario
+    # profit[s] the objective was built from (see build_core_model_stochastic's
+    # _profit_expr), without re-deriving from cfg after the fact.
+    v_up0: float = 0.0
+    water_value_eur_mwh: float = 0.0
+    pv_curtailment_penalty_eur_mwh: float = 0.0
+    spillage_penalty_eur_m3: float = 0.0
+    degradation_cost_eur_mwh: float = 0.0
+    startup_cost_eur: float = 0.0
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _efficiency_surface(flow_grid: List[float], head_grid: List[float],
@@ -527,6 +561,420 @@ def build_core_model(
         units=U,
         dt_h=dt,
         da_prices=dict(price),
+        pv_available=dict(pv_av),
+        mwh_per_hm3=mwh_per_hm3,
+        flow_grid_trb=flow_grid_trb,
+        flow_grid_pmp=flow_grid_pmp,
+        head_grid=head_grid,
+        eff_trb=eff_trb,
+        eff_pmp=eff_pmp,
+    )
+    return m, meta
+
+
+def build_core_model_stochastic(
+    inputs: dict,
+    cfg: AppConfig,
+    scenarios: Dict[int, Dict[int, float]],
+    probabilities: Dict[int, float],
+    fixed_net_position: Optional[Dict[int, float]] = None,
+    reserved_up_mw: Optional[Dict[int, float]] = None,
+    reserved_dn_mw: Optional[Dict[int, float]] = None,
+) -> tuple[pyo.ConcreteModel, StochasticModelMeta]:
+    """Two-stage stochastic extension of build_core_model, DA gate only.
+
+    First stage (decided "here-and-now", before price uncertainty resolves):
+        p_net[h]   — the DA bid quantity. ONE variable per hour, shared
+                     across every scenario (the whole point: you must submit
+                     a single bid before you know which price scenario will
+                     actually happen).
+
+    Second stage (recourse — adapts per scenario once "the world" is known):
+        every physical/dispatch variable (PSP turbine/pump, head, BESS,
+        reservoir state, PV split) gets an extra scenario index [..., s].
+        Each scenario carries its own independent copy of the sequential
+        SoC/reservoir continuity chain and its own terminal-reservoir
+        constraint, all anchored to the same (known, not uncertain) initial
+        state.
+
+    This function intentionally duplicates build_core_model's per-hour
+    constraint-writing logic rather than modifying it in place — see the
+    module docstring / project plan: build_core_model must stay byte-for-byte
+    unchanged so the existing 212-test deterministic suite has zero
+    regression risk. Only the module-level constants and the
+    _efficiency_surface() helper are shared.
+
+    Args:
+        inputs: same shape as build_core_model's `inputs`, except `da_prices`
+            is ignored — price uncertainty is expressed via `scenarios`
+            instead. `pv_available_mw` / `inflow_m3h` are still single point
+            values, shared across all scenarios (PV/inflow scenario fan is a
+            deferred, later extension — see scenario_generator.py docstring).
+        cfg: AppConfig.
+        scenarios: {scenario_id: {h: EUR/MWh}} — from
+            scenario_generator.generate_price_scenarios().
+        probabilities: {scenario_id: probability}, must sum to ~1.0.
+        fixed_net_position: optional {h: MW} — freeze p_net for those hours
+            (IDA gates use this to hold hours they cannot re-trade), same
+            meaning as build_core_model's fixed_net_position.
+        reserved_up_mw / reserved_dn_mw: same meaning as build_core_model.
+
+    Returns (model, meta).
+    """
+    p = cfg.plant
+    psp, bess, res, econ = p.psp, p.bess, p.reservoir, p.economics
+
+    H: List[int] = list(inputs["hours"])
+    U: List[int] = list(range(1, psp.n_units + 1))
+    S: List[int] = list(scenarios.keys())
+    dt = float(inputs.get("dt_h", 1.0))
+    pv_av = inputs["pv_available_mw"]
+    inflow = inputs.get("inflow_m3h", {h: 0.0 for h in H})
+    init = inputs.get("initial_state", {})
+
+    if abs(sum(probabilities.values()) - 1.0) > 1e-6:
+        raise ValueError(
+            f"scenario probabilities must sum to 1.0, got {sum(probabilities.values())!r}")
+    if set(scenarios.keys()) != set(probabilities.keys()):
+        raise ValueError("scenarios and probabilities must share the same scenario ids")
+
+    v_up0 = float(init.get("upper_reservoir_hm3", res.upper_initial_hm3))
+    v_low0 = float(init.get("lower_reservoir_hm3", res.lower_initial_hm3))
+    soc0 = float(init.get("bess_soc_frac", bess.initial_soc_frac)) * bess.capacity_mwh
+
+    mwh_per_hm3 = psp.p_turbine_max_mw / psp.q_turbine_max_m3h * M3_PER_HM3
+
+    fcr = max(0.0, p.fcr.mandatory_headroom_mw)
+    p_gen_cap = p.p_max_generation_mw - fcr
+    p_pump_cap = p.p_max_pump_mw - fcr
+
+    reserved_up = reserved_up_mw or {}
+    reserved_dn = reserved_dn_mw or {}
+
+    p_pump_min_mw = psp.p_pump_max_mw * (psp.q_pump_min_m3h / psp.q_pump_max_m3h)
+
+    Q_ref_m3 = res.upper_min_hm3 * M3_PER_HM3
+    Q_range_m3 = (res.upper_usable_hm3 - res.upper_min_hm3) * M3_PER_HM3
+    dH_dQ = (H_MAX_OP - H_MIN_OP) / Q_range_m3 if Q_range_m3 > 0 else 0.0
+
+    FI = list(range(N_GRID))
+    HI = list(range(N_GRID))
+
+    flow_grid_trb: List[float] = list(
+        np.linspace(psp.q_turbine_min_m3h, psp.q_turbine_max_m3h, N_GRID))
+    flow_grid_pmp: List[float] = list(
+        np.linspace(psp.q_pump_min_m3h, psp.q_pump_max_m3h, N_GRID))
+    head_grid: List[float] = list(
+        np.linspace(H_MIN_OP, H_MAX_OP, N_GRID))
+
+    eff_trb = _efficiency_surface(flow_grid_trb, head_grid, COEFFS_TRB)
+    eff_pmp = _efficiency_surface(flow_grid_pmp, head_grid, COEFFS_PMP)
+
+    pwr_trb: Dict[tuple, float] = {
+        (fi, hi): eff_trb[(fi, hi)] * RHO_WATER * G_GRAVITY
+                  * flow_grid_trb[fi] * head_grid[hi] / CONV_M3H_TO_MW
+        for fi in FI for hi in HI
+    }
+    pwr_pmp: Dict[tuple, float] = {
+        (fi, hi): (1.0 / eff_pmp[(fi, hi)]) * RHO_WATER * G_GRAVITY
+                  * flow_grid_pmp[fi] * head_grid[hi] / CONV_M3H_TO_MW
+        for fi in FI for hi in HI
+    }
+
+    m = pyo.ConcreteModel("alqueva_portfolio_stochastic")
+    m.H = pyo.Set(initialize=H, ordered=True)
+    m.U = pyo.Set(initialize=U, ordered=True)
+    m.S = pyo.Set(initialize=S, ordered=True)
+    m.FI = pyo.Set(initialize=FI, ordered=True)
+    m.HI = pyo.Set(initialize=HI, ordered=True)
+    m.K4 = pyo.Set(initialize=[0, 1, 2, 3])
+
+    first = H[0]
+
+    def prev(h: int) -> int:
+        return H[H.index(h) - 1]
+
+    # ── First-stage variable: the DA bid, shared across every scenario ──────
+    m.p_net = pyo.Var(m.H, domain=pyo.Reals)
+
+    # ── Second-stage (recourse) variables — scenario-indexed ────────────────
+    m.p_turb = pyo.Var(m.U, m.H, m.S, domain=pyo.NonNegativeReals)
+    m.p_pump = pyo.Var(m.U, m.H, m.S, domain=pyo.NonNegativeReals)
+    m.on_turb = pyo.Var(m.U, m.H, m.S, domain=pyo.Binary)
+    m.on_pump = pyo.Var(m.U, m.H, m.S, domain=pyo.Binary)
+    m.q_turb = pyo.Var(m.U, m.H, m.S, domain=pyo.NonNegativeReals)
+    m.q_pump = pyo.Var(m.U, m.H, m.S, domain=pyo.NonNegativeReals)
+    m.start_turb = pyo.Var(m.U, m.H, m.S, domain=pyo.Binary)
+    m.start_pump = pyo.Var(m.U, m.H, m.S, domain=pyo.Binary)
+
+    m.H_net = pyo.Var(m.H, m.S, domain=pyo.Reals, bounds=(MC_H_LO, MC_H_HI))
+    m.H_net_active_trb = pyo.Var(m.U, m.H, m.S, domain=pyo.Reals)
+    m.H_net_active_pmp = pyo.Var(m.U, m.H, m.S, domain=pyo.Reals)
+
+    m.omega_trb = pyo.Var(m.U, m.FI, m.HI, m.H, m.S, domain=pyo.NonNegativeReals)
+    m.omega_pmp = pyo.Var(m.U, m.FI, m.HI, m.H, m.S, domain=pyo.NonNegativeReals)
+
+    m.pv_used = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.pv_to_bess = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.pv_curt = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.p_chg = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.p_dis = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.chg_on = pyo.Var(m.H, m.S, domain=pyo.Binary)
+    m.dis_on = pyo.Var(m.H, m.S, domain=pyo.Binary)
+    m.soc = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.v_up = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.v_low = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+    m.spill = pyo.Var(m.H, m.S, domain=pyo.NonNegativeReals)
+
+    # ── PSP constraints (per scenario) ───────────────────────────────────────
+    m.mode_excl = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s: mm.on_turb[u, h, s] + mm.on_pump[u, h, s] <= 1)
+
+    m.turb_max = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s: mm.p_turb[u, h, s] <= psp.p_turbine_max_mw * mm.on_turb[u, h, s])
+    m.turb_min = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s: mm.p_turb[u, h, s] >= psp.p_turbine_min_mw * mm.on_turb[u, h, s])
+
+    m.pump_max = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s: mm.p_pump[u, h, s] <= psp.p_pump_max_mw * mm.on_pump[u, h, s])
+    m.pump_min = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s: mm.p_pump[u, h, s] >= p_pump_min_mw * mm.on_pump[u, h, s])
+
+    def _start_rule(mm, u, h, s):
+        if h == first:
+            return mm.start_turb[u, h, s] >= mm.on_turb[u, h, s]
+        return mm.start_turb[u, h, s] >= mm.on_turb[u, h, s] - mm.on_turb[u, prev(h), s]
+    m.turb_start = pyo.Constraint(m.U, m.H, m.S, rule=_start_rule)
+
+    def _start_pump_rule(mm, u, h, s):
+        if h == first:
+            return mm.start_pump[u, h, s] >= mm.on_pump[u, h, s]
+        return mm.start_pump[u, h, s] >= mm.on_pump[u, h, s] - mm.on_pump[u, prev(h), s]
+    m.pump_start = pyo.Constraint(m.U, m.H, m.S, rule=_start_pump_rule)
+
+    L = max(1, round(psp.min_mode_hours / dt))
+    if L > 1:
+        def _min_dwell_rule(mm, u, h, s, mode):
+            start_var = mm.start_turb if mode == "turb" else mm.start_pump
+            on_var = mm.on_turb if mode == "turb" else mm.on_pump
+            idx = H.index(h)
+            if idx + L > len(H):
+                return pyo.Constraint.Skip
+            window = H[idx: idx + L]
+            return sum(on_var[u, hh, s] for hh in window) >= L * start_var[u, h, s]
+        m.turb_min_dwell = pyo.Constraint(
+            m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_dwell_rule(mm, u, h, s, "turb"))
+        m.pump_min_dwell = pyo.Constraint(
+            m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_dwell_rule(mm, u, h, s, "pump"))
+
+    m.head_vol = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s: mm.H_net[h, s] == (H_MIN_OP
+            + dH_dQ * (mm.v_up[h, s] * M3_PER_HM3 - Q_ref_m3)))
+
+    def _mc_trb(mm, u, h, s, k):
+        z, x = mm.H_net_active_trb[u, h, s], mm.on_turb[u, h, s]
+        Hn = mm.H_net[h, s]
+        if k == 0: return z <= MC_H_HI * x
+        if k == 1: return z >= MC_H_LO * x
+        if k == 2: return z <= Hn - MC_H_LO * (1 - x)
+        return              z >= Hn - MC_H_HI * (1 - x)
+
+    def _mc_pmp(mm, u, h, s, k):
+        z, x = mm.H_net_active_pmp[u, h, s], mm.on_pump[u, h, s]
+        Hn = mm.H_net[h, s]
+        if k == 0: return z <= MC_H_HI * x
+        if k == 1: return z >= MC_H_LO * x
+        if k == 2: return z <= Hn - MC_H_LO * (1 - x)
+        return              z >= Hn - MC_H_HI * (1 - x)
+
+    m.mc_trb = pyo.Constraint(m.U, m.H, m.S, m.K4, rule=_mc_trb)
+    m.mc_pmp = pyo.Constraint(m.U, m.H, m.S, m.K4, rule=_mc_pmp)
+
+    m.omega_trb_conv = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            sum(mm.omega_trb[u, fi, hi, h, s] for fi in FI for hi in HI)
+            == mm.on_turb[u, h, s])
+    m.omega_pmp_conv = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            sum(mm.omega_pmp[u, fi, hi, h, s] for fi in FI for hi in HI)
+            == mm.on_pump[u, h, s])
+
+    m.omega_trb_pwr = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            mm.p_turb[u, h, s] == sum(
+                mm.omega_trb[u, fi, hi, h, s] * pwr_trb[(fi, hi)]
+                for fi in FI for hi in HI))
+    m.omega_pmp_pwr = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            mm.p_pump[u, h, s] == sum(
+                mm.omega_pmp[u, fi, hi, h, s] * pwr_pmp[(fi, hi)]
+                for fi in FI for hi in HI))
+
+    m.omega_trb_flow = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            mm.q_turb[u, h, s] == sum(
+                mm.omega_trb[u, fi, hi, h, s] * flow_grid_trb[fi]
+                for fi in FI for hi in HI))
+    m.omega_pmp_flow = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            mm.q_pump[u, h, s] == sum(
+                mm.omega_pmp[u, fi, hi, h, s] * flow_grid_pmp[fi]
+                for fi in FI for hi in HI))
+
+    m.omega_trb_head = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            sum(mm.omega_trb[u, fi, hi, h, s] * head_grid[hi]
+                for fi in FI for hi in HI)
+            == mm.H_net_active_trb[u, h, s])
+    m.omega_pmp_head = pyo.Constraint(m.U, m.H, m.S,
+        rule=lambda mm, u, h, s:
+            sum(mm.omega_pmp[u, fi, hi, h, s] * head_grid[hi]
+                for fi in FI for hi in HI)
+            == mm.H_net_active_pmp[u, h, s])
+
+    # ── BESS constraints (per scenario) ──────────────────────────────────────
+    m.bess_excl = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s: mm.chg_on[h, s] + mm.dis_on[h, s] <= 1)
+
+    m.chg_cap = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s:
+            mm.p_chg[h, s] + mm.pv_to_bess[h, s] <= bess.power_mw * mm.chg_on[h, s])
+    m.dis_cap = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s: mm.p_dis[h, s] <= bess.power_mw * mm.dis_on[h, s])
+
+    m.pv_to_bess_cap = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s: mm.pv_to_bess[h, s] <= bess.power_mw)
+
+    def _soc_rule(mm, h, s):
+        prev_e = soc0 if h == first else mm.soc[prev(h), s]
+        total_chg = mm.p_chg[h, s] + mm.pv_to_bess[h, s]
+        return mm.soc[h, s] == (prev_e
+                                 + bess.eta_charge * total_chg * dt
+                                 - mm.p_dis[h, s] * dt / bess.eta_discharge)
+    m.soc_balance = pyo.Constraint(m.H, m.S, rule=_soc_rule)
+
+    m.soc_lo = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.soc[h, s] >= bess.e_min_mwh)
+    m.soc_hi = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.soc[h, s] <= bess.e_max_mwh)
+
+    # ── PV balance (per scenario — PV output itself is not yet scenario-fanned,
+    #    but the split to grid/BESS/curtailment is a recourse decision) ───────
+    m.pv_balance = pyo.Constraint(m.H, m.S,
+        rule=lambda mm, h, s:
+            mm.pv_used[h, s] + mm.pv_to_bess[h, s] + mm.pv_curt[h, s] == pv_av[h])
+
+    # ── Reservoir constraints (per scenario, own continuity chain each) ─────
+    def _vup_rule(mm, h, s):
+        prev_v = v_up0 if h == first else mm.v_up[prev(h), s]
+        net_flow = (inflow[h]
+                    + sum(mm.q_pump[u, h, s] for u in U)
+                    - sum(mm.q_turb[u, h, s] for u in U)
+                    - mm.spill[h, s])
+        return mm.v_up[h, s] == prev_v + net_flow * dt / M3_PER_HM3
+
+    def _vlow_rule(mm, h, s):
+        prev_v = v_low0 if h == first else mm.v_low[prev(h), s]
+        net_flow = (sum(mm.q_turb[u, h, s] for u in U)
+                    - sum(mm.q_pump[u, h, s] for u in U))
+        return mm.v_low[h, s] == prev_v + net_flow * dt / M3_PER_HM3
+
+    m.vup_balance = pyo.Constraint(m.H, m.S, rule=_vup_rule)
+    m.vlow_balance = pyo.Constraint(m.H, m.S, rule=_vlow_rule)
+
+    m.vup_lo = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.v_up[h, s] >= res.upper_min_hm3)
+    m.vup_hi = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.v_up[h, s] <= res.upper_usable_hm3)
+    m.vlow_lo = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.v_low[h, s] >= res.lower_min_hm3)
+    m.vlow_hi = pyo.Constraint(m.H, m.S, rule=lambda mm, h, s: mm.v_low[h, s] <= res.lower_capacity_hm3)
+
+    # Terminal reservoir hard constraint — enforced PER SCENARIO, since each
+    # scenario's own recourse trajectory must independently avoid depletion.
+    m.terminal_reservoir = pyo.Constraint(m.S,
+        rule=lambda mm, s: mm.v_up[H[-1], s] >= v_up0)
+
+    # ── Energy balance — THE first-stage/second-stage coupling constraint ───
+    # p_net[h] has no scenario index; each scenario's physical dispatch must
+    # independently sum to that same shared bid.
+    def _pnet_rule(mm, h, s):
+        psp_net = sum(mm.p_turb[u, h, s] - mm.p_pump[u, h, s] for u in U)
+        return mm.p_net[h] == psp_net + mm.pv_used[h, s] + mm.p_dis[h, s] - mm.p_chg[h, s]
+    m.pnet_balance = pyo.Constraint(m.H, m.S, rule=_pnet_rule)
+
+    m.pnet_hi = pyo.Constraint(m.H,
+        rule=lambda mm, h: mm.p_net[h] <= p_gen_cap - reserved_up.get(h, 0.0))
+    m.pnet_lo = pyo.Constraint(m.H,
+        rule=lambda mm, h: mm.p_net[h] >= -(p_pump_cap - reserved_dn.get(h, 0.0)))
+
+    # Freeze hours outside the current gate's tradable window (IDA gates use
+    # this to hold hours they cannot re-trade, INV-11 -- same mechanism as
+    # build_core_model's fixed_net_position, lines 528-531). p_net[h] has no
+    # scenario index, so one constraint per fixed hour applies identically
+    # across every scenario's recourse.
+    if fixed_net_position:
+        m.fix_net = pyo.Constraint(
+            [h for h in H if h in fixed_net_position],
+            rule=lambda mm, h: mm.p_net[h] == fixed_net_position[h])
+
+    # ── Objective: expected value (default) or CVaR-averse across scenarios ─
+    # profit_expr[s] is the exact per-scenario term either objective is built
+    # from -- shared so "expected_value" and "cvar" are genuinely the same
+    # underlying uncertainty model, just aggregated differently.
+    def _profit_expr(mm, s):
+        price_s = scenarios[s]
+        energy_rev = sum(price_s[h] * mm.p_net[h] * dt for h in H)
+        water_val = econ.water_value_eur_mwh * mwh_per_hm3 * (mm.v_up[H[-1], s] - v_up0)
+        pv_pen = econ.pv_curtailment_penalty_eur_mwh * sum(
+            mm.pv_curt[h, s] * dt for h in H)
+        bess_deg = bess.degradation_cost_eur_mwh * sum(
+            (mm.p_chg[h, s] + mm.pv_to_bess[h, s] + mm.p_dis[h, s]) * dt for h in H)
+        spill_pen = econ.spillage_penalty_eur_m3 * sum(mm.spill[h, s] * dt for h in H)
+        start_pen = psp.startup_cost_eur * sum(
+            mm.start_turb[u, h, s] for u in U for h in H)
+        return energy_rev + water_val - pv_pen - bess_deg - spill_pen - start_pen
+
+    risk_measure = cfg.stochastic.risk_measure
+    cvar_alpha = cfg.stochastic.cvar_alpha
+    if risk_measure not in ("expected_value", "cvar"):
+        raise ValueError(
+            f"cfg.stochastic.risk_measure must be 'expected_value' or 'cvar', "
+            f"got {risk_measure!r}")
+
+    if risk_measure == "cvar":
+        if not (0.0 < cvar_alpha < 1.0):
+            raise ValueError(
+                f"cfg.stochastic.cvar_alpha must be in (0, 1), got {cvar_alpha!r}")
+
+        # Rockafellar-Uryasev (2000) linearization of lower-tail CVaR for a
+        # maximization problem:
+        #   CVaR_alpha(profit) = max_eta [ eta - 1/(1-alpha) * E[(eta - profit)+] ]
+        # eta is the candidate VaR; cvar_shortfall[s] linearizes (eta - profit[s])+.
+        m.eta = pyo.Var(domain=pyo.Reals)
+        m.cvar_shortfall = pyo.Var(m.S, domain=pyo.NonNegativeReals)
+        m.cvar_shortfall_ge = pyo.Constraint(
+            m.S, rule=lambda mm, s: mm.cvar_shortfall[s] >= mm.eta - _profit_expr(mm, s))
+
+        def _objective(mm):
+            return mm.eta - (1.0 / (1.0 - cvar_alpha)) * sum(
+                probabilities[s] * mm.cvar_shortfall[s] for s in S)
+    else:
+        def _objective(mm):
+            return sum(probabilities[s] * _profit_expr(mm, s) for s in S)
+
+    m.objective = pyo.Objective(rule=_objective, sense=pyo.maximize)
+
+    meta = StochasticModelMeta(
+        hours=H,
+        units=U,
+        dt_h=dt,
+        scenarios=S,
+        risk_measure=risk_measure,
+        cvar_alpha=cvar_alpha if risk_measure == "cvar" else None,
+        v_up0=v_up0,
+        water_value_eur_mwh=econ.water_value_eur_mwh,
+        pv_curtailment_penalty_eur_mwh=econ.pv_curtailment_penalty_eur_mwh,
+        spillage_penalty_eur_m3=econ.spillage_penalty_eur_m3,
+        degradation_cost_eur_mwh=bess.degradation_cost_eur_mwh,
+        startup_cost_eur=psp.startup_cost_eur,
+        probabilities=dict(probabilities),
+        scenario_prices={s: dict(scenarios[s]) for s in S},
         pv_available=dict(pv_av),
         mwh_per_hm3=mwh_per_hm3,
         flow_grid_trb=flow_grid_trb,

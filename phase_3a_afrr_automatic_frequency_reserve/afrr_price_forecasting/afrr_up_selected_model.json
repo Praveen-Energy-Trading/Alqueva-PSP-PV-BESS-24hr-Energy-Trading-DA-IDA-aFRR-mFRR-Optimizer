@@ -1,11 +1,11 @@
 {
   "selected": "CatBoost",
   "cv_mae": {
-    "LightGBM": 8.6408,
-    "XGBoost": 8.5413,
-    "RandomForest": 8.6705,
-    "CatBoost": 8.4537
+    "LightGBM": 8.6638,
+    "XGBoost": 8.5802,
+    "RandomForest": 8.7017,
+    "CatBoost": 8.5221
   },
-  "data_end_date": "2026-08-14",
-  "updated_on": "2026-08-14"
+  "data_end_date": "2026-08-24",
+  "updated_on": "2026-08-24"
 }

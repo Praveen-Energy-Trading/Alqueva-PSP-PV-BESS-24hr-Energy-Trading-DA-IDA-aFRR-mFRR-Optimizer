@@ -59,6 +59,7 @@ if _REPO not in sys.path:
 from common_layer.optimisation_model.reserve_offer_builder import (
     fat_deliverable_mw, fat_deliverable_dn_mw,
     build_reserve_offers, check_reserve_offers,
+    compute_price_aware_fraction,
     ReserveOffer, ReserveCheckError,
     _AFRR_FAT_MODE_SWITCH_MIN, _MFRR_FAT_MODE_SWITCH_MIN, _MIN_SAFE_MODE_SWITCH_MIN,
 )
@@ -212,6 +213,65 @@ class TestBuildReserveOffers:
         offers = self._build(cfg, committed)
         assert set(offers.keys()) == set(range(1, 25)), \
             f"Missing hours in offers: {set(range(1,25)) - set(offers.keys())}"
+
+
+# ── Group F2 — compute_price_aware_fraction ─────────────────────────────────
+
+class TestComputePriceAwareFraction:
+
+    def test_F2a_no_da_price_falls_back_to_max(self):
+        """No DA price to compare against -> keep today's fixed behavior (max_fraction)."""
+        got = compute_price_aware_fraction(
+            cap_price_eur_mw=50.0, da_price_eur_mwh=0.0,
+            assumed_duty_cycle_h=0.5, min_fraction=0.0, max_fraction=1.0,
+        )
+        assert got == 1.0
+
+    def test_F2b_zero_duty_cycle_falls_back_to_max(self):
+        """Degenerate duty cycle (would divide by zero) -> fall back to max_fraction."""
+        got = compute_price_aware_fraction(
+            cap_price_eur_mw=50.0, da_price_eur_mwh=40.0,
+            assumed_duty_cycle_h=0.0, min_fraction=0.0, max_fraction=1.0,
+        )
+        assert got == 1.0
+
+    def test_F2c_high_reserve_advantage_leans_toward_max(self):
+        """Reserve capacity price implies much higher EUR/MWh value than DA -> near max_fraction."""
+        got = compute_price_aware_fraction(
+            cap_price_eur_mw=100.0, da_price_eur_mwh=20.0,
+            assumed_duty_cycle_h=0.5, min_fraction=0.0, max_fraction=1.0,
+        )
+        # reserve_value = 100/0.5 = 200 EUR/MWh; ratio = 200/20 = 10 -> weight clamps to 1.0
+        assert got == pytest.approx(1.0)
+
+    def test_F2d_low_reserve_advantage_leans_toward_min(self):
+        """Reserve capacity price implies much lower EUR/MWh value than DA energy -> near min_fraction."""
+        got = compute_price_aware_fraction(
+            cap_price_eur_mw=1.0, da_price_eur_mwh=100.0,
+            assumed_duty_cycle_h=0.5, min_fraction=0.05, max_fraction=1.0,
+        )
+        # reserve_value = 1/0.5 = 2 EUR/MWh; ratio = 2/100 = 0.02 -> weight clamps to 0.0
+        assert got == pytest.approx(0.05)
+
+    def test_F2e_ratio_exactly_one_gives_midpoint_weight(self):
+        """advantage_ratio == 1.0 (reserve and energy equally valuable) -> weight == 0.5."""
+        got = compute_price_aware_fraction(
+            cap_price_eur_mw=20.0, da_price_eur_mwh=40.0,
+            assumed_duty_cycle_h=0.5, min_fraction=0.0, max_fraction=1.0,
+        )
+        # reserve_value = 20/0.5 = 40 EUR/MWh; ratio = 40/40 = 1.0 -> weight = 0.5
+        assert got == pytest.approx(0.5)
+
+    def test_F2f_result_always_within_min_max_bounds(self):
+        """Result must never fall outside [min_fraction, max_fraction] regardless of inputs."""
+        for cap_price in (0.0, 5.0, 500.0):
+            for da_price in (1.0, 50.0, 500.0):
+                got = compute_price_aware_fraction(
+                    cap_price_eur_mw=cap_price, da_price_eur_mwh=da_price,
+                    assumed_duty_cycle_h=1.0, min_fraction=0.10, max_fraction=0.20,
+                )
+                assert 0.10 - 1e-9 <= got <= 0.20 + 1e-9, \
+                    f"fraction {got} out of bounds for cap={cap_price} da={da_price}"
 
 
 # ── Group G — check_reserve_offers ──────────────────────────────────────────
