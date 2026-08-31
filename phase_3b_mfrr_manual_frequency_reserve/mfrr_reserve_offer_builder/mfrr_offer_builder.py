@@ -11,19 +11,36 @@ for the citation and what the real per-unit limit actually is).
 """
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Optional
 
 from common_layer.configuration.config_loader import AppConfig
 from common_layer.optimisation_model.reserve_offer_builder import (
-    build_reserve_offers, ReserveOffer,
+    build_reserve_offers, compute_price_aware_fraction, ReserveOffer,
 )
 
 
 def build_mfrr_offers(committed_net: Dict[int, float],
                       cap_up: Dict[int, float], cap_dn: Dict[int, float],
                       reserved_up: Dict[int, float], reserved_dn: Dict[int, float],
-                      cfg: AppConfig) -> Dict[int, ReserveOffer]:
+                      cfg: AppConfig,
+                      da_price_eur_mwh: Optional[Dict[int, float]] = None,
+                      ) -> Dict[int, ReserveOffer]:
     mf = cfg.market.mfrr
+    # See afrr_offer_builder.build_afrr_offers: DA's already-cleared price is
+    # the energy-side reference. An IDA1 forecast peek was tried and dropped
+    # as not representative of real trading-desk practice.
+    fraction_by_hour = None
+    if mf.dynamic_allocation_enabled and da_price_eur_mwh:
+        fraction_by_hour = {
+            h: compute_price_aware_fraction(
+                cap_price_eur_mw=cap_up.get(h, 0.0),
+                da_price_eur_mwh=da_price_eur_mwh.get(h, 0.0),
+                assumed_duty_cycle_h=mf.assumed_duty_cycle_h,
+                min_fraction=mf.min_offer_fraction,
+                max_fraction=mf.max_offer_fraction,   # today's fixed 0.20 stays the ceiling
+            )
+            for h in committed_net
+        }
     return build_reserve_offers(
         product="mFRR",
         committed_net=committed_net,
@@ -36,4 +53,5 @@ def build_mfrr_offers(committed_net: Dict[int, float],
         headroom_fraction=mf.max_offer_fraction,     # 0.20 of remaining headroom
         reserved_up=reserved_up,                     # subtract aFRR commitment
         reserved_dn=reserved_dn,
+        headroom_fraction_by_hour=fraction_by_hour,
     )

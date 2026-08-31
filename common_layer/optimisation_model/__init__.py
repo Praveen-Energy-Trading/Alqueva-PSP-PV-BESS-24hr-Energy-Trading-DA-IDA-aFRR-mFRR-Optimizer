@@ -16,9 +16,11 @@ from common_layer.optimisation_model.core_milp_solver import (
     solve_core_model, extract_results, GateResults, SolveError,
     analyze_binding_constraints,
     extract_stochastic_results, StochasticGateResults,
+    bridge_stochastic_to_gate_results,
 )
 from common_layer.optimisation_model.scenario_generator import (
     generate_price_scenarios, load_selected_model_mae, default_scenarios_for_da,
+    default_scenarios_for_gate,
 )
 
 __all__ = [
@@ -27,5 +29,7 @@ __all__ = [
     "solve_core_model", "extract_results", "GateResults", "SolveError",
     "analyze_binding_constraints",
     "extract_stochastic_results", "StochasticGateResults",
+    "bridge_stochastic_to_gate_results",
     "generate_price_scenarios", "load_selected_model_mae", "default_scenarios_for_da",
+    "default_scenarios_for_gate",
 ]

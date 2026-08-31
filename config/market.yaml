@@ -144,6 +144,15 @@ afrr:
   max_offer_up_mw: 524.4             # = plant.p_max_generation_mw (4x129.6 + 5 PV + 1 BESS)
   max_offer_dn_mw: 447.4             # = plant.p_max_pump_mw (4x111.6 + 1 BESS)
   cap_price_max_eur_mw: 250.0       # CONFIRMED REN mercado portal cap
+  # dynamic_allocation_enabled: OFF by default - preserves today's fixed
+  # headroom_fraction=1.0 behavior exactly. When true, the offered fraction
+  # of headroom is computed per-hour from cap_price vs the real DA price
+  # instead of always claiming all of it. assumed_duty_cycle_h is a genuine
+  # assumption (no historical activation-duration data in this repo) - safe
+  # to recalibrate once real activation data exists.
+  dynamic_allocation_enabled: false
+  min_offer_fraction: 0.0
+  assumed_duty_cycle_h: 0.5
 
 # -----------------------------------------------------------------------------
 # mFRR — CONFIRMED: REN joined MARI 27 Nov 2024.
@@ -180,6 +189,13 @@ mfrr:
   # change it to reflect actual desk risk appetite, not a compliance target.
   max_offer_fraction: 0.20
   price_fraction_of_afrr: 0.40      # synthetic price fallback only
+  # dynamic_allocation_enabled: OFF by default - preserves today's fixed
+  # headroom_fraction=0.20 behavior exactly. See afrr.dynamic_allocation_enabled
+  # above for what "true" does; max_offer_fraction above becomes the ceiling
+  # instead of the constant value.
+  dynamic_allocation_enabled: false
+  min_offer_fraction: 0.0
+  assumed_duty_cycle_h: 1.0
 
 # -----------------------------------------------------------------------------
 # Imbalance settlement (REN dual pricing). Actual REN ISP price preferred;

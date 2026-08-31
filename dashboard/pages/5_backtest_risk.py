@@ -1,4 +1,4 @@
-"""Backtest & Portfolio Risk — multi-day aggregate performance and risk
+"""Backtest & Portfolio Risk - multi-day aggregate performance and risk
 metrics (VaR/CVaR/Sharpe/drawdown, operational reliability, day-part
 patterns). This data has existed in runtime/reports/backtest_*.xlsx since
 before this dashboard rewrite but was never surfaced anywhere."""
@@ -53,7 +53,7 @@ def _render() -> None:
             st.success(f"🟢 {n_feas}/{n_days} days feasible, {n_pass}/{n_days} passed the physical checker")
         else:
             st.warning(f"🟡 {n_feas}/{n_days} days feasible, {n_pass}/{n_days} passed the physical checker "
-                       f"— {n_days - n_feas} infeasible, {n_days - n_pass} checker failure(s)")
+                       f" -  {n_days - n_feas} infeasible, {n_days - n_pass} checker failure(s)")
 
     other_metrics = [(l, v) for l, v in summary_metrics if l not in ("Days", "Feasible", "Checker passed")]
     if other_metrics:
@@ -67,7 +67,7 @@ def _render() -> None:
 
     st.subheader("Portfolio risk")
     if "Risk" not in report:
-        st.info("This backtest report has no Risk sheet — risk metrics weren't computed for this run.")
+        st.info("This backtest report has no Risk sheet - risk metrics weren't computed for this run.")
     else:
         section = None
         section_rows: dict[str, list[tuple[str, object]]] = {}
@@ -91,7 +91,7 @@ def _render() -> None:
         cvar_mc_95 = next((v for k, v in mc.items() if k.startswith("CVaR(95%)") and "mean" in k), None)
 
         if any(v is not None for v in (var_hist_95, cvar_hist_95, var_hist_99, cvar_hist_99)):
-            st.markdown("**VaR / CVaR — how bad could a day get**")
+            st.markdown("**VaR / CVaR - how bad could a day get**")
             metrics_x = ["VaR 95%", "CVaR 95%", "VaR 99%", "CVaR 99%"]
             hist_y = [var_hist_95, cvar_hist_95, var_hist_99, cvar_hist_99]
             fig_var = go.Figure()
@@ -140,7 +140,7 @@ def _render() -> None:
         fig.update_yaxes(title_text="Cumulative EUR", gridcolor=theme.GRIDLINE, row=2, col=1)
         st.plotly_chart(fig, width="stretch")
 
-        # Two different scales (EUR/MWh vs MW) — stacked on a shared date axis
+        # Two different scales (EUR/MWh vs MW) - stacked on a shared date axis
         # instead of a dual-y-axis overlay, so neither line's slope is read
         # against the wrong scale.
         fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08)
@@ -180,10 +180,10 @@ def _render() -> None:
     st.markdown("---")
 
     # ---------------------------------------------------------------------------
-    # Extended KPIs — efficiency, capacity factors, reservoir head, revenue mix
+    # Extended KPIs - efficiency, capacity factors, reservoir head, revenue mix
     # ---------------------------------------------------------------------------
 
-    st.subheader("Extended KPIs — efficiency and mix")
+    st.subheader("Extended KPIs - efficiency and mix")
     if "KPI_Extended" in report:
         kx = report["KPI_Extended"]
         c1, c2, c3, c4 = st.columns(4)

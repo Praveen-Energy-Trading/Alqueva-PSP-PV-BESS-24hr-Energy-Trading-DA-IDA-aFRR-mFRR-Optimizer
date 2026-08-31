@@ -1,4 +1,4 @@
-"""dispatch_ticket.py — technical/physical optimization widgets: reservoir
+"""dispatch_ticket.py - technical/physical optimization widgets: reservoir
 trajectory, unit commitment, ramp utilization, etc. Distinct from
 delivery_ticket.py (market delivery/settlement cards) and gate_ticket.py
 (bid decisions) -- these show what the MILP solver actually did physically,
@@ -322,7 +322,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range (Alqueva barely moves day-to-day vs. its full size)</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range (Alqueva barely moves day-to-day vs. its full size)</p>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake)</p>
     <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
@@ -339,7 +339,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; &mdash; zoomed to today's range</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range</p>
     <div style="display:flex; gap:16px; margin-top:8px;">
       <div style="flex:1;">
         <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Alqueva now</p>
@@ -487,9 +487,9 @@ def render_pv_routing_card(pv: dict) -> str:
     })
 
     curt_note = (
-        f"No curtailment this day &mdash; every available PV MWh was exported or stored."
+        f"No curtailment this day - every available PV MWh was exported or stored."
         if pv["total_curtailed_mwh"] <= 1e-6 else
-        f"{pv['total_curtailed_mwh']:.1f} MWh curtailed ({pv['curtailed_pct']:.1f}% of available) &mdash; cost &euro;{pv['curtailment_cost_eur']:.0f}."
+        f"{pv['total_curtailed_mwh']:.1f} MWh curtailed ({pv['curtailed_pct']:.1f}% of available) - cost &euro;{pv['curtailment_cost_eur']:.0f}."
     )
 
     return f'''
@@ -531,7 +531,7 @@ def render_pv_routing_card(pv: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.55;"></span>Curtailed</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
     </div>
     </div>
     <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>
@@ -816,9 +816,9 @@ def render_water_balance_card(wb: dict) -> str:
     })
 
     spill_note = (
-        f"No spill this day &mdash; every m&sup3; of inflow and pumped water stayed usable."
+        f"No spill this day - every m&sup3; of inflow and pumped water stayed usable."
         if wb["total_spill_m3h"] <= 1e-6 else
-        f"{wb['total_spill_m3h']:,.0f} m&sup3;/h spilled total &mdash; reservoir hit its usable ceiling at some hour."
+        f"{wb['total_spill_m3h']:,.0f} m&sup3;/h spilled total - reservoir hit its usable ceiling at some hour."
     )
 
     return f'''
@@ -854,7 +854,7 @@ def render_water_balance_card(wb: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.6;"></span>Spill</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
     </div>
     </div>
     <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>
@@ -981,7 +981,7 @@ def render_bess_soc_price_card(bs: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">BESS SOC vs price</div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Storage arbitrage the solver actually chose &mdash; SOC (% of usable band) against DA clearing price</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Storage arbitrage the solver actually chose - SOC (% of usable band) against DA clearing price</p>
     <div class="bs-chart-block" data-bs='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};">Shaded = charge (blue) / discharge (aqua) hours</span>
@@ -1005,10 +1005,10 @@ def render_bess_soc_price_card(bs: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.COLOR_PRICE}; margin-right:4px; vertical-align:middle;"></span>DA price</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bs-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="bs-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
     </div>
     </div>
-    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">Usable SOC band: {bs['e_min_mwh']:.2f}&ndash;{bs['e_max_mwh']:.2f} MWh &mdash; small (2 MWh) BESS, so absolute swings are modest even when the % band moves a lot.</p>
+    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">Usable SOC band: {bs['e_min_mwh']:.2f}&ndash;{bs['e_max_mwh']:.2f} MWh - small (2 MWh) BESS, so absolute swings are modest even when the % band moves a lot.</p>
   </div>
 </div>
 {_REPLAY_STYLE}
@@ -1129,7 +1129,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">BESS charge source</div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from &mdash; grid vs PV &mdash; {summary}</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from - grid vs PV - {summary}</p>
     <div class="bc2-chart-block" data-bc2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};">Stacked per hour, charging only</span>
@@ -1149,7 +1149,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each hour</span>
+      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
     </div>
     {empty_badge}
     </div>
@@ -1537,7 +1537,7 @@ def render_isp_dispatch_card(dv: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="ispd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <span id="ispd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each ISP</span>
       <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
@@ -1805,11 +1805,11 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
-    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 8px;">Area-wide ACE signal &mdash; Alqueva delivers only its own contracted share, not the full response.</p>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 8px;">Area-wide ACE signal - Alqueva delivers only its own contracted share, not the full response.</p>
     {stats_html}
 
     <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 10px; font-weight:500;">ACE deviation (top), and regulation activated at those same moments &mdash; {n} real ISPs</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 10px; font-weight:500;">ACE deviation (top), and regulation activated at those same moments - {n} real ISPs</p>
     <div style="position:relative; height:{total_h*0.92:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="afrrd-clip"><rect id="afrrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
@@ -1848,7 +1848,7 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
       <span style="color:{theme.COLOR_PRICE}; font-weight:600;">&#9679;</span> ACE
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="afrrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through each ISP</span>
+      <span id="afrrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each ISP</span>
       <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
@@ -2019,7 +2019,7 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Mandatory, non-remunerated</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">FCR dispatch</div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved headroom {headroom:.1f} MW, plant-level only &mdash; no per-resource split exists</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved headroom {headroom:.1f} MW, plant-level only - no per-resource split exists</p>
 
     <div class="fcrd-chart-block" data-fcrd='{payload_json}'>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Grid frequency deviation from 50.000 Hz, and the plant's response at those same moments ({n:,} real 30-s ticks)</p>
@@ -2063,7 +2063,7 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Pulled back</span>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-      <span id="fcrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown &mdash; Replay steps through every 30-s tick</span>
+      <span id="fcrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through every 30-s tick</span>
       <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">

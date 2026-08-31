@@ -68,7 +68,13 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
 
     hours = sorted(committed)
     cap_up, cap_dn, source = fetch_mfrr_cap_prices(hours, delivery_date, cfg, use_synthetic)
-    offers = build_mfrr_offers(committed, cap_up, cap_dn, reserved_up, reserved_dn, cfg)
+    # Real DA cleared price per hour - the energy-opportunity reference for
+    # price-aware sizing (config mfrr.dynamic_allocation_enabled). Already
+    # stored from the DA gate's own solve; no new forecast call needed.
+    da_position = PositionStore().load_position(delivery_date, "DA")
+    da_price = {h: v["price_eur_mwh"] for h, v in da_position.items()}
+    offers = build_mfrr_offers(committed, cap_up, cap_dn, reserved_up, reserved_dn, cfg,
+                                da_price_eur_mwh=da_price)
 
     try:
         check_mfrr_offers(offers, committed, reserved_up, reserved_dn, cfg)

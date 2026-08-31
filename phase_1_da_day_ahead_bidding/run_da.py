@@ -36,7 +36,9 @@ from common_layer.optimisation_model import (
     build_core_model_stochastic, extract_stochastic_results,
     generate_price_scenarios, load_selected_model_mae,
 )
-from common_layer.optimisation_model.core_milp_solver import GateResults
+from common_layer.optimisation_model.core_milp_solver import (
+    GateResults, bridge_stochastic_to_gate_results,
+)
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import (
     update_training_data, update_isp_training_data,
 )
@@ -63,53 +65,6 @@ from phase_1_da_day_ahead_bidding.trader_approval.trader_approval_prompt import 
 )
 
 log = get_logger("phase1.da")
-
-
-def _bridge_stochastic_to_gate_results(stoch_results, meta) -> GateResults:
-    """Adapt a StochasticGateResults into the existing GateResults shape so
-    every downstream consumer (physical bid checker, pre-trade risk checker,
-    ComponentStore report save) keeps working completely unchanged.
-
-    The first-stage bid (da_bids / net_position_mw) is exactly the shared,
-    scenario-independent decision — no approximation there. For the
-    per-hour dispatch trajectory fields (psp_schedule etc.), which only
-    exist per-scenario in the stochastic model, this uses the CENTRAL
-    scenario (offset k=0, i.e. the original point-forecast scenario) as the
-    representative trajectory shown to the physical/risk checkers and saved
-    to the report — a defensible choice since it's literally the same
-    forecast the deterministic path would have used, not an arbitrary pick.
-    """
-    H = meta.hours
-    central_s = min(
-        meta.scenarios,
-        key=lambda s: sum(abs(meta.scenario_prices[s][h] - stoch_results.da_bids[h]["expected_price_eur_mwh"])
-                           for h in H),
-    )
-    central = stoch_results.per_scenario_dispatch[central_s]
-
-    psp_schedule = {h: central[h]["psp"] for h in H}
-    bess_schedule = {h: central[h]["bess"] for h in H}
-    pv_schedule = {h: central[h]["pv"] for h in H}
-    reservoir_trajectory = {h: central[h]["reservoir"] for h in H}
-    # Efficiency-per-hour isn't tracked per-scenario in the stochastic
-    # extractor (omega weights aren't pulled there) -- report zeros rather
-    # than fabricate a plausible-looking number; a later iteration can add
-    # per-scenario efficiency extraction if a consumer needs it.
-    efficiency_per_hour = {h: {"eta_trb_pw": 0.0, "eta_pmp_pw": 0.0} for h in H}
-
-    return GateResults(
-        da_bids={h: {"volume_mwh": stoch_results.da_bids[h]["volume_mwh"],
-                     "price_eur_mwh": stoch_results.da_bids[h]["expected_price_eur_mwh"]}
-                 for h in H},
-        net_position_mw=stoch_results.net_position_mw,
-        psp_schedule=psp_schedule,
-        bess_schedule=bess_schedule,
-        pv_schedule=pv_schedule,
-        reservoir_trajectory=reservoir_trajectory,
-        efficiency_per_hour=efficiency_per_hour,
-        energy_revenue_eur=stoch_results.expected_energy_revenue_eur,
-        objective_eur=stoch_results.objective_eur,
-    )
 
 
 def _expand_hourly_to_isp(hourly: dict, day, hours: list) -> dict:
@@ -225,7 +180,7 @@ def run_da(delivery_date: str, config_dir: Optional[str] = None,
             model, meta = build_core_model_stochastic(inputs, cfg, scenarios, probabilities)
             solve_time = solve_core_model(model, cfg, gate="DA")
             stoch_results = extract_stochastic_results(model, meta)
-            results = _bridge_stochastic_to_gate_results(stoch_results, meta)
+            results = bridge_stochastic_to_gate_results(stoch_results, meta)
         else:
             model, meta = build_core_model(inputs, cfg)
             solve_time = solve_core_model(model, cfg, gate="DA")

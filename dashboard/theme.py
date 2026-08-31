@@ -1,10 +1,10 @@
-"""theme.py — single source of visual identity for the dashboard.
+"""theme.py - single source of visual identity for the dashboard.
 
 Every page imports colors and style_fig() from here instead of hardcoding
 plotly colors ("steelblue", "darkorange", ...), so the seven pages read as
 one system instead of independently-styled charts. Palette is the validated
 categorical/status reference (fixed hue order, colorblind-safe adjacent
-pairs) — see the dataviz skill's references/palette.md for the source.
+pairs) - see the dataviz skill's references/palette.md for the source.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 # ---------------------------------------------------------------------------
-# Categorical palette — fixed order, never cycled/reassigned per-chart.
+# Categorical palette - fixed order, never cycled/reassigned per-chart.
 # ---------------------------------------------------------------------------
 BLUE    = "#2a78d6"
 ORANGE  = "#eb6834"
@@ -24,7 +24,7 @@ VIOLET  = "#4a3aa7"
 RED     = "#e34948"
 CATEGORICAL = [BLUE, ORANGE, AQUA, YELLOW, MAGENTA, GREEN, VIOLET, RED]
 
-# Status palette — reserved for state (PASS/WARN/FAIL), never series identity.
+# Status palette - reserved for state (PASS/WARN/FAIL), never series identity.
 STATUS_GOOD     = "#0ca30c"
 STATUS_WARNING  = "#fab219"
 STATUS_SERIOUS  = "#ec835a"
@@ -34,7 +34,7 @@ STATUS_NEUTRAL  = "#898781"
 STATUS_COLOR = {"PASS": STATUS_GOOD, "SKIP": STATUS_NEUTRAL, "WARN": STATUS_WARNING, "FAIL": STATUS_CRITICAL}
 STATUS_ICON  = {"PASS": "\U0001F7E2", "SKIP": "⚪", "WARN": "\U0001F7E1", "FAIL": "\U0001F534"}
 
-# Semantic roles — reused consistently across pages so "generation" and
+# Semantic roles - reused consistently across pages so "generation" and
 # "pumping" (or aFRR/mFRR, up/down) always mean the same color everywhere in
 # the app, not just within one chart.
 COLOR_GEN   = BLUE     # generation / turbine / DA
@@ -115,7 +115,7 @@ def inject_css() -> None:
 
 
 # Streamlit reruns the whole script on every autorefresh tick, and the
-# front end remounts the page body each time — the browser has no reason to
+# front end remounts the page body each time - the browser has no reason to
 # keep scroll position across that, so a live-refreshing page keeps jumping
 # back to the top mid-read. There's no first-class Streamlit API for this;
 # the standard workaround is a components.v1.html iframe that reaches into
@@ -227,7 +227,17 @@ def _auto_correct_refresh_toggle() -> None:
     if not selected_date or not st.session_state.get("auto_refresh_toggle"):
         return
     import data  # local import: theme.py must stay import-cycle-free of data.py
-    if not data.is_pipeline_active(selected_date):
+    # data.is_pipeline_active() is file-based (checks the log on disk) and
+    # lags a subprocess that was JUST launched by runner.start() in this
+    # same session - Popen() returns before the child has written its first
+    # line, so this watchdog was winning a race against start()'s own
+    # auto_refresh_toggle=True and immediately flipping it back off, every
+    # time, before the file ever caught up. session_state.runner["running"]
+    # is set synchronously by start() with no file round-trip, so OR it in
+    # as an immediate signal this session already knows about.
+    runner_state = st.session_state.get("runner") or {}
+    session_knows_its_running = bool(runner_state.get("running"))
+    if not data.is_pipeline_active(selected_date) and not session_knows_its_running:
         st.session_state["auto_refresh_toggle"] = False
         st.rerun(scope="app")
 
@@ -269,7 +279,7 @@ def fmt_metric(value: object) -> str:
 
 def metric_cards(items: list[tuple[str, object]], ncols: int = 4, pre_formatted: bool = False) -> None:
     """Custom wrap-text cards instead of st.metric -- st.metric truncates
-    both long labels ('VaR(95%) — 5th-pct P&L (...') and long value strings
+    both long labels ('VaR(95%) - 5th-pct P&L (...') and long value strings
     ('1,015,15...') with an ellipsis once a card gets narrow, silently
     hiding the actual number. Wrapping instead of truncating costs a little
     vertical space but never loses information.

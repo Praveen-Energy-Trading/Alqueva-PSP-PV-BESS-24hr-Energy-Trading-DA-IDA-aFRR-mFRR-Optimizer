@@ -1,18 +1,19 @@
 # Alqueva 24h Energy Trading Optimizer — container image.
 #
 # No CPLEX license is baked into this image (it's commercial, per-machine
-# licensed software — see config/solver.yaml). The pipeline still runs: the
-# solver fallback chain (config/solver.yaml: fallback_order) automatically
-# uses the free HiGHS solver (via the `highspy` package, installed below)
-# whenever CPLEX isn't found. To use CPLEX inside this container, install
-# and license it separately and mount/set config/solver.yaml's `executable`
-# path accordingly — nothing else changes.
+# licensed software — see config/solver.yaml). This project's solving is
+# CPLEX-only by design; config/solver.yaml lists a HiGHS/CBC fallback_order,
+# but it is not what's actually verified/relied on for correctness here. To
+# actually solve inside this container, install and license CPLEX separately
+# and mount/set config/solver.yaml's `executable` path accordingly.
 #
 # Default CMD runs the test suite as a build-time-equivalent smoke test:
 # `docker run <image>` proves the image installs cleanly and the
-# non-solver-dependent code passes, exactly like CI (.github/workflows/tests.yml)
-# but from a container instead of a runner. Override CMD to run the actual
-# pipeline, e.g.:
+# non-solver-dependent code passes (every test that actually solves the MILP
+# skips gracefully without a CPLEX license — see tests/test_reserve_*.py's
+# `cfg.solver.resolve_executable() is None` guards), exactly like CI
+# (.github/workflows/tests.yml) but from a container instead of a runner.
+# Override CMD to run the actual pipeline (needs a licensed CPLEX to solve):
 #   docker run <image> python run_production.py --date auto --auto --synthetic
 
 FROM python:3.12-slim

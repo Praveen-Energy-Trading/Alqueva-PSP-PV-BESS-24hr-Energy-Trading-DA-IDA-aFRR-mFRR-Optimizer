@@ -1,4 +1,4 @@
-"""Trading Desk — the money: P&L, per-gate performance, dispatch, reserves."""
+"""Trading Desk - the money: P&L, per-gate performance, dispatch, reserves."""
 from __future__ import annotations
 
 import sys
@@ -24,7 +24,7 @@ def _render() -> None:
     report_ready = st.session_state.get("report_ready", False)
 
     if not selected_date:
-        st.warning("No runs found yet — visit Run & Monitor to start one.")
+        st.warning("No runs found yet - visit Run & Monitor to start one.")
         return
     if not report_ready:
         st.info(data.no_report_message(selected_date))
@@ -43,7 +43,7 @@ def _render() -> None:
     reserve_pct = data.kpi_value(kpis, "Reserve share of P&L")
 
     # ---------------------------------------------------------------------------
-    # P&L breakdown card — same widget as Overview's "P&L Breakdown" (moved here
+    # P&L breakdown card - same widget as Overview's "P&L Breakdown" (moved here
     # too, ownership-wise this is the money page; Overview's copy left in place
     # pending merge/dedup review).
     # ---------------------------------------------------------------------------

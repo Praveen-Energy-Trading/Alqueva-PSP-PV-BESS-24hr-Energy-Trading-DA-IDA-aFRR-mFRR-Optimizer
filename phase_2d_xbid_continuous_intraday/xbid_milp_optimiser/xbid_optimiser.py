@@ -15,7 +15,7 @@ placed only if the average gain beats the bid-ask spread threshold (no churn).
 """
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pyomo.environ as pyo
 
@@ -55,27 +55,28 @@ def _pause(message: str, no_pause: bool) -> None:
         pass
 
 
-def optimise_xbid(delivery_date: str, cfg: AppConfig, window: str = "W1",
-                  no_pause: bool = False, use_synthetic: bool = True) -> dict:
-    audit = AuditLogger()
-    audit.log("XBID_START", delivery_date=delivery_date, window=window)
-    store = PositionStore()
+def build_xbid_inputs(delivery_date: str, cfg: AppConfig, window: str,
+                      use_synthetic: bool = True) -> Tuple[dict, List[int]]:
+    """Store-free XBID input assembly: prices/PV/inflow/initial-state for
+    `window`, plus the ISPs still open (tradable) at that window's trigger
+    time. Mirrors optimise_xbid's own input block exactly (lines 74-105 as
+    of this function's extraction) but takes no committed-baseline or
+    reserve-envelope argument -- those are plain dicts the CALLER supplies
+    (optimise_xbid fetches them from PositionStore/ReserveStore for live
+    use; the backtest supplies them in-memory instead), same separation
+    ida_reoptimiser._build_inputs already uses for IDA1/2/3.
+
+    Raises ValueError for an unknown window id (mirrors optimise_xbid's own
+    SCHEMA_FAILED check, but as an exception since this is a pure builder,
+    not a status-returning orchestrator).
+    """
     day = du.parse_date(delivery_date)
     dt = du.isp_duration_min(day) / 60.0
-    th = cfg.market.trading_thresholds
-    cap = th.xbid_max_volume_per_order_mw
-
-    committed = store.committed_position(delivery_date)   # net across all prior gates
-    if not committed:
-        msg = "[XBID] no committed baseline; run DA (and IDAs) first."
-        log.error(msg)
-        return {"status": "NO_BASELINE", "reason": msg}
-
     all_isps = du.delivery_isps(day)
     all_hours = du.delivery_hours(day)
     windows = {w["id"]: w["trigger"] for w in cfg.market.gate("XBID").check_windows}
     if window not in windows:
-        return {"status": "SCHEMA_FAILED", "reason": f"Unknown XBID window '{window}'"}
+        raise ValueError(f"Unknown XBID window {window!r}")
     open_hours = tradable_hours_for_window(all_isps, delivery_date, windows[window],
                                            period_duration_min=du.isp_duration_min(day))
 
@@ -103,6 +104,31 @@ def optimise_xbid(delivery_date: str, cfg: AppConfig, window: str = "W1",
             },
         ),
     }
+    return inputs, open_hours
+
+
+def optimise_xbid(delivery_date: str, cfg: AppConfig, window: str = "W1",
+                  no_pause: bool = False, use_synthetic: bool = True) -> dict:
+    audit = AuditLogger()
+    audit.log("XBID_START", delivery_date=delivery_date, window=window)
+    store = PositionStore()
+    day = du.parse_date(delivery_date)
+    dt = du.isp_duration_min(day) / 60.0
+    th = cfg.market.trading_thresholds
+    cap = th.xbid_max_volume_per_order_mw
+
+    committed = store.committed_position(delivery_date)   # net across all prior gates
+    if not committed:
+        msg = "[XBID] no committed baseline; run DA (and IDAs) first."
+        log.error(msg)
+        return {"status": "NO_BASELINE", "reason": msg}
+
+    all_isps = du.delivery_isps(day)
+    try:
+        inputs, open_hours = build_xbid_inputs(delivery_date, cfg, window, use_synthetic)
+    except ValueError as e:
+        return {"status": "SCHEMA_FAILED", "reason": str(e)}
+
     try:
         validate_inputs(inputs, cfg)
     except SchemaError as e:

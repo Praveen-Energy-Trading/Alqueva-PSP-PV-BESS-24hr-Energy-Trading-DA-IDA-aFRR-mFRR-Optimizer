@@ -47,7 +47,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from ml_train_val_test_common import fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES, DA_MODEL_NAMES
+from ml_train_val_test_common import (
+    fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES, DA_MODEL_NAMES,
+    walk_forward_cv_extended, paired_significance_test,
+)
 
 _EXCEL_PATH   = os.path.join(_HERE, "da_training_data_2020_2026.xlsx")
 _JSON_PATH    = os.path.join(_HERE, "da_selected_model.json")
@@ -185,13 +188,23 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     y       = train_df["price_DA_PT_EUR_MWh"].values
     lag24   = train_df["lag_24h"].values
 
-    cv_mae   = walk_forward_cv(feat_df, y, lag24, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_ext   = walk_forward_cv_extended(feat_df, y, lag24, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_mae   = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
+
+    ranked = sorted(cv_mae, key=cv_mae.get)
+    sig = (paired_significance_test(cv_ext[ranked[0]]["fold_mae"], cv_ext[ranked[1]]["fold_mae"])
+           if len(ranked) >= 2 else {"p_value": float("nan"), "significant_at_0.05": False})
 
     # Save to json
     info = {
         "selected"     : selected,
         "cv_mae"       : {k: round(v, 4) for k, v in cv_mae.items()},
+        "cv_rmse"      : {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
+        "cv_mape"      : {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
+        "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
+        "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
+                              "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
         "data_end_date": str(excel_last_date),
         "updated_on"   : str(datetime.date.today()),
     }
@@ -202,7 +215,11 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     print(f"  Data up to : {excel_last_date}")
     for name in DA_MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
-        print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
+        m = cv_ext[name]
+        print(f"  {name:<22} MAE {m['MAE']:.2f}  RMSE {m['RMSE']:.2f}  "
+              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{marker}")
+    print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
+          f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     print()
 
     return selected
@@ -356,12 +373,22 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
     y = train_df["price_DA_PT_EUR_MWh"].values
     lag_day = train_df["lag_1d"].values
 
-    cv_mae = walk_forward_cv(feat_df, y, lag_day, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_ext = walk_forward_cv_extended(feat_df, y, lag_day, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_mae = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
+
+    ranked = sorted(cv_mae, key=cv_mae.get)
+    sig = (paired_significance_test(cv_ext[ranked[0]]["fold_mae"], cv_ext[ranked[1]]["fold_mae"])
+           if len(ranked) >= 2 else {"p_value": float("nan"), "significant_at_0.05": False})
 
     info = {
         "selected": selected,
         "cv_mae": {k: round(v, 4) for k, v in cv_mae.items()},
+        "cv_rmse": {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
+        "cv_mape": {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
+        "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
+        "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
+                              "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
         "data_end_date": str(excel_last_date),
         "updated_on": str(datetime.date.today()),
         "resolution": "15min_ISP",
@@ -373,7 +400,11 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
     print(f"  Data up to : {excel_last_date}")
     for name in DA_MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
-        print(f"  {name:<22} MAE {cv_mae.get(name, float('inf')):.2f} EUR/MWh{marker}")
+        m = cv_ext[name]
+        print(f"  {name:<22} MAE {m['MAE']:.2f}  RMSE {m['RMSE']:.2f}  "
+              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{marker}")
+    print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
+          f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     print()
 
     return selected

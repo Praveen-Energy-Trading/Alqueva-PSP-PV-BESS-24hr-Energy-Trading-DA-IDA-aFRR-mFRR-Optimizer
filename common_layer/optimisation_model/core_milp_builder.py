@@ -137,6 +137,17 @@ class StochasticModelMeta:
     head_grid: List[float]
     eff_trb: Dict[tuple, float]
     eff_pmp: Dict[tuple, float]
+    risk_measure: str = "expected_value"           # "expected_value" | "cvar"
+    cvar_alpha: Optional[float] = None             # set only when risk_measure == "cvar"
+    # Econ constants the extractor needs to recompute the exact per-scenario
+    # profit[s] the objective was built from (see build_core_model_stochastic's
+    # _profit_expr), without re-deriving from cfg after the fact.
+    v_up0: float = 0.0
+    water_value_eur_mwh: float = 0.0
+    pv_curtailment_penalty_eur_mwh: float = 0.0
+    spillage_penalty_eur_m3: float = 0.0
+    degradation_cost_eur_mwh: float = 0.0
+    startup_cost_eur: float = 0.0
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -566,6 +577,7 @@ def build_core_model_stochastic(
     cfg: AppConfig,
     scenarios: Dict[int, Dict[int, float]],
     probabilities: Dict[int, float],
+    fixed_net_position: Optional[Dict[int, float]] = None,
     reserved_up_mw: Optional[Dict[int, float]] = None,
     reserved_dn_mw: Optional[Dict[int, float]] = None,
 ) -> tuple[pyo.ConcreteModel, StochasticModelMeta]:
@@ -602,6 +614,9 @@ def build_core_model_stochastic(
         scenarios: {scenario_id: {h: EUR/MWh}} — from
             scenario_generator.generate_price_scenarios().
         probabilities: {scenario_id: probability}, must sum to ~1.0.
+        fixed_net_position: optional {h: MW} — freeze p_net for those hours
+            (IDA gates use this to hold hours they cannot re-trade), same
+            meaning as build_core_model's fixed_net_position.
         reserved_up_mw / reserved_dn_mw: same meaning as build_core_model.
 
     Returns (model, meta).
@@ -888,23 +903,60 @@ def build_core_model_stochastic(
     m.pnet_lo = pyo.Constraint(m.H,
         rule=lambda mm, h: mm.p_net[h] >= -(p_pump_cap - reserved_dn.get(h, 0.0)))
 
-    # ── Objective: probability-weighted expected value across scenarios ─────
-    def _objective(mm):
-        total = 0.0
-        for s in S:
-            price_s = scenarios[s]
-            prob_s = probabilities[s]
-            energy_rev = sum(price_s[h] * mm.p_net[h] * dt for h in H)
-            water_val = econ.water_value_eur_mwh * mwh_per_hm3 * (mm.v_up[H[-1], s] - v_up0)
-            pv_pen = econ.pv_curtailment_penalty_eur_mwh * sum(
-                mm.pv_curt[h, s] * dt for h in H)
-            bess_deg = bess.degradation_cost_eur_mwh * sum(
-                (mm.p_chg[h, s] + mm.pv_to_bess[h, s] + mm.p_dis[h, s]) * dt for h in H)
-            spill_pen = econ.spillage_penalty_eur_m3 * sum(mm.spill[h, s] * dt for h in H)
-            start_pen = psp.startup_cost_eur * sum(
-                mm.start_turb[u, h, s] for u in U for h in H)
-            total += prob_s * (energy_rev + water_val - pv_pen - bess_deg - spill_pen - start_pen)
-        return total
+    # Freeze hours outside the current gate's tradable window (IDA gates use
+    # this to hold hours they cannot re-trade, INV-11 -- same mechanism as
+    # build_core_model's fixed_net_position, lines 528-531). p_net[h] has no
+    # scenario index, so one constraint per fixed hour applies identically
+    # across every scenario's recourse.
+    if fixed_net_position:
+        m.fix_net = pyo.Constraint(
+            [h for h in H if h in fixed_net_position],
+            rule=lambda mm, h: mm.p_net[h] == fixed_net_position[h])
+
+    # ── Objective: expected value (default) or CVaR-averse across scenarios ─
+    # profit_expr[s] is the exact per-scenario term either objective is built
+    # from -- shared so "expected_value" and "cvar" are genuinely the same
+    # underlying uncertainty model, just aggregated differently.
+    def _profit_expr(mm, s):
+        price_s = scenarios[s]
+        energy_rev = sum(price_s[h] * mm.p_net[h] * dt for h in H)
+        water_val = econ.water_value_eur_mwh * mwh_per_hm3 * (mm.v_up[H[-1], s] - v_up0)
+        pv_pen = econ.pv_curtailment_penalty_eur_mwh * sum(
+            mm.pv_curt[h, s] * dt for h in H)
+        bess_deg = bess.degradation_cost_eur_mwh * sum(
+            (mm.p_chg[h, s] + mm.pv_to_bess[h, s] + mm.p_dis[h, s]) * dt for h in H)
+        spill_pen = econ.spillage_penalty_eur_m3 * sum(mm.spill[h, s] * dt for h in H)
+        start_pen = psp.startup_cost_eur * sum(
+            mm.start_turb[u, h, s] for u in U for h in H)
+        return energy_rev + water_val - pv_pen - bess_deg - spill_pen - start_pen
+
+    risk_measure = cfg.stochastic.risk_measure
+    cvar_alpha = cfg.stochastic.cvar_alpha
+    if risk_measure not in ("expected_value", "cvar"):
+        raise ValueError(
+            f"cfg.stochastic.risk_measure must be 'expected_value' or 'cvar', "
+            f"got {risk_measure!r}")
+
+    if risk_measure == "cvar":
+        if not (0.0 < cvar_alpha < 1.0):
+            raise ValueError(
+                f"cfg.stochastic.cvar_alpha must be in (0, 1), got {cvar_alpha!r}")
+
+        # Rockafellar-Uryasev (2000) linearization of lower-tail CVaR for a
+        # maximization problem:
+        #   CVaR_alpha(profit) = max_eta [ eta - 1/(1-alpha) * E[(eta - profit)+] ]
+        # eta is the candidate VaR; cvar_shortfall[s] linearizes (eta - profit[s])+.
+        m.eta = pyo.Var(domain=pyo.Reals)
+        m.cvar_shortfall = pyo.Var(m.S, domain=pyo.NonNegativeReals)
+        m.cvar_shortfall_ge = pyo.Constraint(
+            m.S, rule=lambda mm, s: mm.cvar_shortfall[s] >= mm.eta - _profit_expr(mm, s))
+
+        def _objective(mm):
+            return mm.eta - (1.0 / (1.0 - cvar_alpha)) * sum(
+                probabilities[s] * mm.cvar_shortfall[s] for s in S)
+    else:
+        def _objective(mm):
+            return sum(probabilities[s] * _profit_expr(mm, s) for s in S)
 
     m.objective = pyo.Objective(rule=_objective, sense=pyo.maximize)
 
@@ -913,6 +965,14 @@ def build_core_model_stochastic(
         units=U,
         dt_h=dt,
         scenarios=S,
+        risk_measure=risk_measure,
+        cvar_alpha=cvar_alpha if risk_measure == "cvar" else None,
+        v_up0=v_up0,
+        water_value_eur_mwh=econ.water_value_eur_mwh,
+        pv_curtailment_penalty_eur_mwh=econ.pv_curtailment_penalty_eur_mwh,
+        spillage_penalty_eur_m3=econ.spillage_penalty_eur_m3,
+        degradation_cost_eur_mwh=bess.degradation_cost_eur_mwh,
+        startup_cost_eur=psp.startup_cost_eur,
         probabilities=dict(probabilities),
         scenario_prices={s: dict(scenarios[s]) for s in S},
         pv_available=dict(pv_av),

@@ -1,4 +1,4 @@
-"""Run & Monitor — trigger a pipeline run from here and watch it live, with a
+"""Run & Monitor - trigger a pipeline run from here and watch it live, with a
 machine-readable health banner instead of guessing status from log text."""
 from __future__ import annotations
 
@@ -18,11 +18,19 @@ st.title("🚀 Run & Monitor")
 @st.fragment(run_every=theme.auto_refresh_interval())
 def _render() -> None:
     theme.inject_scroll_restore()
+    # runner.start() (an on_click callback) can't force app.py's sidebar to
+    # redraw itself via st.rerun() - that call is a no-op inside a callback.
+    # It leaves this flag instead; from here (regular fragment body, not a
+    # callback) st.rerun(scope="app") actually works, forcing the one extra
+    # full-page rerun the sidebar's auto-refresh toggle needs to pick up the
+    # True that start() just wrote to session_state.
+    if st.session_state.pop("_just_started_run", False):
+        st.rerun(scope="app")
     runner_state = st.session_state.runner
     selected_date = st.session_state.get("selected_date")
 
     # ---------------------------------------------------------------------------
-    # Health banner — reads runtime/logs/run_status_<date>.json (written by
+    # Health banner - reads runtime/logs/run_status_<date>.json (written by
     # run_production.py at the end of every run, including dry-run). This is the
     # machine-readable twin of the console's PASS/SKIP/WARN/FAIL table, so the
     # banner reflects a real outcome instead of parsing scrollback text.
@@ -35,25 +43,25 @@ def _render() -> None:
         state = data.run_phase_state(selected_date)
         if state == "running":
             st.success(f"🟢 Pipeline is actively running right now for delivery **{selected_date}** "
-                       f"— log is updating live. See the live console below, or the Console Log "
+                       f" -  log is updating live. See the live console below, or the Console Log "
                        f"page for the full tail. Status here fills in once it finishes.")
         elif state == "idle_running":
             if run_status and run_status.get("mode") == "trader":
                 st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                           f"gone quiet — most likely paused on an Approve/Reject or ENTER "
+                           f"gone quiet - most likely paused on an Approve/Reject or ENTER "
                            f"prompt waiting on you in trader mode (not started from this "
                            f"dashboard, so it can't be answered here). Check the terminal "
                            f"it was started from, or the last line in Console Log.")
             else:
                 st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                           f"gone quiet — most likely still computing (e.g. a slow model "
+                           f"gone quiet - most likely still computing (e.g. a slow model "
                            f"fit) rather than stuck. Check Console Log for the last line printed.")
         elif state == "stopped":
             st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
-                     f"running — most likely Ctrl+C or a crash while it was paused waiting for "
+                     f"running - most likely Ctrl+C or a crash while it was paused waiting for "
                      f"input (Approve/Reject or ENTER). Start a fresh run when ready.")
         elif state == "none":
-            st.info(f"No run-status record for **{selected_date}** yet — either it hasn't "
+            st.info(f"No run-status record for **{selected_date}** yet - either it hasn't "
                     f"run yet, or it predates this dashboard's status-tracking (older runs "
                     f"only have the raw console log).")
         else:
@@ -64,22 +72,22 @@ def _render() -> None:
 
             if n_fail:
                 failed = [r for r in results if r["status"] == "FAIL"]
-                st.error(f"🔴 **{selected_date}** — {n_fail} phase(s) FAILED "
+                st.error(f"🔴 **{selected_date}** - {n_fail} phase(s) FAILED "
                          f"(finished {run_status['finished_at']}, mode={run_status['mode']})")
                 for r in failed:
                     st.caption(f"  ✗ **{r['key']}**: {r['detail']}")
             elif counts["WARN"]:
-                st.warning(f"🟡 **{selected_date}** — {counts['PASS']}/{n_total} passed, "
+                st.warning(f"🟡 **{selected_date}** - {counts['PASS']}/{n_total} passed, "
                            f"{counts['WARN']} warned (finished {run_status['finished_at']})")
             else:
-                st.success(f"🟢 **{selected_date}** — {counts['PASS']}/{n_total} phases passed cleanly "
+                st.success(f"🟢 **{selected_date}** - {counts['PASS']}/{n_total} phases passed cleanly "
                            f"(finished {run_status['finished_at']}, mode={run_status['mode']})")
 
             with st.expander("Per-phase breakdown"):
                 for r in results:
                     icon = STATUS_ICON.get(r["status"], "❓")
-                    st.markdown(f"{icon} **{r['key']}** — {r['status']}"
-                                + (f" — {r['detail']}" if r["detail"] else ""))
+                    st.markdown(f"{icon} **{r['key']}** - {r['status']}"
+                                + (f" - {r['detail']}" if r["detail"] else ""))
 
     st.markdown("---")
 
@@ -90,7 +98,7 @@ def _render() -> None:
     st.subheader("Run the pipeline from here")
     st.caption(
         "Launches `run_production.py --auto` as a subprocess and streams its "
-        "console output live below — the same log a terminal run would show. "
+        "console output live below - the same log a terminal run would show. "
         "`--auto` is required: interactive Approve/Reject and Enter-to-continue "
         "prompts can't be answered through a subprocess pipe."
     )
@@ -121,15 +129,15 @@ def _render() -> None:
     st.markdown("---")
 
     if runner_state["proc"] is not None:
-        # A run started from THIS page — stream its captured stdout directly,
+        # A run started from THIS page - stream its captured stdout directly,
         # the most immediate view possible (no file round-trip).
         if runner_state["running"]:
             st.success(f"🟢 Running for delivery date **{runner_state['date']}** "
                        f"(PID {runner_state['proc'].pid})...")
         elif runner_state["return_code"] == 0:
-            st.success(f"✅ Finished for delivery date **{runner_state['date']}** — exit code 0.")
+            st.success(f"✅ Finished for delivery date **{runner_state['date']}** - exit code 0.")
         else:
-            st.error(f"❌ Finished for delivery date **{runner_state['date']}** — exit code "
+            st.error(f"❌ Finished for delivery date **{runner_state['date']}** - exit code "
                      f"{runner_state['return_code']}. Check the log below for what failed.")
 
         st.subheader("Live console")
@@ -137,7 +145,7 @@ def _render() -> None:
         st.code(console_text or "(waiting for output...)", language="text", line_numbers=True)
     elif selected_date and data.is_pipeline_active(selected_date):
         # No run started from this dashboard session, but SOMETHING (VS Code,
-        # terminal, Spyder) is actively writing to this date's log right now —
+        # terminal, Spyder) is actively writing to this date's log right now  - 
         # mirror it here too, not just on the separate Console Log page, so
         # this page reflects reality regardless of where the run was started.
         st.success(f"🟢 An external run is actively writing to **{selected_date}**'s log "

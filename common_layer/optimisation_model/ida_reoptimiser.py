@@ -29,10 +29,17 @@ from common_layer.utilities import get_logger, AuditLogger
 from common_layer.utilities import date_utils as du
 from common_layer.utilities.timezone_utils import resolve_gate_time
 from common_layer.database import PositionStore, ReserveStore, ComponentStore, validate_inputs, SchemaError
-from common_layer.optimisation_model.core_milp_builder import build_core_model
+from common_layer.optimisation_model.core_milp_builder import (
+    build_core_model, build_core_model_stochastic,
+)
 from common_layer.optimisation_model.core_milp_solver import (
     solve_core_model, extract_results, SolveError,
+    extract_stochastic_results, bridge_stochastic_to_gate_results,
 )
+from common_layer.optimisation_model.scenario_generator import (
+    generate_price_scenarios, default_scenarios_for_gate,
+)
+import os
 from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
     forecast_da_prices, forecast_da_prices_isp,
 )
@@ -217,15 +224,32 @@ def reoptimise_ida(gate: str, delivery_date: str, cfg: AppConfig,
         reserved_dn[h] = reserved_dn.get(h, 0.0) + v
 
     # 4. re-solve under intraday prices -------------------------------------
+    # Opt-in two-stage stochastic mode (same engine as DA, see run_da.py):
+    # the tradable-window bid becomes the here-and-now first-stage decision,
+    # physical dispatch becomes per-scenario recourse; hours outside the
+    # tradable window are frozen identically in both paths (INV-11).
+    stochastic_mode = cfg.stochastic.enabled_for(gate)
     try:
-        model, meta = build_core_model(inputs, cfg, fixed_net_position=fixed_net,
-                                        reserved_up_mw=reserved_up,
-                                        reserved_dn_mw=reserved_dn)
-        solve_time = solve_core_model(model, cfg, gate=gate)
+        if stochastic_mode:
+            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            scenarios, probabilities = default_scenarios_for_gate(
+                gate, inputs["da_prices"], repo_root, n_scenarios=cfg.stochastic.n_scenarios)
+            model, meta = build_core_model_stochastic(
+                inputs, cfg, scenarios, probabilities,
+                fixed_net_position=fixed_net,
+                reserved_up_mw=reserved_up, reserved_dn_mw=reserved_dn)
+            solve_time = solve_core_model(model, cfg, gate=gate)
+            stoch_results = extract_stochastic_results(model, meta)
+            results = bridge_stochastic_to_gate_results(stoch_results, meta)
+        else:
+            model, meta = build_core_model(inputs, cfg, fixed_net_position=fixed_net,
+                                            reserved_up_mw=reserved_up,
+                                            reserved_dn_mw=reserved_dn)
+            solve_time = solve_core_model(model, cfg, gate=gate)
+            results = extract_results(model, meta)
     except SolveError as e:
         audit.log(f"{gate}_SOLVE_FAILED", delivery_date=delivery_date, reason=str(e))
         return {"status": "SOLVE_FAILED", "reason": str(e)}
-    results = extract_results(model, meta)
     new_net = results.net_position_mw
     price = inputs["da_prices"]
 

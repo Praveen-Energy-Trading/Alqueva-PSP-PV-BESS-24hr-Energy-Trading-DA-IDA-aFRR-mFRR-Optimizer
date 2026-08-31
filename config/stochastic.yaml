@@ -22,8 +22,10 @@ stochastic:
   # budget (config/solver.yaml: time_limit_sec.DA) is raised to match.
   n_scenarios: 5
 
-  # Which gates run in stochastic mode. Only DA is implemented today.
-  gates: ["DA"]
+  # Which gates run in stochastic mode. DA and IDA1 are implemented today
+  # (IDA1 via ida_reoptimiser.py, same build_core_model_stochastic engine
+  # with fixed_net_position freezing the ISPs outside its tradable window).
+  gates: ["DA", "IDA1"]
 
   # "expected_value" (default) maximizes probability-weighted expected
   # revenue. "cvar" is a documented stretch goal (Rockafellar-Uryasev

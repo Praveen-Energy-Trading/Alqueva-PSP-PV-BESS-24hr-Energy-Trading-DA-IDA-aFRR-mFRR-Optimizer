@@ -1,4 +1,4 @@
-"""gate_ticket.py — renders data.latest_gate_ticket() as a self-contained,
+"""gate_ticket.py - renders data.latest_gate_ticket() as a self-contained,
 animated IEEE-style figure card. One components.html block (not
 st.markdown) on purpose: the Replay button's JS and the elements it
 animates must live in the same DOM, which an iframe guarantees and
@@ -58,14 +58,14 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int, str]:
     for i, h in enumerate(hourly):
         x = plot_x0 + i * slot_w + (slot_w - bar_w) / 2
         # No CSS animation/animation-delay here on purpose. An earlier
-        # version staggered the reveal with per-element animation-delay —
+        # version staggered the reveal with per-element animation-delay  - 
         # correct in principle, but CSS animation timing is unreliable once
         # the browser tab loses focus for even a moment mid-animation (a
         # near-certainty for this user's actual workflow, which constantly
         # switches to VS Code and back): longer-delay bars could end up
         # permanently stuck invisible. No class in the markup at all here;
-        # the Replay button's JS drives the reveal with setTimeout, which —
-        # unlike CSS animation-delay — reliably fires even across a
+        # the Replay button's JS drives the reveal with setTimeout, which  - 
+        # unlike CSS animation-delay - reliably fires even across a
         # visibility change.
         if ticket["is_reserve"]:
             up, dn = h["up_mw"], h["dn_mw"]
@@ -87,7 +87,7 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int, str]:
                 bars.append(f'<rect data-kind="gt-bar-dn" data-final-y="{zero_y:.1f}" data-final-h="{bh:.1f}" '
                             f'x="{x:.1f}" y="{zero_y:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{theme.COLOR_PUMP}"/>')
 
-    # Sparse hour ticks: first, quarter points, last — never every hour.
+    # Sparse hour ticks: first, quarter points, last - never every hour.
     hours = [h["hour"] for h in hourly]
     tick_idxs = sorted(set([0, n // 4, n // 2, (3 * n) // 4, n - 1]))
     ticks = []
@@ -198,7 +198,7 @@ def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str
 def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
     """IDA1-3/XBID: the improvement-vs-threshold comparison (the number
     that actually drove the decision) plus which hours were tradable and
-    which of those actually traded — instead of the 24h absolute chart,
+    which of those actually traded - instead of the 24h absolute chart,
     which usually looks identical to DA's since most hours are frozen or
     simply unchanged. See dashboard/data.py::_build_ticket for the fields.
     wrapper_id/hidden let XBID render one block per check-window and toggle
@@ -214,7 +214,7 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
     bars_html = ""
     caption_html = ""
     if improvement is not None or threshold is not None:
-        # Full-width horizontal scale instead of two separate vertical bars —
+        # Full-width horizontal scale instead of two separate vertical bars  - 
         # the two vertical bars left most of the card's (now much wider)
         # width empty on the right; a single 0-to-max track puts improvement
         # and threshold on the same line so "did it clear the bar" reads as
@@ -224,7 +224,7 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
         #
         # Labels are plain HTML spans positioned with left:%, NOT SVG <text>.
         # An earlier version put the labels inside the SVG with a wide
-        # viewBox (needed so the bar itself stretches full width) — but SVG's
+        # viewBox (needed so the bar itself stretches full width) - but SVG's
         # default "meet" scaling shrinks EVERYTHING (including font-size) by
         # whichever of width/height is more constrained, so a viewBox
         # authored wide enough to fill an unpredictable container width
@@ -283,7 +283,7 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
             f'<div style="position:relative; margin:12px 0 26px;">{track_svg}{"".join(labels)}</div>'
         )
         if improvement is not None and threshold is not None:
-            caption = "Cleared the bar &mdash; re-bid submitted" if cleared else "Didn&rsquo;t clear the bar &mdash; position held"
+            caption = "Cleared the bar - re-bid submitted" if cleared else "Didn&rsquo;t clear the bar - position held"
             caption_html = f'<p style="font-size:11px; color:{bar_color}; text-align:center; margin:8px 0 0;">{caption}</p>'
 
     hours_html = ""
@@ -390,7 +390,7 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
 
 
 def _xbid_windows_block(windows: list[dict]) -> str:
-    """XBID re-checks several times a day (W1, W2, ...) — one pill per
+    """XBID re-checks several times a day (W1, W2, ...) - one pill per
     window above the usual improvement-vs-threshold block, defaulting to
     the latest. Pure client-side toggle (no Streamlit rerun) so it stays
     self-contained like the Replay button. Only rendered when there's more
@@ -444,7 +444,7 @@ def render(ticket: dict, delivery_date: str, fig_num: int = 1) -> str:
     dot = _STATUS_DOT[ticket["status_class"]]
     ref_bit = f'OMIE/MARI ref {_html.escape(ticket["ref"])} &middot; ' if ticket.get("ref") else ""
 
-    # Rebid gates show improvement inside their own comparison bars below —
+    # Rebid gates show improvement inside their own comparison bars below  - 
     # showing it again as a plain metric card up top would just repeat the
     # same number without the threshold it's being judged against.
     revenue_items = ticket.get("revenue_items", [])

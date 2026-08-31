@@ -53,6 +53,10 @@ def _ensure_pipeline():
 
     from common_layer.configuration import load_config
     cfg = load_config()
+    if cfg.solver.resolve_executable() is None:
+        raise unittest.SkipTest(
+            "CPLEX not found — skipping full-pipeline integration tests "
+            "(this project's solving is CPLEX-only, no free-solver fallback relied on)")
     _pipeline_cfg = cfg
 
     # REAL REN sequence, CONFIRMED against REN's own MPGGS rulebook (ERSE

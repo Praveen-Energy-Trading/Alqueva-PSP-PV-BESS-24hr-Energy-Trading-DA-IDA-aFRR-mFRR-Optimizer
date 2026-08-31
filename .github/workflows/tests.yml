@@ -1,16 +1,19 @@
 name: tests
 
 # Runs the full pytest suite on every push/PR. CI runners have no CPLEX
-# license (it's commercial software), so the model-solving "integration"
-# tests skip gracefully rather than fail -- that's the test suite's own
-# existing design (tests/conftest.py: `cfg.solver.resolve_executable() is
-# None` -> pytest.skip), not something this workflow adds. CI's real job
-# here is to guarantee the non-solver-dependent code (config loading,
-# scenario generation, checkers, formatters, forecasters' non-model logic)
-# never silently regresses, on every push, without needing a licensed
-# solver to do it. Anyone running locally with CPLEX installed (or the free
-# HiGHS/CBC fallback already wired in config/solver.yaml) gets full
-# solver-backed coverage -- see README / config/solver.yaml.
+# license (it's commercial software), so every test that actually solves the
+# MILP skips gracefully rather than fails: each one checks
+# `cfg.solver.resolve_executable() is None` and raises SkipTest/pytest.skip
+# before calling into the pipeline. CI's real job here is to guarantee the
+# non-solver-dependent code (config loading, scenario generation, checkers,
+# formatters, forecasters' non-model logic) never silently regresses, on
+# every push, without needing a licensed solver to do it.
+#
+# This project's solving is CPLEX-only by design -- config/solver.yaml lists
+# a HiGHS/CBC fallback_order, but it is not relied on for correctness here
+# (confirmed: a CPLEX-less CI run genuinely cannot produce a usable solve on
+# this machine setup). Full solver-backed coverage requires a real CPLEX
+# license and only runs locally, not in CI.
 
 on:
   push:

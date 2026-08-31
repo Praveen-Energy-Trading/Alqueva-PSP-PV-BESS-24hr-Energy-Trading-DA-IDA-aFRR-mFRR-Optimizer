@@ -106,6 +106,34 @@ def generate_price_scenarios(
     return scenarios, probabilities
 
 
+# Each gate's real selected-model artifact, same schema (produced by that
+# gate's own walk-forward-CV model selection). Add a gate here only once its
+# forecaster actually writes a selected_model json in this shape.
+_SELECTED_MODEL_PATH: Dict[str, Tuple[str, str, str]] = {
+    "DA": ("phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting",
+           "da_selected_model_isp.json"),
+    "IDA1": ("phase_2a_ida1_intraday_auction_1", "ida1_price_forecasting",
+             "ida1_selected_model.json"),
+}
+
+
+def default_scenarios_for_gate(
+    gate: str,
+    point_forecast: Dict[int, float],
+    repo_root: str,
+    n_scenarios: Optional[int] = None,
+) -> Tuple[Dict[int, Dict[int, float]], Dict[int, float]]:
+    """Convenience wrapper: reads the real selected-model MAE for `gate`
+    from its standard location and builds the default scenario fan.
+
+    Raises KeyError for a gate with no entry in _SELECTED_MODEL_PATH —
+    same "stop, don't guess" standard as load_selected_model_mae.
+    """
+    mae_path = os.path.join(repo_root, *_SELECTED_MODEL_PATH[gate])
+    mae = load_selected_model_mae(mae_path)
+    return generate_price_scenarios(point_forecast, mae, n_scenarios=n_scenarios)
+
+
 def default_scenarios_for_da(
     point_forecast: Dict[int, float],
     repo_root: str,
@@ -113,8 +141,4 @@ def default_scenarios_for_da(
     """Convenience wrapper: reads the real selected-model MAE for the DA
     gate from its standard location and builds the default 5-scenario fan.
     """
-    mae_path = os.path.join(
-        repo_root, "phase_1_da_day_ahead_bidding",
-        "da_price_pv_inflow_forecasting", "da_selected_model_isp.json")
-    mae = load_selected_model_mae(mae_path)
-    return generate_price_scenarios(point_forecast, mae)
+    return default_scenarios_for_gate("DA", point_forecast, repo_root)

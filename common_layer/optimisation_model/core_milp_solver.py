@@ -290,6 +290,10 @@ class StochasticGateResults:
     per_scenario_revenue_eur: Dict[int, float]  # {s: realised energy revenue if s occurs}
     expected_energy_revenue_eur: float
     objective_eur: float                        # probability-weighted, as solved
+    risk_measure: str = "expected_value"        # "expected_value" | "cvar"
+    per_scenario_profit_eur: Optional[Dict[int, float]] = None  # full profit (matches objective term)
+    eta_eur: Optional[float] = None             # VaR estimate, only set in "cvar" mode
+    cvar_eur: Optional[float] = None            # achieved CVaR objective value, only in "cvar" mode
 
 
 def extract_stochastic_results(
@@ -333,6 +337,7 @@ def extract_stochastic_results(
                 "units_q_pump": [v(model.q_pump[u, h, s]) for u in U],
                 "q_turb_total_m3h": sum(v(model.q_turb[u, h, s]) for u in U),
                 "q_pump_total_m3h": sum(v(model.q_pump[u, h, s]) for u in U),
+                "units_start_turb": [round(v(model.start_turb[u, h, s])) for u in U],
             }
             pv_to_bess = v(model.pv_to_bess[h, s])
             charge_mw = v(model.p_chg[h, s])
@@ -362,6 +367,30 @@ def extract_stochastic_results(
 
     expected_revenue = sum(meta.probabilities[s] * per_scenario_revenue[s] for s in S)
 
+    # Full per-scenario profit, recomputed exactly matching the objective's
+    # _profit_expr (energy_rev + water_val - pv_pen - bess_deg - spill_pen -
+    # start_pen) -- meta carries the econ constants needed so this doesn't
+    # require cfg here. Used by CVaR-mode diagnostics/tests to verify the
+    # shortfall constraints against the same quantity the solver optimized.
+    per_scenario_profit: Dict[int, float] = {}
+    for s in S:
+        water_val = meta.water_value_eur_mwh * meta.mwh_per_hm3 * (
+            v(model.v_up[H[-1], s]) - meta.v_up0)
+        pv_pen = meta.pv_curtailment_penalty_eur_mwh * sum(
+            per_scenario_dispatch[s][h]["pv"]["curtailed_mw"] * dt for h in H)
+        bess_deg = meta.degradation_cost_eur_mwh * sum(
+            (per_scenario_dispatch[s][h]["bess"]["total_charge_mw"]
+             + per_scenario_dispatch[s][h]["bess"]["discharge_mw"]) * dt for h in H)
+        spill_pen = meta.spillage_penalty_eur_m3 * sum(
+            per_scenario_dispatch[s][h]["reservoir"]["spill_m3h"] * dt for h in H)
+        start_pen = meta.startup_cost_eur * sum(
+            sum(per_scenario_dispatch[s][h]["psp"]["units_start_turb"]) for h in H)
+        per_scenario_profit[s] = (
+            per_scenario_revenue[s] + water_val - pv_pen - bess_deg - spill_pen - start_pen)
+
+    eta_eur = v(model.eta) if hasattr(model, "eta") else None
+    cvar_eur = v(model.objective) if meta.risk_measure == "cvar" else None
+
     return StochasticGateResults(
         net_position_mw=net_pos,
         da_bids=da_bids,
@@ -371,6 +400,64 @@ def extract_stochastic_results(
         per_scenario_revenue_eur=per_scenario_revenue,
         expected_energy_revenue_eur=expected_revenue,
         objective_eur=v(model.objective),
+        risk_measure=meta.risk_measure,
+        per_scenario_profit_eur=per_scenario_profit,
+        eta_eur=eta_eur,
+        cvar_eur=cvar_eur,
+    )
+
+
+def bridge_stochastic_to_gate_results(
+    stoch_results: StochasticGateResults, meta: StochasticModelMeta,
+) -> GateResults:
+    """Adapt a StochasticGateResults into the existing GateResults shape so
+    every downstream consumer (physical bid checker, pre-trade risk checker,
+    ComponentStore report save) keeps working completely unchanged.
+
+    Gate-agnostic: only uses meta.hours/scenarios/scenario_prices and
+    stoch_results' own fields, so it serves DA (run_da.py) and any other
+    gate extended to stochastic mode (e.g. IDA1 via ida_reoptimiser.py)
+    identically.
+
+    The first-stage bid (da_bids / net_position_mw) is exactly the shared,
+    scenario-independent decision — no approximation there. For the
+    per-hour dispatch trajectory fields (psp_schedule etc.), which only
+    exist per-scenario in the stochastic model, this uses the CENTRAL
+    scenario (offset k=0, i.e. the original point-forecast scenario) as the
+    representative trajectory shown to the physical/risk checkers and saved
+    to the report — a defensible choice since it's literally the same
+    forecast the deterministic path would have used, not an arbitrary pick.
+    """
+    H = meta.hours
+    central_s = min(
+        meta.scenarios,
+        key=lambda s: sum(abs(meta.scenario_prices[s][h] - stoch_results.da_bids[h]["expected_price_eur_mwh"])
+                           for h in H),
+    )
+    central = stoch_results.per_scenario_dispatch[central_s]
+
+    psp_schedule = {h: central[h]["psp"] for h in H}
+    bess_schedule = {h: central[h]["bess"] for h in H}
+    pv_schedule = {h: central[h]["pv"] for h in H}
+    reservoir_trajectory = {h: central[h]["reservoir"] for h in H}
+    # Efficiency-per-hour isn't tracked per-scenario in the stochastic
+    # extractor (omega weights aren't pulled there) -- report zeros rather
+    # than fabricate a plausible-looking number; a later iteration can add
+    # per-scenario efficiency extraction if a consumer needs it.
+    efficiency_per_hour = {h: {"eta_trb_pw": 0.0, "eta_pmp_pw": 0.0} for h in H}
+
+    return GateResults(
+        da_bids={h: {"volume_mwh": stoch_results.da_bids[h]["volume_mwh"],
+                     "price_eur_mwh": stoch_results.da_bids[h]["expected_price_eur_mwh"]}
+                 for h in H},
+        net_position_mw=stoch_results.net_position_mw,
+        psp_schedule=psp_schedule,
+        bess_schedule=bess_schedule,
+        pv_schedule=pv_schedule,
+        reservoir_trajectory=reservoir_trajectory,
+        efficiency_per_hour=efficiency_per_hour,
+        energy_revenue_eur=stoch_results.expected_energy_revenue_eur,
+        objective_eur=stoch_results.objective_eur,
     )
 
 

@@ -1,5 +1,5 @@
 """
-data.py — single data-access layer for the dashboard.
+data.py - single data-access layer for the dashboard.
 
 Every page imports from here instead of touching runtime/reports,
 runtime/logs, or runtime/audit directly. Centralising it means the
@@ -7,7 +7,7 @@ mtime-based caching strategy, date-selection logic, and file-path
 conventions are defined exactly once, in one place, and stay consistent
 across every page of the multipage app.
 
-Nothing here runs the pipeline or writes anything — read-only, mirrors
+Nothing here runs the pipeline or writes anything - read-only, mirrors
 whatever run_production.py has already produced on disk.
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ def load_market_config() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Date selection — which delivery date a fresh dashboard tab should land on
+# Date selection - which delivery date a fresh dashboard tab should land on
 # ---------------------------------------------------------------------------
 
 def list_report_dates() -> list[str]:
@@ -72,7 +72,7 @@ def list_log_dates() -> list[str]:
 
 def most_recent_activity_date(report_dates: list[str], log_dates: list[str]) -> list[str]:
     """Union of report/log dates, ordered by which was touched on disk most
-    recently — not by calendar date. A delivery date actively running right
+    recently - not by calendar date. A delivery date actively running right
     now must outrank an old leftover report just because its date string
     happens to sort higher. This is what every page's date picker uses, so a
     fresh tab lands on whatever's actually live."""
@@ -88,7 +88,7 @@ def most_recent_activity_date(report_dates: list[str], log_dates: list[str]) -> 
 
 
 def available_dates() -> tuple[list[str], list[str]]:
-    """Returns (available_dates, report_ready_dates) — the second is a
+    """Returns (available_dates, report_ready_dates) - the second is a
     subset of the first, used to label dates that are still mid-run."""
     report_dates = list_report_dates()
     log_dates = list_log_dates()
@@ -129,7 +129,7 @@ def kpi_value(kpis: pd.DataFrame, metric_substr: str) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Backtest report (Excel) — multi-day aggregate, separate file family
+# Backtest report (Excel) - multi-day aggregate, separate file family
 # ---------------------------------------------------------------------------
 
 def list_backtest_reports() -> list[Path]:
@@ -138,7 +138,7 @@ def list_backtest_reports() -> list[Path]:
 
 def parse_label_value_sheet(raw: pd.DataFrame) -> list[tuple[str, object, bool]]:
     """Summary/Risk sheets are 2-column (label, value) with a title row,
-    blank separator rows, and '--- Section Name ---' group headers — not a
+    blank separator rows, and '--- Section Name ---' group headers - not a
     normal table, so pandas' default header inference doesn't apply. Returns
     a flat list of (label, value, is_section_header) tuples, blank/title
     rows already dropped."""
@@ -160,7 +160,7 @@ def _load_backtest_report_cached(path_str: str, mtime: float) -> dict:
     path = Path(path_str)
     all_sheets = pd.read_excel(path, sheet_name=None, header=0)
     result: dict = dict(all_sheets)
-    # Summary/Risk are label-value sheets, not tables — re-read without
+    # Summary/Risk are label-value sheets, not tables - re-read without
     # header inference and parse into a flat structure the pages can render
     # directly. Risk is optional (only written when backtest risk metrics
     # were computed), so it may be absent entirely.
@@ -176,7 +176,7 @@ def load_backtest_report(path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Run status (JSON) — the health banner's data source
+# Run status (JSON) - the health banner's data source
 # ---------------------------------------------------------------------------
 
 @st.cache_data
@@ -196,14 +196,14 @@ def run_phase_state(delivery_date: str) -> str:
 
     run_status_<date>.json gets a RUNNING sentinel (with pid) written at
     the START of a run and is overwritten with the full result at the end
-    — see run_production.py. This lets the dashboard tell "a run is
+    - see run_production.py. This lets the dashboard tell "a run is
     genuinely in progress right now" apart from "no new record, so we're
     still looking at whatever the PREVIOUS run for this date left behind".
     'idle_running' means the sentinel says RUNNING, the log hasn't moved in
-    the freshness window, AND the process is still actually alive —
+    the freshness window, AND the process is still actually alive  - 
     consistent with sitting on an interactive Approve/Reject or ENTER
     prompt. 'stopped' means the sentinel says RUNNING but the recorded pid
-    is no longer alive — a Ctrl+C (or crash) killed it before it could
+    is no longer alive - a Ctrl+C (or crash) killed it before it could
     write the final DONE status, and without the pid check this would
     otherwise show as "paused, waiting on you" forever, even though
     nothing is listening.
@@ -219,7 +219,7 @@ def run_phase_state(delivery_date: str) -> str:
 
 
 def no_report_message(delivery_date: str) -> str:
-    """A daily Excel report only appears once the analytics phase runs — but
+    """A daily Excel report only appears once the analytics phase runs - but
     a run can also finish (with a failure) before ever reaching it. Pages
     that gate on report_ready use this so they don't tell the user
     "still running" about a run that's actually already finished and failed,
@@ -228,48 +228,48 @@ def no_report_message(delivery_date: str) -> str:
     state = run_phase_state(delivery_date)
     if state == "running":
         return (f"🟢 Pipeline is actively running for **{delivery_date}** right "
-                f"now — no report yet. Check Run & Monitor for live progress.")
+                f"now - no report yet. Check Run & Monitor for live progress.")
     if state == "idle_running":
         status = load_run_status(delivery_date)
         if status and status.get("mode") == "trader":
             return (f"🟡 A run is in progress for **{delivery_date}** but nothing's "
-                    f"been written to the log in a while — it's most likely paused "
+                    f"been written to the log in a while - it's most likely paused "
                     f"on an Approve/Reject or ENTER prompt waiting on you in trader "
                     f"mode. Check the terminal it was started from, or Console Log.")
         return (f"🟡 A run is in progress for **{delivery_date}** but nothing's "
-                f"been written to the log in a while — most likely still computing "
+                f"been written to the log in a while - most likely still computing "
                 f"(e.g. a slow model fit) rather than stuck. Check Console Log for "
                 f"the last line printed.")
     if state == "stopped":
         return (f"⚫ A run for **{delivery_date}** was started but the process is no "
-                f"longer running — most likely Ctrl+C or a crash while it was paused "
+                f"longer running - most likely Ctrl+C or a crash while it was paused "
                 f"waiting for input. No report yet; start a fresh run when ready.")
     status = load_run_status(delivery_date)
     if state == "none" or status is None:
-        return (f"🟡 Pipeline hasn't been run yet for **{delivery_date}** — no "
+        return (f"🟡 Pipeline hasn't been run yet for **{delivery_date}** - no "
                 f"report and no run record.")
     n_fail = sum(1 for r in status["results"] if r["status"] == "FAIL")
     if n_fail:
         failed = [r["key"] for r in status["results"] if r["status"] == "FAIL"]
         return (f"🔴 Pipeline for **{delivery_date}** finished but FAILED "
                 f"(phase(s): {', '.join(failed)}) before reaching the analytics "
-                f"phase that writes the report — see Run & Monitor for details.")
+                f"phase that writes the report - see Run & Monitor for details.")
     return (f"🟡 Pipeline for **{delivery_date}** finished but no report was "
-            f"written — check Run & Monitor / Console Log for what happened.")
+            f"written - check Run & Monitor / Console Log for what happened.")
 
 
 # ---------------------------------------------------------------------------
-# Audit trail (JSONL) — decision rationale source
+# Audit trail (JSONL) - decision rationale source
 # ---------------------------------------------------------------------------
 
 @st.cache_data
 def _load_all_audit_events_cached(dir_listing_key: str) -> list[dict]:
     # The audit file is named by EXECUTION date (when the phase ran), not by
-    # delivery date — e.g. a DA run executed today logs delivery_date=tomorrow
+    # delivery date - e.g. a DA run executed today logs delivery_date=tomorrow
     # inside the record, but the *filename* is today's date. IDA3/XBID phases
     # even run ON the delivery date itself, landing in yet another file. So
     # there's no way to know in advance which file(s) hold a given delivery
-    # date's events — we read every audit file and filter by the record's own
+    # date's events - we read every audit file and filter by the record's own
     # "delivery_date" field instead of trusting the filename.
     events: list[dict] = []
     for path in sorted(AUDIT_DIR.glob("audit_*.jsonl")):
@@ -313,11 +313,11 @@ ACTIVE_WINDOW_S = 20.0
 
 def is_pipeline_active(delivery_date: str) -> bool:
     """True if pipeline_<date>.log was written to within the last
-    ACTIVE_WINDOW_S seconds — source-agnostic (VS Code, terminal, Spyder,
+    ACTIVE_WINDOW_S seconds - source-agnostic (VS Code, terminal, Spyder,
     or the in-app runner all write the same file via the same _Tee, so this
     catches a live run regardless of where it was started). Not process
-    detection — just "is something actively appending to this file right
-    now" — which is exactly what "mirror the terminal" needs: the dashboard
+    detection - just "is something actively appending to this file right
+    now" - which is exactly what "mirror the terminal" needs: the dashboard
     should feel live whenever the log is actually moving, not only when it
     happens to know about its own subprocess.
     """
@@ -330,11 +330,11 @@ def is_pipeline_active(delivery_date: str) -> bool:
 def _is_pid_alive(pid: int) -> bool:
     """Cross-platform "is this process still running". Used to tell a
     genuinely-paused run (waiting minutes on an Approve/Reject or ENTER
-    prompt — normal, log freshness alone can't distinguish this from dead)
+    prompt - normal, log freshness alone can't distinguish this from dead)
     apart from one killed by Ctrl+C, which otherwise leaves run_status.json
     stuck at RUNNING forever with no way to know the process is gone."""
     if not pid:
-        return True  # older run_status.json (pre-pid) — can't check, assume alive
+        return True  # older run_status.json (pre-pid) - can't check, assume alive
     try:
         if os.name == "nt":
             import subprocess
@@ -355,13 +355,13 @@ def _is_pid_alive(pid: int) -> bool:
             os.kill(pid, 0)
             return True
     except Exception:
-        return True  # can't determine — don't falsely report a live run as dead
+        return True  # can't determine - don't falsely report a live run as dead
 
 
 # ---------------------------------------------------------------------------
-# Live gate ticket — the most recent gate decision anywhere in the pipeline
+# Live gate ticket - the most recent gate decision anywhere in the pipeline
 # (DA/aFRR/mFRR/IDA1-3/XBID), with its hourly numbers straight from
-# PositionStore/ReserveStore (SQLite, written the moment a gate submits —
+# PositionStore/ReserveStore (SQLite, written the moment a gate submits  - 
 # not the Excel report, which only exists once analytics has run). This is
 # the one Overview element that's genuinely live mid-pipeline: it updates
 # gate-by-gate as the run progresses, well before any report exists.
@@ -380,7 +380,7 @@ _GATE_LABEL = {
 # Shown on the reserve-capacity cards because that's the scheme the user
 # asked these cards to be labeled with.
 _RESERVE_PHASE_LABEL = {"AFRR": "Phase 3A", "MFRR": "Phase 3B"}
-# event suffix -> (pill text, status class). Only terminal decision events —
+# event suffix -> (pill text, status class). Only terminal decision events  - 
 # *_START/*_PASSED/*_POSITION_SAVED are progress markers, not decisions.
 _DECISION_SUFFIX = {
     "SUBMITTED":       ("Submitted", "good"),
@@ -397,7 +397,7 @@ _DECISION_SUFFIX = {
 }
 # Different gates log revenue under different names, and DA specifically
 # logs TWO figures together (energy_revenue_eur AND objective_eur, both on
-# *_SOLVED, not *_SUBMITTED) — collect every field present, not just the
+# *_SOLVED, not *_SUBMITTED) - collect every field present, not just the
 # first, so DA's ticket shows both instead of silently dropping one.
 _REVENUE_FIELDS = ["energy_revenue_eur", "capacity_revenue_eur", "objective_eur", "improvement_eur"]
 _REVENUE_LABELS = {
@@ -409,7 +409,7 @@ _REVENUE_LABELS = {
 
 
 def _collect_decisions(delivery_date: str) -> tuple[list, list]:
-    """Returns (events, decisions) — decisions is [(gate, suffix, event), ...]
+    """Returns (events, decisions) - decisions is [(gate, suffix, event), ...]
     sorted oldest-first, for every terminal decision event found."""
     events = load_audit_events(delivery_date)
     decisions = []
@@ -428,7 +428,7 @@ def _da_anchor(delivery_date: str) -> str | None:
     """This run's latest DA decision timestamp, or None if DA hasn't decided
     yet. DA always runs first in any single pipeline execution, so any
     other phase's event timestamped before this cannot belong to the
-    current run — see all_gate_tickets' docstring for the full rationale.
+    current run - see all_gate_tickets' docstring for the full rationale.
     Shared by every staleness check in this module (gate tickets, XBID
     windows, and the phase 4A/4B/4C delivery cards)."""
     _, decisions = _collect_decisions(delivery_date)
@@ -437,13 +437,13 @@ def _da_anchor(delivery_date: str) -> str | None:
 
 
 def _collect_xbid_windows(events: list, anchor: str | None) -> list[dict] | None:
-    """XBID isn't a single decision like DA/IDA — it re-checks several
+    """XBID isn't a single decision like DA/IDA - it re-checks several
     times a day (one audit event per check-window: W1, W2, ...), each with
     its own Held/Submitted call. Keeping only the chronologically latest
     event (as all_gate_tickets does for every other gate) would silently
     hide every earlier window's decision. Returns one entry per window,
     latest event per window id, anchor-filtered the same way as the main
-    gate list (drops windows from an earlier, since-superseded run) —
+    gate list (drops windows from an earlier, since-superseded run)  - 
     or None if there's nothing to show (non-XBID gate, or no window field
     on any matching event, e.g. an older run before this field existed)."""
     prefix = "XBID_"
@@ -491,18 +491,18 @@ def _collect_xbid_windows(events: list, anchor: str | None) -> list[dict] | None
 def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_date: str,
                    anchor: str | None = None) -> dict | None:
     """Builds one gate's ticket dict, or None if its backing store data has
-    gone missing (an orphaned decision from an earlier, since-cleared run —
+    gone missing (an orphaned decision from an earlier, since-cleared run  - 
     see latest_gate_ticket's docstring)."""
     label, status_class = _DECISION_SUFFIX[suffix]
 
     found: dict = {f: event[f] for f in _REVENUE_FIELDS if event.get(f) is not None}
     if not found:
-        # DA_SUBMITTED itself carries no revenue field — only DA_SOLVED
+        # DA_SUBMITTED itself carries no revenue field - only DA_SOLVED
         # does (a non-decision progress event, so it's not in `decisions`),
         # and DA_SOLVED carries BOTH energy_revenue_eur and objective_eur
         # together. Search all of this gate's events, newest first, and
-        # take every revenue field the first matching event has — not just
-        # one — so DA shows both figures.
+        # take every revenue field the first matching event has - not just
+        # one - so DA shows both figures.
         gate_prefix = gate + "_"
         same_gate_all = [e for e in events if str(e.get("event", "")).startswith(gate_prefix)]
         for e in reversed(same_gate_all):
@@ -523,7 +523,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
     else:
         by_hour = PositionStore().load_position(delivery_date, store_key)
         if not by_hour and suffix in ("NO_CHANGE", "NO_ORDER"):
-            # A held gate never wrote its own row (only a re-bid does) —
+            # A held gate never wrote its own row (only a re-bid does)  - 
             # the committed position didn't change, so show what's
             # actually committed as of this gate instead of an empty chart.
             net = PositionStore().committed_position(delivery_date, as_of_gate=store_key)
@@ -534,7 +534,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
 
     if not hourly:
         # Orphaned decision from an earlier, since-cleared run. Applies to
-        # EVERY decision type, not just SUBMITTED — a NO_CHANGE/Held ticket
+        # EVERY decision type, not just SUBMITTED - a NO_CHANGE/Held ticket
         # falls back to committed_position() above, and that too goes empty
         # once the underlying DA position has been cleared by a fresh run,
         # so a held gate can be just as orphaned as a submitted one. Within
@@ -544,7 +544,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
 
     # IDA1-3/XBID re-optimisation gates: the meaningful "chart" isn't the
     # full 24h position (which usually looks identical to DA's, since most
-    # hours are frozen/unchanged) — it's whether the improvement cleared
+    # hours are frozen/unchanged) - it's whether the improvement cleared
     # the dynamic re-bid threshold, and which hours were actually tradable
     # vs traded. Only these gates log these fields (see
     # ida_reoptimiser.py/xbid_optimiser.py).
@@ -573,7 +573,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
 
 def all_gate_tickets(delivery_date: str) -> list[dict]:
     """One ticket per gate that has reached a decision so far today, oldest
-    first — DA, then aFRR, then whatever's next — so a gate's card stays
+    first - DA, then aFRR, then whatever's next - so a gate's card stays
     visible on Overview after a later gate becomes 'latest', instead of
     only ever showing the single most recent decision. Only the most
     recent decision per gate is kept (a gate deciding twice in one date's
@@ -582,12 +582,12 @@ def all_gate_tickets(delivery_date: str) -> list[dict]:
 
     # DA always runs first in any single execution of the pipeline, so any
     # OTHER gate's decision timestamped before the current run's DA
-    # decision cannot belong to this run — it's a leftover from an earlier,
+    # decision cannot belong to this run - it's a leftover from an earlier,
     # separate attempt. This matters even though _build_ticket already
     # drops decisions with empty backing data: a stale IDA*_NO_CHANGE
     # event's committed_position() fallback walks GATE_ORDER starting from
     # DA, so once DA has fresh data (as it always does by the time IDA1
-    # could plausibly run) that fallback comes back non-empty anyway —
+    # could plausibly run) that fallback comes back non-empty anyway  - 
     # borrowing the CURRENT run's DA numbers under an OLD IDA1 decision
     # label, masking exactly the staleness the emptiness check was meant
     # to catch. A stale IDA1 card showing "Held" from hours ago, with
@@ -649,9 +649,9 @@ def load_capacity_vs_activation(delivery_date: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Delivery cards — phases 4A (RT dispatch), 4B (aFRR activation), 4C (mFRR
+# Delivery cards - phases 4A (RT dispatch), 4B (aFRR activation), 4C (mFRR
 # activation). Not "decisions" like the gates above (no Submitted/Held
-# choice — delivery always happens once a committed position exists), so
+# choice - delivery always happens once a committed position exists), so
 # they don't fit _DECISION_SUFFIX/_build_ticket's vocabulary. Read directly
 # from DeliveryStore/ActivationStore (the per-ISP tables Phase 4 writes)
 # plus each phase's own audit summary event.
@@ -661,7 +661,7 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
     """Phase 4A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this
     date, or if the only matching event predates this run's DA decision
-    (a leftover from an earlier, since-cleared attempt — see _da_anchor)."""
+    (a leftover from an earlier, since-cleared attempt - see _da_anchor)."""
     events = load_audit_events(delivery_date, "RT_")
     done = next((e for e in reversed(events) if e.get("event") == "RT_DELIVERED"), None)
     if done is None:
@@ -736,7 +736,7 @@ def load_activation_summary(delivery_date: str, product: str) -> dict | None:
     """Phase 4B (aFRR) / 4C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
     activated energy/prices from ActivationStore, with revenue computed
     directly from up/dn MW * price * eff_isp_h (the same math reserve
-    settlement uses) — available the moment activation runs, well before
+    settlement uses) - available the moment activation runs, well before
     settlement (phase 6B) aggregates it. None if not activated yet."""
     prefix = product.upper() + "_ACT_"
     events = load_audit_events(delivery_date, prefix)
@@ -1350,13 +1350,13 @@ def latest_gate_ticket(delivery_date: str) -> dict | None:
     """The most recent DA/aFRR/mFRR/IDA1-3/XBID decision for this delivery
     date, with its hourly bid/offer table. None if nothing has decided yet.
 
-    Skips a decision whose store data has gone missing — run_production.py
+    Skips a decision whose store data has gone missing - run_production.py
     clears PositionStore/ReserveStore for this date at the start of a
     genuine fresh run, but audit_*.jsonl is append-only forever, so a
     SUBMITTED event from a Ctrl+C-killed earlier attempt can still be the
     chronologically "latest" audit record even after its position/reserve
     rows are gone. Showing that would be a ticket with an empty chart for a
-    decision that no longer actually holds — walk backward to the next one
+    decision that no longer actually holds - walk backward to the next one
     that still has real data instead.
     """
     tickets = all_gate_tickets(delivery_date)
@@ -1381,10 +1381,10 @@ _MODEL_ROSTER = [
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model_isp.json",
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
      "EUR/MWh"),
-    ("Day-Ahead (DA)", "PV output — solar irradiance (GHI)",
+    ("Day-Ahead (DA)", "PV output - solar irradiance (GHI)",
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:GHI",
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "W/m²"),
-    ("Day-Ahead (DA)", "PV output — ambient temperature",
+    ("Day-Ahead (DA)", "PV output - ambient temperature",
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:T_amb",
      "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "°C"),
     ("Day-Ahead (DA)", "Reservoir inflow",
@@ -1425,9 +1425,9 @@ _MODEL_ROSTER = [
 ]
 
 _MODEL_BLURBS = {
-    "LightGBM":     "Fast gradient-boosted trees — usually the quickest to train.",
-    "XGBoost":      "Gradient-boosted trees with strong regularisation — a steady all-rounder.",
-    "RandomForest": "Many independent decision trees averaged together — robust to noisy days.",
+    "LightGBM":     "Fast gradient-boosted trees - usually the quickest to train.",
+    "XGBoost":      "Gradient-boosted trees with strong regularisation - a steady all-rounder.",
+    "RandomForest": "Many independent decision trees averaged together - robust to noisy days.",
     "CatBoost":     "Gradient-boosted trees tuned to resist overfitting on smaller datasets.",
 }
 

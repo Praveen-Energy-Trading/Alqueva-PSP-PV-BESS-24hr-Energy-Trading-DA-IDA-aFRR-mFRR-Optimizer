@@ -1,4 +1,4 @@
-"""Risk & Constraints — how close to physical/regulatory limits the plant
+"""Risk & Constraints - how close to physical/regulatory limits the plant
 ran, and a live check of the invariants the test suite defines as
 "correct" (tests/test_bug_regressions.py BUG-1..8 and friends), computed
 against real production output instead of only at test time."""
@@ -25,7 +25,7 @@ def _render() -> None:
     report_ready = st.session_state.get("report_ready", False)
 
     if not selected_date:
-        st.warning("No runs found yet — visit Run & Monitor to start one.")
+        st.warning("No runs found yet - visit Run & Monitor to start one.")
         return
     if not report_ready:
         st.info(data.no_report_message(selected_date))
@@ -96,7 +96,7 @@ def _render() -> None:
                        f"({len(constraint_flags)} constraint + {len(checks)} invariant)")
         else:
             st.error(f"🔴 {total_fail} of {total_checks} risk checks FAILED for **{selected_date}** "
-                     f"— see Constraint verification / Production health checklist below")
+                     f" -  see Constraint verification / Production health checklist below")
 
     # One-line summary instead of a jargon-heavy paragraph -- the bar below
     # shows the actual split visually, so the text only needs to anchor it.
@@ -121,7 +121,7 @@ def _render() -> None:
     st.markdown("---")
 
     # ---------------------------------------------------------------------------
-    # Utilization % — computed here, not stored anywhere in the pipeline output
+    # Utilization % - computed here, not stored anywhere in the pipeline output
     # ---------------------------------------------------------------------------
 
     st.subheader("Envelope utilization")
@@ -176,14 +176,14 @@ def _render() -> None:
         min_gen_hr = dispatch["Gen_headroom_MW"].min()
         min_pump_hr = dispatch["Pump_headroom_MW"].min()
         if min_gen_hr < -0.01 or min_pump_hr < -0.01:
-            st.error(f"🔴 Headroom breached — min gen headroom {min_gen_hr:.2f} MW, min pump headroom {min_pump_hr:.2f} MW")
+            st.error(f"🔴 Headroom breached - min gen headroom {min_gen_hr:.2f} MW, min pump headroom {min_pump_hr:.2f} MW")
         else:
-            st.success(f"🟢 Headroom never breached — min gen {min_gen_hr:.2f} MW, min pump {min_pump_hr:.2f} MW")
+            st.success(f"🟢 Headroom never breached - min gen {min_gen_hr:.2f} MW, min pump {min_pump_hr:.2f} MW")
 
     st.markdown("---")
 
     # ---------------------------------------------------------------------------
-    # Constraint verification panel — promoted from the bottom of Summary_KPIs
+    # Constraint verification panel - promoted from the bottom of Summary_KPIs
     # ---------------------------------------------------------------------------
 
     st.subheader("Constraint verification (from Summary_KPIs)")
@@ -234,7 +234,7 @@ def _render() -> None:
     st.markdown("---")
 
     # ---------------------------------------------------------------------------
-    # Invariant health checklist — computed from stored data, not re-derived
+    # Invariant health checklist - computed from stored data, not re-derived
     # from the test suite itself. Documents what's checkable vs not.
     # ---------------------------------------------------------------------------
 
@@ -250,7 +250,7 @@ def _render() -> None:
         color = theme.STATUS_GOOD if ok else theme.STATUS_CRITICAL
         with col:
             st.markdown(
-                f'<div title="{technical_label} — {detail}" style="background:{color}14; '
+                f'<div title="{technical_label} - {detail}" style="background:{color}14; '
                 f'border:1px solid {color}55; border-radius:10px; padding:0.7rem 0.6rem; '
                 f'text-align:center; min-height:70px;">'
                 f'<div style="font-size:20px;">{"🟢" if ok else "🔴"}</div>'
@@ -260,7 +260,7 @@ def _render() -> None:
             )
 
     st.caption("2 further invariants (per-unit delivery mode, settlement reconciliation) "
-               "aren't checkable from the current exports — not silently skipped, just not yet wired up.")
+               "aren't checkable from the current exports - not silently skipped, just not yet wired up.")
 
 
 _render()
