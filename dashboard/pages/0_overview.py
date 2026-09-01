@@ -131,15 +131,26 @@ def _render() -> None:
         if state_key not in st.session_state or st.session_state[state_key] not in gate_keys:
             st.session_state[state_key] = gate_keys[-1]  # default to the latest decision
 
+        # A plain `if cols[i].button(...): st.session_state[state_key] = ...`
+        # only writes the new selection AFTER that button has already been
+        # drawn -- so the just-clicked button still renders with its OLD
+        # (now-stale) primary/secondary type, and the highlight only catches
+        # up on the NEXT rerun. An on_click callback fires before the script
+        # body re-runs, so session_state already holds the new gate by the
+        # time `is_selected` is computed below -- the highlight and the
+        # card switch land in the same click, not one apart.
+        def _select_gate(gate: str) -> None:
+            st.session_state[state_key] = gate
+
         cols = st.columns(len(all_tickets))
         for i, t in enumerate(all_tickets):
             icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
             rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else " - "
             label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
             is_selected = t["gate"] == st.session_state[state_key]
-            if cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
-                               use_container_width=True, type="primary" if is_selected else "secondary"):
-                st.session_state[state_key] = t["gate"]
+            cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
+                            use_container_width=True, type="primary" if is_selected else "secondary",
+                            on_click=_select_gate, args=(t["gate"],))
 
         selected_ticket = next(t for t in all_tickets if t["gate"] == st.session_state[state_key])
         fig_num = gate_keys.index(st.session_state[state_key]) + 1

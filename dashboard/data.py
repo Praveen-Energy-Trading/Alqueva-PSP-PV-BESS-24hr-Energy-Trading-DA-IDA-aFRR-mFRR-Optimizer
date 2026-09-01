@@ -42,6 +42,36 @@ def load_plant_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "plant.yaml").read_text(encoding="utf-8"))
 
 
+# ---------------------------------------------------------------------------
+# ComponentStore (JSON) - shared cache. Seven different loaders below
+# (reservoir trajectory, PV routing, multi-asset dispatch, ISP dispatch,
+# BESS SOC/charge-source, DA-vs-activation) each need the same per-date
+# components_<date>.json blob, and ComponentStore.load() itself does a raw
+# disk read + json.loads with no caching of its own. Each loader used to
+# call it directly, so a single Overview render (or one widget click
+# forcing the enclosing fragment to rerun) parsed the same file up to 7
+# times over. One shared, mtime-keyed cache (same pattern as
+# _load_daily_report_cached below) means the file is actually read once
+# per change, not once per widget click -- this was the main source of the
+# "every click is slow" lag on Overview.
+# ---------------------------------------------------------------------------
+
+def _component_store_path(delivery_date: str) -> Path:
+    return REPO_ROOT / "runtime" / "components" / f"components_{delivery_date}.json"
+
+
+@st.cache_data
+def _load_component_store_cached(delivery_date: str, mtime: float) -> dict:
+    return ComponentStore().load(delivery_date)
+
+
+def load_component_store(delivery_date: str) -> dict | None:
+    path = _component_store_path(delivery_date)
+    if not path.exists():
+        return None
+    return _load_component_store_cached(delivery_date, path.stat().st_mtime)
+
+
 @st.cache_data
 def load_market_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "market.yaml").read_text(encoding="utf-8"))
@@ -613,6 +643,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
     }
 
 
+@st.cache_data(ttl=5)
 def all_gate_tickets(delivery_date: str) -> list[dict]:
     """One ticket per gate that has reached a decision so far today, oldest
     first - DA, then aFRR, then whatever's next - so a gate's card stays
@@ -653,6 +684,7 @@ def all_gate_tickets(delivery_date: str) -> list[dict]:
     return tickets
 
 
+@st.cache_data(ttl=5)
 def load_capacity_vs_activation(delivery_date: str) -> dict | None:
     """Two separate real payments per reserve product, shown side by side:
     capacity revenue (paid for OFFERING the reserve, whether or not the TSO
@@ -699,6 +731,7 @@ def load_capacity_vs_activation(delivery_date: str) -> dict | None:
 # plus each phase's own audit summary event.
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=5)
 def load_rt_delivery(delivery_date: str) -> dict | None:
     """Phase 4A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this
@@ -724,6 +757,7 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
     }
 
 
+@st.cache_data(ttl=5)
 def load_imbalance_settlement(delivery_date: str) -> dict | None:
     """Phase 5C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
     whatever price source that run actually used -- REN live or the
@@ -774,6 +808,7 @@ def load_imbalance_settlement(delivery_date: str) -> dict | None:
     }
 
 
+@st.cache_data(ttl=5)
 def load_activation_summary(delivery_date: str, product: str) -> dict | None:
     """Phase 4B (aFRR) / 4C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
     activated energy/prices from ActivationStore, with revenue computed
@@ -862,7 +897,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
     independently-solved values per day, not a repeated hourly number.
     Returns None for dates that predate that fix (still hourly-resolution
     components) -- never fabricates ISP-level detail that isn't real."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     psp_sched = comp.get("psp_schedule") or {}
@@ -945,7 +980,7 @@ def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     solved model's v_up/v_low/spill/head variables (see
     core_milp_solver.py::extract_results), not a display-side approximation.
     None if this date's DA gate hasn't solved (no ComponentStore record)."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     traj = comp.get("reservoir_trajectory") or {}
@@ -986,7 +1021,7 @@ def load_pv_routing(delivery_date: str) -> dict | None:
     room) is derived here by cross-checking soc_mwh against the BESS's real
     e_max_mwh bound -- not a new rule, just reading the same bound the
     solver's soc_hi constraint enforces."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     pv_sched = comp.get("pv_schedule") or {}
@@ -1041,7 +1076,7 @@ def load_multi_asset_dispatch(delivery_date: str) -> dict | None:
     reserve_offer_builder.py/reserve_activation.py (fat_deliverable_mw sums
     psp_ramp_cap + bess_cap into one combined ceiling) -- shown here honestly
     as a combined overlay, not fabricated into a PSP-vs-BESS split."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     psp_sched = comp.get("psp_schedule") or {}
@@ -1087,7 +1122,7 @@ def load_water_balance(delivery_date: str) -> dict | None:
     hour-to-hour change in upper_hm3 (converted via 1 hm3 = 1,000,000 m3).
     This is the real identity the solved model's reservoir continuity
     constraint enforces -- shown here as a decomposition, not a new rule."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     inflow = comp.get("inflow_m3h") or {}
@@ -1137,7 +1172,7 @@ def load_bess_soc_price(delivery_date: str) -> dict | None:
     storage-arbitrage decision the solver actually made -- soc_mwh,
     charge_mw/discharge_mw from ComponentStore.bess_schedule, DA_price_EUR_MWh
     from the same Dispatch_Hourly sheet every other price series here reads."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     bess_sched = comp.get("bess_schedule") or {}
@@ -1181,7 +1216,7 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
     sums (core_milp_builder.py's bess_chg constraint). Only hours where the
     plant actually charged are meaningful here; idle/discharge hours have
     zero on both."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     bess_sched = comp.get("bess_schedule") or {}
