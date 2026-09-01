@@ -483,6 +483,18 @@ def render(ticket: dict, delivery_date: str, fig_num: int = 1) -> str:
     label = _html.escape(ticket["label"])
     decision = _html.escape(ticket["decision"])
     ts = _html.escape(ticket["timestamp"])
+    # Same "Gate closes (CET): HH:MM <-- submit before this" info the
+    # terminal prints at the DA approval prompt (see
+    # trader_approval_prompt.py) -- surfaced here too so it isn't lost the
+    # moment the terminal scrolls past it. None for gates data.py couldn't
+    # honestly resolve a display string for (shouldn't happen for the 7
+    # known gates, but a ticket from an unrecognised gate key degrades
+    # gracefully rather than erroring).
+    gate_close_bit = (
+        f'<p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 4px;">'
+        f'&#128274; {_html.escape(ticket["gate_close"])}</p>'
+        if ticket.get("gate_close") else ""
+    )
 
     if is_rebid:
         xbid_windows = ticket.get("xbid_windows")
@@ -604,6 +616,7 @@ def render(ticket: dict, delivery_date: str, fig_num: int = 1) -> str:
       <span style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY};">{label}</span>
     </div>
     <p style="font-size:12px; color:{theme.INK_MUTED}; margin:0 0 4px;">{ref_bit}decided {ts}</p>
+    {gate_close_bit}
     {revenue_bit}
     {body}
   </div>

@@ -31,6 +31,7 @@ CONFIG_DIR  = REPO_ROOT / "config"
 
 from common_layer.database import PositionStore, ReserveStore, DeliveryStore, ActivationStore, ComponentStore  # noqa: E402
 from common_layer.utilities import date_utils as du  # noqa: E402
+from common_layer.utilities.timezone_utils import resolve_gate_time  # noqa: E402
 from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
@@ -452,6 +453,45 @@ _GATE_LABEL = {
 # Shown on the reserve-capacity cards because that's the scheme the user
 # asked these cards to be labeled with.
 _RESERVE_PHASE_LABEL = {"AFRR": "Phase 3A", "MFRR": "Phase 3B"}
+
+
+def _gate_close_display(gate: str, delivery_date: str) -> str | None:
+    """Human-readable gate-close deadline for a ticket card, mirroring the
+    same 'Gate closes (CET): HH:MM <-- submit before this' line
+    trader_approval_prompt.py prints to the terminal for DA -- shown here so
+    it isn't lost the moment the terminal scrolls past it.
+
+    DA/IDA1/IDA2/IDA3 have a single confirmed CET clock time in
+    config/market.yaml (gates.<name>.gate_close) -- resolved to this
+    delivery's actual calendar date via the same resolve_gate_time()
+    run_da.py itself uses, so the widget and the terminal can never disagree.
+
+    XBID has no single close time -- it's continuous, closing 1h before
+    each delivery hour individually (gates.XBID.gate_closure_hours_before_
+    delivery) -- shown as that rolling rule instead of a fabricated single
+    time.
+
+    aFRR/mFRR gate_close in market.yaml is an honest ESTIMATE (order
+    confirmed against REN's MPGGS rulebook, exact hour not stated anywhere
+    accessible) -- shown as that prose range, never rounded into a fake
+    precise clock time."""
+    cfg = load_config()
+    day = du.parse_date(delivery_date)
+
+    if gate in ("DA", "IDA1", "IDA2", "IDA3"):
+        spec = cfg.market.gate(gate).gate_close
+        if not spec:
+            return None
+        close_dt = resolve_gate_time(spec, day)
+        return f"Gate closes {close_dt.strftime('%H:%M')} CET on {close_dt.strftime('%d %b')}"
+    if gate == "XBID":
+        hrs = cfg.market.gate("XBID").gate_closure_hours_before_delivery
+        return f"Gate closes {hrs}h before each delivery hour (rolling)" if hrs else None
+    if gate == "AFRR":
+        return f"Gate closes (estimate): {cfg.market.afrr.gate_close}"
+    if gate == "MFRR":
+        return f"Gate closes (estimate): {cfg.market.mfrr.gate_close}"
+    return None
 # event suffix -> (pill text, status class). Only terminal decision events  - 
 # *_START/*_PASSED/*_POSITION_SAVED are progress markers, not decisions.
 _DECISION_SUFFIX = {
@@ -640,6 +680,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
         "ref": event.get("ref"), "revenue_items": revenue_items, "hourly": hourly, "is_reserve": is_reserve,
         "is_rebid_gate": is_rebid_gate, "rebid_info": rebid_info, "xbid_windows": xbid_windows,
         "phase_label": _RESERVE_PHASE_LABEL.get(gate),
+        "gate_close": _gate_close_display(gate, delivery_date),
     }
 
 

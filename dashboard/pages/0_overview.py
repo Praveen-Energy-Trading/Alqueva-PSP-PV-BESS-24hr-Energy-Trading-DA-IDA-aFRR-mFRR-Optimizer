@@ -165,6 +165,12 @@ def _render() -> None:
             card_height = 285
         else:
             card_height = 345
+        # +20px for the "Gate closes ..." line added below the decided
+        # timestamp (see gate_ticket.py's gate_close_bit) -- every real gate
+        # has one, but guard on presence anyway so a ticket without it
+        # doesn't get a blank gap under it.
+        if selected_ticket.get("gate_close"):
+            card_height += 20
         components.html(gate_ticket.render(selected_ticket, selected_date, fig_num=fig_num), height=card_height)
         st.markdown("---")
 
