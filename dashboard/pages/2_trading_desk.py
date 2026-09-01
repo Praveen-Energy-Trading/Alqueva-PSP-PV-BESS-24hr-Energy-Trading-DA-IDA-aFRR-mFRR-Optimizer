@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -128,23 +127,7 @@ def _render() -> None:
     st.markdown("---")
 
     st.subheader("Per-gate trading decisions (DA / IDA1-3 / XBID)")
-    gc1, gc2 = st.columns([1, 1])
-    with gc1:
-        st.dataframe(gates, width="stretch", height=360)
-    with gc2:
-        if {"Gate", "Net revenue EUR", "VWAP EUR/MWh"}.issubset(gates.columns):
-            # VWAP sat in the table unused -- pairing it with net revenue
-            # shows WHY a gate made money (price achieved), not just how much.
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1,
-                                 row_heights=[0.55, 0.45])
-            fig.add_trace(go.Bar(x=gates["Gate"], y=gates["Net revenue EUR"],
-                                  marker_color=theme.COLOR_GEN), row=1, col=1)
-            fig.add_trace(go.Bar(x=gates["Gate"], y=gates["VWAP EUR/MWh"],
-                                  marker_color=theme.COLOR_PRICE), row=2, col=1)
-            theme.style_fig(fig, height=360, legend=False)
-            fig.update_yaxes(title_text="Net revenue EUR", gridcolor=theme.GRIDLINE, row=1, col=1)
-            fig.update_yaxes(title_text="VWAP EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
-            st.plotly_chart(fig, width="stretch")
+    st.dataframe(gates, width="stretch", height=360)
 
     st.markdown("---")
 
