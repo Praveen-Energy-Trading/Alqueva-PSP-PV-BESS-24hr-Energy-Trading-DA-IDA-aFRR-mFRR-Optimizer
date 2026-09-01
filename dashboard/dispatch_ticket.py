@@ -212,6 +212,15 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     hours = traj["hours"]
     n = len(hours)
     upper_hm3, lower_hm3 = traj["upper_hm3"], traj["lower_hm3"]
+    # Real physical band each panel's axis is ZOOMED away from (see
+    # zoom_range's docstring below) -- stated in the caption in plain hm3,
+    # not just implied by a vague "barely moves" note, so the axis numbers
+    # alone can never be mistaken for the reservoir's actual min/max.
+    upper_band_note = (f"full operational band: {traj['upper_min_hm3']:,.0f}"
+                        f"–{traj['upper_usable_hm3']:,.0f} hm³ usable "
+                        f"({traj['upper_capacity_hm3']:,.0f} hm³ max)")
+    lower_band_note = (f"full operational band: {traj['lower_min_hm3']:,.0f}"
+                        f"–{traj['lower_capacity_hm3']:,.0f} hm³")
 
     def pct(v: float, lo: float, hi: float) -> float:
         return max(0.0, min(100.0, (v - lo) / max(hi - lo, 1e-9) * 100))
@@ -322,7 +331,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range (Alqueva barely moves day-to-day vs. its full size)</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake)</p>
     <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
@@ -339,7 +348,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {lower_band_note}</p>
     <div style="display:flex; gap:16px; margin-top:8px;">
       <div style="flex:1;">
         <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Alqueva now</p>
@@ -984,7 +993,10 @@ def render_bess_soc_price_card(bs: dict) -> str:
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Storage arbitrage the solver actually chose - SOC (% of usable band) against DA clearing price</p>
     <div class="bs-chart-block" data-bs='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Shaded = charge (blue) / discharge (aqua) hours</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Shaded hours:
+        <span style="display:inline-block; width:10px; height:10px; background:{theme.COLOR_DOWN}; opacity:0.5; margin:0 3px 0 6px; vertical-align:middle; border-radius:2px;"></span>charge
+        <span style="display:inline-block; width:10px; height:10px; background:{theme.COLOR_UP}; opacity:0.5; margin:0 3px 0 10px; vertical-align:middle; border-radius:2px;"></span>discharge
+      </span>
       <button class="gt-replay" onclick="dtBessReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
