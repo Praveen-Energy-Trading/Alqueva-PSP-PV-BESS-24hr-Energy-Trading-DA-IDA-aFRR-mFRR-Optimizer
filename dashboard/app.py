@@ -168,7 +168,6 @@ pages = {
         st.Page("pages/0_overview.py", title="Overview", icon="⚡", default=True),
         st.Page("pages/1_run_monitor.py", title="Run & Monitor", icon="🚀"),
         st.Page("pages/2_trading_desk.py", title="Trading Desk", icon="💰"),
-        st.Page("pages/3_decision_rationale.py", title="Decision Rationale", icon="🧭"),
         st.Page("pages/4_risk_constraints.py", title="Risk & Constraints", icon="⚠️"),
         st.Page("pages/8_pipeline_flowchart.py", title="Pipeline Flowchart", icon="🔀"),
     ],

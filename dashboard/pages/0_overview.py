@@ -1,8 +1,8 @@
 """Overview - the one-glance boardroom page. Every element here mirrors
-run_production.py's own 19-phase table, the same Summary_KPIs/Gate_Decisions
-Excel sheets Trading Desk uses, and the same audit trail Decision Rationale
-uses - nothing computed here that isn't already computed elsewhere; this
-page is a compact front door to the other six, not a new data source."""
+run_production.py's own 19-phase table and the same Summary_KPIs/
+Gate_Decisions Excel sheets Trading Desk uses - nothing computed here
+that isn't already computed elsewhere; this page is a compact front
+door to the other pages, not a new data source."""
 from __future__ import annotations
 
 import sys
@@ -259,9 +259,10 @@ def _render() -> None:
 
     # ---------------------------------------------------------------------------
     # Gate Position Evolution -- net MW position as of each gate's close
-    # (DA/IDA1/IDA2/IDA3/XBID), so a re-bid's actual physical effect is visible,
-    # not just its revenue (see Decision Rationale for that side). Live
-    # PositionStore read, same as the sections above, so it renders mid-run too.
+    # (DA/IDA1/IDA2/IDA3/XBID), so a re-bid's actual physical effect is
+    # visible, not just its revenue (each gate ticket card above already
+    # shows its own improvement-vs-threshold rationale). Live PositionStore
+    # read, same as the sections above, so it renders mid-run too.
     # ---------------------------------------------------------------------------
 
     gate_pos = data.load_gate_position_evolution(selected_date)
