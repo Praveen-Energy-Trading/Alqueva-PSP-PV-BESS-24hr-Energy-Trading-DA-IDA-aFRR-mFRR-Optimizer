@@ -244,7 +244,14 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     lower_pct = [pct(v, l_min, l_max) for v in lower_hm3]
     terminal_pct = pct(traj["upper_initial_hm3"], u_min, u_max)
 
-    x0, x1 = 10, 1390
+    # x0=60 (not the ~10 a plain gridline chart would use) leaves room for
+    # the axis-value labels below: they're text-anchor="end" at x0-10,
+    # growing LEFTWARD from there, and Alqueva's real hm3 values are
+    # 4-5 digit numbers with a thousands comma (e.g. "2,504") -- with too
+    # small an x0 that text overflows past x=0 and gets clipped by the
+    # viewBox's left edge, leaving only its last digit or two visible (this
+    # is the bug that made the axis read "4"/"5" instead of "2,504"/"2,478").
+    x0, x1 = 60, 1390
     zero_y, top_y = 68, 8
     band_h = zero_y - top_y
 
@@ -325,8 +332,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
           <path d="{upper_fill}" fill="{theme.COLOR_GEN}" fill-opacity="0.3" stroke="{theme.COLOR_GEN}" stroke-width="2.5"/>
         </g>
         <line x1="{x0}" y1="{terminal_y:.1f}" x2="{x1}" y2="{terminal_y:.1f}" stroke="{theme.STATUS_WARNING}" stroke-width="1" stroke-dasharray="4,3"/>
-        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_min:,.0f}</text>
+        <text x="{x0-10}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_max:,.0f}</text>
+        <text x="{x0-10}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{u_min:,.0f}</text>
         {_hover_svg_elems("res-a", x0, x1, 76, 1)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
@@ -342,8 +349,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
         <g clip-path="url(#res-clip-b)">
           <path d="{lower_fill}" fill="{theme.COLOR_PUMP}" fill-opacity="0.3" stroke="{theme.COLOR_PUMP}" stroke-width="2.5"/>
         </g>
-        <text x="{x0-4}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_max:,.0f}</text>
-        <text x="{x0-4}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_min:,.0f}</text>
+        <text x="{x0-10}" y="{top_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_max:,.0f}</text>
+        <text x="{x0-10}" y="{zero_y+3}" font-size="12" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{l_min:,.0f}</text>
         {_hover_svg_elems("res-b", x0, x1, 76, 1)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
