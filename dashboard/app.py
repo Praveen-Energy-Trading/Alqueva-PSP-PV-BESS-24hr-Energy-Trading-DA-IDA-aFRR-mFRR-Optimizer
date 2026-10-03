@@ -168,13 +168,10 @@ pages = {
         st.Page("pages/0_overview.py", title="Overview", icon="⚡", default=True),
         st.Page("pages/1_run_monitor.py", title="Run & Monitor", icon="🚀"),
         st.Page("pages/2_trading_desk.py", title="Trading Desk", icon="💰"),
-        st.Page("pages/3_decision_rationale.py", title="Decision Rationale", icon="🧭"),
-        st.Page("pages/4_risk_constraints.py", title="Risk & Constraints", icon="⚠️"),
         st.Page("pages/8_pipeline_flowchart.py", title="Pipeline Flowchart", icon="🔀"),
     ],
     "Analyse": [
         st.Page("pages/5_backtest_risk.py", title="Backtest & Portfolio Risk", icon="📈"),
-        st.Page("pages/10_risk_comparison.py", title="EV vs CVaR Risk Comparison", icon="⚖️"),
         st.Page("pages/9_ml_forecasting.py", title="ML Forecasting", icon="🤖"),
         st.Page("pages/6_figures.py", title="Figures", icon="🖼️"),
         st.Page("pages/7_console_log.py", title="Console Log", icon="🖥️"),

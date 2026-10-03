@@ -9,7 +9,7 @@ Methodology:
     3. Build lag + seasonal features
     4. Auto-select best model via inflow_selected_model.json:
          - On first run OR when Excel has new data since last evaluation:
-             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest / CatBoost
+             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest
              → updates inflow_selected_model.json automatically
          - Otherwise: reads selected model from json (no CV overhead)
     5. Forecast delivery_date daily mean inflow → distribute flat across 24 hours

@@ -31,6 +31,7 @@ CONFIG_DIR  = REPO_ROOT / "config"
 
 from common_layer.database import PositionStore, ReserveStore, DeliveryStore, ActivationStore, ComponentStore  # noqa: E402
 from common_layer.utilities import date_utils as du  # noqa: E402
+from common_layer.utilities.timezone_utils import resolve_gate_time  # noqa: E402
 from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
@@ -40,6 +41,36 @@ from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_foreca
 @st.cache_data
 def load_plant_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "plant.yaml").read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# ComponentStore (JSON) - shared cache. Seven different loaders below
+# (reservoir trajectory, PV routing, multi-asset dispatch, ISP dispatch,
+# BESS SOC/charge-source, DA-vs-activation) each need the same per-date
+# components_<date>.json blob, and ComponentStore.load() itself does a raw
+# disk read + json.loads with no caching of its own. Each loader used to
+# call it directly, so a single Overview render (or one widget click
+# forcing the enclosing fragment to rerun) parsed the same file up to 7
+# times over. One shared, mtime-keyed cache (same pattern as
+# _load_daily_report_cached below) means the file is actually read once
+# per change, not once per widget click -- this was the main source of the
+# "every click is slow" lag on Overview.
+# ---------------------------------------------------------------------------
+
+def _component_store_path(delivery_date: str) -> Path:
+    return REPO_ROOT / "runtime" / "components" / f"components_{delivery_date}.json"
+
+
+@st.cache_data
+def _load_component_store_cached(delivery_date: str, mtime: float) -> dict:
+    return ComponentStore().load(delivery_date)
+
+
+def load_component_store(delivery_date: str) -> dict | None:
+    path = _component_store_path(delivery_date)
+    if not path.exists():
+        return None
+    return _load_component_store_cached(delivery_date, path.stat().st_mtime)
 
 
 @st.cache_data
@@ -153,16 +184,6 @@ def load_live_resettlement_report(delivery_date: str) -> dict | None:
     return load_backtest_report(path)
 
 
-def list_risk_comparison_reports() -> list[Path]:
-    """EV-vs-CVaR realized-outcome comparisons written by
-    run_risk_comparison.py::export_risk_comparison (Comparison/Summary/
-    RiskComparison sheets). Reuses load_backtest_report below unchanged --
-    its sheet-reading logic is already generic, only special-casing the
-    "Summary"/"Risk" sheet NAMES for label-value parsing, and this
-    workbook's own "Summary" sheet is genuinely the same label-value shape."""
-    return sorted(REPORTS_DIR.glob("risk_comparison_*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
-
-
 def parse_label_value_sheet(raw: pd.DataFrame) -> list[tuple[str, object, bool]]:
     """Summary/Risk sheets are 2-column (label, value) with a title row,
     blank separator rows, and '--- Section Name ---' group headers - not a
@@ -195,21 +216,6 @@ def _load_backtest_report_cached(path_str: str, mtime: float) -> dict:
         if sheet in result:
             raw = pd.read_excel(path, sheet_name=sheet, header=None)
             result[sheet] = parse_label_value_sheet(raw)
-    # RiskComparison (run_risk_comparison.py::export_risk_comparison) is a
-    # 3-column EV/CVaR-per-metric table with its header on row 2, not row 0
-    # (row 0 carries a long title string instead) -- header=0 would
-    # misparse it as a label-value sheet, so read it positionally instead:
-    # row 0 = title (skipped), row 1 = ["EV", "CVaR", ..., "Metric"],
-    # rows 2+ = (ev_value, cvar_value, ..., metric_label).
-    if "RiskComparison" in result:
-        raw = pd.read_excel(path, sheet_name="RiskComparison", header=None)
-        metric_rows: list[tuple[str, float, float]] = []
-        for _, row in raw.iloc[2:].iterrows():
-            ev_val, cvar_val, label = row.iloc[0], row.iloc[1], row.iloc[2]
-            if pd.isna(label):
-                continue
-            metric_rows.append((str(label).strip(), ev_val, cvar_val))
-        result["RiskComparison"] = metric_rows
     return result
 
 
@@ -422,6 +428,45 @@ _GATE_LABEL = {
 # Shown on the reserve-capacity cards because that's the scheme the user
 # asked these cards to be labeled with.
 _RESERVE_PHASE_LABEL = {"AFRR": "Phase 3A", "MFRR": "Phase 3B"}
+
+
+def _gate_close_display(gate: str, delivery_date: str) -> str | None:
+    """Human-readable gate-close deadline for a ticket card, mirroring the
+    same 'Gate closes (CET): HH:MM <-- submit before this' line
+    trader_approval_prompt.py prints to the terminal for DA -- shown here so
+    it isn't lost the moment the terminal scrolls past it.
+
+    DA/IDA1/IDA2/IDA3 have a single confirmed CET clock time in
+    config/market.yaml (gates.<name>.gate_close) -- resolved to this
+    delivery's actual calendar date via the same resolve_gate_time()
+    run_da.py itself uses, so the widget and the terminal can never disagree.
+
+    XBID has no single close time -- it's continuous, closing 1h before
+    each delivery hour individually (gates.XBID.gate_closure_hours_before_
+    delivery) -- shown as that rolling rule instead of a fabricated single
+    time.
+
+    aFRR/mFRR gate_close in market.yaml is an honest ESTIMATE (order
+    confirmed against REN's MPGGS rulebook, exact hour not stated anywhere
+    accessible) -- shown as that prose range, never rounded into a fake
+    precise clock time."""
+    cfg = load_config()
+    day = du.parse_date(delivery_date)
+
+    if gate in ("DA", "IDA1", "IDA2", "IDA3"):
+        spec = cfg.market.gate(gate).gate_close
+        if not spec:
+            return None
+        close_dt = resolve_gate_time(spec, day)
+        return f"Gate closes {close_dt.strftime('%H:%M')} CET on {close_dt.strftime('%d %b')}"
+    if gate == "XBID":
+        hrs = cfg.market.gate("XBID").gate_closure_hours_before_delivery
+        return f"Gate closes {hrs}h before each delivery hour (rolling)" if hrs else None
+    if gate == "AFRR":
+        return f"Gate closes (estimate): {cfg.market.afrr.gate_close}"
+    if gate == "MFRR":
+        return f"Gate closes (estimate): {cfg.market.mfrr.gate_close}"
+    return None
 # event suffix -> (pill text, status class). Only terminal decision events  - 
 # *_START/*_PASSED/*_POSITION_SAVED are progress markers, not decisions.
 _DECISION_SUFFIX = {
@@ -610,9 +655,11 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
         "ref": event.get("ref"), "revenue_items": revenue_items, "hourly": hourly, "is_reserve": is_reserve,
         "is_rebid_gate": is_rebid_gate, "rebid_info": rebid_info, "xbid_windows": xbid_windows,
         "phase_label": _RESERVE_PHASE_LABEL.get(gate),
+        "gate_close": _gate_close_display(gate, delivery_date),
     }
 
 
+@st.cache_data(ttl=5)
 def all_gate_tickets(delivery_date: str) -> list[dict]:
     """One ticket per gate that has reached a decision so far today, oldest
     first - DA, then aFRR, then whatever's next - so a gate's card stays
@@ -653,6 +700,7 @@ def all_gate_tickets(delivery_date: str) -> list[dict]:
     return tickets
 
 
+@st.cache_data(ttl=5)
 def load_capacity_vs_activation(delivery_date: str) -> dict | None:
     """Two separate real payments per reserve product, shown side by side:
     capacity revenue (paid for OFFERING the reserve, whether or not the TSO
@@ -699,6 +747,7 @@ def load_capacity_vs_activation(delivery_date: str) -> dict | None:
 # plus each phase's own audit summary event.
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=5)
 def load_rt_delivery(delivery_date: str) -> dict | None:
     """Phase 4A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this
@@ -724,6 +773,7 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
     }
 
 
+@st.cache_data(ttl=5)
 def load_imbalance_settlement(delivery_date: str) -> dict | None:
     """Phase 5C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
     whatever price source that run actually used -- REN live or the
@@ -774,6 +824,7 @@ def load_imbalance_settlement(delivery_date: str) -> dict | None:
     }
 
 
+@st.cache_data(ttl=5)
 def load_activation_summary(delivery_date: str, product: str) -> dict | None:
     """Phase 4B (aFRR) / 4C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
     activated energy/prices from ActivationStore, with revenue computed
@@ -862,7 +913,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
     independently-solved values per day, not a repeated hourly number.
     Returns None for dates that predate that fix (still hourly-resolution
     components) -- never fabricates ISP-level detail that isn't real."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     psp_sched = comp.get("psp_schedule") or {}
@@ -945,7 +996,7 @@ def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     solved model's v_up/v_low/spill/head variables (see
     core_milp_solver.py::extract_results), not a display-side approximation.
     None if this date's DA gate hasn't solved (no ComponentStore record)."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     traj = comp.get("reservoir_trajectory") or {}
@@ -986,7 +1037,7 @@ def load_pv_routing(delivery_date: str) -> dict | None:
     room) is derived here by cross-checking soc_mwh against the BESS's real
     e_max_mwh bound -- not a new rule, just reading the same bound the
     solver's soc_hi constraint enforces."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     pv_sched = comp.get("pv_schedule") or {}
@@ -1041,7 +1092,7 @@ def load_multi_asset_dispatch(delivery_date: str) -> dict | None:
     reserve_offer_builder.py/reserve_activation.py (fat_deliverable_mw sums
     psp_ramp_cap + bess_cap into one combined ceiling) -- shown here honestly
     as a combined overlay, not fabricated into a PSP-vs-BESS split."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     psp_sched = comp.get("psp_schedule") or {}
@@ -1087,7 +1138,7 @@ def load_water_balance(delivery_date: str) -> dict | None:
     hour-to-hour change in upper_hm3 (converted via 1 hm3 = 1,000,000 m3).
     This is the real identity the solved model's reservoir continuity
     constraint enforces -- shown here as a decomposition, not a new rule."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     inflow = comp.get("inflow_m3h") or {}
@@ -1137,7 +1188,7 @@ def load_bess_soc_price(delivery_date: str) -> dict | None:
     storage-arbitrage decision the solver actually made -- soc_mwh,
     charge_mw/discharge_mw from ComponentStore.bess_schedule, DA_price_EUR_MWh
     from the same Dispatch_Hourly sheet every other price series here reads."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     bess_sched = comp.get("bess_schedule") or {}
@@ -1181,7 +1232,7 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
     sums (core_milp_builder.py's bess_chg constraint). Only hours where the
     plant actually charged are meaningful here; idle/discharge hours have
     zero on both."""
-    comp = ComponentStore().load(delivery_date)
+    comp = load_component_store(delivery_date)
     if comp is None:
         return None
     bess_sched = comp.get("bess_schedule") or {}
@@ -1470,13 +1521,12 @@ _MODEL_BLURBS = {
     "LightGBM":     "Fast gradient-boosted trees - usually the quickest to train.",
     "XGBoost":      "Gradient-boosted trees with strong regularisation - a steady all-rounder.",
     "RandomForest": "Many independent decision trees averaged together - robust to noisy days.",
-    "CatBoost":     "Gradient-boosted trees tuned to resist overfitting on smaller datasets.",
 }
 
 
 @st.cache_data(ttl=60)
 def load_ml_models_overview() -> dict:
-    """One row per forecasting target: which of the 4 candidate models won
+    """One row per forecasting target: which of the 3 candidate models won
     its bake-off, by how much, and how much history it trained on. Reads
     everything straight from disk -- the *_selected_model.json files
     written by each forecaster's own _auto_select_model() (see
@@ -1504,11 +1554,8 @@ def load_ml_models_overview() -> dict:
         if not selected or not cv_mae:
             continue
         # Added this session (DA/IDA1/IDA2/IDA3 only so far) -- default to
-        # {}/None so older *_selected_model.json files (PV/inflow/XBID/
+        # None so older *_selected_model.json files (PV/inflow/XBID/
         # aFRR/mFRR, not yet extended) degrade cleanly instead of crashing.
-        cv_rmse = payload.get("cv_rmse", {})
-        cv_mape = payload.get("cv_mape", {})
-        cv_diracc = payload.get("cv_directional_accuracy", {})
         significance_top2 = payload.get("significance_top2")
         ranked = sorted(cv_mae.items(), key=lambda kv: kv[1])
         best_name, best_mae = ranked[0]
@@ -1537,9 +1584,6 @@ def load_ml_models_overview() -> dict:
             "target": target,
             "selected": selected,
             "cv_mae": cv_mae,
-            "cv_rmse": cv_rmse,
-            "cv_mape": cv_mape,
-            "cv_directional_accuracy": cv_diracc,
             "significance_top2": significance_top2,
             "best_mae": round(best_mae, 4),
             "unit": unit,

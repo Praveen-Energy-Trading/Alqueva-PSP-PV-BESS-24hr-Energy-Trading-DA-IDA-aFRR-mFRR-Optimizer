@@ -1259,19 +1259,7 @@ The remaining functions in this phase (`compute_operational_patterns`, `compute_
 
 ## Part 6 — Phase 6: Backtesting and Validation
 
-Phase 6 replays a span of historical delivery days through the full pipeline, validates forecast accuracy and MILP solution quality, and computes the portfolio-level risk metrics used in trading-desk risk reporting. This part contains the document's final new material: forecast error metrics, synthetic historical-realization generation, and the complete VaR/CVaR/Sharpe/drawdown risk framework.
-
-### 6.1 Forecast Accuracy — MAPE
-
-**Source:** `phase_6_backtesting_and_validation/forecast_and_model_validation/price_forecast_validator.py`, function `error_metrics`.
-
-In addition to MAE and RMSE (Eq. 68–69, reused here unchanged), backtesting adds Mean Absolute Percentage Error for both DA price and PV forecast validation.
-
-$$
-\mathrm{MAPE} = \frac{100}{n}\sum_{i=1}^{n} \left| \frac{\hat{y}_i - y_i}{y_i} \right| \tag{123}
-$$
-
-where the sum excludes any sample with $|y_i| < 10^{-9}$ to avoid division by zero (a NaN-safe convention noted directly in the source).
+Phase 6 replays a span of historical delivery days through the full pipeline, validates forecast accuracy and MILP solution quality, and computes the portfolio-level risk metrics used in trading-desk risk reporting. This part contains the document's final new material: forecast error metrics (MAE/RMSE, Eq. 68–69, reused here unchanged), synthetic historical-realization generation, and the complete VaR/CVaR/Sharpe/drawdown risk framework.
 
 ### 6.2 Synthetic Historical Realization
 

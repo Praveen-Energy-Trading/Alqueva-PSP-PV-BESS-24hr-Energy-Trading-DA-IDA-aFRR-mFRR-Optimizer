@@ -77,113 +77,6 @@ def fit_rf(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
     return model
 
 
-def fit_catboost(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
-    """CatBoost regressor — gradient boosting with native categorical handling."""
-    from catboost import CatBoostRegressor
-    model = CatBoostRegressor(
-        loss_function     = "MAE",
-        depth             = 6,
-        learning_rate     = 0.05,
-        subsample         = 0.8,
-        l2_leaf_reg       = 3.0,
-        iterations        = 500,
-        random_seed       = 42,
-        verbose           = False,
-        allow_writing_files = False,  # skip catboost_info/ training-log folder
-    )
-    model.fit(X, y)
-    return model
-
-
-# ---------------------------------------------------------------------------
-# Classical econometric candidates — DA price forecaster only (see
-# DA_MODEL_NAMES / da_price_forecaster.py). Not added to the other 9
-# forecasters' MODEL_NAMES: ARIMA/GARCH are univariate-price models, a
-# genuinely different fit than the tabular feature-based boosting models,
-# and this project scopes the claim to where the evidence (real job
-# postings) actually pointed — day-ahead price forecasting.
-# ---------------------------------------------------------------------------
-
-class _ARIMAPointForecast:
-    """Wraps a fitted statsmodels ARIMAResults so it satisfies the same
-    `.predict(X)` contract every other fit_* model here exposes (X is a
-    features-only DataFrame; ARIMA ignores it and forecasts len(X) steps
-    ahead from where it was fit — genuinely univariate, not a limitation
-    hidden from the caller, it's the correct behavior for this model."""
-
-    def __init__(self, fitted_result):
-        self._fitted = fitted_result
-
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        return np.asarray(self._fitted.forecast(steps=len(X)))
-
-
-def fit_arima(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
-    """Univariate ARIMA(p,d,q) on the price level, order chosen by AIC over
-    a small bounded grid (p in {1,2}, d=1, q in {1,2} -- 4 fits). Bounded
-    deliberately to keep walk-forward-CV runtime sane; pmdarima's unbounded
-    auto-search isn't installed and isn't needed for a genuine, defensible
-    ARIMA implementation. X/feature_names are accepted (for interface
-    parity with the other fit_* functions / fit_selected) but not used --
-    ARIMA is univariate by definition."""
-    import statsmodels.api as sm
-
-    best_aic = float("inf")
-    best_result = None
-    for p in (1, 2):
-        for q in (1, 2):
-            try:
-                result = sm.tsa.ARIMA(y, order=(p, 1, q)).fit()
-            except Exception:
-                continue
-            if result.aic < best_aic:
-                best_aic = result.aic
-                best_result = result
-    if best_result is None:
-        # Every candidate order failed to converge (can happen on short or
-        # degenerate series) -- fall back to the simplest possible order
-        # rather than silently return a broken model with no result at all.
-        best_result = sm.tsa.ARIMA(y, order=(1, 1, 1)).fit()
-    return _ARIMAPointForecast(best_result)
-
-
-class _GARCHPointForecast:
-    """Wraps a fitted arch AR-GARCH result. Exposes the MEAN-equation point
-    forecast (the component comparable to the other models' price-level
-    predictions via MAE) reconstructed back to price levels via cumulative
-    sum from the last known price. The model's conditional-volatility
-    forecast is also available on `self._fitted` for a future risk-overlay
-    use, but is not what `.predict()` returns here -- this class is a
-    point-forecast adapter, not a full exposure of the fitted GARCH model."""
-
-    def __init__(self, fitted_result, last_price: float):
-        self._fitted = fitted_result
-        self._last_price = last_price
-
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        horizon = len(X)
-        fc = self._fitted.forecast(horizon=horizon, reindex=False)
-        mean_diffs = np.asarray(fc.mean.iloc[-1].values)   # length == horizon
-        return self._last_price + np.cumsum(mean_diffs)
-
-
-def fit_garch(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
-    """AR(1)-mean / GARCH(1,1)-volatility model (the `arch` package) fit on
-    first-differenced price (standard practice -- GARCH assumes a
-    stationary series, raw price levels usually aren't). The point forecast
-    used for MAE comparison is the mean equation's forecast, reconstructed
-    to price levels; see _GARCHPointForecast docstring. X/feature_names
-    accepted for interface parity, not used -- same univariate reasoning as
-    fit_arima."""
-    from arch import arch_model
-
-    y = np.asarray(y, dtype=float)
-    y_diff = np.diff(y, prepend=y[0])
-    am = arch_model(y_diff, mean="AR", lags=1, vol="GARCH", p=1, q=1, rescale=False)
-    result = am.fit(disp="off")
-    return _GARCHPointForecast(result, last_price=float(y[-1]))
-
-
 # ---------------------------------------------------------------------------
 # Metrics
 # ---------------------------------------------------------------------------
@@ -194,46 +87,6 @@ def mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
-
-
-# Periods with |y_true| below this are excluded from MAPE's denominator --
-# division by a near-zero price would otherwise produce a huge or infinite
-# %-error for a single hour and poison the mean. Real DA/IDA data genuinely
-# has near-zero and negative price hours (confirmed this session), so this
-# is a documented exclusion, not a hidden one.
-_MAPE_EPS = 1.0  # EUR/MWh
-
-
-def mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Mean absolute percentage error, excluding periods where |y_true| <
-    _MAPE_EPS (division by a near-zero price is meaningless, not a
-    genuine %-error). Returns NaN if every period is excluded."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_pred = np.asarray(y_pred, dtype=float)
-    mask = np.abs(y_true) >= _MAPE_EPS
-    if not np.any(mask):
-        return float("nan")
-    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask]))) * 100.0
-
-
-def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray, y_prev: np.ndarray) -> float:
-    """Fraction of periods where the model correctly called the direction
-    of the move from y_prev (the same lag value every caller already
-    passes walk_forward_cv for the naive-persistence baseline) -- did
-    sign(y_pred - y_prev) match sign(y_true - y_prev). Periods where
-    y_true == y_prev (no real move happened) are excluded from the
-    denominator entirely, not counted as a miss -- there is no direction
-    to call correctly or incorrectly. Returns NaN if every period is
-    excluded (a fully flat series)."""
-    y_true = np.asarray(y_true, dtype=float)
-    y_pred = np.asarray(y_pred, dtype=float)
-    y_prev = np.asarray(y_prev, dtype=float)
-    actual_move = np.sign(y_true - y_prev)
-    mask = actual_move != 0
-    if not np.any(mask):
-        return float("nan")
-    pred_move = np.sign(y_pred[mask] - y_prev[mask])
-    return float(np.mean(pred_move == actual_move[mask]))
 
 
 def paired_significance_test(errors_a: List[float], errors_b: List[float]) -> Dict[str, object]:
@@ -281,26 +134,17 @@ def metrics(y_true: np.ndarray, y_pred: np.ndarray,
 # Walk-forward cross-validation (model selection / validation role)
 # ---------------------------------------------------------------------------
 
-MODEL_NAMES = ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]
-
-# DA price forecaster only -- see the module-level comment above fit_arima.
-# Other 9 forecasters (PV, inflow, IDA1/2/3, XBID, aFRR/mFRR up/dn) keep
-# using plain MODEL_NAMES via walk_forward_cv's default; only
-# da_price_forecaster.py explicitly passes this list in.
-DA_MODEL_NAMES = MODEL_NAMES + ["ARIMA", "GARCH"]
+MODEL_NAMES = ["LightGBM", "XGBoost", "RandomForest"]
 
 _FITTERS = {
     "LightGBM"    : fit_lgbm,
     "XGBoost"     : fit_xgb,
     "RandomForest": fit_rf,
-    "CatBoost"    : fit_catboost,
-    "ARIMA"       : fit_arima,
-    "GARCH"       : fit_garch,
 }
 
 
 def fit_selected(name: str, X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
-    """Fit whichever of the 4 competing models `name` refers to."""
+    """Fit whichever of the 3 competing models `name` refers to."""
     return _FITTERS[name](X, y, feature_names)
 
 
@@ -311,10 +155,10 @@ def _walk_forward_folds(feat_df: pd.DataFrame, y: np.ndarray, lag: np.ndarray,
     slicing and the < 48 / == 0 skip guard, so the two functions can never
     silently diverge on which folds/data each model actually saw.
 
-    Yields (name, y_val, y_pred, y_val_prev) per fold per model, where
-    y_val_prev is the lag-array slice aligned to y_val (the "previous
-    actual value" each period's move is measured against -- used by
-    directional_accuracy; the plain walk_forward_cv caller ignores it).
+    Yields (name, y_val, y_pred, y_val_prev) per fold per model. y_val_prev
+    is the lag-array slice aligned to y_val; both walk_forward_cv and
+    walk_forward_cv_extended currently ignore it, kept in the yield shape
+    for callers that pass a real lag/previous-value array anyway.
     """
     n       = len(feat_df)
     fold_sz = n // (n_folds + 1)
@@ -345,12 +189,9 @@ def walk_forward_cv(feat_df: pd.DataFrame, y: np.ndarray, lag: np.ndarray,
     Each fold trains on all prior data, validates on the next block —
     no future leakage. Returns mean MAE per model across folds.
 
-    model_names: which models to compare. Defaults to MODEL_NAMES (the
-        original 4 boosting/ensemble models) -- every existing caller keeps
-        that behavior unchanged. da_price_forecaster.py passes
-        DA_MODEL_NAMES explicitly to also compare ARIMA/GARCH; no other
-        forecaster does, by design (see module-level comment above
-        fit_arima).
+    model_names: which models to compare. Defaults to MODEL_NAMES (the 3
+        boosting/ensemble models) -- every caller keeps that behavior
+        unchanged unless it passes its own subset in.
     """
     names = model_names if model_names is not None else MODEL_NAMES
     fold_mae: Dict[str, list] = {name: [] for name in names}
@@ -367,37 +208,23 @@ def walk_forward_cv_extended(feat_df: pd.DataFrame, y: np.ndarray, lag: np.ndarr
                              model_names: Optional[List[str]] = None) -> Dict[str, dict]:
     """Same walk-forward CV as walk_forward_cv (identical fold-splitting,
     via the shared _walk_forward_folds helper -- proven identical MAE by
-    test_model_selection_metrics.py's regression check), but reports MAE,
-    RMSE, MAPE, and directional accuracy per model, plus each model's raw
-    per-fold MAE list (for paired_significance_test between the top 2).
+    test_model_selection_metrics.py's regression check), but also returns
+    each model's raw per-fold MAE list (for paired_significance_test
+    between the top 2).
 
-    Returns {model_name: {"MAE", "RMSE", "MAPE", "DirAcc", "fold_mae"}}.
-    A model with zero valid folds gets MAE/RMSE=inf, MAPE/DirAcc=NaN,
-    fold_mae=[] -- same "never silently invent a number" standard as the
-    rest of this module.
+    Returns {model_name: {"MAE", "fold_mae"}}. A model with zero valid
+    folds gets MAE=inf, fold_mae=[] -- same "never silently invent a
+    number" standard as the rest of this module.
     """
     names = model_names if model_names is not None else MODEL_NAMES
     fold_mae: Dict[str, list] = {name: [] for name in names}
-    fold_rmse: Dict[str, list] = {name: [] for name in names}
-    fold_mape: Dict[str, list] = {name: [] for name in names}
-    fold_diracc: Dict[str, list] = {name: [] for name in names}
 
     for name, y_val, y_pred, y_prev in _walk_forward_folds(feat_df, y, lag, fcols, n_folds, names):
         fold_mae[name].append(mae(y_val, y_pred))
-        fold_rmse[name].append(rmse(y_val, y_pred))
-        fold_mape[name].append(mape(y_val, y_pred))
-        fold_diracc[name].append(directional_accuracy(y_val, y_pred, y_prev))
-
-    def _mean_or(values: list, default: float) -> float:
-        clean = [v for v in values if not np.isnan(v)]
-        return float(np.mean(clean)) if clean else default
 
     return {
         name: {
             "MAE": float(np.mean(fold_mae[name])) if fold_mae[name] else float("inf"),
-            "RMSE": float(np.mean(fold_rmse[name])) if fold_rmse[name] else float("inf"),
-            "MAPE": _mean_or(fold_mape[name], float("nan")),
-            "DirAcc": _mean_or(fold_diracc[name], float("nan")),
             "fold_mae": fold_mae[name],
         }
         for name in names

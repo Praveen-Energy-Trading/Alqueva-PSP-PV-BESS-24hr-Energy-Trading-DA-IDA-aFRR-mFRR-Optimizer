@@ -4,7 +4,7 @@ ida3_price_train_val_test.py — offline evaluation of the IDA3 lead-time spread
 Mirrors the DA / PV / inflow evaluation pattern:
     - Walk-forward CV (4 folds) on the 2020-2024 training window
     - Hold-out TEST on 2025 (12 months, unseen during any model selection)
-    - Per-session breakdown: Naive vs LightGBM/XGBoost/RandomForest/CatBoost
+    - Per-session breakdown: Naive vs LightGBM/XGBoost/RandomForest
 
 Naive baseline for spread forecasting: spread = 0  (IDA3 price = DA price).
 This is the natural no-model baseline: without any ML, the best guess for the
@@ -177,7 +177,7 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"- Source: `ida3_training_data_2024_2025.xlsx` (OMIE/ENTSO-E SIDC intraday results)",
         f"- Range : 2024-06-13 to {excel_last}",
         f"- Gate   : IDA3 (H12-H24, closes D 10:00 CET; H1-H11 frozen after IDA1/IDA2)",
-        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest/CatBoost, auto-selected by walk-forward CV)",
+        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)",
         f"- Target: spread = price_IDA - price_DA [EUR/MWh]",
         f"",
         f"## Walk-forward CV (2024-06-13 to 2024-12-31, 4 folds)",

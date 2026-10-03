@@ -10,7 +10,7 @@ Methodology:
        T_amb — no external API needed, pure physics + climatology
     3. Compute clear-sky GHI from solar geometry (Alqueva 38.20°N, 7.49°W)
     4. Build lag + clear-sky features for GHI and T_amb separately
-    5. Walk-forward CV (4 folds) comparing LightGBM / XGBoost / RandomForest / CatBoost per target
+    5. Walk-forward CV (4 folds) comparing LightGBM / XGBoost / RandomForest per target
     6. Forecast GHI and T_amb for each hour of delivery_date
     7. Convert T_amb → T_cell via NOCT model (IEC 61215, NOCT = 45°C floating PV)
        T_cell = T_amb + (NOCT − 20) / 800 × GHI

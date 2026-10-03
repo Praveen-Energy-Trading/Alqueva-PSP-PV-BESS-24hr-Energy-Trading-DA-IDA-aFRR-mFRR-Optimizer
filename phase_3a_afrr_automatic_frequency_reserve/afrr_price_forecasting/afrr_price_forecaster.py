@@ -1,7 +1,7 @@
 """
 afrr_price_forecaster.py — aFRR capacity (availability) cap-price forecast.
 
-Two separate models (LightGBM/XGBoost/RandomForest/CatBoost, best via CV), one per direction:
+Two separate models (LightGBM/XGBoost/RandomForest, best via CV), one per direction:
   cap_up : EUR/MW paid for holding upward reserve available
            rises with scarcity (high DA price hours, peak demand)
   cap_dn : EUR/MW paid for holding downward reserve available

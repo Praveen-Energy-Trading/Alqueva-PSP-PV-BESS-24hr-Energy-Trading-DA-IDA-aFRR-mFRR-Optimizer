@@ -6,7 +6,7 @@ Methodology:
     2. Build lag + calendar features
     3. Auto-select best model via da_selected_model.json:
          - On first run OR when Excel has new data since last evaluation:
-             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest / CatBoost
+             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest
              → updates da_selected_model.json automatically
          - Otherwise: reads selected model from json (no CV overhead)
     4. Train selected model on ALL history
@@ -48,7 +48,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 from ml_train_val_test_common import (
-    fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES, DA_MODEL_NAMES,
+    fit_selected, mae as _mae, walk_forward_cv, MODEL_NAMES,
     walk_forward_cv_extended, paired_significance_test,
 )
 
@@ -188,7 +188,7 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     y       = train_df["price_DA_PT_EUR_MWh"].values
     lag24   = train_df["lag_24h"].values
 
-    cv_ext   = walk_forward_cv_extended(feat_df, y, lag24, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_ext   = walk_forward_cv_extended(feat_df, y, lag24, fcols, _N_CV_FOLDS, model_names=MODEL_NAMES)
     cv_mae   = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
 
@@ -200,9 +200,6 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
     info = {
         "selected"     : selected,
         "cv_mae"       : {k: round(v, 4) for k, v in cv_mae.items()},
-        "cv_rmse"      : {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
-        "cv_mape"      : {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
-        "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
         "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
                               "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
         "data_end_date": str(excel_last_date),
@@ -213,11 +210,10 @@ def _auto_select_model(train_df: pd.DataFrame) -> str:
 
     print(f"\n[DA Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in DA_MODEL_NAMES:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         m = cv_ext[name]
-        print(f"  {name:<22} MAE {m['MAE']:.2f}  RMSE {m['RMSE']:.2f}  "
-              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{marker}")
+        print(f"  {name:<22} MAE {m['MAE']:.2f}{marker}")
     print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
           f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     print()
@@ -373,7 +369,7 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
     y = train_df["price_DA_PT_EUR_MWh"].values
     lag_day = train_df["lag_1d"].values
 
-    cv_ext = walk_forward_cv_extended(feat_df, y, lag_day, fcols, _N_CV_FOLDS, model_names=DA_MODEL_NAMES)
+    cv_ext = walk_forward_cv_extended(feat_df, y, lag_day, fcols, _N_CV_FOLDS, model_names=MODEL_NAMES)
     cv_mae = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
 
@@ -384,9 +380,6 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
     info = {
         "selected": selected,
         "cv_mae": {k: round(v, 4) for k, v in cv_mae.items()},
-        "cv_rmse": {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
-        "cv_mape": {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
-        "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
         "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
                               "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
         "data_end_date": str(excel_last_date),
@@ -398,11 +391,10 @@ def _auto_select_model_isp(train_df: pd.DataFrame) -> str:
 
     print(f"\n[DA ISP Forecaster] Model selection updated -> {selected}")
     print(f"  Data up to : {excel_last_date}")
-    for name in DA_MODEL_NAMES:
+    for name in MODEL_NAMES:
         marker = " <-- selected" if name == selected else ""
         m = cv_ext[name]
-        print(f"  {name:<22} MAE {m['MAE']:.2f}  RMSE {m['RMSE']:.2f}  "
-              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{marker}")
+        print(f"  {name:<22} MAE {m['MAE']:.2f}{marker}")
     print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
           f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     print()

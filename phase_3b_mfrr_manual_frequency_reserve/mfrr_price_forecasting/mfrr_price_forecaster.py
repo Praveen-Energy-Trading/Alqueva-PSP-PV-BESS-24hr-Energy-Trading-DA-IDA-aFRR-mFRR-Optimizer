@@ -1,7 +1,7 @@
 """
 mfrr_price_forecaster.py — mFRR capacity (availability) cap-price forecast.
 
-Two separate models (LightGBM/XGBoost/RandomForest/CatBoost, best via CV), one per direction:
+Two separate models (LightGBM/XGBoost/RandomForest, best via CV), one per direction:
   cap_up : EUR/MW paid for holding upward mFRR available (FAT 12.5 min, MARI)
   cap_dn : EUR/MW paid for holding downward mFRR available
 

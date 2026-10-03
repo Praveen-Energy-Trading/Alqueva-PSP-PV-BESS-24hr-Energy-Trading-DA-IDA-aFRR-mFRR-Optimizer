@@ -127,6 +127,7 @@ _SCROLL_RESTORE_JS = """
     try {
         var doc = window.parent.document;
         var key = "alqueva_dash_scroll_y";
+        var clickKey = "alqueva_dash_last_click";
         // Streamlit's actual scrolling element changed from "section.main"
         // to a data-testid-keyed one across versions -- selecting the wrong
         // one silently falls back to documentElement, which doesn't scroll
@@ -137,7 +138,41 @@ _SCROLL_RESTORE_JS = """
             || doc.querySelector('[data-testid="stAppViewContainer"]')
             || doc.documentElement;
 
+        // This whole mechanism exists to fight ONE specific problem: an
+        // autorefresh timer tick remounts widgets and silently resets
+        // scroll to the top, with no user action involved. It must NOT
+        // also fight a rerun the user's OWN click just caused (a gate
+        // button, a tab, a segmented control) -- those often genuinely
+        // change a card's height (a 270-650px range across Overview's
+        // widgets alone), which reflows the page. Forcing the OLD absolute
+        // scrollTop back on every following mutation overrides the
+        // browser's own perfectly good native scroll anchoring with a now-
+        // stale number -- THAT fight is what read as the page visibly
+        // bouncing up/down right after every click. There's no first-class
+        // way to tell "this rerun was an autorefresh tick" from "this
+        // rerun was my own click" from inside this iframe, so approximate
+        // it: record every real click (capture phase, so it sees clicks on
+        // widgets inside other components.html iframes too, not just this
+        // one), and only force-restore when nothing was clicked recently
+        // -- i.e. an actual unattended timer tick.
+        if (!doc.__alquevaClickListenerAttached) {
+            doc.addEventListener('mousedown', function() {
+                sessionStorage.setItem(clickKey, Date.now());
+            }, { capture: true, passive: true });
+            doc.__alquevaClickListenerAttached = true;
+        }
+
+        function recentlyClicked() {
+            var last = parseFloat(sessionStorage.getItem(clickKey) || '0');
+            // Streamlit's own DOM rebuild after a click can keep mutating
+            // for a second or more (see the MutationObserver comment
+            // below) -- this window needs to outlast that whole rebuild,
+            // not just the instant of the click itself.
+            return (Date.now() - last) < 1500;
+        }
+
         function restore() {
+            if (recentlyClicked()) return;  // let native scroll anchoring handle it
             var saved = sessionStorage.getItem(key);
             if (saved !== null) {
                 main.scrollTop = parseFloat(saved);

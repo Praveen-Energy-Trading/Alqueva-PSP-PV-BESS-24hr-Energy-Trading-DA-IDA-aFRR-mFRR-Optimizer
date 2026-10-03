@@ -105,11 +105,7 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
 
     fcols    = _feature_cols()
     y        = feat_tr["spread_EUR_MWh"].values
-    # spread_lag_h1 (real previous-hour spread) is the correct "previous
-    # value" for directional_accuracy -- see ida1_price_forecaster.py's
-    # identical comment.
-    lag_prev = feat_tr["spread_lag_h1"].fillna(0.0).values
-    cv_ext = walk_forward_cv_extended(feat_tr[fcols], y, lag_prev, fcols, _N_CV_FOLDS)
+    cv_ext = walk_forward_cv_extended(feat_tr[fcols], y, np.zeros_like(y), fcols, _N_CV_FOLDS)
     cv_mae = {k: v["MAE"] for k, v in cv_ext.items()}
     selected = min(cv_mae, key=cv_mae.get)
 
@@ -120,9 +116,6 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
     with open(_JSON_PATH, "w") as f:
         json.dump({"selected": selected,
                    "cv_mae": {k: round(v, 4) for k, v in cv_mae.items()},
-                   "cv_rmse": {k: round(v["RMSE"], 4) for k, v in cv_ext.items()},
-                   "cv_mape": {k: round(v["MAPE"], 4) for k, v in cv_ext.items()},
-                   "cv_directional_accuracy": {k: round(v["DirAcc"], 4) for k, v in cv_ext.items()},
                    "significance_top2": {"best": ranked[0], "runner_up": ranked[1] if len(ranked) >= 2 else None,
                                         "p_value": sig["p_value"], "significant_at_0.05": sig["significant_at_0.05"]},
                    "data_end_date": str(excel_last_date),
@@ -131,8 +124,7 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
     for name in MODEL_NAMES:
         mark = " <--" if name == selected else ""
         m = cv_ext[name]
-        print(f"  {name:<12} MAE {m['MAE']:.4f}  RMSE {m['RMSE']:.4f}  "
-              f"MAPE {m['MAPE']:.1f}%  DirAcc {m['DirAcc']:.2f}{mark}")
+        print(f"  {name:<12} MAE {m['MAE']:.4f}{mark}")
     print(f"  Significance ({ranked[0]} vs {ranked[1] if len(ranked)>=2 else 'n/a'}): "
           f"p={sig['p_value']:.4f}  significant@0.05={sig['significant_at_0.05']}")
     return selected

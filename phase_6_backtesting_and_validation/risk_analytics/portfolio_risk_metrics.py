@@ -17,6 +17,7 @@ Bootstrap    : Resample the P&L series with replacement n_samples times;
                compute VaR and CVaR from each resample.  The resulting
                mean ± std is the confidence interval on the risk estimate.
                Required because a 30-day history is a small sample.
+               Computed at both the 95% and 99% confidence levels.
 Sharpe       : Annualised = (mean_daily_pnl / std_daily_pnl) * sqrt(252).
 Max Drawdown : Largest peak-to-trough decline in the cumulative P&L curve.
 
@@ -47,6 +48,11 @@ class RiskMetrics:
     var_95_std: float
     cvar_95_mean: float
     cvar_95_std: float
+    # Monte Carlo bootstrap confidence intervals on VaR(99%) / CVaR(99%)
+    var_99_mean: float
+    var_99_std: float
+    cvar_99_mean: float
+    cvar_99_std: float
     # Risk-adjusted / drawdown
     sharpe_ratio: float
     max_drawdown_eur: float
@@ -181,11 +187,13 @@ def compute_risk_metrics(
         return RiskMetrics(0, 0.0, 0.0, 0.0, 0.0,
                            0.0, 0.0, 0.0, 0.0,
                            0.0, 0.0, 0.0, 0.0,
+                           0.0, 0.0, 0.0, 0.0,
                            0.0, 0.0)
 
     mean = sum(pnl) / n
     std  = (sum((x - mean) ** 2 for x in pnl) / max(n - 1, 1)) ** 0.5
-    boot = bootstrap_var_cvar(pnl, n_samples=n_bootstrap)
+    boot_95 = bootstrap_var_cvar(pnl, n_samples=n_bootstrap, alpha=0.95)
+    boot_99 = bootstrap_var_cvar(pnl, n_samples=n_bootstrap, alpha=0.99)
 
     return RiskMetrics(
         n_days          = n,
@@ -197,10 +205,14 @@ def compute_risk_metrics(
         cvar_95_eur     = round(historical_cvar(pnl, 0.95), 2),
         var_99_eur      = round(historical_var(pnl, 0.99), 2),
         cvar_99_eur     = round(historical_cvar(pnl, 0.99), 2),
-        var_95_mean     = round(boot["var_mean"],  2),
-        var_95_std      = round(boot["var_std"],   2),
-        cvar_95_mean    = round(boot["cvar_mean"], 2),
-        cvar_95_std     = round(boot["cvar_std"],  2),
+        var_95_mean     = round(boot_95["var_mean"],  2),
+        var_95_std      = round(boot_95["var_std"],   2),
+        cvar_95_mean    = round(boot_95["cvar_mean"], 2),
+        cvar_95_std     = round(boot_95["cvar_std"],  2),
+        var_99_mean     = round(boot_99["var_mean"],  2),
+        var_99_std      = round(boot_99["var_std"],   2),
+        cvar_99_mean    = round(boot_99["cvar_mean"], 2),
+        cvar_99_std     = round(boot_99["cvar_std"],  2),
         sharpe_ratio    = round(sharpe_ratio(pnl), 4),
         max_drawdown_eur= round(max_drawdown(pnl), 2),
     )

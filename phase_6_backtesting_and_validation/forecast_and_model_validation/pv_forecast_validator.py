@@ -1,8 +1,9 @@
 """
 pv_forecast_validator.py — PV availability forecast accuracy.
 
-Reuses the generic error metrics; restricts MAPE to daylight hours (PV is zero at
-night, so night-time relative error is undefined).
+Reuses the generic error metrics; restricts to daylight hours (PV is zero at
+night on both sides, so including it would just dilute MAE/RMSE with
+uninformative zero-vs-zero periods).
 """
 from __future__ import annotations
 

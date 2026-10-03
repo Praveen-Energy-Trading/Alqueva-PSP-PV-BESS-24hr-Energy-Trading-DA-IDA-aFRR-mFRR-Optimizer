@@ -29,8 +29,8 @@ log = get_logger("phase6.backtest")
 # command-line arguments (e.g. VS Code's Run button, F5).
 # Command-line --start/--days, if given, always override these.
 # ---------------------------------------------------------------------------
-DEFAULT_START = "2026-06-01"
-DEFAULT_DAYS = 7
+DEFAULT_START = "2025-09-26"
+DEFAULT_DAYS = 365
 
 
 def main():
@@ -132,6 +132,12 @@ def main():
               f"{rm.var_95_std:,.0f} EUR")
         print(f"  {'  CVaR(95%) mean ± std':<38} {rm.cvar_95_mean:>14,.0f} ± "
               f"{rm.cvar_95_std:,.0f} EUR")
+        print()
+        print(f"  Monte Carlo bootstrap (n=10,000, alpha=99%)")
+        print(f"  {'  VaR(99%)  mean ± std':<38} {rm.var_99_mean:>14,.0f} ± "
+              f"{rm.var_99_std:,.0f} EUR")
+        print(f"  {'  CVaR(99%) mean ± std':<38} {rm.cvar_99_mean:>14,.0f} ± "
+              f"{rm.cvar_99_std:,.0f} EUR")
         print()
         print(f"  {'Sharpe ratio (annualised, rf=0)':<38} {rm.sharpe_ratio:>14.4f}")
         print(f"  {'Max drawdown':<38} {rm.max_drawdown_eur:>14,.0f} EUR")

@@ -172,7 +172,7 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"- Gate  : XBID continuous (H1-H24; closes 1h before each delivery period)",
         f"- Note  : Real XBID order-book data requires commercial EPEX SPOT subscription.",
         f"          Proxy = IDA3 clearing + OU spread noise (std ~14 EUR/MWh > IDA3 ~11).",
-        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest/CatBoost, auto-selected by walk-forward CV)",
+        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)",
         f"- Target: spread = price_XBID - price_DA [EUR/MWh]",
         f"",
         f"## Walk-forward CV (2024-06-13 to 2024-12-31, 4 folds)",
