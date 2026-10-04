@@ -1,35 +1,38 @@
 # IDA Price Forecaster — Evaluation Report
 
-Generated: 2026-06-23
+Generated: 2026-10-04
 
 ## Data
 - Source: `ida1_training_data_2024_2025.xlsx` (OMIE/ENTSO-E SIDC intraday results)
-- Range : 2024-06-13 to 2025-12-31
+- Range : 2024-06-13 to 2026-10-02
 - Gate   : IDA1 (H1-H24, closes D-1 15:00 CET)
-- Model : gate-specific spread model (Ridge or LightGBM, auto-selected by walk-forward CV)
+- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)
 - Target: spread = price_IDA - price_DA [EUR/MWh]
 
-## Walk-forward CV (2024-06-13 to 2024-12-31, 4 folds)
+## Walk-forward CV (2024-06-20 to 2025-10-01, 4 folds, real rows only)
 | Model | MAE EUR/MWh (spread) |
 |---|---|
-| Naive | 4.9113 |
-| Ridge | 3.9264 **SELECTED** |
-| LightGBM | 4.4435 |
+| Naive | inf |
+| LightGBM | 4.0089 |
+| XGBoost | 3.5127 |
+| RandomForest | 3.5064 **SELECTED** |
 
-## Hold-out Test (2025)
+## Hold-out Test (2025-10-02 to 2026-10-02, real rows only)
+Predicted hour by hour with the model's own previous-hour spread, exactly as the live forecaster does.
+
 | Metric | Value |
 |---|---|
-| Naive MAE (spread=0) | 4.9551 EUR/MWh |
-| Ridge MAE | 4.1807 EUR/MWh |
-| Skill score | +15.6% |
+| Naive MAE (spread=0) | 6.4291 EUR/MWh |
+| RandomForest MAE | 6.4975 EUR/MWh |
+| Skill score | -1.1% |
 
-*Positive skill: model improves on naive (IDA=DA) baseline*
+*Negative skill: the model does not beat the naive (spread = 0) baseline on this window.*
 
 ## Per-Hour-Bucket Test Breakdown
-| Bucket | Naive MAE | Ridge MAE | Skill |
+| Bucket | Naive MAE | RandomForest MAE | Skill |
 |---|---|---|---|
-| Off-peak (H1-H6, H23-H24) | 4.89 | 4.27 | +12.7% |
-| Peak (H7-H22) | 4.98 | 4.14 | +16.9% |
+| Off-peak (H1-H6, H23-H24) | 5.39 | 5.45 | -1.1% |
+| Peak (H7-H22) | 6.89 | 6.96 | -1.0% |
 
 ## IDA1 Gate (Production)
 - Tradable hours: H1-H24 (all hours; gate closes D-1 15:00 CET)

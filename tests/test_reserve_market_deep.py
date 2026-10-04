@@ -260,7 +260,11 @@ class T4_MinimumHoldTime(unittest.TestCase):
 
             # ISP -> hour mapping: with 4 ISPs/hour, hour = (isp-1)//4 + 1.
             next_hour = (next_isp - 1) // 4 + 1
-            next_offer = offers.get(next_hour, {"up_mw": 0.0, "dn_mw": 0.0})
+            # Offers are stored per ISP since the 15-min migration (hourly
+            # before it); look the next period up in whichever keying is used.
+            isp_keyed = len(offers) > 25
+            next_offer = offers.get(next_isp if isp_keyed else next_hour,
+                                    {"up_mw": 0.0, "dn_mw": 0.0})
 
             # Allow short run if the next hour has zero offer in the same direction.
             if is_up_run and next_offer["up_mw"] < min_act_mw:

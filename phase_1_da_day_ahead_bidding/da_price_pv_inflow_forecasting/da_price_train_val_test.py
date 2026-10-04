@@ -47,7 +47,7 @@ for _p in (_HERE, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv, real_rows
 from da_price_forecaster import _load_history, _build_features, _feature_cols
 
 TEST_MONTHS = 12
@@ -62,9 +62,13 @@ _JSON_PATH  = os.path.join(_HERE, "da_selected_model.json")
 
 def evaluate_da_price() -> dict:
     """Chronological dev/test split → CV selection → single unbiased test eval."""
-    full = _build_features(_load_history())
+    hist  = _load_history()
+    full  = _build_features(hist)
     fcols = _feature_cols()
     data  = full.dropna(subset=fcols + ["price_DA_PT_EUR_MWh", "lag_24h"]).copy()
+    # Score only observed prices: gap-filled (SYNTHETIC) hours stay in the
+    # history for the lag features but are never dev/test targets.
+    data  = data[data["datetime"].isin(hist.loc[real_rows(hist), "datetime"])]
     data  = data.sort_values("datetime").reset_index(drop=True)
 
     last_dt    = data["datetime"].max()

@@ -651,7 +651,7 @@ where $\hat{y}_i$, $y_i$ are the predicted and actual values for sample $i$, $n$
 
 Picking a model by how well it fits the data it was trained on is misleading — a flexible model can simply memorize the training data and still perform badly on a new, unseen day. Cross-validation avoids this trap by testing each candidate model on data it never saw during training, so the comparison reflects genuine forecasting skill rather than memorization. Because price and weather data are time-ordered, a model must never be validated on data that is chronologically *before* the data it trained on (that would leak future information backward); **walk-forward** cross-validation respects this by always training on an earlier block and validating on the very next block in time, sliding forward fold by fold.
 
-Each forecaster (DA price, PV's GHI and ambient temperature, reservoir inflow) auto-selects the best of three candidate models, ranging from simplest to most flexible — **Naive persistence** (tomorrow equals the same hour yesterday, or 7 days ago — the baseline every other model must beat), **Ridge regression** (an ordinary linear model with an added penalty that shrinks coefficients to prevent overfitting on noisy features), and **LightGBM** (a gradient-boosted decision-tree ensemble that can capture nonlinear patterns the linear model cannot, at the cost of being harder to interpret) — via walk-forward cross-validation, re-run only when new training data has arrived since the last selection.
+Every forecaster (DA price, PV's GHI and ambient temperature, reservoir inflow, the IDA1/IDA2/IDA3 and XBID price spreads, and the aFRR/mFRR up/down capacity prices) auto-selects the best of three tree-ensemble candidate models — **Random Forest** (an average of many decorrelated decision trees, robust to noisy features), **XGBoost** and **LightGBM** (two gradient-boosted decision-tree implementations that fit each new tree to the previous trees' errors, capturing nonlinear patterns at the cost of being harder to interpret) — via walk-forward cross-validation, re-run only when new training data has arrived since the last selection. **Naive persistence** (tomorrow equals the same hour yesterday, or a zero spread for the intraday gates) is not a candidate but the baseline every selected model is scored against (Skill, Eq. 71).
 
 $$
 n_{fold} = \left\lfloor \frac{n}{K+1} \right\rfloor, \qquad \text{fold } k: \ \text{train } [1, k \cdot n_{fold}],\ \text{validate } (k \cdot n_{fold},\ (k{+}1) \cdot n_{fold}] \tag{72}
@@ -660,7 +660,7 @@ $$
 where $n$ is the total number of historical samples, $K$ is the number of folds (4), and each fold $k = 1,\dots,K$ trains on all data up to the fold boundary and validates on the next block, so no fold ever validates on data the model could have seen in training.
 
 $$
-m^{\ast} = \arg\min_{m \in \{Naive, Ridge, LightGBM\}} \ \frac{1}{K}\sum_{k=1}^{K} \mathrm{MAE}_{m,k} \tag{73}
+m^{\ast} = \arg\min_{m \in \{RandomForest,\, XGBoost,\, LightGBM\}} \ \frac{1}{K}\sum_{k=1}^{K} \mathrm{MAE}_{m,k} \tag{73}
 $$
 
 where $m^{\ast}$ is the selected model and $\mathrm{MAE}_{m,k}$ (Eq. 68) is model $m$'s validation MAE on fold $k$.
@@ -855,7 +855,7 @@ IDA3 closes D 10:00 CET (same delivery day, not D-1) and re-optimizes against th
 
 ## Part 2D — Phase 2D: XBID Continuous Intraday
 
-XBID (SIDC continuous intraday) differs structurally from the IDA auctions: instead of a single gate-close auction, the plant checks the market opportunistically at two windows (W1: D-1 18:30 CET, W2: D 09:30 CET) and may only nudge its position within a small per-order MW cap, since continuous markets trade in small increments rather than clearing a full re-optimization at once. This part documents the genuinely new mechanics: the trade-band constraint, the spread-beating order test, the price proxy (including its synthetic-data generation process), and the open-hours window rule.
+XBID (SIDC continuous intraday) differs structurally from the IDA auctions: instead of a single gate-close auction, the plant checks the market opportunistically at two windows (W1: D-1 18:30 CET, W2: D 09:30 CET) and may only nudge its position within a small per-order MW cap, since continuous markets trade in small increments rather than clearing a full re-optimization at once. This part documents the genuinely new mechanics: the trade-band constraint, the spread-beating order test, the price proxy and its real OMIE training data, and the open-hours window rule.
 
 ### 2D.1 Per-Order Trade-Band Constraint
 
@@ -899,7 +899,7 @@ $$
 
 **Source:** `xbid_price_forecasting/xbid_price_loader.py`, function `fetch_xbid_prices`; `xbid_price_forecasting/xbid_price_forecaster.py`.
 
-No live XBID order-book feed is available without a commercial EPEX SPOT subscription, so the price is proxied by the same spread-forecasting methodology as the IDA gates (Eq. 88–89, trained on synthetic XBID mid-price data), with a small additional per-window drift layered on top to approximate intra-window order-book movement.
+No live XBID order-book feed is available without a commercial EPEX SPOT subscription, so the price is proxied by the same spread-forecasting methodology as the IDA gates (Eq. 88–89, trained on OMIE's real continuous-intraday prices — Section 2D.5), with a small additional per-window drift layered on top to approximate intra-window order-book movement.
 
 $$
 \pi^{XBID}_{h,w} = \max\left(1.0,\ \pi^{XBID,base}_h + u_{h,w}\right) \tag{95}
@@ -907,33 +907,13 @@ $$
 
 where $\pi^{XBID}_{h,w}$ (EUR/MWh) is the XBID proxy price for hour $h$ at check window $w$, $\pi^{XBID,base}_h$ is the spread-model price from Eq. 89, and $u_{h,w}$ is uniform drift noise on $[-1.5, 1.5]$ EUR/MWh, seeded by window and delivery date (deterministic given those inputs).
 
-### 2D.5 Synthetic XBID Training Data — OU Spread Process
+### 2D.5 XBID Training Data — Real OMIE Continuous-Market Prices
 
-**Source:** `xbid_price_forecasting/create_xbid_training_data.py`, function `_daily_ou_spread`.
+**Source:** `tools/rebuild_real_market_history.py` (history) and `xbid_price_forecasting/xbid_price_loader.py` (daily updates).
 
-Because no real XBID order-book history exists for training, the spread-model training labels (Eq. 88) are generated synthetically: an Ornstein-Uhlenbeck mean-reverting process simulates the intraday evolution of the XBID-DA spread around a randomly drawn daily mean level, reset each day, producing realistic serial correlation and a target spread standard deviation wider than IDA1/2/3 (continuous markets trade closer to delivery with more microstructure noise).
+The spread-model training labels (Eq. 88) are real: OMIE's public continuous-intraday report `precios_pibcic_<YYYYMMDD>.1` gives, per hour (quarter-hour since 2025), the volume-weighted average Portuguese price `MedioPT`, which is used as the XBID price; the spread is taken against the real Portuguese DA price of the same hour. History starts on 2024-06-13 (MIBEL's three-auction SIDC regime). Hours without continuous trades and days OMIE did not publish are gap-filled with a zero spread and labelled `SYNTHETIC`, so lag features stay contiguous while the evaluation scores only observed hours.
 
-$$
-L_d \sim \mathcal{N}(0,\ 11^2), \qquad s_{d,1} = L_d + \mathcal{N}(0,\ \sigma_{OU}^2) \tag{96}
-$$
-
-$$
-s_{d,h} = s_{d,h-1} + \theta\left(L_d - s_{d,h-1}\right) + \sigma_{OU}\, \mathcal{N}(0,1) \qquad h = 2,\dots,24 \tag{97}
-$$
-
-where $L_d$ (EUR/MWh) is the random daily mean spread level for day $d$, $s_{d,h}$ (EUR/MWh) is the simulated spread at hour $h$ of day $d$, $\theta = 0.35$ is the mean-reversion speed, and $\sigma_{OU} = 6.5$ EUR/MWh is the hourly innovation standard deviation, calibrated so the combined daily-level-plus-hourly-noise process produces a total spread standard deviation of approximately 14 EUR/MWh. The simulated spread is further adjusted with deterministic seasonal effects (a PV-driven negative spread during summer hours 12–15, additional downward pressure when DA price is negative, and a small positive adjustment during the evening peak hours 19–21) before being added to a separately synthesized DA price to form the training target.
-
-### 2D.6 Synthetic Day-Ahead Price Generator (Training Data Only)
-
-**Source:** `create_xbid_training_data.py`, function `_da_price`.
-
-The DA price series underlying the synthetic XBID training data is generated independently from the live DA forecaster's fallback curve (Eq. 74) — a separate, sinusoidal-shaped synthetic price model used only to construct historical training labels, never called during live forecasting.
-
-$$
-\pi^{synth,train}_h = \mathrm{clip}\Big(65 + P_h + S_h + W + \xi_d + \epsilon_h,\ -50,\ 300\Big) \tag{98}
-$$
-
-where $P_h = 25\sin\!\left(\dfrac{\pi(h-6)}{14}\right)$ for $6 \leq h \leq 20$ (else $-5$) is a sinusoidal daily peak shape, $S_h = -15\max\!\left(0,\sin\!\left(\dfrac{\pi(h-9)}{8}\right)\right)$ in summer months (else 0) is a midday solar-driven dip, $W = -8$ on weekends (else 0), $\xi_d \sim \mathcal{N}(0, 50^2)$ is a day-level price shock shared by all 24 hours of day $d$ (inducing realistic day-to-day and within-day price correlation), and $\epsilon_h \sim \mathcal{N}(0, 6^2)$ is hourly noise.
+Equations 96–98 (an Ornstein-Uhlenbeck spread simulator and a synthetic DA price curve that generated the earlier training data) were retired on 2026-10-03, when that synthetic history was replaced by the real one; the numbers are kept unused so later equation references stay stable.
 
 ### 2D.7 XBID Order Economics
 
@@ -946,7 +926,7 @@ XBID order sizing and revenue-impact accounting reuse the identical delta-bid ec
 
 ## Part 3A — Phase 3A: aFRR Capacity Offer
 
-aFRR (automatic Frequency Restoration Reserve, PICASSO platform, FAT 5 min) capacity offers are sized by the shared reserve-offer builder of Part 0, Section C.10 (Eq. 45–53), with `headroom_fraction = 1.0` since aFRR has first call on the plant's available headroom ahead of mFRR. This part documents the aFRR-specific capacity-price forecast and its synthetic training-data generation, which differ structurally from the spread model used for energy prices.
+aFRR (automatic Frequency Restoration Reserve, PICASSO platform, FAT 5 min) capacity offers are sized by the shared reserve-offer builder of Part 0, Section C.10 (Eq. 45–53), with `headroom_fraction = 1.0` since aFRR has first call on the plant's available headroom ahead of mFRR. This part documents the aFRR-specific capacity-price forecast and its real REN training data, which differ structurally from the spread model used for energy prices.
 
 ### 3A.1 aFRR Capacity Price Forecast
 
@@ -958,7 +938,7 @@ $$
 c^{up}_h = \mathrm{clip}\left(\hat{c}^{up}_h,\ 0,\ C_{max}\right), \qquad c^{dn}_h = \mathrm{clip}\left(\hat{c}^{dn}_h,\ 0,\ C_{max}\right) \tag{99}
 $$
 
-where $c^{up}_h$, $c^{dn}_h$ (EUR/MW) are the final forecast upward and downward capacity availability prices for hour $h$, $\hat{c}^{up}_h$, $\hat{c}^{dn}_h$ are the raw model predictions (separately trained Naive/Ridge/LightGBM models, selected via the same walk-forward CV machinery as Eq. 72–73, using cyclical calendar features (Eq. 64), the DA price level and its 24-hour rolling mean/std, and each direction's own 7-day-lagged capacity price as predictors), and $C_{max} = 250$ EUR/MW is the REN regulatory price ceiling.
+where $c^{up}_h$, $c^{dn}_h$ (EUR/MW) are the final forecast upward and downward capacity availability prices for hour $h$, $\hat{c}^{up}_h$, $\hat{c}^{dn}_h$ are the raw model predictions (separately trained Random Forest/XGBoost/LightGBM models, selected via the same walk-forward CV machinery as Eq. 72–73, using cyclical calendar features (Eq. 64), the DA price level and its 24-hour rolling mean/std, and each direction's own 7-day-lagged capacity price as predictors), and $C_{max} = 250$ EUR/MW is the REN regulatory price ceiling.
 
 ### 3A.2 aFRR Offer Sizing and Checking
 
@@ -966,31 +946,13 @@ where $c^{up}_h$, $c^{dn}_h$ (EUR/MW) are the final forecast upward and downward
 
 Both modules are thin parameter bindings to the shared reserve-offer engine: `build_afrr_offers` calls Eq. 45–50 with `product="aFRR"`, `fat_min = 5` minutes, the market's configured maximum offer sizes, and `headroom_fraction = 1.0`; `check_afrr_offers` calls the shared checker (Eq. 51–53) with `cap_price_max = 250` EUR/MW (Eq. 99's ceiling). No new equations are introduced.
 
-### 3A.3 Synthetic aFRR Training Data — OU Capacity Price Process
+### 3A.3 aFRR Training Data — Real REN Band Prices
 
-**Source:** `afrr_price_forecasting/create_afrr_training_data.py`, functions `_daily_cap_ou`, `generate`.
+**Source:** `tools/rebuild_real_market_history.py` (history) and `afrr_price_forecasting/picasso_afrr_price_loader.py` (daily updates).
 
-As with XBID (Eq. 96–97), no real aFRR clearing-price history is available for the full 2019–2025 training window, so capacity prices are synthesized with a daily-reset Ornstein-Uhlenbeck process anchored to a direction-specific mean, then adjusted by a DA-price scarcity signal so upward capacity is priced higher in tight (high-DA-price) hours and downward capacity higher in surplus (low-DA-price) hours — reflecting that TSOs activate upward reserve when supply is scarce and downward reserve when generation is in surplus.
+The capacity-price models (Eq. 99) are trained on REN's published aFRR band clearing prices (`mercadoservices.ren.pt` `BaFRRPreco`: adjusted price when present, otherwise the initial one), hourly from 2019 and quarter-hourly — averaged to hours — since 2025. Days REN did not publish are filled with the previous day's prices and labelled `SYNTHETIC`.
 
-$$
-B_d \sim \mathcal{N}\left(\mu,\ (0.25\mu)^2\right), \qquad u_{d,1} = B_d + \mathcal{N}(0,\sigma^2) \tag{100}
-$$
-
-$$
-u_{d,h} = u_{d,h-1} + \theta\left(B_d - u_{d,h-1}\right) + \sigma\,\mathcal{N}(0,1), \qquad \theta = 0.40 \tag{101}
-$$
-
-where $B_d$ (EUR/MW) is the random daily bias level for day $d$ (drawn separately for the up and down directions, with direction-specific mean $\mu$ and innovation std $\sigma$: $\mu=22$ (seasonally adjusted, $+6$ in winter, $-3$ in summer, $-4$ on weekends), $\sigma=5$ for upward capacity; $\mu=10$, $\sigma=3$ for downward capacity), and $u_{d,h}$ (EUR/MW) is the simulated base capacity price at hour $h$, clipped to $[0, C_{max}]$.
-
-$$
-\kappa_h = \frac{\pi^{DA}_h - \pi^{DA}_{min}}{\max\left(1,\ \pi^{DA}_{max} - \pi^{DA}_{min}\right)} \tag{102}
-$$
-
-$$
-c^{up}_h = u^{up}_{d,h} + 20\,\kappa_h, \qquad c^{dn}_h = u^{dn}_{d,h} + 10\,(1-\kappa_h) + 4\cdot\mathbb{1}_{solar}(h) \tag{103}
-$$
-
-where $\kappa_h \in [0,1]$ is the hour's scarcity index (Eq. 102), computed from that day's DA price range ($\pi^{DA}_{min}$, $\pi^{DA}_{max}$ are the day's minimum and maximum simulated DA prices, generated by the same synthetic DA price model as Eq. 98), and $\mathbb{1}_{solar}(h)$ in Eq. 103 is an indicator equal to 1 for hours 11–15 in summer months (added PV-surplus pressure on downward reserve demand), both final prices clipped to $[0, C_{max}]$.
+Equations 100–103 (an Ornstein-Uhlenbeck capacity-price simulator that generated the earlier 2019–2025 training data) were retired on 2026-10-03 together with that synthetic history; the numbers are kept unused so later references stay stable.
 
 
 ---
@@ -999,19 +961,9 @@ where $\kappa_h \in [0,1]$ is the hour's scarcity index (Eq. 102), computed from
 
 mFRR (manual Frequency Restoration Reserve, MARI platform, FAT 12.5 min) is sized from whatever headroom aFRR did not take: `build_mfrr_offers` calls the shared engine (Eq. 45–50) with `reserved_up`/`reserved_dn` set to the aFRR commitment (the $R^{up,prior}_h$, $R^{dn,prior}_h$ terms already defined generically in Eq. 45–46) and `headroom_fraction = 0.20` (`mfrr.max_offer_fraction`), leaving an operating margin rather than committing the entire residual envelope to a single, slower product. `check_mfrr_offers` likewise binds directly to the shared checker (Eq. 51–53) with the same `reserved_up`/`reserved_dn` terms. No new offer-sizing equations are introduced.
 
-The capacity-price forecast (Eq. 99) and its OU-based synthetic training-data generation (Eq. 100–103) are structurally identical to aFRR, confirmed via line-by-line diff, but the codebase is explicit that mFRR pricing is **not** a fixed fraction of aFRR — it is trained as an independent model on its own MARI-anchored synthetic data (REN's MARI accession date is 27 Nov 2024, so training history is limited to roughly 13 months vs. aFRR's 6 years, and cross-validation accordingly uses 3 folds instead of 4). The calibration constants differ:
+The capacity-price forecast (Eq. 99) is structurally identical to aFRR, but mFRR pricing is **not** a fixed fraction of aFRR — it is an independent model trained on REN's mFRR price series (`MFRRPreco`, field `AP_PRECO`) from 2024-11-27, when REN joined MARI. REN does not publish a separate mFRR up/down capacity price, so `AP_PRECO` (an activation price) is used as a documented proxy for both directions; quarter-hours without an activation carry no price, and hours without a complete set of quarters are filled with the day's mean of the real hours and labelled `SYNTHETIC`.
 
-| Constant (Eq. 100–103) | aFRR (Part 3A) | mFRR |
-|---|---|---|
-| Mean reversion $\theta$ | 0.40 | 0.35 |
-| Daily-bias std factor | $0.25\mu$ | $0.30\mu$ |
-| $\mu_{up}$ (base), seasonal adj. | 22, $\pm$6/$\mp$3 | 9, $\pm$3/$\mp$2 |
-| $\sigma_{up}$ | 5.0 | 3.5 |
-| $\mu_{dn}$, $\sigma_{dn}$ | 10, 3.0 | 7, 2.5 |
-| Scarcity coefficient (up / down) | 20 / 10 | 8 / 4 |
-| Solar-hour down adjustment | +4.0 | +2.0 |
-
-**Source:** `phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py` (Eq. 99, trained on `mfrr_training_data_2024_2025.xlsx`, 3-fold CV); `create_mfrr_training_data.py` (Eq. 100–103 with the constants above); `mfrr_reserve_offer_builder/mfrr_offer_builder.py`, `mfrr_offer_checker.py` (bindings to Eq. 45–53); `mari_mfrr_price_loader.py`, `run_mfrr.py`, `mfrr_price_train_val_test.py` (no new equations).
+**Source:** `phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py` (Eq. 99, trained on `mfrr_training_data_2024_2025.xlsx`, 3-fold CV); `mfrr_reserve_offer_builder/mfrr_offer_builder.py`, `mfrr_offer_checker.py` (bindings to Eq. 45–53); `mari_mfrr_price_loader.py`, `run_mfrr.py`, `mfrr_price_train_val_test.py` (no new equations).
 
 
 ---

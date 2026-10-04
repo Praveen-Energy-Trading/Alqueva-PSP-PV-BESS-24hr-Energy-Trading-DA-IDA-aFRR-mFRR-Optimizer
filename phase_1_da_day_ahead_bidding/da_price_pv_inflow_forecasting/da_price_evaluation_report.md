@@ -1,6 +1,6 @@
 # DA Price Forecaster — Train / Validation / Test Report
 
-_Generated: 2026-06-22_
+_Generated: 2026-10-03_
 
 ## Methodology
 
@@ -15,9 +15,9 @@ Skill score = 1 − MAE_model / MAE_naive; positive = beats naive 24h persistenc
 
 ## Data
 
-- Development : 47,135 rows  (2020-01-15 → 2025-05-31)
-- Test (held out): 8,761 rows  (2025-05-31 → 2026-05-31)
-- Selected model : **Ridge**
+- Development : 50,135 rows  (2020-01-15 → 2025-10-03)
+- Test (held out): 8,761 rows  (2025-10-03 → 2026-10-03)
+- Selected model : **RandomForest**
 
 ---
 
@@ -25,9 +25,9 @@ Skill score = 1 − MAE_model / MAE_naive; positive = beats naive 24h persistenc
 
 | Model | MAE (EUR/MWh) |
 |-------|-----------|
-| Naive persistence | 16.11 |
-| Ridge regression  | 12.77 |
-| LightGBM          | 15.21 |
+| LightGBM           | 32.72 |
+| XGBoost            | 33.30 |
+| RandomForest       | 32.27 |
 
 ---
 
@@ -35,7 +35,24 @@ Skill score = 1 − MAE_model / MAE_naive; positive = beats naive 24h persistenc
 
 | Metric | Value |
 |--------|-------|
-| MAE        | 20.61 EUR/MWh |
-| RMSE       | 27.62 EUR/MWh |
-| Bias (ME)  | -0.97 EUR/MWh |
-| Skill vs naive | +14.3% |
+| MAE        | 18.61 EUR/MWh |
+| RMSE       | 25.42 EUR/MWh |
+| Bias (ME)  | +2.57 EUR/MWh |
+| Skill vs naive | +2.6% |
+
+---
+
+## Feature Importance (RandomForest — top 10)
+
+| Feature | Importance |
+|---------|-----------|
+| lag_24h | 1 |
+| roll_mean_168h | 0 |
+| lag_48h | 0 |
+| roll_mean_24h | 0 |
+| lag_168h | 0 |
+| lag_336h | 0 |
+| roll_std_24h | 0 |
+| dow | 0 |
+| price_diff_24h | 0 |
+| dow_sin | 0 |

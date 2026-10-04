@@ -3,8 +3,9 @@ run_production.py
 =================
 Alqueva PSP-PV-BESS  24-Hour Energy Trading Pipeline Orchestrator.
 
-Runs all 19 pipeline phases in delivery order for a single date
-(XBID counted as 6 separate check-window phases, W1-W6).
+Runs all 20 pipeline phases in delivery order for a single date
+(XBID counted as 6 separate check-window phases, W1-W6), then 6E keeps the
+rolling 1-year real-price backtest current.
 Reads config/run.yaml for settings; every option is overridable via CLI.
 
 QUICK START
@@ -30,6 +31,9 @@ COMMON CLI OVERRIDES  (no YAML edit needed)
     # Validate config and imports without executing anything
     python run_production.py --dry-run
 
+    # Skip the rolling backtest (phase 6E) for a quick run
+    python run_production.py --no-backtest
+
 PHASE KEYS (--from-phase / --only)
 ------------------------------------
   da  ida1  ida2  ida3
@@ -37,6 +41,7 @@ PHASE KEYS (--from-phase / --only)
   afrr  mfrr  realtime
   afrr_activation  mfrr_activation
   energy_settlement  reserve_settlement  imbalance_settlement  analytics
+  rolling_backtest
 
 EXIT CODES
 ----------
@@ -228,7 +233,7 @@ FAIL = "FAIL"
 
 # Status codes from individual run_*() functions.
 _OK_CODES   = {"SUBMITTED", "OK", "NO_CHANGE"}
-_WARN_CODES = {"NO_OFFER", "REJECTED"}
+_WARN_CODES = {"NO_OFFER", "REJECTED", "BACKTEST_INCOMPLETE"}
 
 # ---------------------------------------------------------------------------
 # Pipeline registry
@@ -270,6 +275,10 @@ _PHASES: List[tuple] = [
     ("reserve_settlement",  "6B     Reserve settlement  (aFRR / mFRR)",   True),
     ("imbalance_settlement","6C     Imbalance settlement  (REN balance)", True),
     ("analytics",           "6D     Analytics + KPI report + Excel",      False),
+    # Reporting only, never blocks trading: backtests every completed day
+    # since the last run (real prices exist only for past days, never for the
+    # delivery date) and refreshes the rolling 1-year Profit-at-Risk report.
+    ("rolling_backtest",    "6E     Rolling backtest + P&L re-settlement", False),
 ]
 
 # The YAML phases block uses "xbid" to gate all check windows (W1..W6).
@@ -355,6 +364,12 @@ def _dispatch(key: str, date: str, cfg, syn: bool, auto: bool) -> tuple[str, str
     if key == "analytics":
         from phase_5d_analytics_and_reporting.run_analytics import run_analytics
         return _run(run_analytics, date, cfg, export_excel=True)
+
+    if key == "rolling_backtest":
+        from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
+            run_rolling_backtest,
+        )
+        return _run(run_rolling_backtest, cfg)
 
     return FAIL, f"Unknown phase key: {key}"
 
@@ -485,6 +500,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Synthetic data: no live API calls — overrides run.yaml")
     p.add_argument("--dry-run",    dest="dry_run", action="store_true",
                    help="Validate config and imports; run nothing")
+    p.add_argument("--no-backtest", dest="no_backtest", action="store_true",
+                   help="Skip phase 6E (rolling backtest + P&L re-settlement) for this run")
     p.add_argument("--no-dashboard", dest="no_dashboard", action="store_true",
                    help="Don't auto-launch the Streamlit dashboard (it's on by default)")
     return p
@@ -526,7 +543,9 @@ def main() -> int:
     source = "synthetic" if ns.synthetic else str(yml.get("data_source", "synthetic"))
     is_auto = (mode   == "auto")
     is_syn  = (source == "synthetic")
-    enabled: Dict[str, bool] = yml.get("phases", {})
+    enabled: Dict[str, bool] = dict(yml.get("phases", {}))
+    if ns.no_backtest:
+        enabled["rolling_backtest"] = False
 
     # ── 3. --from-phase index ───────────────────────────────────────────────
     from_idx = 0

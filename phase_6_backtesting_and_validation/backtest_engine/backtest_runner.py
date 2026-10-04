@@ -208,206 +208,202 @@ def _run_xbid_backtest(date: str, cfg: AppConfig, baseline_net: dict) -> dict:
     }
 
 
-def run_backtest(start_date: str, n_days: int, cfg: AppConfig) -> BacktestResult:
-    res = BacktestResult(n_days=n_days)
-    obj_sum = solve_sum = price_mae_sum = pv_mae_sum = 0.0
-    realised_revenue_sum = 0.0
-    realised_afrr_sum = realised_mfrr_sum = 0.0
-    realised_ida1_sum = realised_ida2_sum = realised_ida3_sum = 0.0
-    realised_xbid_sum = 0.0
+def realised_pnl(row: dict) -> Optional[float]:
+    """Realized daily P&L of a backtest row, all at real prices: DA energy
+    revenue plus aFRR/mFRR capacity revenue (a missing reserve figure counts
+    as 0). None when the day has no real DA price -- such a day cannot enter
+    the realized risk series."""
+    if row.get("realised_revenue_eur") is None:
+        return None
+    return round(row["realised_revenue_eur"]
+                 + (row.get("realised_afrr_capacity_eur") or 0.0)
+                 + (row.get("realised_mfrr_capacity_eur") or 0.0), 2)
 
-    for date in date_range(start_date, n_days):
-        inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True)
-        q = check_solution_quality(inputs, cfg)
 
-        hours = list(inputs["da_prices"].keys())
-        real_price = real_omie_price(date, hours)
-        if real_price is not None:
-            price_actual = real_price
-            price_actual_source = "OMIE_LIVE"
-        else:
-            price_actual = realised_from_forecast(inputs["da_prices"], date, 0.10, "px")
-            price_actual_source = "synthetic"
+def backtest_one_day(date: str, cfg: AppConfig) -> dict:
+    """Backtest one delivery day: forecast-based bids, valued at real prices.
 
-        pv_actual = realised_from_forecast(inputs["pv_available_mw"], date, 0.15, "pv")
-        pm = error_metrics(inputs["da_prices"], price_actual)
-        vm = validate_pv(inputs["pv_available_mw"], pv_actual)
+    Returns the per-day row used by run_backtest and the rolling backtest
+    (backtest_engine/rolling_backtest.py), so both stay identical.
+    """
+    inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True)
+    q = check_solution_quality(inputs, cfg)
 
-        # Real re-settlement: value the ALREADY-COMMITTED DA bid (fixed by the
-        # forecast-based solve, not re-optimized) against the real price.
-        # Only when real price data exists -- otherwise plainly "unavailable",
-        # never approximated from the synthetic series.
-        realised_revenue_eur = None
-        if real_price is not None and q.feasible and q.gate_results is not None:
-            dt_h = inputs.get("dt_h", 1.0)
-            net_pos = q.gate_results.net_position_mw
-            realised_revenue_eur = round(
-                sum(real_price[h] * net_pos[h] * dt_h for h in hours), 2)
+    hours = list(inputs["da_prices"].keys())
+    real_price = real_omie_price(date, hours)
+    if real_price is not None:
+        price_actual = real_price
+        price_actual_source = "OMIE_LIVE"
+    else:
+        price_actual = realised_from_forecast(inputs["da_prices"], date, 0.10, "px")
+        price_actual_source = "synthetic"
 
-        # Reserve capacity revenue: real REN cap_up/cap_dn priced against the
-        # SAME offer sizing the live pipeline would compute from the
-        # already-committed DA bid (build_afrr_offers / build_mfrr_offers are
-        # pure functions of committed_net + cap prices + config, no store
-        # dependency). aFRR computed first; mFRR only if aFRR's real price was
-        # also available for this date, since mFRR's sizing nets against
-        # aFRR's committed MW -- never a mixed real/synthetic capacity figure.
-        # Activation/imbalance revenue stays OUT of scope: the activated MW is
-        # always internally-simulated in this project (no real REN/SCADA
-        # telemetry loader exists), so a "real activation revenue" number
-        # would be real price x synthetic quantity -- not the same honesty
-        # standard as capacity revenue, where both price and sizing are real.
-        realised_afrr_capacity_eur = None
-        realised_mfrr_capacity_eur = None
-        realised_reserve_price_source = "unavailable"
-        day_date = dt.date.fromisoformat(date)
-        afrr_offers = None
-        if q.feasible and q.gate_results is not None:
-            net_pos = q.gate_results.net_position_mw
-            hourly_net = {
-                h: sum(net_pos[i] for i in hour_to_isps(h, day_date)) / len(hour_to_isps(h, day_date))
-                for h in range(1, 25)
-            }
-            real_afrr = real_ren_capacity_price(date, list(range(1, 25)), "aFRR")
-            if real_afrr is not None:
-                cap_up, cap_dn = real_afrr
-                try:
-                    afrr_offers = build_afrr_offers(hourly_net, cap_up, cap_dn, cfg)
-                    check_reserve_offers(afrr_offers, hourly_net, cfg, cfg.market.afrr.fat_min, product="aFRR")
-                    realised_afrr_capacity_eur = round(
-                        sum(o.up_mw * cap_up[h] + o.dn_mw * cap_dn[h] for h, o in afrr_offers.items()), 2)
-                    realised_reserve_price_source = "REN_LIVE"
-                except ReserveCheckError:
-                    afrr_offers = None  # envelope violation -- don't report a capacity figure
+    pv_actual = realised_from_forecast(inputs["pv_available_mw"], date, 0.15, "pv")
+    pm = error_metrics(inputs["da_prices"], price_actual)
+    vm = validate_pv(inputs["pv_available_mw"], pv_actual)
 
-            real_mfrr = real_ren_capacity_price(date, list(range(1, 25)), "mFRR")
-            if real_mfrr is not None and afrr_offers is not None:
-                cap_up, cap_dn = real_mfrr
-                reserved_up = {h: o.up_mw for h, o in afrr_offers.items()}
-                reserved_dn = {h: o.dn_mw for h, o in afrr_offers.items()}
-                try:
-                    mfrr_offers = build_mfrr_offers(hourly_net, cap_up, cap_dn, reserved_up, reserved_dn, cfg)
-                    check_reserve_offers(mfrr_offers, hourly_net, cfg, cfg.market.mfrr.fat_min, product="mFRR",
-                                          reserved_up=reserved_up, reserved_dn=reserved_dn)
-                    realised_mfrr_capacity_eur = round(
-                        sum(o.up_mw * cap_up[h] + o.dn_mw * cap_dn[h] for h, o in mfrr_offers.items()), 2)
-                except ReserveCheckError:
-                    pass  # mFRR envelope violation -- aFRR figure still stands on its own
+    # Real re-settlement: value the ALREADY-COMMITTED DA bid (fixed by the
+    # forecast-based solve, not re-optimized) against the real price.
+    # Only when real price data exists -- otherwise plainly "unavailable",
+    # never approximated from the synthetic series.
+    realised_revenue_eur = None
+    if real_price is not None and q.feasible and q.gate_results is not None:
+        dt_h = inputs.get("dt_h", 1.0)
+        net_pos = q.gate_results.net_position_mw
+        realised_revenue_eur = round(
+            sum(real_price[h] * net_pos[h] * dt_h for h in hours), 2)
 
-        # Real-price intraday re-optimization, chained DA -> IDA1 -> IDA2 ->
-        # IDA3 (INV-11, the real production baseline chain -- each gate's
-        # committed net becomes the next gate's frozen baseline for hours
-        # outside its own tradable window). Each gate only runs if the PRIOR
-        # gate in the chain was feasible; each is valued independently
-        # against its own real archived clearing price -- never a mixed
-        # real/synthetic figure, and IDA3 (only 7 real archived dates,
-        # coverage starting 2026-08-15) is reported honestly thin, not
-        # padded. aFRR/mFRR reserve headroom NOT subtracted at any gate here
-        # (reserve-capacity revenue is backtested completely separately
-        # above; mixing would either double scope this pass or force
-        # synthetic cap prices into an otherwise clean real-price test).
-        ida_results = {}
-        prior_net = q.gate_results.net_position_mw if q.feasible and q.gate_results is not None else None
-        for gate in ("IDA1", "IDA2", "IDA3"):
-            if prior_net is None:
-                ida_results[gate] = {"feasible": None, "net_position_mw": None,
-                                     "realised_revenue_eur": None, "realised_price_source": "unavailable"}
-                continue
-            r = _run_intraday_gate_backtest(gate, date, cfg, prior_net, day_date)
-            ida_results[gate] = r
-            prior_net = r["net_position_mw"] if r["feasible"] else None
-
-        # XBID (window W1 only, see _run_xbid_backtest docstring): chained
-        # from IDA3's committed net, the real production sequence's final
-        # step. Only runs if IDA3 was feasible.
-        if prior_net is not None:
-            xbid_result = _run_xbid_backtest(date, cfg, prior_net)
-        else:
-            xbid_result = {"feasible": None, "net_position_mw": None,
-                           "realised_revenue_eur": None, "realised_price_source": "unavailable"}
-
-        row = {
-            "date": date, "feasible": q.feasible, "checker_pass": q.checker_passed,
-            "objective_eur": round(q.objective_eur, 2), "solve_sec": round(q.solve_time_sec, 3),
-            "price_mae": round(pm.mae, 2), "price_rmse": round(pm.rmse, 2),
-            "pv_mae": round(vm.mae, 4), "note": q.note,
-            "price_actual_source": price_actual_source,
-            "pv_actual_source": "synthetic",
-            "realised_revenue_eur": realised_revenue_eur,
-            "realised_price_source": "OMIE_LIVE" if real_price is not None else "unavailable",
-            "realised_afrr_capacity_eur": realised_afrr_capacity_eur,
-            "realised_mfrr_capacity_eur": realised_mfrr_capacity_eur,
-            "realised_reserve_price_source": realised_reserve_price_source,
-            "ida1_feasible": ida_results["IDA1"]["feasible"],
-            "realised_ida1_revenue_eur": ida_results["IDA1"]["realised_revenue_eur"],
-            "realised_ida1_price_source": ida_results["IDA1"]["realised_price_source"],
-            "ida2_feasible": ida_results["IDA2"]["feasible"],
-            "realised_ida2_revenue_eur": ida_results["IDA2"]["realised_revenue_eur"],
-            "realised_ida2_price_source": ida_results["IDA2"]["realised_price_source"],
-            "ida3_feasible": ida_results["IDA3"]["feasible"],
-            "realised_ida3_revenue_eur": ida_results["IDA3"]["realised_revenue_eur"],
-            "realised_ida3_price_source": ida_results["IDA3"]["realised_price_source"],
-            "xbid_feasible": xbid_result["feasible"],
-            "realised_xbid_revenue_eur": xbid_result["realised_revenue_eur"],
-            "realised_xbid_price_source": xbid_result["realised_price_source"],
+    # Reserve capacity revenue: real REN cap_up/cap_dn priced against the
+    # SAME offer sizing the live pipeline would compute from the
+    # already-committed DA bid (build_afrr_offers / build_mfrr_offers are
+    # pure functions of committed_net + cap prices + config, no store
+    # dependency). aFRR computed first; mFRR only if aFRR's real price was
+    # also available for this date, since mFRR's sizing nets against
+    # aFRR's committed MW -- never a mixed real/synthetic capacity figure.
+    # Activation/imbalance revenue stays OUT of scope: the activated MW is
+    # always internally-simulated in this project (no real REN/SCADA
+    # telemetry loader exists), so a "real activation revenue" number
+    # would be real price x synthetic quantity -- not the same honesty
+    # standard as capacity revenue, where both price and sizing are real.
+    realised_afrr_capacity_eur = None
+    realised_mfrr_capacity_eur = None
+    realised_reserve_price_source = "unavailable"
+    day_date = dt.date.fromisoformat(date)
+    afrr_offers = None
+    if q.feasible and q.gate_results is not None:
+        net_pos = q.gate_results.net_position_mw
+        hourly_net = {
+            h: sum(net_pos[i] for i in hour_to_isps(h, day_date)) / len(hour_to_isps(h, day_date))
+            for h in range(1, 25)
         }
-        if q.feasible:
-            row["ops"]  = q.operational
-            row["tmp"]  = q.temporal
-            row["eco"]  = q.economic_ext
-        res.rows.append(row)
-        res.n_feasible += int(q.feasible)
-        res.n_checker_pass += int(q.checker_passed)
-        obj_sum += q.objective_eur
-        solve_sum += q.solve_time_sec
-        price_mae_sum += pm.mae
-        pv_mae_sum += vm.mae
-        if realised_revenue_eur is not None:
-            res.n_real_price_days += 1
-            realised_revenue_sum += realised_revenue_eur
-        if realised_afrr_capacity_eur is not None:
-            res.n_real_afrr_days += 1
-            realised_afrr_sum += realised_afrr_capacity_eur
-        if realised_mfrr_capacity_eur is not None:
-            res.n_real_mfrr_days += 1
-            realised_mfrr_sum += realised_mfrr_capacity_eur
-        if ida_results["IDA1"]["realised_revenue_eur"] is not None:
-            res.n_real_ida1_price_days += 1
-            realised_ida1_sum += ida_results["IDA1"]["realised_revenue_eur"]
-        if ida_results["IDA2"]["realised_revenue_eur"] is not None:
-            res.n_real_ida2_price_days += 1
-            realised_ida2_sum += ida_results["IDA2"]["realised_revenue_eur"]
-        if ida_results["IDA3"]["realised_revenue_eur"] is not None:
-            res.n_real_ida3_price_days += 1
-            realised_ida3_sum += ida_results["IDA3"]["realised_revenue_eur"]
-        if xbid_result["realised_revenue_eur"] is not None:
-            res.n_real_xbid_price_days += 1
-            realised_xbid_sum += xbid_result["realised_revenue_eur"]
+        real_afrr = real_ren_capacity_price(date, list(range(1, 25)), "aFRR")
+        if real_afrr is not None:
+            cap_up, cap_dn = real_afrr
+            try:
+                afrr_offers = build_afrr_offers(hourly_net, cap_up, cap_dn, cfg)
+                check_reserve_offers(afrr_offers, hourly_net, cfg, cfg.market.afrr.fat_min, product="aFRR")
+                realised_afrr_capacity_eur = round(
+                    sum(o.up_mw * cap_up[h] + o.dn_mw * cap_dn[h] for h, o in afrr_offers.items()), 2)
+                realised_reserve_price_source = "REN_LIVE"
+            except ReserveCheckError:
+                afrr_offers = None  # envelope violation -- don't report a capacity figure
 
-    if n_days:
-        res.avg_objective_eur = obj_sum / n_days
-        res.avg_solve_sec     = solve_sum / n_days
-        res.avg_price_mae     = price_mae_sum / n_days
-        res.avg_pv_mae        = pv_mae_sum / n_days
-    if res.n_real_price_days:
-        res.avg_realised_revenue_eur = realised_revenue_sum / res.n_real_price_days
-    if res.n_real_afrr_days:
-        res.avg_realised_afrr_capacity_eur = realised_afrr_sum / res.n_real_afrr_days
-    if res.n_real_mfrr_days:
-        res.avg_realised_mfrr_capacity_eur = realised_mfrr_sum / res.n_real_mfrr_days
-    if res.n_real_ida1_price_days:
-        res.avg_realised_ida1_revenue_eur = realised_ida1_sum / res.n_real_ida1_price_days
-    if res.n_real_ida2_price_days:
-        res.avg_realised_ida2_revenue_eur = realised_ida2_sum / res.n_real_ida2_price_days
-    if res.n_real_ida3_price_days:
-        res.avg_realised_ida3_revenue_eur = realised_ida3_sum / res.n_real_ida3_price_days
-    if res.n_real_xbid_price_days:
-        res.avg_realised_xbid_revenue_eur = realised_xbid_sum / res.n_real_xbid_price_days
+        real_mfrr = real_ren_capacity_price(date, list(range(1, 25)), "mFRR")
+        if real_mfrr is not None and afrr_offers is not None:
+            cap_up, cap_dn = real_mfrr
+            reserved_up = {h: o.up_mw for h, o in afrr_offers.items()}
+            reserved_dn = {h: o.dn_mw for h, o in afrr_offers.items()}
+            try:
+                mfrr_offers = build_mfrr_offers(hourly_net, cap_up, cap_dn, reserved_up, reserved_dn, cfg)
+                check_reserve_offers(mfrr_offers, hourly_net, cfg, cfg.market.mfrr.fat_min, product="mFRR",
+                                      reserved_up=reserved_up, reserved_dn=reserved_dn)
+                realised_mfrr_capacity_eur = round(
+                    sum(o.up_mw * cap_up[h] + o.dn_mw * cap_dn[h] for h, o in mfrr_offers.items()), 2)
+            except ReserveCheckError:
+                pass  # mFRR envelope violation -- aFRR figure still stands on its own
 
-    # Risk metrics from the daily objective P&L series (feasible days only).
-    pnl_series = [r["objective_eur"] for r in res.rows if r["feasible"]]
-    res.risk = compute_risk_metrics(pnl_series)
+    # Real-price intraday re-optimization, chained DA -> IDA1 -> IDA2 ->
+    # IDA3 (INV-11, the real production baseline chain -- each gate's
+    # committed net becomes the next gate's frozen baseline for hours
+    # outside its own tradable window). Each gate only runs if the PRIOR
+    # gate in the chain was feasible; each is valued independently
+    # against its own real archived clearing price -- never a mixed
+    # real/synthetic figure, and IDA3 (only 7 real archived dates,
+    # coverage starting 2026-08-15) is reported honestly thin, not
+    # padded. aFRR/mFRR reserve headroom NOT subtracted at any gate here
+    # (reserve-capacity revenue is backtested completely separately
+    # above; mixing would either double scope this pass or force
+    # synthetic cap prices into an otherwise clean real-price test).
+    ida_results = {}
+    prior_net = q.gate_results.net_position_mw if q.feasible and q.gate_results is not None else None
+    for gate in ("IDA1", "IDA2", "IDA3"):
+        if prior_net is None:
+            ida_results[gate] = {"feasible": None, "net_position_mw": None,
+                                 "realised_revenue_eur": None, "realised_price_source": "unavailable"}
+            continue
+        r = _run_intraday_gate_backtest(gate, date, cfg, prior_net, day_date)
+        ida_results[gate] = r
+        prior_net = r["net_position_mw"] if r["feasible"] else None
 
+    # XBID (window W1 only, see _run_xbid_backtest docstring): chained
+    # from IDA3's committed net, the real production sequence's final
+    # step. Only runs if IDA3 was feasible.
+    if prior_net is not None:
+        xbid_result = _run_xbid_backtest(date, cfg, prior_net)
+    else:
+        xbid_result = {"feasible": None, "net_position_mw": None,
+                       "realised_revenue_eur": None, "realised_price_source": "unavailable"}
+
+    row = {
+        "date": date, "feasible": q.feasible, "checker_pass": q.checker_passed,
+        "objective_eur": round(q.objective_eur, 2), "solve_sec": round(q.solve_time_sec, 3),
+        "price_mae": round(pm.mae, 2), "price_rmse": round(pm.rmse, 2),
+        "pv_mae": round(vm.mae, 4), "note": q.note,
+        "price_actual_source": price_actual_source,
+        "pv_actual_source": "synthetic",
+        "realised_revenue_eur": realised_revenue_eur,
+        "realised_price_source": "OMIE_LIVE" if real_price is not None else "unavailable",
+        "realised_afrr_capacity_eur": realised_afrr_capacity_eur,
+        "realised_mfrr_capacity_eur": realised_mfrr_capacity_eur,
+        "realised_reserve_price_source": realised_reserve_price_source,
+        "ida1_feasible": ida_results["IDA1"]["feasible"],
+        "realised_ida1_revenue_eur": ida_results["IDA1"]["realised_revenue_eur"],
+        "realised_ida1_price_source": ida_results["IDA1"]["realised_price_source"],
+        "ida2_feasible": ida_results["IDA2"]["feasible"],
+        "realised_ida2_revenue_eur": ida_results["IDA2"]["realised_revenue_eur"],
+        "realised_ida2_price_source": ida_results["IDA2"]["realised_price_source"],
+        "ida3_feasible": ida_results["IDA3"]["feasible"],
+        "realised_ida3_revenue_eur": ida_results["IDA3"]["realised_revenue_eur"],
+        "realised_ida3_price_source": ida_results["IDA3"]["realised_price_source"],
+        "xbid_feasible": xbid_result["feasible"],
+        "realised_xbid_revenue_eur": xbid_result["realised_revenue_eur"],
+        "realised_xbid_price_source": xbid_result["realised_price_source"],
+    }
+    if q.feasible:
+        row["ops"]  = q.operational
+        row["tmp"]  = q.temporal
+        row["eco"]  = q.economic_ext
+    row["realised_total_pnl_eur"] = realised_pnl(row)
+    return row
+
+
+def summarize_rows(rows: List[dict]) -> BacktestResult:
+    """Aggregate per-day rows into a BacktestResult (counts, averages, risk).
+
+    Risk metrics are computed on REALIZED P&L at real prices (realised_pnl),
+    i.e. Profit-at-Risk: the low tail of what the plant actually would have
+    earned, not of the forecast-based MILP objective. Days without a real DA
+    price are left out of the risk series; with none at all, risk is None.
+    """
+    res = BacktestResult(rows=list(rows), n_days=len(rows))
+
+    def _avg(key: str):
+        vals = [r[key] for r in rows if r.get(key) is not None]
+        return (sum(vals) / len(vals), len(vals)) if vals else (None, 0)
+
+    res.n_feasible = sum(1 for r in rows if r["feasible"])
+    res.n_checker_pass = sum(1 for r in rows if r["checker_pass"])
+    if rows:
+        res.avg_objective_eur = sum(r["objective_eur"] for r in rows) / len(rows)
+        res.avg_solve_sec = sum(r["solve_sec"] for r in rows) / len(rows)
+        res.avg_price_mae = sum(r["price_mae"] for r in rows) / len(rows)
+        res.avg_pv_mae = sum(r["pv_mae"] for r in rows) / len(rows)
+    res.avg_realised_revenue_eur, res.n_real_price_days = _avg("realised_revenue_eur")
+    res.avg_realised_afrr_capacity_eur, res.n_real_afrr_days = _avg("realised_afrr_capacity_eur")
+    res.avg_realised_mfrr_capacity_eur, res.n_real_mfrr_days = _avg("realised_mfrr_capacity_eur")
+    res.avg_realised_ida1_revenue_eur, res.n_real_ida1_price_days = _avg("realised_ida1_revenue_eur")
+    res.avg_realised_ida2_revenue_eur, res.n_real_ida2_price_days = _avg("realised_ida2_revenue_eur")
+    res.avg_realised_ida3_revenue_eur, res.n_real_ida3_price_days = _avg("realised_ida3_revenue_eur")
+    res.avg_realised_xbid_revenue_eur, res.n_real_xbid_price_days = _avg("realised_xbid_revenue_eur")
+
+    pnl_series = [p for p in (realised_pnl(r) for r in rows if r["feasible"]) if p is not None]
+    res.risk = compute_risk_metrics(pnl_series) if pnl_series else None
     return res
+
+
+def run_backtest(start_date: str, n_days: int, cfg: AppConfig) -> BacktestResult:
+    """Backtest every day in [start_date, start_date + n_days)."""
+    return summarize_rows([backtest_one_day(date, cfg) for date in date_range(start_date, n_days)])
 
 
 # ─────────────────────────────────────────────────────────────────────────────

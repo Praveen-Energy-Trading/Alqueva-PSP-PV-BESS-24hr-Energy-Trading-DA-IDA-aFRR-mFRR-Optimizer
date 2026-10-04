@@ -1,39 +1,45 @@
 # aFRR Cap-Price Forecaster — Evaluation Report
 
-Generated: 2026-06-23
+Generated: 2026-10-03
 
 ## Data
-- Source: `afrr_training_data_2019_2025.xlsx` (REN/eSIO aFRR clearing prices — synthetic proxy)
-- Range : 2019-01-01 to 2025-12-31
+- Source: `afrr_training_data_2019_2025.xlsx` (REN aFRR band clearing prices, mercado.ren.pt)
+- Range : 2019-01-01 to 2026-10-03
 - Gate  : aFRR capacity market (H1-H24, daily auction, gate closes D-1 before DA)
 - Models: two separate models — cap_up (upward reserve) and cap_dn (downward reserve)
 - Target: cap_up_EUR_MW, cap_dn_EUR_MW (availability payment, not energy)
 
 ## cap_up Model
+Held-out test 2025-10-03 to 2026-10-03 (real rows only); naive = same hour on the previous day.
+
 | Model | CV MAE EUR/MW |
 |---|---|
-| Naive | 8.4409 |
-| Ridge | 6.8243 **SELECTED** |
-| LightGBM | 7.1983 |
+| Naive | inf |
+| LightGBM | 24.4873 |
+| XGBoost | 20.9509 **SELECTED** |
+| RandomForest | 22.6619 |
 
 | Metric | Value |
 |---|---|
-| Naive MAE | 8.4507 EUR/MW |
-| Ridge MAE | 6.7391 EUR/MW |
-| Skill score | +20.3% |
+| Naive MAE | 4.2504 EUR/MW |
+| XGBoost MAE | 15.3936 EUR/MW |
+| Skill score | -262.2% |
 
 ## cap_dn Model
+Held-out test 2025-10-03 to 2026-10-03 (real rows only); naive = same hour on the previous day.
+
 | Model | CV MAE EUR/MW |
 |---|---|
-| Naive | 4.2753 |
-| Ridge | 3.7469 **SELECTED** |
-| LightGBM | 3.9076 |
+| Naive | inf |
+| LightGBM | 24.4873 |
+| XGBoost | 20.9509 **SELECTED** |
+| RandomForest | 22.6619 |
 
 | Metric | Value |
 |---|---|
-| Naive MAE | 4.2921 EUR/MW |
-| Ridge MAE | 3.7101 EUR/MW |
-| Skill score | +13.6% |
+| Naive MAE | 4.2175 EUR/MW |
+| XGBoost MAE | 16.1812 EUR/MW |
+| Skill score | -283.7% |
 
 ## aFRR Gate (Production)
 - Daily capacity auction: offer submitted D-1 before DA gate (gate closes ~D-1 08:00 CET)

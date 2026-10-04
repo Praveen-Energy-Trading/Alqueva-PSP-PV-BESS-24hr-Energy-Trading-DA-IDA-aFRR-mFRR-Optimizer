@@ -575,8 +575,12 @@ class T20_ActivationPriceCap(unittest.TestCase):
                     if dn_p <= 1.0 or up_p <= 1.0 or up_p >= up_price_cap[product] - 1e-6:
                         continue
                     ratio = up_p / dn_p
+                    # Both prices are rounded to cents (+/-0.005), which alone
+                    # moves the ratio by up to 0.005*(1+ratio)/dn_p -- allow
+                    # exactly that, so low-price ISPs don't fail on rounding.
+                    tol = 0.005 * (1 + expected_ratio[product]) / dn_p + 1e-6
                     self.assertAlmostEqual(
-                        ratio, expected_ratio[product], places=2,
+                        ratio, expected_ratio[product], delta=max(tol, 0.005),
                         msg=(f"{product} ISP{r['isp']}: "
                              f"up_price/dn_price = {ratio:.4f}, expected "
                              f"{expected_ratio[product]:.4f}")

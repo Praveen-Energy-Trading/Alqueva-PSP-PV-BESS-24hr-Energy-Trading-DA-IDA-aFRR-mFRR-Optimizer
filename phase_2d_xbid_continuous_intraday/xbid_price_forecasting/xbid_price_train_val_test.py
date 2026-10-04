@@ -2,8 +2,9 @@
 xbid_price_train_val_test.py — offline evaluation of the XBID spread model.
 
 Mirrors the IDA evaluation pattern:
-    - Walk-forward CV (4 folds) on the 2024-06-13 to 2024-12-31 training window
-    - Hold-out TEST on 2025 (12 months, unseen during any model selection)
+    - Walk-forward CV (4 folds) on all real data before the test window
+    - Hold-out TEST on the latest 12 months of real data, predicted hour by
+      hour with the model's own previous-hour spread (as the live forecaster does)
     - Per-hour-bucket breakdown: peak vs off-peak
 
 Naive baseline: spread = 0  (XBID price = DA price).
@@ -25,18 +26,19 @@ import pandas as pd
 
 _HERE     = os.path.dirname(os.path.abspath(__file__))
 _REPO     = os.path.abspath(os.path.join(_HERE, "..", ".."))
-_FCST_DIR = os.path.join(_REPO, "phase_1_da_day_ahead_bidding", "price_and_power_forecasting")
+_FCST_DIR = os.path.join(_REPO, "phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting")
 
 sys.path.insert(0, _REPO)
 sys.path.insert(0, _FCST_DIR)
-from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae as _mae, walk_forward_cv
+from ml_train_val_test_common import (fit_selected, MODEL_NAMES, mae as _mae, walk_forward_cv,
+                                      real_rows, last_months_split, predict_autoregressive)
 
 _EXCEL_PATH = os.path.join(_HERE, "xbid_training_data_2024_2025.xlsx")
 _SHEET      = "XBID_2024_2025"
 _JSON_PATH  = os.path.join(_HERE, "xbid_selected_model.json")
 _REPORT     = os.path.join(_HERE, "xbid_price_evaluation_report.md")
 _N_FOLDS    = 4
-_TEST_YEAR  = 2025
+_TEST_MONTHS = 12   # held-out test = the latest 12 months of real data
 
 
 def _feature_cols():
@@ -81,7 +83,10 @@ def _load_features() -> pd.DataFrame:
     df = df.merge(lag_df, on=["Date", "hour"], how="left")
     df["spread_lag_h1"] = grp["spread_EUR_MWh"].transform(lambda x: x.shift(1))
 
-    return df.dropna()
+    # "source" is a provenance label, not a feature: keep a real/synthetic flag
+    # so only observed rows are scored, then drop the label before dropna().
+    df["is_real"] = real_rows(df)
+    return df.drop(columns=["source"], errors="ignore").dropna()
 
 
 def evaluate_xbid() -> None:
@@ -89,8 +94,9 @@ def evaluate_xbid() -> None:
     df = _load_features()
     print(f"  Rows : {len(df):,}  ({df['Date'].min().date()} to {df['Date'].max().date()})")
 
-    train = df[df["Date"].dt.year <  _TEST_YEAR].copy()
-    test  = df[df["Date"].dt.year == _TEST_YEAR].copy()
+    train, test, test_start = last_months_split(df, "Date", _TEST_MONTHS)
+    train = train[train["is_real"]].copy()
+    test  = test[test["is_real"]].copy()
     print(f"  Train: {len(train):,} rows | Test: {len(test):,} rows")
 
     fcols = _feature_cols()
@@ -111,7 +117,7 @@ def evaluate_xbid() -> None:
 
     if selected in MODEL_NAMES:
         model = fit_selected(selected, X_tr, y_tr, fcols)
-        preds = model.predict(X_te)
+        preds = predict_autoregressive(model, test, fcols)   # as in live prediction
     else:
         preds = np.zeros_like(y_te)
 
@@ -120,7 +126,7 @@ def evaluate_xbid() -> None:
     naive_mae = _mae(y_te, naive_te)
     skill     = 1 - test_mae / naive_mae if naive_mae > 0 else 0.0
 
-    print(f"\nTest year {_TEST_YEAR} results:")
+    print(f"\nTest {test['Date'].min().date()} to {test['Date'].max().date()} results:")
     print(f"  Naive MAE  : {naive_mae:.4f} EUR/MWh")
     print(f"  {selected:<22}: {test_mae:.4f} EUR/MWh")
     print(f"  Skill score: {skill:+.1%}")
@@ -152,14 +158,16 @@ def evaluate_xbid() -> None:
         json.dump(info, f, indent=2)
     print(f"\nSaved: {_JSON_PATH}")
 
-    _write_report(selected, cv_mae, test_mae, naive_mae, skill, excel_last, test)
+    _write_report(selected, cv_mae, test_mae, naive_mae, skill, excel_last, test,
+                  f"{train['Date'].min().date()} to {train['Date'].max().date()}")
 
 
 def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float,
-                  skill: float, excel_last, test_df: pd.DataFrame) -> None:
+                  skill: float, excel_last, test_df: pd.DataFrame,
+                  cv_window: str) -> None:
     skill_note = "Positive skill: model improves on naive (XBID=DA) baseline"
     if skill < 0:
-        skill_note = "Negative skill: synthetic proxy data, expected. Model learns spread structure."
+        skill_note = "Negative skill: the model does not beat the naive (spread = 0) baseline on this window."
 
     lines = [
         f"# XBID Price Forecaster — Evaluation Report",
@@ -167,15 +175,14 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"Generated: {datetime.date.today()}",
         f"",
         f"## Data",
-        f"- Source: `xbid_training_data_2024_2025.xlsx` (synthetic XBID mid-price proxy)",
+        f"- Source: `xbid_training_data_2024_2025.xlsx` (OMIE continuous-intraday MedioPT price)",
         f"- Range : 2024-06-13 to {excel_last}",
         f"- Gate  : XBID continuous (H1-H24; closes 1h before each delivery period)",
-        f"- Note  : Real XBID order-book data requires commercial EPEX SPOT subscription.",
-        f"          Proxy = IDA3 clearing + OU spread noise (std ~14 EUR/MWh > IDA3 ~11).",
+        f"- Note  : XBID price = OMIE's volume-weighted Portuguese continuous-market mean (MedioPT).",
         f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)",
         f"- Target: spread = price_XBID - price_DA [EUR/MWh]",
         f"",
-        f"## Walk-forward CV (2024-06-13 to 2024-12-31, 4 folds)",
+        f"## Walk-forward CV ({cv_window}, {_N_FOLDS} folds, real rows only)",
         f"| Model | MAE EUR/MWh (spread) |",
         f"|---|---|",
     ]
@@ -185,7 +192,9 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
 
     lines += [
         f"",
-        f"## Hold-out Test ({_TEST_YEAR})",
+        f"## Hold-out Test ({test_df['Date'].min().date()} to {test_df['Date'].max().date()}, real rows only)",
+        f"Predicted hour by hour with the model's own previous-hour spread, exactly as the live forecaster does.",
+        f"",
         f"| Metric | Value |",
         f"|---|---|",
         f"| Naive MAE (spread=0) | {naive_mae:.4f} EUR/MWh |",

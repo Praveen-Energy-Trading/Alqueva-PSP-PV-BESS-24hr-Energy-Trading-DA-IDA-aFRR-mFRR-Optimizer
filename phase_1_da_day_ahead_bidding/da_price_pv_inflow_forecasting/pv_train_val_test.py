@@ -44,7 +44,7 @@ for _p in (_HERE, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv, real_rows
 from pv_power_forecaster import _load_history, _build_features, _feature_cols
 
 TEST_MONTHS = 12
@@ -217,7 +217,11 @@ def main() -> None:
     print("=" * 60)
     print("  Loading Alqueva plant sensor data and building features...")
 
-    full = _build_features(_load_history())
+    hist = _load_history()
+    full = _build_features(hist)
+    # Score only plant-sensor hours: SYNTHETIC gap-fill keeps the lags
+    # contiguous but is never a dev/test target.
+    full = full[full["datetime"].isin(hist.loc[real_rows(hist), "datetime"])]
     results = []
 
     for target_col, label, unit in [

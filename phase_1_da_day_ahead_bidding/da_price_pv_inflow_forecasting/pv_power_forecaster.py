@@ -39,6 +39,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from common_layer.utilities.date_utils import fill_end_date
+
 # Ensure this folder is on sys.path so ml_train_val_test_common resolves
 # whether imported from run_da.py / run_production.py or run directly
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -100,7 +102,7 @@ def _fill_gaps(delivery_date: str) -> None:
     T_amb. Idempotent: already-filled dates are skipped.
     """
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     df       = _load_excel()
     last_dt  = df["Date"].max() if not df.empty else pd.Timestamp("2014-12-31")
@@ -383,7 +385,20 @@ def _load_history() -> pd.DataFrame:
     return _cache["pv_history"]
 
 
+_excel_cache: dict = {}
+
+
 def _load_excel() -> pd.DataFrame:
+    # Cached by file modification time: the backtest calls this ~6x per day,
+    # and re-parsing the 100k-row workbook each time cost ~30 s per day.
+    mtime = os.path.getmtime(_EXCEL_PATH)
+    if _excel_cache.get("mtime") != mtime:
+        _excel_cache["df"] = _read_excel_uncached()
+        _excel_cache["mtime"] = mtime
+    return _excel_cache["df"].copy()
+
+
+def _read_excel_uncached() -> pd.DataFrame:
     df = pd.read_excel(_EXCEL_PATH, sheet_name=_SHEET)
     df.columns = [c.strip() for c in df.columns]
     # Normalise column names regardless of unit suffix in header
@@ -426,8 +441,11 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["lag_24h_GHI"]      = ghi.shift(24)
     out["lag_48h_GHI"]      = ghi.shift(48)
     out["lag_168h_GHI"]     = ghi.shift(168)
-    out["roll_mean_24h_GHI"]= ghi.shift(1).rolling(24).mean()
-    out["roll_std_24h_GHI"] = ghi.shift(1).rolling(24).std()
+    # Rolling windows end at the same hour yesterday: the forecast for day D is
+    # made on D-1, when no measurement of day D exists yet (a shift(1) window
+    # would leak earlier hours of the forecast day into training).
+    out["roll_mean_24h_GHI"]= ghi.shift(24).rolling(24).mean()
+    out["roll_std_24h_GHI"] = ghi.shift(24).rolling(24).std()
     out["lag_kt_24h"]       = out["kt"].shift(24)   # yesterday's cloud ratio
 
     # T_amb lag features
@@ -435,8 +453,8 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["lag_24h_T_amb"]      = t.shift(24)
     out["lag_48h_T_amb"]      = t.shift(48)
     out["lag_168h_T_amb"]     = t.shift(168)
-    out["roll_mean_24h_T_amb"]= t.shift(1).rolling(24).mean()
-    out["roll_std_24h_T_amb"] = t.shift(1).rolling(24).std()
+    out["roll_mean_24h_T_amb"]= t.shift(24).rolling(24).mean()
+    out["roll_std_24h_T_amb"] = t.shift(24).rolling(24).std()
 
     return out
 

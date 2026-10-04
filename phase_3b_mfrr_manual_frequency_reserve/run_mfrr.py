@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from common_layer.configuration import load_config, AppConfig
 from common_layer.utilities import get_logger, AuditLogger
+from common_layer.utilities import date_utils as du
 from common_layer.database import PositionStore, ReserveStore
 from phase_3b_mfrr_manual_frequency_reserve.mfrr_price_forecasting.mari_mfrr_price_loader import (
     fetch_mfrr_cap_prices,
@@ -84,7 +85,12 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
         return {"status": "CHECK_FAILED", "reason": str(e)}
     audit.log("MFRR_CHECK_PASSED", delivery_date=delivery_date)
 
-    revenue = sum(o.up_mw * o.cap_price_up_eur_mw + o.dn_mw * o.cap_price_dn_eur_mw
+    # Offers are keyed per settlement period and priced in EUR/MW per hour, so
+    # each period is weighted by its length (0.25 h for 15-min ISPs) -- without
+    # it a 96-ISP day overstates capacity revenue exactly 4x.
+    dt_h = (du.isp_duration_min(du.parse_date(delivery_date)) / 60.0
+            if len(offers) > 25 else 1.0)
+    revenue = sum((o.up_mw * o.cap_price_up_eur_mw + o.dn_mw * o.cap_price_dn_eur_mw) * dt_h
                   for o in offers.values())
     _print_offers(cfg, source, offers, committed, reserved_up, reserved_dn, revenue)
     if not no_pause:

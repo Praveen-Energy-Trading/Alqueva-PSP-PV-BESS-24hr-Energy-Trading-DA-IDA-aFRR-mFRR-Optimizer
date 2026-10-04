@@ -2,11 +2,13 @@
 backtest_report_exporter.py — write backtest results to Excel.
 
 One sheet of per-day rows plus an aggregate summary block. Output:
-<repo_root>/runtime/reports/backtest_<start>_<n>d.xlsx
+<repo_root>/runtime/reports/backtest_<start>_<n>d.xlsx, or the given filename
+(the rolling 1-year backtest writes backtest_rolling_365d.xlsx).
 """
 from __future__ import annotations
 
 import os
+from typing import Optional
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -25,7 +27,8 @@ def _repo_root() -> str:
     return os.path.abspath(os.path.join(here, os.pardir, os.pardir))
 
 
-def export_backtest(start_date: str, result: BacktestResult) -> str:
+def export_backtest(start_date: str, result: BacktestResult,
+                    filename: Optional[str] = None, title: Optional[str] = None) -> str:
     wb = Workbook()
     ws = wb.active
     ws.title = "Backtest"
@@ -38,7 +41,7 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
                "ida3_feasible", "realised_ida3_revenue_eur", "realised_ida3_price_source",
                "xbid_feasible", "realised_xbid_revenue_eur", "realised_xbid_price_source",
                "solve_sec", "price_mae", "price_rmse", "price_actual_source",
-               "pv_mae", "pv_actual_source", "note"]
+               "pv_mae", "pv_actual_source", "realised_total_pnl_eur", "note"]
     ws.append(headers)
     for c in ws[1]:
         c.font = Font(bold=True)
@@ -47,7 +50,7 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
 
     ws2 = wb.create_sheet("Summary")
     bold = Font(bold=True)
-    ws2["A1"] = f"Backtest summary — {start_date}, {result.n_days} days"
+    ws2["A1"] = title or f"Backtest summary — {start_date}, {result.n_days} days"
     ws2["A1"].font = Font(bold=True, size=13)
     for i, (label, val) in enumerate([
         ("Days", result.n_days),
@@ -82,15 +85,17 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
         ("Avg realised XBID revenue, real OMIE price (EUR)",
          round(result.avg_realised_xbid_revenue_eur, 2)
          if result.avg_realised_xbid_revenue_eur is not None else "unavailable"),
+        ("Avg realised daily P&L, real prices (DA energy + aFRR/mFRR capacity, EUR)",
+         round(result.risk.mean_pnl_eur, 2) if result.risk is not None else "unavailable"),
         ("Avg solve (s)", round(result.avg_solve_sec, 3)),
         ("Avg price MAE (EUR/MWh)", round(result.avg_price_mae, 2)),
         ("Avg PV MAE (MW) — PV actual always synthetic", round(result.avg_pv_mae, 4)),
         ("NOTE — out of scope", "Activation/imbalance revenue excluded: activated MW is "
          "always internally-simulated (no real REN/SCADA telemetry loader exists), so "
-         "it cannot meet the real-price x real-quantity standard used above. IDA3 has "
-         "only 7 real archived dates today (coverage from 2026-08-15) -- genuinely thin, "
-         "reported as such rather than padded. XBID is backtested at window W1 only "
-         "(production supports 6 continuous-intraday check windows)."),
+         "it cannot meet the real-price x real-quantity standard used above. Days OMIE "
+         "or REN did not publish are reported as unavailable, never padded. XBID is "
+         "backtested at window W1 only (production supports 6 continuous-intraday "
+         "check windows)."),
     ], start=3):
         ws2[f"A{i}"] = label; ws2[f"A{i}"].font = bold
         ws2[f"B{i}"] = val
@@ -98,10 +103,11 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
     # --- Risk sheet ---
     if result.risk is not None:
         wr = wb.create_sheet("Risk")
-        wr["A1"] = "Portfolio Risk Metrics"
+        wr["A1"] = "Portfolio Risk Metrics — Profit-at-Risk on realized daily P&L"
         wr["A1"].font = Font(bold=True, size=13)
-        wr["A2"] = f"Source: {result.risk.n_days} feasible backtest days  |  " \
-                   f"Bootstrap n=10,000  |  alpha=95% and 99%"
+        wr["A2"] = f"Source: {result.risk.n_days} real-price days (DA energy + aFRR/mFRR " \
+                   f"capacity, valued at real OMIE/REN prices)  |  Bootstrap n=10,000  |  " \
+                   f"alpha=95% and 99%  |  VaR/CVaR = low tail of daily profit, not a loss"
 
         risk_rows = [
             ("", ""),
@@ -128,11 +134,9 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
             ("VaR(99%)  std   (EUR)  ± CI",       result.risk.var_99_std),
             ("CVaR(99%) mean  (EUR)",             result.risk.cvar_99_mean),
             ("CVaR(99%) std   (EUR)  ± CI",       result.risk.cvar_99_std),
-            ("", ""),
-            ("--- Risk-Adjusted ---", ""),
-            ("Sharpe ratio (annualised, rf=0)",   result.risk.sharpe_ratio),
-            ("Max drawdown (EUR)",                result.risk.max_drawdown_eur),
         ]
+        # Sharpe ratio and max drawdown are left out: for a physical asset whose
+        # daily P&L is almost always positive they are not meaningful.
         for i, (label, val) in enumerate(risk_rows, start=4):
             wr[f"A{i}"] = label
             if label.startswith("---"):
@@ -194,7 +198,7 @@ def export_backtest(start_date: str, result: BacktestResult) -> str:
 
     out_dir = os.path.join(_repo_root(), "runtime", "reports")
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, f"backtest_{start_date}_{result.n_days}d.xlsx")
+    path = os.path.join(out_dir, filename or f"backtest_{start_date}_{result.n_days}d.xlsx")
     wb.save(path)
     return path
 

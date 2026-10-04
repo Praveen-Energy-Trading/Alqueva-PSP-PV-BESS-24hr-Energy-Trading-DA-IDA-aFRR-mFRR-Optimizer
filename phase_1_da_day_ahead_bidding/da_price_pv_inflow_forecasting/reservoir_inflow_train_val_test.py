@@ -40,7 +40,7 @@ for _p in (_HERE, _ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv
+from ml_train_val_test_common import fit_selected, MODEL_NAMES, mae, metrics, walk_forward_cv, real_rows
 from reservoir_inflow_forecaster import _load_history, _build_features, _feature_cols
 
 TEST_MONTHS = 12
@@ -55,7 +55,11 @@ _JSON_PATH  = os.path.join(_HERE, "inflow_selected_model.json")
 
 def evaluate_inflow() -> dict:
     """Chronological dev/test split → CV selection → single unbiased test eval."""
-    full  = _build_features(_load_history())
+    hist  = _load_history()
+    full  = _build_features(hist)
+    # Score only measured days: the climatology gap-fill keeps the lags
+    # contiguous but is never a dev/test target.
+    full  = full[full["Date"].isin(hist.loc[real_rows(hist), "Date"])]
     fcols = _feature_cols()
     data  = full.dropna(subset=fcols + ["inflow_m3h", "lag_1d"]).copy()
     data  = data.sort_values("Date").reset_index(drop=True)

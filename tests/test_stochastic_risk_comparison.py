@@ -11,6 +11,7 @@ real solve runs ONCE per test session, not once per assertion.
 """
 from __future__ import annotations
 
+import datetime
 from dataclasses import replace
 
 import pytest
@@ -22,13 +23,14 @@ from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import (
     run_stochastic_risk_comparison,
 )
 
+from common_layer.utilities.date_utils import portugal_today
 from tests.conftest import make_inputs
 
 # 2026-08-21 has confirmed real DA price coverage.
 _REAL_DA_DATE = "2026-08-21"
-# Genuinely future date, beyond the real DA archive's coverage (confirmed
-# real DA coverage runs up to 2026-08-28 as of this writing).
-_NO_REAL_DA_DATE = "2026-09-10"
+# A genuinely future date, so it can never have a real archived DA price.
+# (A fixed date stops being "future" once the archive catches up with it.)
+_NO_REAL_DA_DATE = (portugal_today() + datetime.timedelta(days=30)).isoformat()
 
 
 @pytest.fixture(scope="module")

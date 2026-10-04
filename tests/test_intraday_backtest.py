@@ -19,11 +19,13 @@ from tests.conftest import make_inputs
 
 # 2026-08-21 has confirmed real DA (OMIE_LIVE) and real IDA1 (OMIE_LIVE) coverage.
 _REAL_DA_AND_IDA1_DATE = "2026-08-21"
-# 2026-08-20 has confirmed real DA but IDA1 is one of the genuine gap dates
-# (SYNTHETIC) -- same precedent as the aFRR/mFRR backfill gaps.
-_REAL_DA_NO_REAL_IDA1_DATE = "2026-08-20"
-# 2025-10-01: real DA, but before IDA1's real-data span starts (2026-01-01).
-_REAL_DA_PRE_IDA1_DATE = "2025-10-01"
+# 2026-04-01 has real 15-min DA (the backtest's real-price span starts
+# 2025-10-01), but OMIE published an empty IDA1 file that day (no .2/.3
+# revision either) -- a genuine gap, labelled SYNTHETIC.
+_REAL_DA_NO_REAL_IDA1_DATE = "2026-04-01"
+# 2024-06-01: real DA, but before the IDA history starts (2024-06-13, when
+# MIBEL moved to the three SIDC intraday auctions).
+_REAL_DA_PRE_IDA1_DATE = "2024-06-01"
 # Genuinely future / never-real date.
 _NO_REAL_DATA_DATE = "2030-01-01"
 
@@ -120,7 +122,7 @@ def test_backtest_da_real_but_ida1_unavailable_reports_independently(cfg):
     if exe is None:
         pytest.skip("CPLEX not found — skipping intraday backtest integration tests")
 
-    res = run_backtest(_REAL_DA_PRE_IDA1_DATE, 1, cfg)
+    res = run_backtest(_REAL_DA_NO_REAL_IDA1_DATE, 1, cfg)
     row = res.rows[0]
     assert row["feasible"] is True
     assert row["realised_price_source"] == "OMIE_LIVE"

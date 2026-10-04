@@ -112,10 +112,10 @@ def _model_forecast(hours: List[int], delivery_date: str) -> Dict[int, float]:
     if len(history) < _WARMUP_HOURS:
         raise ValueError(f"Insufficient history ({len(history)} rows)")
 
-    # Append 24 placeholder rows for delivery_date.
-    # Prices initialised to Naive (lag_24h = same hour yesterday) so that
-    # rolling features (roll_mean_24h etc.) stay non-NaN for hours H2..H24.
-    # The actual prediction overwrites these values — they are never used as targets.
+    # Append 24 placeholder rows for delivery_date so the delivery-day feature
+    # rows exist. Every lag and rolling window ends at D-1 or earlier, so the
+    # placeholder prices (Naive = same hour yesterday) never feed a feature and
+    # are never used as targets.
     lag24 = df[df["datetime"].dt.date == (target_dt - pd.Timedelta(days=1)).date()
                ].set_index("hour")["price_DA_PT_EUR_MWh"]
     naive_prices = [float(lag24.get(h, lag24.mean())) for h in range(1, 25)]
@@ -263,10 +263,13 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["lag_168h"] = p.shift(168)
     out["lag_336h"] = p.shift(336)
 
-    # Rolling statistics (shift(1) ensures no same-hour leakage)
-    out["roll_mean_24h"]  = p.shift(1).rolling(24).mean()
-    out["roll_std_24h"]   = p.shift(1).rolling(24).std()
-    out["roll_mean_168h"] = p.shift(1).rolling(168).mean()
+    # Rolling statistics end at the same hour yesterday (shift(24)): the DA bid
+    # for day D is made on D-1, when no price of day D is known yet. A shift(1)
+    # window would include earlier hours of the delivery day -- available in
+    # training but only as placeholders live, which overstated CV accuracy.
+    out["roll_mean_24h"]  = p.shift(24).rolling(24).mean()
+    out["roll_std_24h"]   = p.shift(24).rolling(24).std()
+    out["roll_mean_168h"] = p.shift(24).rolling(168).mean()
 
     # Trend signal
     out["price_diff_24h"] = p.shift(24) - p.shift(48)
@@ -438,9 +441,11 @@ def _build_features_isp(df: pd.DataFrame) -> pd.DataFrame:
     out["lag_1w"]  = p.shift(672)
     out["lag_2w"]  = p.shift(1344)
 
-    out["roll_mean_1d"] = p.shift(1).rolling(96).mean()
-    out["roll_std_1d"]  = p.shift(1).rolling(96).std()
-    out["roll_mean_1w"] = p.shift(1).rolling(672).mean()
+    # Windows end at the same quarter-hour yesterday (shift(96)) so they use
+    # only prices known at the D-1 bid -- see the hourly _build_features.
+    out["roll_mean_1d"] = p.shift(96).rolling(96).mean()
+    out["roll_std_1d"]  = p.shift(96).rolling(96).std()
+    out["roll_mean_1w"] = p.shift(96).rolling(672).mean()
 
     out["price_diff_1d"] = p.shift(96) - p.shift(192)
 

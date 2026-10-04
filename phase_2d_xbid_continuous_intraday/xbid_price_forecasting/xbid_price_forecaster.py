@@ -1,18 +1,15 @@
 """
 xbid_price_forecaster.py — XBID continuous intraday price forecast.
 
-Spread model trained on XBID mid-price proxy data (H1-H24, 2024-2025). Full
-order-book depth requires a commercial EPEX SPOT subscription, but OMIE
-itself publishes a free, public per-period min/max/weighted-mean continuous-
-market price summary (see xbid_price_loader.py's update_training_data,
-verified against a live response) — the training data can be backfilled with
-real settled XBID prices, not just synthetic ones. The forecaster still uses
-IDA3 clearing price + microstructure noise as a fallback training target when
-live backfill data isn't available for a given date.
+Spread model trained on real XBID prices. Full order-book depth requires a
+commercial EPEX SPOT subscription, but OMIE publishes a free per-period
+min/max/volume-weighted-mean continuous-market price summary; its Portuguese
+weighted mean (MedioPT) is the XBID price used here.
 
 Training data: xbid_training_data_2024_2025.xlsx
-    13,608 rows · H1-H24 · 2024-06-13 to 2025-12-31
-    Source: synthetic XBID mid-price proxy (IDA3 + OU spread noise, std ~14 EUR/MWh)
+    H1-H24 · 2024-06-13 onward (rebuilt by tools/rebuild_real_market_history.py,
+    kept current by xbid_price_loader.update_training_data)
+    Source: OMIE precios_pibcic (MedioPT); hours without trades are labelled SYNTHETIC
 
 Spread std wider than IDA3 (~11 EUR/MWh): XBID is closer to delivery, more
 microstructure noise, no single clearing — consistent with market microstructure.

@@ -10,10 +10,11 @@ MARI supply/demand — NOT a fixed fraction of aFRR. Both markets are modelled a
 forecast independently.
 
 Training data: mfrr_training_data_2024_2025.xlsx
-    9,600 rows · H1-H24 · 2024-11-27 to 2025-12-31
-    Source: synthetic proxy anchored to European MARI mFRR price structure
-            (German/French MARI data; cap_up mean ~9-13 EUR/MW, cap_dn ~7-9 EUR/MW).
-    Real data available from MARI platform results and REN/eSIO portal.
+    H1-H24 · 2024-11-27 onward (rebuilt by tools/rebuild_real_market_history.py,
+    kept current by mari_mfrr_price_loader.update_training_data)
+    Source: REN mFRR price (mercadoservices.ren.pt MFRRPreco, AP_PRECO) -- an
+            activation price used as a documented proxy for both directions,
+            since REN publishes no separate mFRR up/down capacity price.
 
 Cap ceiling: 250 EUR/MW (REN regulatory cap). Floor: 0 EUR/MW.
 """

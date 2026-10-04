@@ -63,6 +63,23 @@ def portugal_today() -> dt.date:
     return dt.datetime.now(ZoneInfo("Europe/Lisbon")).date()
 
 
+def fill_end_date(delivery_date) -> dt.date:
+    """Last date a training-data update may write for `delivery_date`.
+
+    Normally the day before delivery, but never later than today in Portugal:
+    rows for future days cannot be real, and synthetic rows written ahead of
+    time make the file look "current" so later runs skip the real download.
+    Accepts 'YYYY-MM-DD', a date, or a pandas Timestamp.
+    """
+    if isinstance(delivery_date, str):
+        day = parse_date(delivery_date)
+    elif isinstance(delivery_date, dt.datetime):
+        day = delivery_date.date()
+    else:
+        day = delivery_date
+    return min(day - dt.timedelta(days=1), portugal_today())
+
+
 def hours_in_day(day: dt.date, tz_name: str = "Europe/Lisbon") -> int:
     """Number of clock hours in `day` accounting for DST (23/24/25)."""
     from zoneinfo import ZoneInfo

@@ -14,9 +14,9 @@ from phase_2d_xbid_continuous_intraday.xbid_milp_optimiser.xbid_optimiser import
 
 # 2026-08-21 has confirmed real DA/IDA1/IDA2/IDA3/XBID coverage.
 _REAL_ALL_GATES_DATE = "2026-08-21"
-# 2025-10-01: real DA, but before every intraday gate's real-data span
-# starts (2026-01-01).
-_REAL_DA_ONLY_DATE = "2025-10-01"
+# 2024-06-01: real DA, but before every intraday gate's history starts
+# (2024-06-13, MIBEL's three-auction SIDC regime).
+_REAL_DA_ONLY_DATE = "2024-06-01"
 
 
 def test_real_ida_price_xbid_returns_real_value():
@@ -58,17 +58,26 @@ def test_backtest_chains_xbid_after_ida3_on_real_coverage_date(cfg):
 
 
 @pytest.mark.integration
-def test_backtest_xbid_unavailable_before_real_data_span(cfg):
-    """DA reports real while XBID (and every intraday gate before it in
-    the chain) independently reports 'unavailable' -- never all-or-nothing,
-    same invariant already verified for every other real-price component."""
+def test_backtest_xbid_unavailable_reports_independently(cfg, monkeypatch):
+    """XBID must report 'unavailable' on its own while DA and the earlier
+    intraday gates stay real -- never all-or-nothing, same invariant already
+    verified for every other real-price component. OMIE has published XBID
+    for every day of the real 15-min DA span (2025-10-01 onward), so the
+    missing day is simulated by hiding only XBID's real price."""
     exe = cfg.solver.resolve_executable()
     if exe is None:
         pytest.skip("CPLEX not found — skipping XBID backtest integration tests")
 
-    res = run_backtest(_REAL_DA_ONLY_DATE, 1, cfg)
+    import phase_6_backtesting_and_validation.backtest_engine.backtest_runner as runner
+    real = runner.real_ida_price
+    monkeypatch.setattr(runner, "real_ida_price",
+                        lambda gate, date, hours: None if gate == "XBID" else real(gate, date, hours))
+
+    res = run_backtest(_REAL_ALL_GATES_DATE, 1, cfg)
     row = res.rows[0]
     assert row["feasible"] is True
     assert row["realised_price_source"] == "OMIE_LIVE"
+    assert row["realised_ida1_price_source"] == "OMIE_LIVE"
+    assert row["xbid_feasible"] is True
     assert row["realised_xbid_price_source"] == "unavailable"
     assert row["realised_xbid_revenue_eur"] is None

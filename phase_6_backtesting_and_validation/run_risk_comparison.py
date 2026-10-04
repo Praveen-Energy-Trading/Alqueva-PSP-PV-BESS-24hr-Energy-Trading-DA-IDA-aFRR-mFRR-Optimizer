@@ -33,8 +33,9 @@ from phase_6_backtesting_and_validation.backtest_excel_reports.backtest_report_e
 
 log = get_logger("phase6.risk_comparison")
 
-DEFAULT_START = "2026-08-21"
-DEFAULT_DAYS = 2
+# Same 1-year real-price window as run_backtest.py (2025-10-01 to 2026-09-30).
+DEFAULT_START = "2025-10-01"
+DEFAULT_DAYS = 365
 DEFAULT_CVAR_ALPHA = 0.90
 # 3, not 5: at real 96-ISP DA scale a 5-scenario CVaR MILP failed to reach a
 # good solution within a 300 s budget on a real date (confirmed by direct

@@ -8,9 +8,9 @@ Two separate models (LightGBM/XGBoost/RandomForest, best via CV), one per direct
            rises with surplus (low DA price, solar hours)
 
 Training data: afrr_training_data_2019_2025.xlsx
-    61,368 rows · H1-H24 · 2019-01-01 to 2025-12-31
-    Source: synthetic proxy anchored to REN/eSIO aFRR clearing price structure.
-    Real data available from ENTSO-E Transparency Platform and eSIO portal.
+    H1-H24 · 2019-01-01 onward (rebuilt by tools/rebuild_real_market_history.py,
+    kept current by picasso_afrr_price_loader.update_training_data)
+    Source: REN aFRR band clearing prices (mercadoservices.ren.pt BaFRRPreco).
 
 Cap ceiling: 250 EUR/MW (REN regulatory cap). Floor: 0 EUR/MW.
 """

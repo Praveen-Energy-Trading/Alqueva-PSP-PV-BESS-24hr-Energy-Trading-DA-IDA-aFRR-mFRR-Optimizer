@@ -16,9 +16,9 @@ from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import r
 # 2026-08-21/22 have confirmed real DA + IDA1 + IDA2 + IDA3 coverage (all
 # four archives overlap on these dates).
 _REAL_ALL_GATES_DATE = "2026-08-21"
-# 2026-08-01: real DA/IDA1/IDA2 coverage but before IDA3's real-data span
-# starts (2026-08-15) -- IDA3 must independently report "unavailable".
-_REAL_NO_IDA3_DATE = "2026-08-01"
+# 2026-04-01: real DA and IDA2, but OMIE published empty IDA1 and IDA3 files
+# that day -- each gate must report its own availability independently.
+_REAL_NO_IDA3_DATE = "2026-04-01"
 
 
 def test_real_ida_price_ida2_returns_real_value():
@@ -33,7 +33,7 @@ def test_real_ida_price_ida3_returns_real_value_on_covered_date():
     assert set(r.keys()) == set(range(1, 25))
 
 
-def test_real_ida_price_ida3_none_before_real_data_span():
+def test_real_ida_price_ida3_none_on_gap_date():
     assert real_ida_price("IDA3", _REAL_NO_IDA3_DATE, list(range(1, 25))) is None
 
 
@@ -56,10 +56,10 @@ def test_backtest_chains_all_three_intraday_gates_on_real_coverage_date(cfg):
 
 
 @pytest.mark.integration
-def test_backtest_ida3_unavailable_independently_before_its_real_span(cfg):
-    """DA/IDA1/IDA2 must report real while IDA3 independently reports
-    'unavailable' (pre-real-data date) -- never all-or-nothing across gates,
-    same invariant already verified for DA vs reserve capacity vs IDA1."""
+def test_backtest_gates_report_availability_independently(cfg):
+    """On a date where OMIE has no IDA1 and no IDA3 file but does have DA and
+    IDA2, each gate must report its own availability -- never all-or-nothing
+    across gates, same invariant already verified for DA vs reserve capacity."""
     exe = cfg.solver.resolve_executable()
     if exe is None:
         pytest.skip("CPLEX not found — skipping intraday backtest integration tests")
@@ -69,10 +69,12 @@ def test_backtest_ida3_unavailable_independently_before_its_real_span(cfg):
     assert row["feasible"] is True
     assert row["realised_price_source"] == "OMIE_LIVE"
     assert row["ida1_feasible"] is True
-    assert row["realised_ida1_price_source"] == "OMIE_LIVE"
+    assert row["realised_ida1_price_source"] == "unavailable"
+    assert row["realised_ida1_revenue_eur"] is None
+    # IDA2 still solves and is valued at its real price despite IDA1's gap.
     assert row["ida2_feasible"] is True
     assert row["realised_ida2_price_source"] == "OMIE_LIVE"
-    # IDA3 chain still solves (IDA2 was feasible) but has no real price yet.
+    # IDA3 chain still solves (IDA2 was feasible) but has no real price.
     assert row["ida3_feasible"] is True
     assert row["realised_ida3_price_source"] == "unavailable"
     assert row["realised_ida3_revenue_eur"] is None

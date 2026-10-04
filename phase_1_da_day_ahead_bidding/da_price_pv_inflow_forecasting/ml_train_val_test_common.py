@@ -229,3 +229,59 @@ def walk_forward_cv_extended(feat_df: pd.DataFrame, y: np.ndarray, lag: np.ndarr
         }
         for name in names
     }
+
+
+# ---------------------------------------------------------------------------
+# Honest offline evaluation helpers (used by every *_train_val_test.py)
+# ---------------------------------------------------------------------------
+
+_NOT_REAL_MARKERS = ("SYNTH", "GAP-FILL", "CLIMATOLOGY")
+
+
+def real_rows(df: pd.DataFrame, source_col: str = "source") -> pd.Series:
+    """Boolean mask of rows that hold genuinely observed data.
+
+    Gap-filled rows (labelled SYNTHETIC, or the inflow file's climatology
+    gap-fill) keep lag features contiguous, but must never be scored as if
+    they were real -- every evaluation filters its dev/test rows with this.
+    A frame without a source column is treated as all-real.
+    """
+    if source_col not in df.columns:
+        return pd.Series(True, index=df.index)
+    src = df[source_col].fillna("").astype(str).str.upper()
+    fake = np.zeros(len(df), dtype=bool)
+    for marker in _NOT_REAL_MARKERS:
+        fake |= src.str.contains(marker, regex=False).to_numpy()
+    return pd.Series(~fake, index=df.index)
+
+
+def last_months_split(df: pd.DataFrame, date_col: str, months: int):
+    """Chronological split: the final `months` of data are the held-out test.
+
+    Returns (dev, test, test_start).
+    """
+    test_start = pd.Timestamp(df[date_col].max()) - pd.DateOffset(months=months)
+    return df[df[date_col] < test_start], df[df[date_col] >= test_start], test_start
+
+
+def predict_autoregressive(model, test: pd.DataFrame, fcols: List[str],
+                           lag_col: str = "spread_lag_h1", hour_col: str = "hour",
+                           day_col: str = "Date") -> np.ndarray:
+    """Predict a test set hour by hour the way the live intraday forecasters do.
+
+    The previous-hour spread of the same delivery day is not known when an
+    auction is forecast (all hours clear together), so live prediction feeds
+    the model's OWN prediction for hour h-1 into `lag_col` (0.0 for the
+    day's first tradable hour). Scoring with the true lag instead would
+    overstate accuracy. Returns predictions aligned with `test`'s row order.
+    """
+    preds = pd.Series(np.nan, index=test.index)
+    prev: Dict = {}
+    for h in sorted(test[hour_col].unique()):
+        rows = test[test[hour_col] == h]
+        X = rows[fcols].copy()
+        X[lag_col] = [prev.get(d, 0.0) for d in rows[day_col]]
+        p = model.predict(X)
+        preds.loc[rows.index] = p
+        prev.update(dict(zip(rows[day_col], p)))
+    return preds.to_numpy()

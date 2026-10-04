@@ -29,7 +29,9 @@ log = get_logger("phase6.backtest")
 # command-line arguments (e.g. VS Code's Run button, F5).
 # Command-line --start/--days, if given, always override these.
 # ---------------------------------------------------------------------------
-DEFAULT_START = "2025-09-26"
+# Industry-standard 1-year window: every real 15-min OMIE DA day
+# (2025-10-01 onward) through 2026-09-30, with real data for all markets.
+DEFAULT_START = "2025-10-01"
 DEFAULT_DAYS = 365
 
 
@@ -107,15 +109,16 @@ def main():
     print(f"  NOTE: activation/imbalance revenue is OUT OF SCOPE — the activated MW is "
           f"always internally-simulated (no real REN/SCADA telemetry loader exists in "
           f"this project), so it can never be priced with the same real-price x real-"
-          f"quantity honesty standard as DA energy or reserve capacity above. IDA3 has "
-          f"only 7 real archived dates today (coverage from 2026-08-15) — genuinely thin, "
-          f"reported as such rather than padded. XBID is backtested at window W1 only "
-          f"(production supports 6 continuous-intraday check windows).")
+          f"quantity honesty standard as DA energy or reserve capacity above. Days OMIE "
+          f"or REN did not publish are reported as unavailable, never padded. XBID is "
+          f"backtested at window W1 only (production supports 6 continuous-intraday "
+          f"check windows).")
     print("=" * 64)
 
     if res.risk is not None:
         rm = res.risk
-        print("\n  PORTFOLIO RISK METRICS")
+        print("\n  PROFIT-AT-RISK  (realized daily P&L at real prices: DA energy + "
+              "aFRR/mFRR capacity)")
         print("  " + "-" * 62)
         print(f"  {'Mean daily P&L':<38} {rm.mean_pnl_eur:>14,.0f} EUR")
         print(f"  {'Std daily P&L':<38} {rm.std_pnl_eur:>14,.0f} EUR")
@@ -138,9 +141,6 @@ def main():
               f"{rm.var_99_std:,.0f} EUR")
         print(f"  {'  CVaR(99%) mean ± std':<38} {rm.cvar_99_mean:>14,.0f} ± "
               f"{rm.cvar_99_std:,.0f} EUR")
-        print()
-        print(f"  {'Sharpe ratio (annualised, rf=0)':<38} {rm.sharpe_ratio:>14.4f}")
-        print(f"  {'Max drawdown':<38} {rm.max_drawdown_eur:>14,.0f} EUR")
         print("  " + "-" * 62)
 
     if not args.no_excel:
@@ -149,6 +149,21 @@ def main():
             print(f"\n  Excel report: {path}")
         except Exception as exc:
             log.error(f"Excel export failed: {exc}")
+
+    # Seed the rolling 1-year backtest (pipeline phase 6E) with these days, so
+    # from now on each pipeline run only has to add the newly completed days.
+    try:
+        from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
+            upsert_rows, update_rolling_backtest,
+        )
+        n = upsert_rows(res.rows)
+        upd = update_rolling_backtest(cfg, max_new_days=0, refresh=False, resettle=False,
+                                      export=not args.no_excel)
+        print(f"  Rolling backtest: {n} day(s) stored; window "
+              f"{upd.window_first} -> {upd.window_last} ({upd.n_window_days} days)"
+              + (f"; report: {upd.report_path}" if upd.report_path else ""))
+    except Exception as exc:
+        log.error(f"Rolling backtest seeding failed: {exc}")
 
     audit.log("BACKTEST_DONE", days=res.n_days, feasible=res.n_feasible,
               checker_pass=res.n_checker_pass)

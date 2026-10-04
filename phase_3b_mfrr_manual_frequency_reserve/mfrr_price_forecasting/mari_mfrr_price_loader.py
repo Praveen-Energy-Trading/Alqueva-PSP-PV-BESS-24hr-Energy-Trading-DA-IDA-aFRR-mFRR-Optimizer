@@ -37,6 +37,8 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
+from common_layer.utilities.date_utils import fill_end_date
+
 from common_layer.configuration.config_loader import AppConfig
 from common_layer.utilities.logging_utils import get_logger
 from phase_3b_mfrr_manual_frequency_reserve.mfrr_price_forecasting.mfrr_price_forecaster import (
@@ -81,7 +83,7 @@ def update_training_data(delivery_date: str) -> None:
     to yesterday. Requires DA training data already current for the same
     dates (run_da's update_training_data runs first in the pipeline)."""
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     existing  = _load_excel(_TRAINING_XLSX, _TRAINING_SHEET)
     last_date = existing["Date"].max() if not existing.empty else pd.Timestamp("2024-11-26")
@@ -103,11 +105,17 @@ def update_training_data(delivery_date: str) -> None:
 
         try:
             price = _download_ren_mfrr(dt)
-            source = "REN_LIVE"
-            log.info(f"  {date_str} mFRR -> REN_LIVE downloaded")
+            # Hours without an activation price are filled with the day's mean
+            # of the real hours and labelled SYNTHETIC, rather than discarding
+            # the whole day.
+            fill = round(sum(price.values()) / len(price), 2)
+            sources = {h: "REN_LIVE" if h in price else "SYNTHETIC" for h in _HOURS}
+            price = {h: price.get(h, fill) for h in _HOURS}
+            log.info(f"  {date_str} mFRR -> REN_LIVE downloaded "
+                     f"({sum(s == 'REN_LIVE' for s in sources.values())}/24 hours real)")
         except Exception as exc:
             price = _synthetic_mfrr_prices(date_str, _HOURS)
-            source = "SYNTHETIC"
+            sources = {h: "SYNTHETIC" for h in _HOURS}
             log.warning(f"  {date_str} mFRR -> REN failed ({exc}), using SYNTHETIC")
 
         for h in _HOURS:
@@ -118,7 +126,7 @@ def update_training_data(delivery_date: str) -> None:
                 "price_DA_PT_EUR_MWh" : da_prices.get(h, 55.0),
                 "cap_up_EUR_MW"       : p,
                 "cap_dn_EUR_MW"       : p,
-                "source"              : source,
+                "source"              : sources[h],
             })
 
     updated = pd.concat([existing, pd.DataFrame(new_rows)], ignore_index=True)
@@ -167,12 +175,17 @@ def _download_ren_mfrr(dt: pd.Timestamp) -> Dict[int, float]:
             continue
         quarters[period] = float(p)
 
-    if len(quarters) < _N_QUARTERS:
-        raise ValueError(f"Incomplete mFRR price data: {len(quarters)} periods "
-                          f"(need {_N_QUARTERS})")
-
-    return {h: round(sum(quarters[(h - 1) * 4 + q] for q in range(1, 5)) / 4.0, 2)
-            for h in range(1, 25)}
+    # Quarters without an activation carry no AP_PRECO, so a day can be
+    # partial. Return every hour whose 4 quarters are all present; the caller
+    # fills (and labels) the rest.
+    hourly = {}
+    for h in range(1, 25):
+        qs = [quarters.get((h - 1) * 4 + q) for q in range(1, 5)]
+        if all(v is not None for v in qs):
+            hourly[h] = round(sum(qs) / 4.0, 2)
+    if not hourly:
+        raise ValueError(f"No complete mFRR price hour ({len(quarters)} quarter periods)")
+    return hourly
 
 
 # ---------------------------------------------------------------------------

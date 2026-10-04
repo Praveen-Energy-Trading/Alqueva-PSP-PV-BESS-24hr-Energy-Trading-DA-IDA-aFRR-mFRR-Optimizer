@@ -44,6 +44,8 @@ from typing import Dict, List
 
 import pandas as pd
 
+from common_layer.utilities.date_utils import fill_end_date
+
 _EXCEL_PATH     = os.path.join(os.path.dirname(__file__), "da_training_data_2020_2026.xlsx")
 _SHEET          = "DA_Price_2020_2026"
 _HOURS          = list(range(1, 25))
@@ -79,7 +81,7 @@ def update_training_data(delivery_date: str, zone: str = "PT") -> None:
     Called once per pipeline run — subsequent calls skip already-filled dates.
     """
     target_dt  = pd.Timestamp(delivery_date)
-    yesterday  = target_dt - pd.Timedelta(days=1)
+    yesterday  = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     existing   = _load_excel()
     last_date  = existing["Date"].max() if not existing.empty else pd.Timestamp("2019-12-31")
@@ -129,7 +131,7 @@ def update_isp_training_data(delivery_date: str, zone: str = "PT") -> None:
     OMIE data only exists from 2025-10-01 onward, so this file's history
     necessarily starts there rather than 2020 like the hourly one."""
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
     cutover = pd.Timestamp(_ISP_FORMAT_CUTOVER)
 
     existing = _load_excel_isp()
@@ -180,7 +182,7 @@ def _fill_synthetic_gap(delivery_date: str, zone: str = "PT") -> None:
     da_price_forecaster are always valid regardless of network availability.
     """
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     existing  = _load_excel()
     last_date = existing["Date"].max() if not existing.empty else pd.Timestamp("2019-12-31")
@@ -224,14 +226,16 @@ def _download_omie_da(delivery_date: str, hours: List[int],
     """Download and parse OMIE's daily marginal-price file. Raises on any failure.
 
     OMIE's current file format (verified against a live response):
-      - One data row per market, labelled "Precio marginal en el sistema
-        espanol (EUR/MWh)" — MIBEL has been a single coupled Iberian market
-        since 2007, so this is the PT price too; there is no separate PT row.
+      - One row per bidding zone: "Precio marginal en el sistema espanol" and
+        "Precio marginal en el sistema portugues" (EUR/MWh). The two are equal
+        while the interconnector is uncongested and split when it congests
+        (e.g. 2026-02-10: ES 4.69, PT 1.82 EUR/MWh daily mean), so the
+        Portuguese row is used — see _pt_price_line.
       - 96 quarter-hour columns (H1Q1..H24Q4), not 24 hourly columns.
       - Prices use European decimal-comma notation, e.g. "184,99".
     We average the 4 quarters within each hour to get the hourly price our
     hourly (dt_h=1.0) MILP model needs. `zone` is accepted for API
-    compatibility but currently unused (PT and ES clear at the same price).
+    compatibility but currently unused (Alqueva always settles in PT).
     """
     import requests
     yyyy, mm, dd = delivery_date.split("-")
@@ -241,13 +245,7 @@ def _download_omie_da(delivery_date: str, hours: List[int],
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
 
-    price_line = None
-    for line in resp.text.splitlines():
-        if "precio marginal" in line.lower():
-            price_line = line
-            break
-    if price_line is None:
-        raise ValueError("Marginal price row not found in OMIE file")
+    price_line = _pt_price_line(resp.text)
 
     parts = [p.strip() for p in price_line.split(";") if p.strip() != ""]
     values = [_parse_eur_comma(p) for p in parts[1:]]   # parts[0] is the row label
@@ -261,6 +259,25 @@ def _download_omie_da(delivery_date: str, hours: List[int],
         for h in range(1, 25)
     }
     return {h: hourly[h] for h in hours if h in hourly}
+
+
+def _pt_price_line(text: str) -> str:
+    """Return the Portuguese marginal-price row of an OMIE DA file.
+
+    Falls back to the first marginal-price row only when the file carries a
+    single coupled price (no separate Portuguese row).
+    """
+    first = None
+    for line in text.splitlines():
+        low = line.lower()
+        if "precio marginal" not in low:
+            continue
+        if "portug" in low:
+            return line
+        first = first or line
+    if first is None:
+        raise ValueError("Marginal price row not found in OMIE file")
+    return first
 
 
 def _parse_eur_comma(s: str) -> float:
@@ -280,13 +297,7 @@ def _download_omie_da_isp(delivery_date: str, zone: str) -> Dict[int, float]:
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
 
-    price_line = None
-    for line in resp.text.splitlines():
-        if "precio marginal" in line.lower():
-            price_line = line
-            break
-    if price_line is None:
-        raise ValueError("Marginal price row not found in OMIE file")
+    price_line = _pt_price_line(resp.text)
 
     parts = [p.strip() for p in price_line.split(";") if p.strip() != ""]
     values = [_parse_eur_comma(p) for p in parts[1:]]

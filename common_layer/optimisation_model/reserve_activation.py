@@ -279,9 +279,15 @@ def simulate_and_log_activation(product: str, delivery_date: str, cfg: AppConfig
         # reporting whatever it can physically deliver even if a tight
         # fat/headroom limit pushes it below the threshold for one ISP;
         # real ongoing regulation doesn't stop billing mid-hold.
-        if not is_hold_continuation and up < prof["min_activate_mw"] and dn < prof["min_activate_mw"]:
-            continue
-        if is_hold_continuation and up <= 1e-9 and dn <= 1e-9:
+        # Either way, a call that delivers nothing ends the activation: reset
+        # the hold state so it can't carry over (as a phantom hold or trailing
+        # grace) into later ISPs where an offer exists but ACE never called --
+        # e.g. a trigger in an ISP with 0 MW offered must not activate 3 ISPs on.
+        if (not is_hold_continuation and up < prof["min_activate_mw"] and dn < prof["min_activate_mw"]) \
+                or (is_hold_continuation and up <= 1e-9 and dn <= 1e-9):
+            current_dir = _DIR_NONE
+            hold_remaining = 0
+            trailing_left = 0
             continue
 
         # Update BESS SOC after this ISP's activation; clamp to configured limits.

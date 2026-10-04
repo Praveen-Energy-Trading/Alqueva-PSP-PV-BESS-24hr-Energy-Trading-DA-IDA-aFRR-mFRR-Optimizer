@@ -2,7 +2,7 @@
 
 Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL) — pumped-storage hydro, floating PV, and battery storage, bidding across DA, IDA, XBID, aFRR, and mFRR with full settlement and analytics.
 
-**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 19 pipeline phases · 1 shared MILP model**
+**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 20 pipeline phases · 1 shared MILP model**
 
 **Contents:** [Pipeline Architecture](#pipeline-architecture) · [Plant](#plant) · [Market Coverage](#market-coverage) · [Quick Start](#quick-start) · [Example Run](#example-run) · [Phase Reference](#phase-reference) · [Project Structure](#project-structure) · [Outputs](#outputs) · [Design Principles](#design-principles)
 
@@ -149,7 +149,8 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 | **Phase 5B, Reserve** | `run_reserve_settlement.py` | Capacity (hourly) + activation, `eff_isp_h` ramp-corrected, PICASSO + MARI |
 | **Phase 5C, Imbalance** | `run_imbalance_settlement.py` | Long→DA×0.85, Short→DA×1.20, REN imbalance prices |
 | **Phase 5D, Analytics** | `run_analytics.py` | Daily P&L, KPIs, 5-sheet Excel report, 9 production figures |
-| **Phase 6, Backtest** | `run_backtest.py` | Historical replay, forecast validation, MILP quality, portfolio risk |
+| **Phase 6E, Rolling backtest** | `rolling_backtest.py` | Runs after every pipeline: backtests each new completed day at real prices, refreshes late-published days, re-values the actual bids, updates the 1-year Profit-at-Risk report |
+| **Phase 6, Backtest** | `run_backtest.py` | Full 1-year real-price replay (seeds the rolling backtest), forecast validation, MILP quality, Profit-at-Risk on realized P&L |
 
 ---
 
@@ -161,7 +162,7 @@ Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │
-├── run_production.py                             # ◄ Master orchestrator — all 19 phases
+├── run_production.py                             # ◄ Master orchestrator — all 20 phases
 │
 ├── common_layer/                                 # Shared foundation — imported by every phase
 │   ├── configuration/
@@ -261,8 +262,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── xbid_price_forecasting/
 │   │   ├── xbid_price_forecaster.py
 │   │   ├── xbid_price_train_val_test.py
-│   │   ├── xbid_price_loader.py
-│   │   └── create_xbid_training_data.py
+│   │   └── xbid_price_loader.py                  #   OMIE continuous-intraday price loader
 │   ├── xbid_milp_optimiser/
 │   │   └── xbid_optimiser.py                     #   per-order caps, H-1 rolling
 │   └── xbid_bid_formatting/
@@ -273,8 +273,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── afrr_price_forecasting/
 │   │   ├── afrr_price_forecaster.py
 │   │   ├── afrr_price_train_val_test.py
-│   │   ├── picasso_afrr_price_loader.py          #   PICASSO live price loader
-│   │   └── create_afrr_training_data.py
+│   │   └── picasso_afrr_price_loader.py          #   PICASSO live price loader
 │   └── afrr_reserve_offer_builder/
 │       ├── afrr_offer_builder.py                 #   headroom → symmetric up/dn offers
 │       └── afrr_offer_checker.py                 #   FAT deliverability, cap ≤ 250 EUR/MW
@@ -284,8 +283,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── mfrr_price_forecasting/
 │   │   ├── mfrr_price_forecaster.py
 │   │   ├── mfrr_price_train_val_test.py
-│   │   ├── mari_mfrr_price_loader.py             #   MARI live price loader
-│   │   └── create_mfrr_training_data.py
+│   │   └── mari_mfrr_price_loader.py             #   MARI live price loader
 │   └── mfrr_reserve_offer_builder/
 │       ├── mfrr_offer_builder.py
 │       └── mfrr_offer_checker.py
@@ -352,13 +350,15 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── run_backtest.py
 │   ├── backtest_engine/
 │   │   ├── backtest_runner.py                    #   historical date-range replay
+│   │   ├── rolling_backtest.py                   #   phase 6E: rolling 1-year backtest
+│   │   ├── live_bid_resettlement.py              #   actual bids re-valued at real prices
 │   │   └── historical_data_loader.py             #   load historical prices / inflows
 │   ├── forecast_and_model_validation/
 │   │   ├── price_forecast_validator.py           #   DA / IDA price forecast accuracy
 │   │   ├── pv_forecast_validator.py              #   PV production forecast accuracy
 │   │   └── milp_solution_quality_checker.py      #   MIP gap, feasibility, solve time
 │   ├── risk_analytics/
-│   │   └── portfolio_risk_metrics.py             #   VaR, CVaR, revenue volatility
+│   │   └── portfolio_risk_metrics.py             #   Profit-at-Risk: VaR / CVaR of realized P&L
 │   └── backtest_excel_reports/
 │       └── backtest_report_exporter.py
 │
@@ -399,6 +399,9 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 ├── docs/                                         # ── Architecture Diagrams ─────────────────────────────
 │   ├── pipeline_architecture.png                 #   pipeline diagram (2× retina, 940 px)
 │   └── pipeline_architecture.svg                 #   same diagram as scalable SVG
+│
+├── tools/                                        # ── Data maintenance ──────────────────
+│   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
 └── requirements.txt                              # pip install -r requirements.txt
 ```

@@ -29,6 +29,8 @@ from typing import Dict, List
 
 import pandas as pd
 
+from common_layer.utilities.date_utils import fill_end_date
+
 from common_layer.utilities.logging_utils import get_logger
 from common_layer.utilities.timezone_utils import resolve_gate_time
 
@@ -111,7 +113,7 @@ def update_training_data(delivery_date: str) -> None:
     to yesterday. Requires DA training data already current for the same
     dates (run_da's update_training_data runs first in the pipeline)."""
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     existing  = _load_excel(_TRAINING_XLSX, _TRAINING_SHEET)
     last_date = existing["Date"].max() if not existing.empty else pd.Timestamp("2024-06-12")

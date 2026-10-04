@@ -38,6 +38,8 @@ from typing import Dict, List
 import numpy as np  # noqa: F401 — used in _build_features seasonal encoding
 import pandas as pd
 
+from common_layer.utilities.date_utils import fill_end_date
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
@@ -187,7 +189,7 @@ def _auto_select_model(feat_tr: pd.DataFrame) -> str:
 def _fill_gaps(delivery_date: str, res_cfg: ReservoirConfig) -> None:
     """Fill Excel with monthly climatological mean for any missing dates up to yesterday."""
     target_dt = pd.Timestamp(delivery_date)
-    yesterday = target_dt - pd.Timedelta(days=1)
+    yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
 
     df      = _load_excel()
     last_dt = df["Date"].max() if not df.empty else pd.Timestamp("2014-12-31")

@@ -1,17 +1,17 @@
 {
-  "selected": "LightGBM",
+  "selected": "RandomForest",
   "cv_mae": {
-    "LightGBM": 19.8056,
-    "XGBoost": 19.9652,
-    "RandomForest": 20.5015
+    "LightGBM": 28.5477,
+    "XGBoost": 28.5692,
+    "RandomForest": 25.139
   },
   "significance_top2": {
-    "best": "LightGBM",
-    "runner_up": "XGBoost",
-    "p_value": 1.0,
+    "best": "RandomForest",
+    "runner_up": "LightGBM",
+    "p_value": 0.125,
     "significant_at_0.05": false
   },
-  "data_end_date": "2026-09-28",
-  "updated_on": "2026-09-28",
+  "data_end_date": "2026-10-03",
+  "updated_on": "2026-10-03",
   "resolution": "15min_ISP"
 }

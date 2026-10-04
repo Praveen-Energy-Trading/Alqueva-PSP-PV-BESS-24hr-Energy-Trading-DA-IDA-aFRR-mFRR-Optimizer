@@ -87,3 +87,4 @@ phases:
   reserve_settlement:    true    # Phase 5B   — aFRR / mFRR reserve settlement
   imbalance_settlement:  true    # Phase 5C   — Imbalance settlement (REN balancing)
   analytics:             true    # Phase 5D   — Daily P&L + KPIs + Excel export
+  rolling_backtest:      true    # Phase 6E   — Rolling 1-year real-price backtest + P&L re-settlement
