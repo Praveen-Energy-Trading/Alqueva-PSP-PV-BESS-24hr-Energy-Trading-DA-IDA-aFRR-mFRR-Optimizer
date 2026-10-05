@@ -303,12 +303,25 @@ def forecast_da_prices_isp(isps: List[int], delivery_date: str,
         return _model_forecast_isp(isps, delivery_date)
     except Exception as exc:
         import warnings
-        warnings.warn(
-            f"[DA ISP Forecaster] Model failed ({exc}); using synthetic fallback. "
-            f"Check {_EXCEL_ISP_PATH} and dependencies.",
-            RuntimeWarning, stacklevel=2
-        )
-        return _synthetic_fallback_isp(isps, delivery_date, mean_level, amplitude)
+        # Next best: the hourly model (real OMIE history since 2020) applied to
+        # each quarter-hour of its hour -- e.g. the first 14 days after the
+        # 15-min history starts (2025-10-01), before the ISP model has warm-up.
+        try:
+            from common_layer.utilities import date_utils as du
+            day = pd.Timestamp(delivery_date).date()
+            hourly = _model_forecast(list(range(1, 25)), delivery_date)
+            prices = {isp: hourly.get(du.isp_to_hour(isp, day), hourly[max(hourly)]) for isp in isps}
+            warnings.warn(
+                f"[DA ISP Forecaster] {exc}; using the hourly DA model's forecast "
+                f"for each quarter-hour.", RuntimeWarning, stacklevel=2)
+            return prices
+        except Exception as exc_hourly:
+            warnings.warn(
+                f"[DA ISP Forecaster] Model failed ({exc}; hourly model: {exc_hourly}); "
+                f"using synthetic fallback. Check {_EXCEL_ISP_PATH} and dependencies.",
+                RuntimeWarning, stacklevel=2
+            )
+            return _synthetic_fallback_isp(isps, delivery_date, mean_level, amplitude)
 
 
 def _model_forecast_isp(isps: List[int], delivery_date: str) -> Dict[int, float]:

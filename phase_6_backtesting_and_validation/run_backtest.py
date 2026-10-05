@@ -192,7 +192,7 @@ def main():
     # from now on each pipeline run only has to add the newly completed days.
     try:
         from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
-            upsert_rows, update_rolling_backtest,
+            update_rolling_backtest,
         )
         n = upsert_rows(res.rows)
         upd = update_rolling_backtest(cfg, max_new_days=0, refresh=False, resettle=False,
