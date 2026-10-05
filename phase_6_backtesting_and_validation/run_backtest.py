@@ -4,6 +4,10 @@ run_backtest.py — Phase 6 backtest over a span of delivery days.
 Command line:
     python phase_6_backtesting_and_validation/run_backtest.py --start 2026-06-01 --days 7
 
+Each finished day is saved to the rolling backtest store at once and a progress
+line is printed. If a run is interrupted, re-run the same command with --resume
+to skip the days already saved.
+
 Or just edit DEFAULT_START / DEFAULT_DAYS below and hit Run (F5) / %runfile with
 no arguments — no command-line args needed for a quick local run.
 """
@@ -12,12 +16,24 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
+import warnings
+
+# scikit-learn prints this harmless compatibility notice once per Random Forest
+# tree batch on Python 3.14 -- thousands of lines per backtest day.
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from common_layer.configuration import load_config
 from common_layer.utilities import get_logger, AuditLogger
-from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import run_backtest
+from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import (
+    backtest_one_day, summarize_rows,
+)
+from phase_6_backtesting_and_validation.backtest_engine.historical_data_loader import date_range
+from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
+    load_store, upsert_rows,
+)
 from phase_6_backtesting_and_validation.backtest_excel_reports.backtest_report_exporter import (
     export_backtest,
 )
@@ -41,11 +57,33 @@ def main():
     p.add_argument("--days", type=int, default=DEFAULT_DAYS)
     p.add_argument("--config", default=None)
     p.add_argument("--no-excel", action="store_true")
+    p.add_argument("--resume", action="store_true",
+                   help="skip days already saved in the rolling backtest store")
     args = p.parse_args()
 
     cfg = load_config(args.config)
     audit = AuditLogger()
-    res = run_backtest(args.start, args.days, cfg)
+
+    days = date_range(args.start, args.days)
+    stored = load_store() if args.resume else {}
+    rows, n_run, t_start = [], 0, time.time()
+    print(f"  Backtesting {len(days)} day(s) from {args.start}"
+          + (f" ({sum(d in stored for d in days)} already saved, skipped)" if args.resume else ""),
+          flush=True)
+    for i, date in enumerate(days, start=1):
+        if date in stored:
+            rows.append(stored[date])
+            continue
+        t_day = time.time()
+        row = backtest_one_day(date, cfg)
+        upsert_rows([row])            # saved at once: an interruption loses at most one day
+        rows.append(row)
+        n_run += 1
+        per_day = (time.time() - t_start) / n_run
+        print(f"  [{i:>3}/{len(days)}] {date}  {time.time() - t_day:5.0f} s  |  "
+              f"avg {per_day / 60:.1f} min/day  |  ~{(len(days) - i) * per_day / 3600:.1f} h left",
+              flush=True)
+    res = summarize_rows(rows)
 
     print("\n" + "=" * 64)
     print(f"  BACKTEST  —  {args.start}  x {args.days} days")

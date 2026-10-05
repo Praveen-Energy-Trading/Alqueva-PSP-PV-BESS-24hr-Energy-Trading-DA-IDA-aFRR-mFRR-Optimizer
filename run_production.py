@@ -51,6 +51,12 @@ EXIT CODES
 """
 from __future__ import annotations
 
+import warnings
+
+# scikit-learn prints this harmless compatibility notice once per Random Forest
+# tree batch on Python 3.14 -- thousands of lines per run.
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
+
 import argparse
 import contextlib
 import io

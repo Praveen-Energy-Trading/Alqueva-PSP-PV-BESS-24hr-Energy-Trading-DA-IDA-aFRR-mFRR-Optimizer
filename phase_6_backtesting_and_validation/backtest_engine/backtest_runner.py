@@ -220,12 +220,52 @@ def realised_pnl(row: dict) -> Optional[float]:
                  + (row.get("realised_mfrr_capacity_eur") or 0.0), 2)
 
 
+# Forecaster modules that cache a trained model per delivery date in a
+# module-level `_cache` dict (key contains the date). Fine for one pipeline
+# day, but a 365-day backtest kept ~10 models per day alive (~26 GB by day
+# 137, paging the run to a crawl) -- release_day_models drops them per day.
+_FORECASTER_MODULES = (
+    "phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster",
+    "phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.pv_power_forecaster",
+    "phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.reservoir_inflow_forecaster",
+    "phase_2a_ida1_intraday_auction_1.ida1_price_forecasting.ida1_price_forecaster",
+    "phase_2b_ida2_intraday_auction_2.ida2_price_forecasting.ida2_price_forecaster",
+    "phase_2c_ida3_intraday_auction_3.ida3_price_forecasting.ida3_price_forecaster",
+    "phase_2d_xbid_continuous_intraday.xbid_price_forecasting.xbid_price_forecaster",
+    "phase_3a_afrr_automatic_frequency_reserve.afrr_price_forecasting.afrr_price_forecaster",
+    "phase_3b_mfrr_manual_frequency_reserve.mfrr_price_forecasting.mfrr_price_forecaster",
+)
+
+
+def release_day_models(date: str) -> int:
+    """Drop every forecaster cache entry keyed by `date` (trained models and
+    their selections). Shared history caches have no date in the key and are
+    kept. Returns the number of entries released."""
+    import sys
+    n = 0
+    for name in _FORECASTER_MODULES:
+        cache = getattr(sys.modules.get(name), "_cache", None)
+        if isinstance(cache, dict):
+            for key in [k for k in cache if isinstance(k, str) and date in k]:
+                del cache[key]
+                n += 1
+    return n
+
+
 def backtest_one_day(date: str, cfg: AppConfig) -> dict:
     """Backtest one delivery day: forecast-based bids, valued at real prices.
 
     Returns the per-day row used by run_backtest and the rolling backtest
-    (backtest_engine/rolling_backtest.py), so both stay identical.
+    (backtest_engine/rolling_backtest.py), so both stay identical. The day's
+    cached forecaster models are released afterwards (see release_day_models).
     """
+    try:
+        return _backtest_one_day(date, cfg)
+    finally:
+        release_day_models(date)
+
+
+def _backtest_one_day(date: str, cfg: AppConfig) -> dict:
     inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True)
     q = check_solution_quality(inputs, cfg)
 
