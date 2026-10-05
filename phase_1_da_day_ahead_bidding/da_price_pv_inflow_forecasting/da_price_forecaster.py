@@ -61,11 +61,13 @@ _cache: dict  = {}
 # ISP-resolution (15-min) forecaster -- real quarter-hour OMIE data only
 # exists from 2025-10-01 onward (see omie_da_price_loader.py's
 # _ISP_FORMAT_CUTOVER), so this trains on a separate, shorter history file
-# rather than the 2020-2026 hourly one. 336h warmup -> 1344 ISPs (14 days),
-# easily covered by the ~318 real days backfilled.
+# rather than the 2020-2026 hourly one. Warm-up = the 2-week lag window
+# (1344 ISPs) plus 6 weeks of rows to actually train on (4032 ISPs): with less,
+# the model would fit on a few days of data. Until then (the first ~8 weeks
+# after 2025-10-01) forecast_da_prices_isp uses the hourly model instead.
 _EXCEL_ISP_PATH  = os.path.join(_HERE, "da_training_data_isp_2025_2026.xlsx")
 _JSON_ISP_PATH   = os.path.join(_HERE, "da_selected_model_isp.json")
-_WARMUP_ISPS     = 1344
+_WARMUP_ISPS     = 1344 + 4032
 _cache_isp: dict = {}
 
 
@@ -347,6 +349,8 @@ def _model_forecast_isp(isps: List[int], delivery_date: str) -> Dict[int, float]
     train_df = full[full["datetime"] <= cutoff].dropna()
     pred_df = full[full["datetime"].dt.date == target_dt.date()].copy()
 
+    if train_df.empty:
+        raise ValueError(f"No ISP training rows after the lag window ({len(history)} history rows)")
     if pred_df.empty:
         raise ValueError(f"No ISP feature rows for {delivery_date}")
 

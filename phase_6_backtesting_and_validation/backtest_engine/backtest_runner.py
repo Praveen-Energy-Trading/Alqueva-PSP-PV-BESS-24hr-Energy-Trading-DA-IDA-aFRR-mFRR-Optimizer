@@ -244,11 +244,14 @@ def release_day_models(date: str) -> int:
     import sys
     n = 0
     for name in _FORECASTER_MODULES:
-        cache = getattr(sys.modules.get(name), "_cache", None)
-        if isinstance(cache, dict):
-            for key in [k for k in cache if isinstance(k, str) and date in k]:
-                del cache[key]
-                n += 1
+        module = sys.modules.get(name)
+        # every module-level cache dict (_cache, and e.g. the DA forecaster's _cache_isp)
+        for attr in [a for a in vars(module) if a.startswith("_cache")] if module else []:
+            cache = getattr(module, attr)
+            if isinstance(cache, dict):
+                for key in [k for k in cache if isinstance(k, str) and date in k]:
+                    del cache[key]
+                    n += 1
     return n
 
 
