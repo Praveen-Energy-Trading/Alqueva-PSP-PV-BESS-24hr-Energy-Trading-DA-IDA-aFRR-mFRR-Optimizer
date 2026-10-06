@@ -158,6 +158,13 @@ _SCROLL_RESTORE_JS = """
         if (!doc.__alquevaClickListenerAttached) {
             doc.addEventListener('mousedown', function() {
                 sessionStorage.setItem(clickKey, Date.now());
+                // Where the user is when they click is where they want to
+                // stay -- save it, so a later restore never jumps back to an
+                // older wheel-scroll position (e.g. after a scrollbar drag).
+                var m = doc.querySelector('section.main')
+                    || doc.querySelector('[data-testid="stMain"]')
+                    || doc.querySelector('[data-testid="stAppViewContainer"]');
+                if (m) { sessionStorage.setItem(key, m.scrollTop); }
             }, { capture: true, passive: true });
             doc.__alquevaClickListenerAttached = true;
         }

@@ -75,6 +75,101 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Plain st.tabs has no session_state key, so its selected tab is pure
+# client-side DOM state - a full script rerun (e.g. every auto-refresh
+# tick while a pipeline is live) always snaps it back to the first tab.
+# st.segmented_control is keyed in session_state, so the selection
+# survives reruns instead of visibly jumping back every couple of seconds.
+#
+# Each section is its own fragment, nested in the page's run_every
+# fragment: picking a tab reruns only that section. Before, a click reran
+# the whole Overview (every gate ticket, chart and replay widget), which
+# took seconds while the page rebuilt and scrolled up and down.
+@st.fragment
+def _render_section(title: str, cards: list, state_key: str) -> None:
+    if not cards:
+        return
+    st.markdown(f"##### {title}")
+    labels = [label for label, _ in cards]
+    if state_key not in st.session_state:
+        st.session_state[state_key] = labels[0]  # only seed on first render
+
+    if len(labels) > 1 and st.session_state[state_key] in labels:
+        selected = st.segmented_control(
+            title, labels, key=state_key, label_visibility="collapsed",
+        )
+    else:
+        # The remembered selection's data isn't in this refresh tick's list
+        # (e.g. a cache re-fetch briefly raced a mid-run write) -- render
+        # whatever we can without touching session_state, so the real
+        # selection is still there and resumes on its own once the data
+        # reappears, instead of being permanently knocked onto another tab.
+        selected = st.session_state[state_key]
+
+    render_fn = dict(cards).get(selected) or cards[0][1]
+    render_fn()
+    st.markdown("---")
+
+
+@st.fragment
+def _render_gate_positions(gate_pos: dict) -> None:
+    """Gate Position Evolution -- its own fragment for the same reason as
+    _render_section: switching gate tabs reruns only this chart."""
+    st.markdown("##### Gate Position Evolution")
+    gate_order = gate_pos["gate_order"]
+    gate_key = "overview_gate_pos_tab"
+    if gate_key not in st.session_state:
+        st.session_state[gate_key] = gate_order[0]
+    if st.session_state[gate_key] in gate_order:
+        selected_gate = st.segmented_control(
+            "Gate Position Evolution", gate_order, key=gate_key, label_visibility="collapsed",
+        )
+    else:
+        selected_gate = st.session_state[gate_key]
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                         row_heights=[0.6, 0.4])
+    if selected_gate == "DA":
+        fig.add_trace(go.Bar(x=gate_pos["hours"], y=gate_pos["gates_mw"]["DA"],
+                              name="Net MW", marker_color=theme.COLOR_GEN), row=1, col=1)
+        fig.add_trace(go.Scatter(x=gate_pos["hours"], y=gate_pos["gates_price"]["DA"],
+                                  name="Price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+        theme.style_fig(fig, height=460)
+        fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
+        fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
+        fig.update_xaxes(title_text="Hour", row=2, col=1)
+        st.plotly_chart(fig, width="stretch")
+        st.caption("**DA** is the fixed reference position -- every other gate below is "
+                   "shown as its deviation from this chart, not from each other.")
+    else:
+        n_diverged = gate_pos["diverged_isps"][selected_gate]
+        net_delta = gate_pos["net_mw_delta"][selected_gate]
+        if n_diverged == 0:
+            # An all-zero delta drawn as a chart -- bar or line -- is
+            # visually indistinguishable from an empty/broken widget (a
+            # flat line at 0 sits exactly on top of the 0 gridline). There
+            # is nothing to plot here, so say so plainly instead of
+            # rendering a graph that looks empty.
+            st.info(f"**{selected_gate}** held - position is unchanged from DA at every "
+                    f"ISP. Nothing to plot; the DA chart above is still the live position.")
+        else:
+            mw_d = gate_pos["gates_mw_delta"][selected_gate]
+            price_d = gate_pos["gates_price_delta"][selected_gate]
+            fig.add_trace(go.Bar(x=gate_pos["hours"], y=mw_d,
+                                  name="MW vs DA", marker_color=theme.COLOR_GEN), row=1, col=1)
+            fig.add_trace(go.Scatter(x=gate_pos["hours"], y=price_d, mode="lines",
+                                      name="Price vs DA (EUR/MWh)", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
+            fig.add_hline(y=0, line_color=theme.GRIDLINE, row=1, col=1)
+            fig.add_hline(y=0, line_color=theme.GRIDLINE, row=2, col=1)
+            theme.style_fig(fig, height=460)
+            fig.update_yaxes(title_text="MW vs DA", gridcolor=theme.GRIDLINE, row=1, col=1)
+            fig.update_yaxes(title_text="EUR/MWh vs DA", gridcolor=theme.GRIDLINE, row=2, col=1)
+            fig.update_xaxes(title_text="Hour", row=2, col=1)
+            st.plotly_chart(fig, width="stretch")
+            st.caption(f"**{selected_gate}** diverged from DA at **{n_diverged}** ISP(s), "
+                       f"net **{net_delta:+.1f} MW** vs the DA baseline.")
+    st.markdown("---")
+
+
 @st.fragment(run_every=theme.auto_refresh_interval())
 def _render() -> None:
     theme.inject_scroll_restore()
@@ -225,36 +320,6 @@ def _render() -> None:
     ]
     technical_cards = [c for c in technical_cards if c is not None]
 
-    # Plain st.tabs has no session_state key, so its selected tab is pure
-    # client-side DOM state - a full script rerun (e.g. every auto-refresh
-    # tick while a pipeline is live) always snaps it back to the first tab.
-    # st.segmented_control is keyed in session_state, so the selection
-    # survives reruns instead of visibly jumping back every couple of seconds.
-    def _render_section(title: str, cards: list, state_key: str) -> None:
-        if not cards:
-            return
-        st.markdown(f"##### {title}")
-        labels = [label for label, _ in cards]
-        if state_key not in st.session_state:
-            st.session_state[state_key] = labels[0]  # only seed on first render
-
-        if len(labels) > 1 and st.session_state[state_key] in labels:
-            selected = st.segmented_control(
-                title, labels, key=state_key, label_visibility="collapsed",
-            )
-        else:
-            # The remembered selection's data isn't in this refresh tick's list
-            # (e.g. a cache re-fetch briefly raced a mid-run write) -- render
-            # whatever we can without touching session_state, so the real
-            # selection is still there and resumes on its own once the data
-            # reappears, instead of being permanently knocked onto another tab.
-            selected = st.session_state[state_key]
-
-        render_fn = dict(cards).get(selected) or cards[0][1]
-        render_fn()
-        st.markdown("---")
-
-
     _render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
 
     # ---------------------------------------------------------------------------
@@ -267,59 +332,7 @@ def _render() -> None:
 
     gate_pos = data.load_gate_position_evolution(selected_date)
     if gate_pos:
-        st.markdown("##### Gate Position Evolution")
-        gate_order = gate_pos["gate_order"]
-        gate_key = "overview_gate_pos_tab"
-        if gate_key not in st.session_state:
-            st.session_state[gate_key] = gate_order[0]
-        if st.session_state[gate_key] in gate_order:
-            selected_gate = st.segmented_control(
-                "Gate Position Evolution", gate_order, key=gate_key, label_visibility="collapsed",
-            )
-        else:
-            selected_gate = st.session_state[gate_key]
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
-                             row_heights=[0.6, 0.4])
-        if selected_gate == "DA":
-            fig.add_trace(go.Bar(x=gate_pos["hours"], y=gate_pos["gates_mw"]["DA"],
-                                  name="Net MW", marker_color=theme.COLOR_GEN), row=1, col=1)
-            fig.add_trace(go.Scatter(x=gate_pos["hours"], y=gate_pos["gates_price"]["DA"],
-                                      name="Price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-            theme.style_fig(fig, height=460)
-            fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
-            fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
-            fig.update_xaxes(title_text="Hour", row=2, col=1)
-            st.plotly_chart(fig, width="stretch")
-            st.caption("**DA** is the fixed reference position -- every other gate below is "
-                       "shown as its deviation from this chart, not from each other.")
-        else:
-            n_diverged = gate_pos["diverged_isps"][selected_gate]
-            net_delta = gate_pos["net_mw_delta"][selected_gate]
-            if n_diverged == 0:
-                # An all-zero delta drawn as a chart -- bar or line -- is
-                # visually indistinguishable from an empty/broken widget (a
-                # flat line at 0 sits exactly on top of the 0 gridline). There
-                # is nothing to plot here, so say so plainly instead of
-                # rendering a graph that looks empty.
-                st.info(f"**{selected_gate}** held - position is unchanged from DA at every "
-                        f"ISP. Nothing to plot; the DA chart above is still the live position.")
-            else:
-                mw_d = gate_pos["gates_mw_delta"][selected_gate]
-                price_d = gate_pos["gates_price_delta"][selected_gate]
-                fig.add_trace(go.Bar(x=gate_pos["hours"], y=mw_d,
-                                      name="MW vs DA", marker_color=theme.COLOR_GEN), row=1, col=1)
-                fig.add_trace(go.Scatter(x=gate_pos["hours"], y=price_d, mode="lines",
-                                          name="Price vs DA (EUR/MWh)", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-                fig.add_hline(y=0, line_color=theme.GRIDLINE, row=1, col=1)
-                fig.add_hline(y=0, line_color=theme.GRIDLINE, row=2, col=1)
-                theme.style_fig(fig, height=460)
-                fig.update_yaxes(title_text="MW vs DA", gridcolor=theme.GRIDLINE, row=1, col=1)
-                fig.update_yaxes(title_text="EUR/MWh vs DA", gridcolor=theme.GRIDLINE, row=2, col=1)
-                fig.update_xaxes(title_text="Hour", row=2, col=1)
-                st.plotly_chart(fig, width="stretch")
-                st.caption(f"**{selected_gate}** diverged from DA at **{n_diverged}** ISP(s), "
-                           f"net **{net_delta:+.1f} MW** vs the DA baseline.")
-        st.markdown("---")
+        _render_gate_positions(gate_pos)
 
     if not report_ready:
         st.info(data.no_report_message(selected_date))
