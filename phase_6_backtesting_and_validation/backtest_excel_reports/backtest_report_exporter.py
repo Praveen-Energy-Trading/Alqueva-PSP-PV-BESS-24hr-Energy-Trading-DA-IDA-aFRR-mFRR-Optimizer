@@ -96,6 +96,12 @@ def export_backtest(start_date: str, result: BacktestResult,
          "or REN did not publish are reported as unavailable, never padded. XBID is "
          "backtested at window W1 only (production supports 6 continuous-intraday "
          "check windows)."),
+        ("NOTE — modelling assumptions", "Price-taker (no market impact). aFRR band offers "
+         "capped at config afrr.max_offer_up/dn_mw (95 MW, ~50% of an estimated national "
+         "requirement). mFRR is energy-only (config mfrr.capacity_payment = false): no "
+         "capacity payment is counted. All natural inflow is treated as available for "
+         "generation -- irrigation and environmental-flow withdrawals are not deducted, "
+         "so DA energy revenue is an upper bound."),
     ], start=3):
         ws2[f"A{i}"] = label; ws2[f"A{i}"].font = bold
         ws2[f"B{i}"] = val

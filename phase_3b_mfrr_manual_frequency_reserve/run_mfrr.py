@@ -69,6 +69,13 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
 
     hours = sorted(committed)
     cap_up, cap_dn, source = fetch_mfrr_cap_prices(hours, delivery_date, cfg, use_synthetic)
+    if not cfg.market.mfrr.capacity_payment:
+        # Energy-only (config mfrr.capacity_payment): the offers are still sized
+        # and can be activated -- activation energy is still earned -- but the
+        # capacity itself is not paid. See market.yaml for the evidence.
+        cap_up = {h: 0.0 for h in cap_up}
+        cap_dn = {h: 0.0 for h in cap_dn}
+        source = f"{source} / energy-only (no capacity payment)"
     # Real DA cleared price per hour - the energy-opportunity reference for
     # price-aware sizing (config mfrr.dynamic_allocation_enabled). Already
     # stored from the DA gate's own solve; no new forecast call needed.

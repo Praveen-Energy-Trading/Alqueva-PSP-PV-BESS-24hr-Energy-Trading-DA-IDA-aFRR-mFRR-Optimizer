@@ -156,6 +156,13 @@ def real_ren_capacity_price(
     cap_dn; otherwise None. Never returns a partially-real result.
     """
     global _afrr_cache, _mfrr_cache
+    if product == "mFRR":
+        from common_layer.configuration import load_config
+        if not load_config().market.mfrr.capacity_payment:
+            # Energy-only (config mfrr.capacity_payment): mFRR capacity is not
+            # paid, so its real capacity price is 0 on every day.
+            zero = {h: 0.0 for h in hours}
+            return zero, dict(zero)
     if product == "aFRR":
         path, sheet = _AFRR_EXCEL_PATH, _AFRR_SHEET
     elif product == "mFRR":

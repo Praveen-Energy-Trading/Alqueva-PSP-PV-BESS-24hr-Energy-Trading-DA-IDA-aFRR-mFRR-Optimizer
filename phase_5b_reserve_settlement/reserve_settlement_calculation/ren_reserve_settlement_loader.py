@@ -31,8 +31,16 @@ from common_layer.utilities.logging_utils import get_logger
 log = get_logger(__name__)
 
 
+def _mfrr_capacity_paid() -> bool:
+    from common_layer.configuration import load_config
+    return load_config().market.mfrr.capacity_payment
+
+
 def load_capacity_offer(delivery_date: str, product: str) -> Dict[int, dict]:
     offers = ReserveStore().load_reserve(delivery_date, product)
+    if product == "mFRR" and not _mfrr_capacity_paid():
+        # Energy-only (config mfrr.capacity_payment): capacity settles at 0.
+        return {h: {**o, "cap_up_eur_mw": 0.0, "cap_dn_eur_mw": 0.0} for h, o in offers.items()}
     real = _real_cap_prices(delivery_date, product, list(offers.keys()))
     if not real:
         return offers

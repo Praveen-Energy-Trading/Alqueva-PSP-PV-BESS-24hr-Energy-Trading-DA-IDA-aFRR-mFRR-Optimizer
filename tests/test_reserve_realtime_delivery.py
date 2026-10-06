@@ -651,7 +651,9 @@ class T22_CombinedPositivePnL(unittest.TestCase):
         )
 
     def test_capacity_revenue_from_both_products(self):
-        """Both products must contribute positive capacity payments (both offered)."""
+        """Every product whose capacity is paid must contribute a positive
+        capacity payment (both are offered). mFRR with capacity_payment=false
+        (energy-only, see market.yaml) must settle its capacity at exactly 0."""
         cfg = _ensure_pipeline()
         from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
@@ -660,6 +662,10 @@ class T22_CombinedPositivePnL(unittest.TestCase):
         isp_h = cfg.market.balancing.isp_duration_min / 60.0
         for product in ("aFRR", "mFRR"):
             result = settle_reserve(TEST_DATE, product, isp_h)
+            if product == "mFRR" and not cfg.market.mfrr.capacity_payment:
+                self.assertEqual(result.capacity_eur, 0.0,
+                                 f"mFRR is energy-only but settled {result.capacity_eur:.2f} EUR capacity")
+                continue
             self.assertGreater(
                 result.capacity_eur, 0.0,
                 f"{product}: capacity revenue {result.capacity_eur:.2f} EUR "

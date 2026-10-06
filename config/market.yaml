@@ -141,8 +141,18 @@ afrr:
   # cap equal to the plant's own nameplate envelope makes it a non-binding
   # safety ceiling instead of an arbitrary, revenue-suppressing one — the
   # physical/FAT limits remain the real, binding constraints, unchanged.
-  max_offer_up_mw: 524.4             # = plant.p_max_generation_mw (4x129.6 + 5 PV + 1 BESS)
-  max_offer_dn_mw: 447.4             # = plant.p_max_pump_mw (4x111.6 + 1 BESS)
+  #
+  # 2026-10: capped at 95 MW per direction. With the nameplate cap the plant
+  # sold ~+/-250 MW of aFRR band every hour at the clearing price -- more than
+  # Portugal's whole requirement, so the 1-year backtest's capacity revenue
+  # (~117 kEUR/day) assumed liquidity that does not exist. REN's band volume is
+  # not published in the services this project reads; the ENTSO-E sizing rule
+  # sqrt(a*Lmax + b^2) - b (a=10 MW, b=150 MW) with Portugal's ~9.5 GW peak load
+  # gives ~190 MW, and 95 MW is ~50% of it -- a large share, as large hydro
+  # supplies much of Portugal's aFRR. An ASSUMPTION: change it to the share the
+  # desk believes it can actually win.
+  max_offer_up_mw: 95.0
+  max_offer_dn_mw: 95.0
   cap_price_max_eur_mw: 250.0       # CONFIRMED REN mercado portal cap
   # dynamic_allocation_enabled: OFF by default - preserves today's fixed
   # headroom_fraction=1.0 behavior exactly. When true, the offered fraction
@@ -189,6 +199,17 @@ mfrr:
   # change it to reflect actual desk risk appetite, not a compliance target.
   max_offer_fraction: 0.20
   price_fraction_of_afrr: 0.40      # synthetic price fallback only
+  # capacity_payment: false = energy-only. mFRR offers are still sized and
+  # activated (activation energy is still earned), but no capacity payment is
+  # counted. Evidence (2026-10): the price this project downloads (REN
+  # MFRRPreco AP_PRECO) is the activation ENERGY price -- it equals the aFRR
+  # activation price P_SECPT_DESCER -- not a capacity price; and the only mFRR
+  # band data REN publishes (BmFRR) is a fixed-price contracted volume
+  # (~452-459 MW, constant for weeks, cost passed to consumers), i.e. the
+  # Procedimento 19 auction, not a daily price a generator earns. Using
+  # AP_PRECO as EUR/MW of capacity added a fictitious ~122 kEUR/day. Set true
+  # only with a real mFRR band price source and certified Pel for the plant.
+  capacity_payment: false
   # dynamic_allocation_enabled: OFF by default - preserves today's fixed
   # headroom_fraction=0.20 behavior exactly. See afrr.dynamic_allocation_enabled
   # above for what "true" does; max_offer_fraction above becomes the ceiling

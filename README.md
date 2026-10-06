@@ -449,3 +449,16 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 | **Timezone-correct** | Gate times in CET (Madrid), plant timestamps in WET/CET (Lisbon), DST handled automatically |
 | **Solver resilience** | CPLEX → HiGHS → CBC fallback, `SolveError` raised if no feasible solution within time limit |
 | **Fully restartable** | `--from-phase` resumes any run from any phase without re-running earlier phases |
+
+## Modelling Assumptions
+
+The P&L figures are an optimistic, price-taker estimate, not a forecast of what the plant would earn. What is assumed (all in `config/market.yaml`):
+
+| Assumption | Setting | Why |
+|---|---|---|
+| **Price-taker** | Bids never move the clearing price | Standard for a single-asset optimiser; real volumes would have some market impact |
+| **aFRR band cap** | `afrr.max_offer_up/dn_mw = 95` | Without it the plant sold ~±250 MW of band every hour, more than Portugal's whole requirement (~190 MW by the ENTSO-E sizing rule). 95 MW ≈ a 50% share — an assumption to tune |
+| **mFRR energy-only** | `mfrr.capacity_payment = false` | REN's `AP_PRECO` is an activation *energy* price, and REN publishes mFRR band only as a fixed-price contracted volume (Procedimento 19 auction), so no daily capacity payment is counted |
+| **Natural inflow** | All of it can be turbined | Irrigation (EFMA) and environmental-flow withdrawals are not deducted, so DA energy revenue is an upper bound |
+| **Activation / imbalance** | Simulated, not backtested at real prices | No real REN activation-volume (SCADA) source is available |
+

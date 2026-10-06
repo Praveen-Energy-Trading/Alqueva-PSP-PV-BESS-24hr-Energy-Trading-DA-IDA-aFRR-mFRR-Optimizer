@@ -147,6 +147,7 @@ class MFRRConfig:
     dynamic_allocation_enabled: bool  # off by default - price-aware sizing, opt-in
     min_offer_fraction: float         # floor when dynamic allocation is enabled
     assumed_duty_cycle_h: float       # avg activation duration, for EUR/MW -> EUR/MWh
+    capacity_payment: bool            # False = energy-only: offers stay, capacity paid at 0
 
     @staticmethod
     def from_dict(d: dict, fat_min: float) -> "MFRRConfig":
@@ -159,6 +160,7 @@ class MFRRConfig:
             dynamic_allocation_enabled=bool(d.get("dynamic_allocation_enabled", False)),
             min_offer_fraction=float(d.get("min_offer_fraction", 0.0)),
             assumed_duty_cycle_h=float(d.get("assumed_duty_cycle_h", 1.0)),
+            capacity_payment=bool(d.get("capacity_payment", True)),
         )
 
 
