@@ -252,12 +252,13 @@ mfrr:
   # Procedimento 19 auction, not a daily price a generator earns. Using
   # AP_PRECO as EUR/MW of capacity added a fictitious ~122 kEUR/day.
   #
-  # capacity_payment: true = FUTURE-BAND SCENARIO (not today's rules). Models the
-  # daily mFRR band that MPGGS Chapter XVI requires by 1 Apr 2027 (D+1, 15 min,
-  # pay-as-clear, open to any approved provider). No price exists yet, so the
-  # mFRR capacity is paid at the REAL aFRR band price (about 9.7 EUR/MW/h up and
-  # 8.8 down over Oct 2025 - Sep 2026). Label any result "future scenario".
-  capacity_payment: false
+  # capacity_payment: true (DEFAULT since 2026-10) = FUTURE-BAND SCENARIO, not today's
+  # rules. Models the daily mFRR band that MPGGS Chapter XVI requires by 1 Apr 2027
+  # (D+1, 15 min, pay-as-clear, open to any approved provider). No price exists yet,
+  # so the mFRR capacity is paid at the REAL aFRR band price (about 9.7 EUR/MW/h up
+  # and 8.8 down over Oct 2025 - Sep 2026). Label any result "future scenario".
+  # Set false for the strict today's-rules case (energy-only, band = EUR 0).
+  capacity_payment: true
   # dynamic_allocation_enabled: OFF by default - preserves today's fixed
   # headroom_fraction=1.0 behavior exactly. See afrr.dynamic_allocation_enabled
   # above for what "true" does; max_offer_fraction above becomes the ceiling

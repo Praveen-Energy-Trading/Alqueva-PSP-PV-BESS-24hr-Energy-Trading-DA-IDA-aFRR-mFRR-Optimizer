@@ -22,6 +22,9 @@ class SolverConfig:
     mip_gap: float
     threads: int
     time_limit_sec: Dict[str, int]
+    # Efficiency-surface adjacency (SOS2): "off" (default, legacy relaxation), "head", "full" or
+    # "auto" (head when CPLEX is active). See core_milp_builder._adjacency_form and solver.yaml.
+    efficiency_adjacency: str = "off"
 
     def time_limit_for(self, gate: str) -> int:
         """Return the time limit for a gate, falling back to the default."""
@@ -46,4 +49,5 @@ class SolverConfig:
             mip_gap=float(s["mip_gap"]),
             threads=int(s.get("threads", 0)),
             time_limit_sec={str(k): int(v) for k, v in s["time_limit_sec"].items()},
+            efficiency_adjacency=str(s.get("efficiency_adjacency", "off")).lower(),
         )

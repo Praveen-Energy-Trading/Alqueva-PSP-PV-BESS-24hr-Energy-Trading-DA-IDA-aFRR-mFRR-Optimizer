@@ -58,8 +58,9 @@ class TestConfiguredAllocation:
     def test_mfrr_offers_all_leftover_headroom(self, cfg):
         assert cfg.market.mfrr.max_offer_fraction == 1.0
 
-    def test_mfrr_band_is_unpaid_in_the_base_case(self, cfg):
-        assert cfg.market.mfrr.capacity_payment is False
+    def test_mfrr_band_is_paid_as_the_future_scenario_by_default(self, cfg):
+        # default since 2026-10: priced at the aFRR band price (see market.yaml)
+        assert cfg.market.mfrr.capacity_payment is True
 
 
 class TestPhysicalLimitsByMode:

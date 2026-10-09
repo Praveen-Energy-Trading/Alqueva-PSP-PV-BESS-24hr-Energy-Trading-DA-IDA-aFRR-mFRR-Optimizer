@@ -53,7 +53,7 @@ and the intraday stages keep the reserve MW already sold free.
 | Order | DA → aFRR → mFRR → IDA1/2/3 → XBID | Matches Art. 80(3) |
 | aFRR offer | Headroom left after DA, capped at 105 MW per direction (20% of the plant), none while idle | **Assumption** (about 37% of REN's observed ~280 MW band) |
 | mFRR offer | All headroom left after aFRR, capped at 74 MW per direction (14% of the plant) | Offering all of it follows the legal obligation for large generators (ROR Art. 49(5)(c)); the 74 MW size is an **assumption** |
-| mFRR payment | Base case: energy-only, band EUR 0. Switchable **future scenario**: band paid at the aFRR band price | Today's paid band is the quarterly/monthly auction won by consumers; the daily band only has to start by 1 Apr 2027 (Art. 453). See the mFRR section below. |
+| mFRR payment | Default: **future daily-band scenario**, band paid at the aFRR band price. Switch off for today's rules (energy-only, band EUR 0) | Today's paid band is the quarterly/monthly auction won by consumers; the daily band only has to start by 1 Apr 2027 (Art. 453). See the mFRR section below. |
 | Energy first, reserves second | DA solved before reserves | Matches the market sequence, because the DA schedule is fixed before the band result is known |
 
 ## Follow-up questions to expect
@@ -78,19 +78,18 @@ start a unit, so it can still be offered from standstill.
 must offer all their feasible power (Art. 144(4)). I could not confirm from
 public sources whether Alqueva is one of them, so I model it as voluntary.
 
-**"Why is mFRR not paid for capacity in your model?"** It is a conservative
-choice, not a rule. A paid mFRR capacity market exists in Portugal: the "BmFRR"
-auction run by ERSE (MPGGS Chapter XX). But it is not a daily market. It is bought
-a quarter or a month ahead, upward only, as a firm commitment for every 15
-minutes. In the Q4-2026 auction 180 MW was offered, the price ceiling was
-EUR 10/MW per quarter-hour (EUR 40/MW per hour), one offer area could bid at most
-40%, and at least 75% of the awarded volume had to come from consumption
-installations. In practice 13 industrial consumers took 165 MW of the 180 MW at
-the ceiling price, so almost nothing was left for a generator. The plant also
-needs its own offer area, a 15-minute eligibility test and collateral, and
-production units under a mandatory-participation duty are excluded. My daily
-pipeline cannot model a quarter-ahead auction, so I count only activation
-energy, which is the conservative choice.
+**"Your model shows mFRR capacity revenue. Is that real?"** It is a labelled
+**future scenario**, not today's rules. Portugal's rulebook requires a daily mFRR
+band (D+1, 15 minutes, pay-as-clear, open to any approved provider) by 1 April
+2027 (MPGGS Chapter XVI, Art. 453). No price exists yet, so I pay it at the real
+aFRR band price (about EUR 9.7/MW per hour up, 8.8 down). Today the paid mFRR
+band is the ERSE auction for a quarter or month, upward only, as a firm
+commitment for every 15 minutes. In the Q4-2026 auction 13 industrial consumers
+took 165 of 180 MW at the ceiling price of EUR 10/MW per quarter-hour, at least
+75% of the awarded volume must come from consumption, and production units under
+a mandatory-participation duty are excluded. So for a plant like Alqueva, today's
+real mFRR capacity income is about zero, and a switch in the config
+(`mfrr.capacity_payment: false`) shows that case.
 
 **"What do companies actually do in mFRR today?"** Two routes (details in the
 section below): industrial consumers sell the mFRR **band** through demand

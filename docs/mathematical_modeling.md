@@ -244,6 +244,24 @@ $$
 
 where $q^{trb}_{u,h}$ (m$^3$/h) is the turbine flow of unit $u$ in hour $h$ used in the reservoir water balance, and $H^{trb}_{u,h}$ is the McCormick auxiliary from Eq. 15, closing the link between the efficiency surface and the head model. Three analogous constraints (power, flow, head) apply to the pump mode using $\omega^{pmp}_{u,f,k,h}$, $c^{pmp}_{f,k}$, and $p^{pmp}_{u,h}$, $q^{pmp}_{u,h}$, $H^{pmp}_{u,h}$.
 
+**Adjacency (SOS2) on the turbine head axis — optional, off by default.** Equations 19–22 alone only force the weights to be a convex combination of the 25 grid cells. Because turbine power is a product of flow and head, a convex combination of non-neighbouring cells can read off more power per m$^3$ than the efficiency surface allows (about +2.6% on a heavy generation day; realised revenue effect measured at 0.5–1.1%). The standard fix (lambda formulation with SOS2 sets) restricts each marginal weight set to two neighbouring grid points. For the head axis:
+
+$$
+\lambda^{H}_{u,k,h} = \sum_{f \in F} \omega^{trb}_{u,f,k,h}, \qquad \{\lambda^{H}_{u,k,h}\}_{k \in K} \ \text{is an SOS2 set} \qquad \forall u \in U,\ h \in H \tag{22a}
+$$
+
+where $\lambda^{H}_{u,k,h} \geq 0$ is the weight on head grid point $k$ and the SOS2 condition allows at most two non-zero entries, which must be adjacent. It is implemented (`solver.efficiency_adjacency`: `off` default, `head`, `full`, `auto`) and needs CPLEX (native SOS2). `head` applies it to the turbine surface only (the pump optimiser wants less power, which the relaxation does not reward, measured +0.01%); `full` adds the flow axis and the pump surface. Measured on a heavy 15-minute day-ahead solve (10 Sep 2026):
+
+| Setting | Solve time | Turbine power above the surface |
+|---|---|---|
+| `off` (legacy, default) | 2.5 s | +2.64% |
+| `head` | 19 s | +0.05% |
+| `full` | 83–90 s | +0.01% |
+
+**Why it is off by default (known limitation).** On the 15-minute model with `head`: the day-ahead solve reached the 120 s limit on a heavy day (21 Aug 2026: 121.9 s), IDA1 and IDA2 took 73 s and 61 s of their 90 s limits, and IDA3 became infeasible because its frozen hours (H1–H11) could not be reproduced exactly under the tighter rule. Turning it on requires fixing the frozen-hour handling and the gate time limits first. Until then the turbine power of the default model can be a few percent above the continuous efficiency surface on heavy generation days.
+
+Reference: lambda formulation with SOS2 for piecewise-linear functions of several variables (Beale and Tomlin 1970; see also Vielma and Nemhauser 2011 for the modern formulations).
+
 ### C.5 BESS Constraints
 
 **Source:** `common_layer/optimisation_model/core_milp_builder.py`, constraints `bess_excl`, `chg_cap`, `dis_cap`, `pv_to_bess_cap`, `soc_balance`, `soc_lo`, `soc_hi`.

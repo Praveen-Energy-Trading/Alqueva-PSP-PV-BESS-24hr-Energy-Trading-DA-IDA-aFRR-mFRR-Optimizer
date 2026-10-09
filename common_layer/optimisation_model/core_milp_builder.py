@@ -168,6 +168,85 @@ def _efficiency_surface(flow_grid: List[float], head_grid: List[float],
     return table
 
 
+def _adjacency_form(cfg: AppConfig) -> str:
+    """'head' | 'full' | 'off' for the efficiency-surface adjacency rule.
+
+    config solver.efficiency_adjacency:
+      "auto" -> 'head' when CPLEX is the solver that will run, 'off' otherwise (with a
+                warning; HiGHS through Pyomo has no SOS support).
+      "head" -> SOS2 on the head axis of the TURBINE surface only (default choice).
+      "full" -> SOS2 on both axes for turbine and pump (most exact, much slower).
+      "off"  -> legacy convex-combination relaxation.
+
+    Measured on a heavy 15-minute day (10 Sep 2026, DA solve): no rule 2.5 s and turbine
+    power +2.64% above the surface; 'head' 19 s and +0.05%; 'full' 83-90 s and +0.01%.
+    The pump needs no rule: its optimiser wants LESS power, which the relaxation does
+    not reward (measured +0.01%)."""
+    mode = str(getattr(cfg.solver, "efficiency_adjacency", "auto")).lower()
+    if mode in ("head", "full", "off"):
+        return mode
+    if mode != "auto":
+        raise ValueError(f"solver.efficiency_adjacency must be auto|head|full|off, got {mode!r}")
+    try:
+        from common_layer.optimisation_model.core_milp_solver import _select_solver
+        sel = _select_solver(cfg)
+    except Exception:
+        sel = None
+    if sel is not None and sel[0] == "cplex":
+        return "head"
+    _warn_adjacency_off()
+    return "off"
+
+
+_ADJ_WARNED = False
+
+
+def _warn_adjacency_off() -> None:
+    global _ADJ_WARNED
+    if not _ADJ_WARNED:
+        _ADJ_WARNED = True
+        print("[model] CPLEX not active: efficiency-surface adjacency (SOS2) is OFF, so "
+              "turbine power may be overstated by ~2-3% on heavy generation days.")
+
+
+def _add_efficiency_adjacency(m, tag: str, omega, on, FI, HI, outer: tuple, form: str,
+                               axes: str = "fh") -> None:
+    """Keep the interpolation weights omega on ONE cell of the flow x head grid.
+
+    Without this, omega is only a convex combination (sum = on-status), so the
+    optimiser may blend non-neighbouring grid points and read off more power per m3
+    of water than the efficiency surface allows (turbine power overstated ~2.6% on a
+    heavy generation day). Standard fix (lambda formulation): the marginal weights
+    along the flow axis and along the head axis must each be an SOS2 set -- at most
+    two non-zero entries and they must be neighbours -- which confines omega to one
+    rectangle (cell) of the grid.
+
+    outer = index sets omega carries besides (FI, HI), in omega's own order:
+    (m.U, m.H) for the deterministic model, (m.U, m.H, m.S) for the stochastic one.
+    """
+    if form == "off":
+        return
+    nf, nh = len(FI), len(HI)
+    if "f" in axes:
+        lam_f = pyo.Var(m.U, FI, *outer[1:], domain=pyo.NonNegativeReals)
+        setattr(m, f"lamf_{tag}", lam_f)
+        setattr(m, f"lamf_def_{tag}", pyo.Constraint(
+            m.U, FI, *outer[1:],
+            rule=lambda mm, u, fi, h, *r: lam_f[u, fi, h, *r] == sum(omega[u, fi, hi, h, *r] for hi in HI)))
+        setattr(m, f"sosf_{tag}", pyo.SOSConstraint(
+            m.U, *outer[1:], sos=2,
+            rule=lambda mm, u, h, *r: ([lam_f[u, fi, h, *r] for fi in FI], list(range(1, nf + 1)))))
+    if "h" in axes:
+        lam_h = pyo.Var(m.U, HI, *outer[1:], domain=pyo.NonNegativeReals)
+        setattr(m, f"lamh_{tag}", lam_h)
+        setattr(m, f"lamh_def_{tag}", pyo.Constraint(
+            m.U, HI, *outer[1:],
+            rule=lambda mm, u, hi, h, *r: lam_h[u, hi, h, *r] == sum(omega[u, fi, hi, h, *r] for fi in FI)))
+        setattr(m, f"sosh_{tag}", pyo.SOSConstraint(
+            m.U, *outer[1:], sos=2,
+            rule=lambda mm, u, h, *r: ([lam_h[u, hi, h, *r] for hi in HI], list(range(1, nh + 1)))))
+
+
 def build_core_model(
     inputs: dict,
     cfg: AppConfig,
@@ -411,6 +490,13 @@ def build_core_model(
         rule=lambda mm, u, h:
             sum(mm.omega_pmp[u, fi, hi, h] for fi in FI for hi in HI)
             == mm.on_pump[u, h])
+
+    # Adjacency: keep each unit's weights on one grid cell (SOS2 or binary segments).
+    _form = _adjacency_form(cfg)
+    _add_efficiency_adjacency(m, "trb", m.omega_trb, m.on_turb, FI, HI, (m.U, m.H), _form,
+                              axes="h" if _form == "head" else "fh")
+    if _form == "full":
+        _add_efficiency_adjacency(m, "pmp", m.omega_pmp, m.on_pump, FI, HI, (m.U, m.H), _form)
 
     # Power from efficiency surface: Σ ω·pwr_coeff = p_turb / p_pump.
     m.omega_trb_pwr = pyo.Constraint(m.U, m.H,
@@ -798,6 +884,12 @@ def build_core_model_stochastic(
         rule=lambda mm, u, h, s:
             sum(mm.omega_pmp[u, fi, hi, h, s] for fi in FI for hi in HI)
             == mm.on_pump[u, h, s])
+
+    _form = _adjacency_form(cfg)
+    _add_efficiency_adjacency(m, "trb", m.omega_trb, m.on_turb, FI, HI, (m.U, m.H, m.S), _form,
+                              axes="h" if _form == "head" else "fh")
+    if _form == "full":
+        _add_efficiency_adjacency(m, "pmp", m.omega_pmp, m.on_pump, FI, HI, (m.U, m.H, m.S), _form)
 
     m.omega_trb_pwr = pyo.Constraint(m.U, m.H, m.S,
         rule=lambda mm, u, h, s:

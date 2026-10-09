@@ -81,19 +81,19 @@ EUR 250/MW ceiling. The real market pays every accepted MW the **last accepted
 price** (pay-as-clear, Art. 151).
 
 **mFRR capacity has two settings** (`mfrr.capacity_payment`):
-- `false` (**base case**): energy-only, band = EUR 0. Matches today's rules: the
-  paid mFRR band is the quarterly/monthly ERSE auction, won by consumers, and
-  plants under a mandatory mFRR duty are excluded (MPGGS Art. 257).
-- `true` (**future scenario, not today's rules**): the daily mFRR band that
-  MPGGS Chapter XVI requires by 1 Apr 2027 (Art. 453). No price exists yet, so it
-  is paid at the **real aFRR band price** (about EUR 9.7/MW/h up, 8.8 down over
-  Oct 2025 - Sep 2026). Label any result "future scenario".
+- `true` (**default**, a **future scenario, not today's rules**): the daily mFRR
+  band that MPGGS Chapter XVI requires by 1 Apr 2027 (Art. 453). No price exists
+  yet, so it is paid at the **real aFRR band price** (about EUR 9.7/MW/h up, 8.8
+  down over Oct 2025 - Sep 2026). Label any result "future scenario".
+- `false` (strict today's rules): energy-only, band = EUR 0. Today the paid mFRR
+  band is the quarterly/monthly ERSE auction, won by consumers, and plants under a
+  mandatory mFRR duty are excluded (MPGGS Art. 257).
 
 mFRR activation energy is earned in both cases.
 
 **One-line summary**:
 energy first -> FCR reserved -> aFRR takes first bite of the headroom (105 MW cap, none
-while idle) -> mFRR takes all that is left (74 MW cap, energy-only in the base case). Strict priority cascade, no
+while idle) -> mFRR takes all that is left (74 MW cap, a paid future-band scenario by default, EUR 0 if switched off). Strict priority cascade, no
 double-counting. The intraday auctions (IDA1/2/3, XBID) then re-optimise with the
 sold reserve MW kept free.
 
@@ -162,7 +162,7 @@ The mFRR FAT (12.5 min) does two separate jobs:
 | mFRR offers all leftover headroom | Follows the legal obligation for large generators (ROR Art. 49(5)(c)) |
 | No aFRR while idle | **Modelling rule** (needs a running unit); 57 MW minimum stable load not modelled |
 | 5 MW FCR hold-back | **Assumption** |
-| mFRR energy-only (base case) | Matches today's rules; the future daily band (from Apr 2027) is a switchable scenario |
+| mFRR capacity paid at the aFRR band price | **Scenario** for the daily band required from Apr 2027; switch `mfrr.capacity_payment` to false for today's rules (EUR 0) |
 
 ---
 
@@ -182,7 +182,7 @@ The complete tables are printed by the pipeline (phases 2 and 3) and saved in
 | | Result |
 |---|---|
 | Expected aFRR capacity revenue | EUR 59,366 |
-| Expected mFRR capacity revenue | EUR 0 (energy-only base case) |
+| Expected mFRR capacity revenue | EUR 42,384 (future daily-band scenario, paid at the aFRR band price; EUR 0 if `capacity_payment` is false) |
 
 Why these shapes: while pumping near full draw there is almost no room to pump
 more (aFRR down only 19 MW); while turbining near full load there is almost no room

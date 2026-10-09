@@ -14,6 +14,21 @@ import data
 import dispatch_ticket
 import theme
 
+
+def _mfrr_capacity_caption() -> str:
+    """Say how the mFRR capacity line is priced (config mfrr.capacity_payment)."""
+    try:
+        import yaml
+        cfg_path = Path(__file__).resolve().parents[2] / "config" / "market.yaml"
+        paid = bool(yaml.safe_load(cfg_path.read_text(encoding="utf-8"))["mfrr"]["capacity_payment"])
+    except Exception:
+        return ""
+    if paid:
+        return ("mFRR capacity is a **future-band scenario**: the daily mFRR band required "
+                "from Apr 2027 (MPGGS Ch. XVI), paid at the real aFRR band price. Today's "
+                "market pays no such band to a large generator.")
+    return "mFRR capacity is energy-only (band not paid), matching today's rules."
+
 st.title("💰 Trading Desk")
 
 @st.fragment(run_every=theme.auto_refresh_interval())
@@ -61,6 +76,9 @@ def _render() -> None:
     ]
     st.subheader("P&L Breakdown")
     components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
+    _caption = _mfrr_capacity_caption()
+    if _caption:
+        st.caption(_caption)
 
     # ---------------------------------------------------------------------------
     # Real-price re-settlement: the SAME committed bid above, valued against
