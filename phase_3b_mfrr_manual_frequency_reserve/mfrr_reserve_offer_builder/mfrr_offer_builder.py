@@ -48,9 +48,10 @@ def build_mfrr_offers(committed_net: Dict[int, float],
         cap_prices_dn=cap_dn,
         cfg=cfg,
         fat_min=mf.fat_min,                          # 12.5 min
-        max_up_mw=cfg.market.afrr.max_offer_up_mw,   # mFRR shares the aFRR market-size cap; no separate config field
-        max_dn_mw=cfg.market.afrr.max_offer_dn_mw,
-        headroom_fraction=mf.max_offer_fraction,     # 0.20 of remaining headroom
+        # mFRR has its own size cap (14% of the plant); falls back to the aFRR cap if unset
+        max_up_mw=mf.max_offer_up_mw if mf.max_offer_up_mw is not None else cfg.market.afrr.max_offer_up_mw,
+        max_dn_mw=mf.max_offer_dn_mw if mf.max_offer_dn_mw is not None else cfg.market.afrr.max_offer_dn_mw,
+        headroom_fraction=mf.max_offer_fraction,     # share of the headroom left after aFRR
         reserved_up=reserved_up,                     # subtract aFRR commitment
         reserved_dn=reserved_dn,
         headroom_fraction_by_hour=fraction_by_hour,

@@ -11,9 +11,10 @@ checked. Anything that is our own modelling choice is labelled **assumption**.
 > markets for the next day, and I offer the headroom the energy schedule has
 > left, up and down separately, to whichever product pays more per MW. The
 > grid operator sets the national need, so my share depends on where my offer
-> falls in the merit order. In my model I cap aFRR at 95 MW per direction, about
-> half of an estimated 190 MW national need. That is an assumption, not a
-> published figure.
+> falls in the merit order. In my replica I fixed the split of the 524 MW plant at
+> 65% day-ahead energy, 20% aFRR, 14% mFRR and 1% FCR. That is an assumption,
+> checked against REN's observed secondary-reserve band of about 280 MW, not a
+> published percentage. In real operation it changes every period.
 
 ## The order of the day (Art. 80(3))
 
@@ -31,7 +32,7 @@ and the intraday stages keep the reserve MW already sold free.
 
 | Layer | Who decides | Rule |
 |---|---|---|
-| **FCR** | Grid operator, yearly | Mandatory and **not paid**. Portugal's share of the European FCR is set by its previous-year energy production (Art. 68). Our model holds back 5 MW (**assumption**). |
+| **FCR** | Grid operator, yearly | Mandatory and **not paid**. Portugal's share of the European FCR is set by its previous-year energy production (Art. 68). Our model holds back 5 MW = 1% (**assumption**). |
 | **System need for aFRR / mFRR** | Grid operator, per 15 min | aFRR: sized to cover 99% of historical frequency deviations, up and down separately (Art. 145). mFRR up: largest single loss + 2% of load + 10% of wind + 5% of solar (Art. 70). Both are **inelastic** (fixed, not price-dependent). |
 | **My share** | Auction | Offers in €/MW per 15 min, minimum 1 MW. Cheapest offers are taken until the need is met (±5%), and every accepted MW is paid the **last accepted price** (Art. 149, 151). The contract is firm, with penalties for not delivering. |
 
@@ -50,9 +51,9 @@ and the intraday stages keep the reserve MW already sold free.
 | Item | Setting | Status |
 |---|---|---|
 | Order | DA → aFRR → mFRR → IDA1/2/3 → XBID | Matches Art. 80(3) |
-| aFRR offer | Headroom left after DA, capped at 95 MW per direction | **Assumption** (about 50% of a ~190 MW estimate from the ENTSO-E sizing rule) |
-| mFRR offer | 20% of the headroom left after aFRR | **Assumption** (our own risk margin, not a rule) |
-| mFRR payment | Energy-only, no capacity payment counted | **Modelling choice**, not a rule. Paid mFRR capacity exists (ERSE auctions for a quarter or month; the daily band only has to start by 1 Apr 2027, Art. 453) but is not modelled. See the mFRR section below. |
+| aFRR offer | Headroom left after DA, capped at 105 MW per direction (20% of the plant), none while idle | **Assumption** (about 37% of REN's observed ~280 MW band) |
+| mFRR offer | All headroom left after aFRR, capped at 74 MW per direction (14% of the plant) | Offering all of it follows the legal obligation for large generators (ROR Art. 49(5)(c)); the 74 MW size is an **assumption** |
+| mFRR payment | Base case: energy-only, band EUR 0. Switchable **future scenario**: band paid at the aFRR band price | Today's paid band is the quarterly/monthly auction won by consumers; the daily band only has to start by 1 Apr 2027 (Art. 453). See the mFRR section below. |
 | Energy first, reserves second | DA solved before reserves | Matches the market sequence, because the DA schedule is fixed before the band result is known |
 
 ## Follow-up questions to expect
@@ -62,11 +63,16 @@ the sequence. But a desk would also leave headroom in its DA bid when it expects
 reserve prices to beat the energy spread. Our model has a switch for this
 (`dynamic_allocation_enabled`), which is off by default.
 
-**"What share of the plant is reserved on a typical day?"** I don't quote a
-percentage, because it changes every 15 minutes with the schedule. When the plant
-generates near its limit, there is little up headroom but large down headroom,
-and the other way round when pumping. The backtest shows the resulting reserve
-income is small next to energy income (about €32k/day against €368k/day).
+**"What share of the plant is reserved on a typical day?"** The replica caps are
+20% aFRR and 14% mFRR per direction, but the offered MW changes every 15 minutes
+with the schedule. On a real run (10 Oct 2026): turbining 43% of the day (aFRR
+92 up / 105 down, mFRR 2 up / 74 down), pumping 38% (aFRR 105 up / 19 down, mFRR
+74 up / 2 down), idle 20% (no aFRR, mFRR 74 / 74). The day averages about 78 MW
+up and 52 MW down for aFRR. Reserve income stays small next to energy income.
+
+**"Why no aFRR when the plant is idle?"** aFRR is an automatic 5-minute service,
+so it needs a unit that is already running. mFRR has 12.5 minutes, enough to
+start a unit, so it can still be offered from standstill.
 
 **"Does Alqueva have to offer reserve?"** Units with a legal aFRR obligation
 must offer all their feasible power (Art. 144(4)). I could not confirm from

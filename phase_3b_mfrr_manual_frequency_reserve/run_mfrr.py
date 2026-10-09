@@ -27,6 +27,9 @@ from common_layer.configuration import load_config, AppConfig
 from common_layer.utilities import get_logger, AuditLogger
 from common_layer.utilities import date_utils as du
 from common_layer.database import PositionStore, ReserveStore
+from phase_3a_afrr_automatic_frequency_reserve.afrr_price_forecasting.picasso_afrr_price_loader import (
+    fetch_afrr_cap_prices,
+)
 from phase_3b_mfrr_manual_frequency_reserve.mfrr_price_forecasting.mari_mfrr_price_loader import (
     fetch_mfrr_cap_prices,
 )
@@ -68,11 +71,17 @@ def run_mfrr(delivery_date: str, cfg: AppConfig, no_pause: bool = False,
                     "Run aFRR first for correct priority allocation.")
 
     hours = sorted(committed)
-    cap_up, cap_dn, source = fetch_mfrr_cap_prices(hours, delivery_date, cfg, use_synthetic)
-    if not cfg.market.mfrr.capacity_payment:
+    if cfg.market.mfrr.capacity_payment:
+        # FUTURE-BAND SCENARIO (config mfrr.capacity_payment = true): the daily mFRR
+        # band required by MPGGS Chapter XVI has no price yet, so mFRR capacity is
+        # priced at the aFRR band price. See market.yaml.
+        cap_up, cap_dn, source = fetch_afrr_cap_prices(hours, delivery_date, cfg, use_synthetic)
+        source = f"{source} / FUTURE daily mFRR band, paid at the aFRR band price"
+    else:
         # Energy-only (config mfrr.capacity_payment): the offers are still sized
         # and can be activated -- activation energy is still earned -- but the
         # capacity itself is not paid. See market.yaml for the evidence.
+        cap_up, cap_dn, source = fetch_mfrr_cap_prices(hours, delivery_date, cfg, use_synthetic)
         cap_up = {h: 0.0 for h in cap_up}
         cap_dn = {h: 0.0 for h in cap_dn}
         source = f"{source} / energy-only (no capacity payment)"
@@ -127,7 +136,9 @@ def _print_offers(cfg, source, offers, committed, reserved_up, reserved_dn, reve
           f"{freq.nominal_hz + freq.mfrr_band_hz:.3f} Hz   "
           f"(nominal {freq.nominal_hz:.3f} Hz)")
     print(f"  FAT    : {cfg.market.mfrr.fat_min:.1f} min   |   Platform: MARI")
-    print(f"  Sizing : <= {cfg.market.mfrr.max_offer_fraction:.0%} of headroom AFTER aFRR")
+    mf = cfg.market.mfrr
+    cap = f"{mf.max_offer_up_mw:.0f} MW" if mf.max_offer_up_mw is not None else "the aFRR cap"
+    print(f"  Sizing : <= {mf.max_offer_fraction:.0%} of headroom AFTER aFRR, capped at {cap} per direction")
     print(f"  Source : {source}")
     print(f"  Gate closes (CET): {cfg.market.mfrr.gate_close}   <-- submit before this   [hour ESTIMATE]")
     print("  Note   : FAT = time to reach full offered MW after TSO's MANUAL")

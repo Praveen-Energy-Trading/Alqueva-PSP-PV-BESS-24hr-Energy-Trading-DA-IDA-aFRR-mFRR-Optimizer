@@ -21,6 +21,12 @@ from phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement im
 )
 
 
+def _mfrr_capacity_scenario() -> bool:
+    """True when the FUTURE daily-band scenario (mfrr.capacity_payment) is on."""
+    from common_layer.configuration import load_config
+    return bool(load_config().market.mfrr.capacity_payment)
+
+
 def _repo_root() -> str:
     # this file: <repo>/phase_6_backtesting_and_validation/backtest_excel_reports/ -> up 2
     here = os.path.dirname(os.path.abspath(__file__))
@@ -96,12 +102,17 @@ def export_backtest(start_date: str, result: BacktestResult,
          "or REN did not publish are reported as unavailable, never padded. XBID is "
          "backtested at window W1 only (production supports 6 continuous-intraday "
          "check windows)."),
-        ("NOTE — modelling assumptions", "Price-taker (no market impact). aFRR band offers "
-         "capped at config afrr.max_offer_up/dn_mw (95 MW, ~50% of an estimated national "
-         "requirement). mFRR is energy-only (config mfrr.capacity_payment = false): no "
-         "capacity payment is counted. All natural inflow is treated as available for "
-         "generation -- irrigation and environmental-flow withdrawals are not deducted, "
-         "so DA energy revenue is an upper bound."),
+        ("NOTE — modelling assumptions", "Price-taker (no market impact). Replica "
+         "allocation of the 524.4 MW plant: 65% DA energy, 20% aFRR (config "
+         "afrr.max_offer_up/dn_mw = 105 MW, ~37% of REN's observed ~280 MW band), 14% mFRR "
+         "(config mfrr.max_offer_up/dn_mw = 74 MW), 1% FCR (5 MW). No aFRR is offered while the "
+         "plant is idle. mFRR capacity is " + (
+             "paid at the aFRR band price (FUTURE daily-band scenario, config "
+             "mfrr.capacity_payment = true; no such market exists before Apr 2027)"
+             if _mfrr_capacity_scenario() else
+             "not paid (energy-only, config mfrr.capacity_payment = false)") +
+         ". All natural inflow is treated as available for generation -- irrigation and "
+         "environmental-flow withdrawals are not deducted, so DA energy revenue is an upper bound."),
     ], start=3):
         ws2[f"A{i}"] = label; ws2[f"A{i}"].font = bold
         ws2[f"B{i}"] = val

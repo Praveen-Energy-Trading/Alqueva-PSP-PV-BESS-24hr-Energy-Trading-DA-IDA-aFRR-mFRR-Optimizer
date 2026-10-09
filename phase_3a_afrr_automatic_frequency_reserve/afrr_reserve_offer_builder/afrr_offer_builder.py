@@ -53,4 +53,5 @@ def build_afrr_offers(committed_net: Dict[int, float],
         max_dn_mw=a.max_offer_dn_mw,
         headroom_fraction=1.0,             # aFRR has first call on DA's leftover headroom
         headroom_fraction_by_hour=fraction_by_hour,
+        require_running_unit=a.require_synchronised_unit,
     )

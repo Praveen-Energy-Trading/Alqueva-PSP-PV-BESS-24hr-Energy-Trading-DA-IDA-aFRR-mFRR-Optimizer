@@ -67,11 +67,12 @@ def _real_cap_prices(delivery_date: str, product: str,
             )
             cap_up, cap_dn = _download_ren_afrr(dt)
         elif product == "mFRR":
-            from phase_3b_mfrr_manual_frequency_reserve.mfrr_price_forecasting.mari_mfrr_price_loader import (
-                _download_ren_mfrr,
+            # Only reached when mfrr.capacity_payment is true (the FUTURE daily-band
+            # scenario): the mFRR band is paid at the real aFRR band price.
+            from phase_3a_afrr_automatic_frequency_reserve.afrr_price_forecasting.picasso_afrr_price_loader import (
+                _download_ren_afrr,
             )
-            price = _download_ren_mfrr(dt)
-            cap_up = cap_dn = price   # REN doesn't publish a separate mFRR up/dn split
+            cap_up, cap_dn = _download_ren_afrr(dt)
         else:
             return None
     except Exception as exc:

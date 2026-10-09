@@ -163,6 +163,9 @@ def real_ren_capacity_price(
             # paid, so its real capacity price is 0 on every day.
             zero = {h: 0.0 for h in hours}
             return zero, dict(zero)
+        # FUTURE-BAND SCENARIO (capacity_payment = true): no daily mFRR band price
+        # exists yet, so mFRR capacity is priced at the real aFRR band price.
+        product = "aFRR"
     if product == "aFRR":
         path, sheet = _AFRR_EXCEL_PATH, _AFRR_SHEET
     elif product == "mFRR":

@@ -129,6 +129,9 @@ Rolling backtest over 1 Oct 2025 to 30 Sep 2026: every day is solved with foreca
 | Profit-at-Risk VaR 99% / CVaR 99% (historical) | EUR 9,023 / -2,622 |
 | Bootstrap VaR 95% (10,000 resamples) | EUR 25,990 +/- 7,381 |
 
+> [!NOTE]
+> This table was produced before the 65 / 20 / 14 / 1 allocation (aFRR cap 95 MW, mFRR 20% of the leftover, no idle rule). Re-run `python phase_6_backtesting_and_validation/run_backtest.py` to refresh it with the current settings.
+
 VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day), not a loss. The year is uneven because real prices are: February 2026 averaged EUR 11/MWh, September 2026 EUR 144/MWh. These figures are an **upper bound**, not a forecast of plant earnings; see Modelling Assumptions below.
 
 > [!NOTE]
@@ -467,8 +470,10 @@ The P&L figures are an optimistic, price-taker estimate, not a forecast of what 
 | Assumption | Setting | Why |
 |---|---|---|
 | **Price-taker** | Bids never move the clearing price | Standard for a single-asset optimiser; real volumes would have some market impact |
-| **aFRR band cap** | `afrr.max_offer_up/dn_mw = 95` | Without it the plant sold ~±250 MW of band every hour, more than Portugal's whole requirement (~190 MW by the ENTSO-E sizing rule). 95 MW ≈ a 50% share — an assumption to tune |
-| **mFRR energy-only** | `mfrr.capacity_payment = false` | REN's `AP_PRECO` is an activation *energy* price, and REN publishes mFRR band only as a fixed-price contracted volume (Procedimento 19 auction), so no daily capacity payment is counted |
+| **Replica allocation** | 65% DA energy / 20% aFRR / 14% mFRR / 1% FCR of the 524.4 MW plant | A fixed replica split, checked against REN's observed secondary-reserve band (~280 MW). Real shares change every 15 minutes |
+| **aFRR band cap** | `afrr.max_offer_up/dn_mw = 105` (20%) | Without a cap the plant sold ~±250 MW of band every hour, more than Portugal's whole requirement. 105 MW is ~37% of the observed band. No aFRR is offered while the plant is idle (`afrr.require_synchronised_unit`) |
+| **mFRR size** | `mfrr.max_offer_up/dn_mw = 74` (14%), all leftover headroom offered | mFRR is a legal obligation for large generators (ROR Art. 49(5)(c)) |
+| **mFRR capacity** | `mfrr.capacity_payment = false` (base case: energy-only) | Today's paid mFRR band is a quarterly/monthly auction won by consumers. Set `true` for a labelled **future scenario** (daily band from Apr 2027) paid at the aFRR band price |
 | **Natural inflow** | All of it can be turbined | Irrigation (EFMA) and environmental-flow withdrawals are not deducted, so DA energy revenue is an upper bound |
 | **Activation / imbalance** | Simulated, not backtested at real prices | No real REN activation-volume (SCADA) source is available |
 

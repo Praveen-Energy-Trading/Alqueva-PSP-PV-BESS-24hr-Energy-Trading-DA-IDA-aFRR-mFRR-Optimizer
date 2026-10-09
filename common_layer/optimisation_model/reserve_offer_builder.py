@@ -28,6 +28,7 @@ from typing import Dict, List, Optional
 from common_layer.configuration.config_loader import AppConfig
 
 EPS = 1e-6
+_IDLE_MW = 1.0   # |net| below this = the plant is idle (no unit running)
 
 # aFRR FAT 5 min: Francis reversible units can ramp within mode within 5 min,
 # but a full pump-to-generation MODE SWITCH (stop pump, start turbine) takes
@@ -141,8 +142,13 @@ def build_reserve_offers(
     reserved_dn: Optional[Dict[int, float]] = None,
     pv_available_mw: Optional[Dict[int, float]] = None,
     headroom_fraction_by_hour: Optional[Dict[int, float]] = None,
+    require_running_unit: bool = False,
 ) -> Dict[int, ReserveOffer]:
     """Size up/down reserve offers per hour from leftover headroom.
+
+    require_running_unit: an automatic 5-minute service (aFRR) needs a unit that is
+    already synchronised, so while the energy schedule is idle (|net| < _IDLE_MW)
+    nothing is offered. The 57 MW per-unit minimum stable load is not modelled.
 
     headroom_fraction < 1 (e.g. mFRR 0.20, config market.yaml mfrr.max_offer_fraction)
     keeps a margin and avoids committing the entire envelope to a single,
@@ -178,6 +184,8 @@ def build_reserve_offers(
                           if headroom_fraction_by_hour else headroom_fraction)
         up = min(up_headroom * hour_fraction, fat_up, max_up_mw)
         dn = min(dn_headroom * hour_fraction, fat_dn, max_dn_mw)
+        if require_running_unit and abs(n) < _IDLE_MW:
+            up = dn = 0.0
         # Keep full precision: rounding here could push the offer a hair above the
         # true headroom and trip the PR-11 envelope check. Display rounds instead.
         offers[h] = ReserveOffer(

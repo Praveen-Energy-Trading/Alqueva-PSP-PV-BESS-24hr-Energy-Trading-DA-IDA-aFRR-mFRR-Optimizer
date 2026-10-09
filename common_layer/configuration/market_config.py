@@ -120,6 +120,7 @@ class AFRRConfig:
     dynamic_allocation_enabled: bool  # off by default - price-aware sizing, opt-in
     min_offer_fraction: float         # floor when dynamic allocation is enabled
     assumed_duty_cycle_h: float       # avg activation duration, for EUR/MW -> EUR/MWh
+    require_synchronised_unit: bool = False   # aFRR needs a running unit: no offer while idle
 
     @staticmethod
     def from_dict(d: dict, fat_min: float) -> "AFRRConfig":
@@ -133,6 +134,7 @@ class AFRRConfig:
             dynamic_allocation_enabled=bool(d.get("dynamic_allocation_enabled", False)),
             min_offer_fraction=float(d.get("min_offer_fraction", 0.0)),
             assumed_duty_cycle_h=float(d.get("assumed_duty_cycle_h", 0.5)),
+            require_synchronised_unit=bool(d.get("require_synchronised_unit", False)),
         )
 
 
@@ -148,6 +150,9 @@ class MFRRConfig:
     min_offer_fraction: float         # floor when dynamic allocation is enabled
     assumed_duty_cycle_h: float       # avg activation duration, for EUR/MW -> EUR/MWh
     capacity_payment: bool            # False = energy-only: offers stay, capacity paid at 0
+                                      # True = future daily-band scenario, paid at the aFRR band price
+    max_offer_up_mw: Optional[float] = None   # mFRR size cap; None = share the aFRR cap
+    max_offer_dn_mw: Optional[float] = None
 
     @staticmethod
     def from_dict(d: dict, fat_min: float) -> "MFRRConfig":
@@ -161,6 +166,8 @@ class MFRRConfig:
             min_offer_fraction=float(d.get("min_offer_fraction", 0.0)),
             assumed_duty_cycle_h=float(d.get("assumed_duty_cycle_h", 1.0)),
             capacity_payment=bool(d.get("capacity_payment", True)),
+            max_offer_up_mw=float(d["max_offer_up_mw"]) if d.get("max_offer_up_mw") is not None else None,
+            max_offer_dn_mw=float(d["max_offer_dn_mw"]) if d.get("max_offer_dn_mw") is not None else None,
         )
 
 
