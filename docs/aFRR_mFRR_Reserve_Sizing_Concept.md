@@ -1,8 +1,12 @@
 # aFRR / mFRR Reserve-Sizing Concept — Reference Document
 
 **Plant**: Alqueva PSP + PV + BESS
-**Delivery date (real run)**: 2026-08-06
-**Source**: fresh, isolated pipeline run — `run_afrr.py` and `run_mfrr.py`, real console output, not estimated
+**Delivery date (real run)**: 2026-10-10
+**Source**: full pipeline run (`run_production.py`), real console output. Rules are
+cited from the Portuguese grid-operator rulebook (MPGGS, ERSE Directive 9/2025).
+
+For the market rules and the interview-style answer, see
+[Reserve_Allocation_Interview_Answer.md](Reserve_Allocation_Interview_Answer.md).
 
 ---
 
@@ -10,7 +14,11 @@
 
 Reserve capacity is offered from the headroom **left after the energy position is
 committed**: energy first, then reserves from what remains. This makes the
-"no MW sold twice" rule true by construction.
+"no MW sold twice" rule true by construction, and it matches the real order of
+the day (MPGGS Art. 80(3): DA → aFRR band → mFRR band → intraday).
+
+All offers are per 15-minute settlement period (ISP), 96 per day, which is the
+real product resolution (MPGGS Art. 142, 182).
 
 **Step 1 — Physical envelope** (`plant.yaml`)
 ```
@@ -18,13 +26,15 @@ Gen cap  = 524.4 MW   (4 turbines + PV + BESS)
 Pump cap = 447.4 MW   (4 pumps + BESS)
 ```
 
-**Step 2 — FCR subtracted first** (mandatory, non-remunerated, INV-7)
+**Step 2 — FCR subtracted first** (mandatory, not paid)
 ```
 Effective Gen cap  = 524.4 - 5.0 (FCR) = 519.4 MW
 Effective Pump cap = 447.4 - 5.0 (FCR) = 442.4 MW
 ```
+The 5 MW is an assumption of this model. The real FCR share is set yearly by the
+grid operator from previous-year energy production (MPGGS Art. 68).
 
-**Step 3 — Energy commitment** (DA/IDA) locks in N MW for the hour
+**Step 3 — Energy commitment** (DA, then IDA) fixes N MW for each period
 ```
 N > 0  -> generating
 N < 0  -> pumping
@@ -36,184 +46,129 @@ Up headroom = Gen_cap - N
 Dn headroom = N + Pump_cap
 ```
 
-**Step 5 — aFRR claims first** (higher priority: faster FAT = 5 min, higher value)
-- Capped by FAT-deliverable ramp, market cap (`max_offer_up/dn_mw`), and the
-  mode-switch rule: within 5 min, a pump-to-generation mode switch is **not**
-  guaranteed safe, so aFRR up-offers cannot cross the pump/generation boundary.
+**Step 5 — aFRR claims first** (faster product, 5 min FAT)
+```
+aFRR = min( headroom , FAT-deliverable ramp , market cap )
+```
+- Market cap = `afrr.max_offer_up/dn_mw` = **95 MW** per direction. This is an
+  assumption: about 50% of an estimated ~190 MW national need (ENTSO-E sizing
+  rule). The real need is set by the grid operator (Art. 145) and is not
+  published in the data this project reads.
+- Mode-switch rule: within 5 min a pump-to-generation switch is not guaranteed
+  safe, so aFRR up cannot count the generation side when the plant is pumping
+  (and the reverse).
+- Up and down are separate offers; the real aFRR band is not symmetric (Art. 142).
 
-**Step 6 — mFRR claims what's left** (lower priority: slower FAT = 12.5 min)
+**Step 6 — mFRR claims what is left** (slower product, 12.5 min FAT)
 ```
-leftover = total headroom - aFRR's claim
+mFRR = min( 20% x (headroom - aFRR) , FAT-deliverable ramp , market cap )
 ```
-- Mode switch **is** allowed (12.5 min >= 8 min safety threshold), so mFRR can
-  reach generation-side headroom aFRR could not touch.
-- Capped at **20% of that leftover** — a conservative safety margin, our own
-  design choice, not a disclosed REN rule (see Section 4).
+- Mode switch **is** allowed (12.5 min >= 8 min safety threshold), so mFRR can reach
+  headroom aFRR could not touch.
+- The 20% is this model's own risk margin, **not** a rulebook figure (see
+  `config/market.yaml`, `mfrr.max_offer_fraction`).
 
 **Step 7 — Pricing**
-Each product bids its own ML-forecasted €/MW capacity price, capped at REN's
-€250/MW technical ceiling.
+Each product bids its own ML-forecast capacity price, capped at REN's
+EUR 250/MW ceiling. The real market pays every accepted MW the **last accepted
+price** (pay-as-clear, Art. 151). **mFRR capacity is not counted as paid in this model**
+(`mfrr.capacity_payment: false`). That is a conservative modelling choice, not a
+rule: a paid mFRR capacity market exists, but today it is the ERSE auction for a
+whole quarter or month (not daily), upward only, and the latest notice limits
+generation and storage to at most 25% of the awarded volume (see Section 4 and
+the interview-answer note). The new daily mFRR band only has to start by
+1 Apr 2027 (Art. 453). mFRR activation energy is still earned.
 
 **One-line summary**:
-energy first -> FCR reserved -> aFRR takes first bite of leftover headroom ->
-mFRR takes 20% of whatever's left after that. Strict priority cascade, no
-double-counting, REN-consistent sequencing (MPGGS Art. 80(3): DA -> aFRR -> mFRR).
+energy first -> FCR reserved -> aFRR takes first bite of the headroom (capped) ->
+mFRR takes 20% of what is left (capped, energy-only). Strict priority cascade, no
+double-counting. The intraday auctions (IDA1/2/3, XBID) then re-optimise with the
+sold reserve MW kept free.
 
 ---
 
-## 2. Worked Example — H01 (real run)
+## 2. Worked Examples (real run, 2026-10-10)
 
-Energy commitment: **N = -425.9 MW** (heavy pumping)
-
+**Period 40 — pumping, N = -423.4 MW**
 ```
-Up headroom  = 519.4 - (-425.9)      = 945.3 MW
-Dn headroom  = -425.9 + 442.4        =  16.5 MW
+Up headroom  = 519.4 - (-423.4)   = 942.8 MW
+Dn headroom  = -423.4 + 442.4     =  19.0 MW
 
-aFRR claims:
-  Up = 425.9 MW   (stops pumping only — no mode switch within 5 min FAT)
-  Dn =  16.5 MW   (all of it)
-
-mFRR leftover:
-  Up leftover = 945.3 - 425.9 = 519.4 MW  x 20% = 103.9 MW  <- matches table exactly
-  Dn leftover =  16.5 -  16.5 =   0.0 MW  ->  0.0 MW
-
-Prices bid:
-  aFRR CapUp = 24.6 EUR/MW
-  mFRR CapUp =  9.0 EUR/MW   (cheaper — lower priority product)
+aFRR:  Up = min(942.8, ..., 95)  = 95.0 MW   (market cap binds)
+       Dn = 19.0 MW                          (all of the headroom)
+mFRR:  Up leftover = 942.8 - 95.0 = 847.8 MW x 20% = 169.6 -> capped at 95.0 MW
+       Dn leftover = 19.0 - 19.0  = 0.0 MW   -> 0.0 MW
 ```
 
-Every number in the real console output for H01 traces back to this exact chain.
+**Period 80 — generating, N = +454.1 MW**
+```
+Up headroom  = 519.4 - 454.1      =  65.3 MW
+Dn headroom  = 454.1 + 442.4      = 896.5 MW
+
+aFRR:  Up = 65.3 MW                          (all of the headroom)
+       Dn = min(896.5, ..., 95)  = 95.0 MW   (market cap binds)
+mFRR:  Up leftover = 0.0 MW      -> 0.0 MW
+       Dn leftover = 896.5 - 95.0 = 801.5 MW x 20% = 160.3 -> capped at 95.0 MW
+```
+
+Every number in the console output traces back to this chain.
 
 ---
 
-## 3. Why 12.5 min FAT Matters (but doesn't set the MW number)
+## 3. Why 12.5 min FAT Matters (but does not set the MW number)
 
 The mFRR FAT (12.5 min) does two separate jobs:
 
-1. **Mode-switch permission**: 12.5 min >= 8 min threshold -> mFRR is allowed to
-   count generation-side headroom (pump -> turbine switch) as deliverable.
-   aFRR (5 min FAT) is not allowed this.
+1. **Mode-switch permission**: 12.5 min >= 8 min threshold, so mFRR may count
+   headroom that needs a pump-to-turbine switch. aFRR (5 min FAT) may not.
 2. **Ramp-capacity check** (a ceiling, not the binding constraint here):
    ```
    FAT-deliverable = ramp_rate x n_units x FAT_min
-                    = 25 MW/min x 4 x 12.5 min = 1,250 MW
+                   = 25 MW/min x 4 x 12.5 min = 1,250 MW
    ```
-   Far bigger than the 103.9 MW headroom-based offer, so ramp speed never
-   binds — the 20%-of-headroom rule does.
-
-**Real role of 12.5 min**: it *unlocks* generation-side headroom for mFRR; it
-does not itself compute the 103.9 MW figure — headroom sizing does that.
+   Far larger than the offers above, so ramp speed never binds. The market cap
+   and the 20% rule do.
 
 ---
 
-## 4. Why the 20% mFRR Cap Exists (not a REN rule)
+## 4. What is a rule and what is our assumption
 
-`market.yaml` comment: `max_offer_fraction: 0.20  # cap offer at 20% of available headroom`
-
-No REN/ENTSO-E document specifies this exact fraction for this plant. It exists
-because:
-
-1. **Safety buffer** — pledging 100% of leftover headroom leaves zero margin
-   for forecast error or real-time deviation.
-2. **Reflects mFRR's real-world low priority** — BSPs don't max out every
-   product; they hold back capacity for re-dispatch and intraday flexibility.
-3. **Conservative modeling default** — absent a published REN cap, we
-   under-offer rather than over-promise.
-
-**Interview-honest framing**: this is our own engineering judgment call,
-explicitly labeled ESTIMATE — not presented as a real regulatory rule.
+| Item | Status |
+|---|---|
+| Order DA → aFRR → mFRR → intraday | Rulebook, Art. 80(3) |
+| 15-min product, 1 MW minimum, up and down separate | Rulebook, Art. 142 |
+| Pay-as-clear (last accepted offer) | Rulebook, Art. 151, 191 |
+| Need is inelastic, set by the grid operator | Rulebook, Art. 145, 185 |
+| Clock hours of the aFRR / mFRR band markets | Set in a separate notice ("Aviso do GGS"); **estimate** here |
+| 95 MW aFRR cap | **Assumption** (share of an estimated national need) |
+| 20% of leftover for mFRR | **Assumption** (own risk margin) |
+| 5 MW FCR hold-back | **Assumption** |
+| mFRR energy-only | **Modelling choice**. Paid capacity exists via quarterly / monthly ERSE auctions, with limits that favour consumers; not modelled |
 
 ---
 
-## 5. Full 24-Hour Real Simulation Output
+## 5. Full 96-Period Output (real run)
 
-### aFRR Capacity Offer — 2026-08-06 (real run)
-```
-Band   : 49.800 - 50.200 Hz   (nominal 50.000 Hz)
-FAT    : 5 min   |   Platform: NATIONAL
-Cap ceiling: 250 EUR/MW
+The complete tables are printed by the pipeline (phases 2 and 3) and saved in
+`runtime/logs/pipeline_2026-10-10.log`. Summary of this run:
 
-Hour   Energy MW    Up MW    Dn MW  CapUp EUR/MW  CapDn EUR/MW
-------------------------------------------------------------
-H01      -425.9    425.9     16.5        24.6        17.3
-H02      -426.0    426.0     16.4        24.2        17.6
-H03      -426.1    426.1     16.3        23.9        18.0
-H04      -426.2    426.2     16.2        23.6        18.4
-H05      -426.3    426.3     16.1        23.6        18.7
-H06      -216.4    216.4    226.0        23.7        19.1
-H07      +427.9     91.5    447.4        24.0        19.4
-H08      +427.6     91.8    447.4        24.4        19.6
-H09      +427.6     91.8    447.4        24.9        19.7
-H10      +427.8     91.6    447.4        25.4        19.8
-H11      +428.0     91.4    447.4        26.0        19.7
-H12        +1.9    500.0    444.3        26.6        19.5
-H13      -215.0    215.0    227.4        27.1        19.2
-H14      -360.0    360.0     82.4        27.6        18.9
-H15      -214.5    214.5    227.9        27.9        18.6
-H16      -214.4    214.4    228.0        28.1        18.2
-H17        +2.3    500.0    444.7        28.2        17.8
-H18      +429.2     90.2    447.4        28.1        17.4
-H19      +428.4     91.0    447.4        27.8        17.1
-H20      +488.3     31.1    447.4        27.4        16.9
-H21      +448.3     71.1    447.4        26.9        16.8
-H22      +425.8     93.6    447.4        26.4        16.8
-H23      -217.6    217.6    224.8        25.8        16.9
-H24      -425.7    425.7     16.7        25.2        17.0
-------------------------------------------------------------
-Expected aFRR capacity revenue:   272,171.83 EUR
-```
-
-### mFRR Capacity Offer — 2026-08-06 (real run)
-```
-Band   : 49.800 - 50.200 Hz   (nominal 50.000 Hz)
-FAT    : 12.5 min   |   Platform: MARI
-Sizing : <= 20% of headroom AFTER aFRR
-
-Hour   Energy MW  aFRRup MW  mFRRup MW  mFRRdn MW  CapUp EUR/MW
-------------------------------------------------------------
-H01      -425.9      425.9      103.9        0.0         9.0
-H02      -426.0      426.0      103.9        0.0         8.6
-H03      -426.1      426.1      103.9        0.0         8.5
-H04      -426.2      426.2      103.9        0.0         8.6
-H05      -426.3      426.3      103.9        0.0         8.9
-H06      -216.4      216.4      103.9        0.0         8.1
-H07      +427.9       91.5        0.0       84.6         9.1
-H08      +427.6       91.8        0.0       84.5         9.3
-H09      +427.6       91.8        0.0       84.5        10.4
-H10      +427.8       91.6        0.0       84.6        10.4
-H11      +428.0       91.4        0.0       84.6        11.1
-H12        +1.9      500.0        3.5        0.0        11.5
-H13      -215.0      215.0      103.9        0.0        11.9
-H14      -360.0      360.0      103.9        0.0        11.8
-H15      -214.5      214.5      103.9        0.0        11.7
-H16      -214.4      214.4      103.9        0.0        11.0
-H17        +2.3      500.0        3.4        0.0        10.1
-H18      +429.2       90.2        0.0       84.8         9.7
-H19      +428.4       91.0        0.0       84.7         9.6
-H20      +488.3       31.1        0.0       96.7         9.1
-H21      +448.3       71.1        0.0       88.7         7.6
-H22      +425.8       93.6        0.0       84.2         7.1
-H23      -217.6      217.6      103.9        0.0         8.6
-H24      -425.7      425.7      103.9        0.0         8.8
-------------------------------------------------------------
-Expected mFRR capacity revenue:    17,657.63 EUR
-```
-
----
+| | Result |
+|---|---|
+| Expected aFRR capacity revenue | EUR 74,620 |
+| Expected mFRR capacity revenue | EUR 0 (energy-only) |
+| aFRR offer | 95 MW up / 95 MW down in most periods; 18-19 MW down while pumping near full load; 65 MW up at the peak-generation period |
+| mFRR offer | Up: 85 MW when idle, 95 MW when pumping. Down: 70 MW when idle, 95 MW when generating |
 
 ## 6. Reading the Pattern Across the Day
 
-- **Pumping hours** (H01-H05, H13-H16, H23-H24, negative Energy MW): aFRR Up
-  is large (stops pumping), aFRR Dn is small (pump already near its cap).
-  mFRR gets a fixed ~103.9 MW Up (20% of the generation-side leftover), Dn = 0.
-- **Generating hours** (H07-H11, H18-H22, positive Energy MW): the picture
-  flips — aFRR Dn is large (~447.4 MW, room to pump instead), aFRR Up is
-  small. mFRR then gets Dn instead of Up, Up = 0.
-- **Near-idle hours** (H12, H17, Energy MW near zero): almost the full
-  envelope is free — aFRR claims up to 500 MW, mFRR gets only the small
-  remainder (3.5 / 3.4 MW) since aFRR has already used almost everything.
+- **Pumping periods** (negative N): aFRR up is large (the plant can stop pumping)
+  and aFRR down is small (the pumps are already near their limit). mFRR then
+  offers up, not down.
+- **Generating periods** (positive N): the picture flips. aFRR down is large (room
+  to pump instead), aFRR up is small, and mFRR offers down.
+- **Idle periods** (N near zero): almost the whole envelope is free, so aFRR hits
+  the 95 MW cap in both directions and mFRR offers the 20% rule's result
+  (about 85 MW up and 70 MW down).
 
-This day-shape confirms the cascade logic holds consistently across all 24
-hours, not just the H01 example — aFRR always claims first, mFRR always gets
-the 20% remainder, and the Up/Dn split flips with the plant's pump/generate
-mode.
+The Up/Dn split follows the plant's pump/generate mode, and aFRR always claims
+before mFRR.

@@ -54,12 +54,14 @@ def _render() -> None:
                        f" -  {n_days - n_feas} infeasible, {n_days - n_pass} checker failure(s)")
 
     # "Real-X days" coverage counts (e.g. "Real-price days", "Real-mFRR-
-    # capacity days") are excluded from the widget -- still in the
-    # underlying Excel report, just not surfaced as dashboard cards.
+    # capacity days") and the "NOTE — ..." text rows are excluded from the
+    # widget -- still in the underlying Excel report, just not surfaced as
+    # dashboard cards.
     other_metrics = [(l, v) for l, v in summary_metrics
-                      if l not in ("Days", "Feasible", "Checker passed", "NOTE — out of scope",
+                      if l not in ("Days", "Feasible", "Checker passed",
                                    "Avg solve (s)", "Avg price MAE (EUR/MWh)",
                                    "Avg PV MAE (MW) — PV actual always synthetic")
+                      and not l.startswith("NOTE")
                       and not (l.startswith("Real-") and "days" in l)]
     if other_metrics:
         theme.metric_cards(other_metrics, ncols=4)

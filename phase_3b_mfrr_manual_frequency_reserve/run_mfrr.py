@@ -133,12 +133,12 @@ def _print_offers(cfg, source, offers, committed, reserved_up, reserved_dn, reve
     print("  Note   : FAT = time to reach full offered MW after TSO's MANUAL")
     print("           call (not automatic). Used when aFRR alone isn't enough;")
     print("           sustained for as long as the TSO instructs.")
-    print(f"\n  {'Hour':<5} {'Energy MW':>10} {'aFRRup MW':>10} {'mFRRup MW':>10} "
+    print(f"\n  {'ISP':<5} {'Energy MW':>10} {'aFRRup MW':>10} {'mFRRup MW':>10} "
           f"{'mFRRdn MW':>10} {'CapUp €/MW':>11} {'CapDn €/MW':>11}")
     print("  " + "-" * 82)
     for h in sorted(offers):
         o = offers[h]
-        print(f"  H{h:02d}  {committed.get(h,0.0):>+10.1f} {reserved_up.get(h,0.0):>10.1f} "
+        print(f"  {h:<5d}{committed.get(h,0.0):>+10.1f} {reserved_up.get(h,0.0):>10.1f} "
               f"{o.up_mw:>10.1f} {o.dn_mw:>10.1f} {o.cap_price_up_eur_mw:>11.1f} "
               f"{o.cap_price_dn_eur_mw:>11.1f}")
     print("  " + "-" * 82)

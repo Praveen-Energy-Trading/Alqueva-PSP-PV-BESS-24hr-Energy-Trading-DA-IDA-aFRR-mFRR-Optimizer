@@ -81,48 +81,58 @@ python run_production.py --dry-run
 
 ## Example Run
 
-Real output, solved end-to-end with IBM CPLEX 22.1.1 on synthetic data (`--auto --synthetic`). "Synthetic" here means a stylised OMIE-shaped price model — morning/evening demand peaks, a midday solar dip, an overnight discount, deterministic per-date seeding, small bounded noise — not random noise, used so the pipeline can be run and verified without a live market data subscription:
+Real output of a full pipeline run for delivery on 10 Oct 2026, solved with IBM CPLEX on real OMIE and REN market data (`python run_production.py --auto`). All 19 phases passed; the rolling-backtest phase 6E was skipped for this run with `--no-backtest`.
 
 ```
-$ python run_production.py --date 2026-08-15 --auto --synthetic
-
   PHASE                                          STATUS     TIME  NOTE
   --------------------------------------------------------------------------------
-  1      Day-Ahead bidding  (OMIE DA)           [ OK  ]  23.95s  energy revenue +129,784
-  2A     IDA1 intraday re-optimisation          [ OK  ]   8.92s  IDA1-20260815-001, delta +1,401
-  2B     IDA2 intraday re-optimisation          [ OK  ]   8.64s  no re-trade (no-churn threshold)
-  2C     IDA3 intraday re-optimisation          [ OK  ]   7.28s  IDA3-20260815-001, delta +939
-  2D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   7.51s  NO_ORDER — gain 69 EUR/23.8 MWh below 5 EUR/MWh spread
-  2D/W2  XBID continuous  (D  09:30)            [ OK  ]   7.20s  NO_ORDER — gain 71 EUR/16.5 MWh below 5 EUR/MWh spread
-  3A     aFRR capacity offer  (PICASSO/REN)     [ OK  ]   3.80s  capacity revenue +79,564
-  3B     mFRR capacity offer  (MARI)            [ OK  ]   2.24s  capacity revenue +21,761
-  4A     RT dispatch simulation  (96 ISPs)      [ OK  ]   0.02s  96 ISPs, mean abs dev 1.41 MW
-  4B     aFRR activation response               [ OK  ]   0.14s  78 ISPs activated, +345.3/-260.2 MWh
-  4C     mFRR activation response               [ OK  ]   0.11s  24 ISPs activated, +175.0/-79.1 MWh
-  5A     Energy settlement  (DA / IDA)          [ OK  ]   1.14s  total energy +132,123
-  5B     Reserve settlement  (aFRR / mFRR)      [ OK  ]   0.01s  total reserve +144,794
-  5C     Imbalance settlement  (REN balance)    [ OK  ]   0.07s  net imbalance -462
-  5D     Analytics + KPI report + Excel         [ OK  ]   1.35s  total pnl +276,454
+  1      Day-Ahead bidding  (OMIE DA)           [ OK  ]  232.23s
+  2      aFRR capacity offer  (PICASSO/REN)     [ OK  ]  109.20s
+  3      mFRR capacity offer  (MARI)            [ OK  ]   36.67s  energy-only, no capacity payment
+  4A     IDA1 intraday re-optimisation          [ OK  ]   99.70s
+  4B     IDA2 intraday re-optimisation          [ OK  ]   41.03s
+  4C     IDA3 intraday re-optimisation          [ OK  ]   41.94s
+  4D/W1  XBID continuous  (D-1 18:30)           [ OK  ]   39.50s
+  4D/W2  XBID continuous  (D-1 22:30)           [ OK  ]    5.80s
+  4D/W3  XBID continuous  (D  03:00)            [ OK  ]    5.29s
+  4D/W4  XBID continuous  (D  06:00)            [ OK  ]    5.29s
+  4D/W5  XBID continuous  (D  09:30)            [ OK  ]    5.96s
+  4D/W6  XBID continuous  (D  12:00)            [ OK  ]    5.53s
+  5A     RT dispatch simulation  (96 ISPs)      [ OK  ]    0.02s
+  5B     aFRR activation response               [ OK  ]    0.13s
+  5C     mFRR activation response               [ OK  ]    0.12s
+  6A     Energy settlement  (DA / IDA)          [ OK  ]    3.15s
+  6B     Reserve settlement  (aFRR / mFRR)      [ OK  ]    0.46s
+  6C     Imbalance settlement  (REN balance)    [ OK  ]    0.50s
+  6D     Analytics + KPI report + Excel         [ OK  ]    4.26s
 
   PIPELINE COMPLETE
-  15 passed   0 skipped   0 warnings   0 failed   (72.4s total)
+  19 passed   1 skipped   0 warnings   0 failed   (636.8s total)
 ```
 
-| Revenue Stream | Amount | Share |
-|---|---|---|
-| DA energy trading (OMIE) | +€129,784 | 46.9% |
-| aFRR capacity (PICASSO) | +€79,564 | 28.8% |
-| aFRR activation | +€30,471 | 11.0% |
-| mFRR capacity (MARI) | +€21,761 | 7.9% |
-| mFRR activation | +€12,998 | 4.7% |
-| IDA1 + IDA3 re-optimisation delta | +€2,339 | 0.8% |
-| Imbalance settlement (dual pricing) | -€462 | -0.2% |
-| **Total P&L** | **+€276,454** | 100% |
+(The first run of the day is slow because every forecasting model is refreshed; the solves themselves take about 3 s each.)
 
-Reserve total (capacity + activation): aFRR +€110,035 (39.7%), mFRR +€34,759 (12.6%).
+### One-year backtest at real prices
+
+Rolling backtest over 1 Oct 2025 to 30 Sep 2026: every day is solved with forecast prices, then valued at the prices OMIE and REN actually published. Full report: [docs/results/backtest_2025-10-01_365d.xlsx](docs/results/backtest_2025-10-01_365d.xlsx).
+
+| Measure | Result |
+|---|---|
+| Days feasible / passing the physical-constraint checker | 365 / 365 and 365 / 365 |
+| Days valued at real prices | 365 / 365 |
+| Average solve time | 2.8 s |
+| Day-ahead price forecast error (average absolute) | EUR 18.0 / MWh |
+| Average realised daily P&L (DA energy + aFRR capacity) | EUR 400,036 |
+| of which DA energy / aFRR capacity / mFRR capacity | EUR 367,750 / 32,286 / 0 |
+| Std. dev. of daily P&L, worst day, best day | EUR 219,155; -35,643; 911,758 |
+| Profit-at-Risk VaR 95% / CVaR 95% (historical) | EUR 25,022 / 13,422 |
+| Profit-at-Risk VaR 99% / CVaR 99% (historical) | EUR 9,023 / -2,622 |
+| Bootstrap VaR 95% (10,000 resamples) | EUR 25,990 +/- 7,381 |
+
+VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day), not a loss. The year is uneven because real prices are: February 2026 averaged EUR 11/MWh, September 2026 EUR 144/MWh. These figures are an **upper bound**, not a forecast of plant earnings; see Modelling Assumptions below.
 
 > [!NOTE]
-> **On robustness:** the same pipeline, run against a different synthetic day, hit a genuine physical infeasibility at IDA3 — intraday re-optimisation had shifted heavy generation into earlier hours, leaving insufficient pumping capacity to refill the upper reservoir by end of day. The solver correctly reported infeasibility and the pipeline aborted rather than submit an unproven bid (`SolveError`, PR-13). That is intended behaviour, not a defect: the permanent invariant checker is designed to block a bid it cannot physically guarantee.
+> **On robustness:** the pipeline blocks a bid it cannot physically guarantee. If intraday re-optimisation leaves too little pumping capacity to refill the upper reservoir by the end of the day, the solver reports infeasibility and the run aborts rather than submitting an unproven bid (`SolveError`, PR-13). That is intended behaviour, not a defect.
 
 ---
 
@@ -461,4 +471,13 @@ The P&L figures are an optimistic, price-taker estimate, not a forecast of what 
 | **mFRR energy-only** | `mfrr.capacity_payment = false` | REN's `AP_PRECO` is an activation *energy* price, and REN publishes mFRR band only as a fixed-price contracted volume (Procedimento 19 auction), so no daily capacity payment is counted |
 | **Natural inflow** | All of it can be turbined | Irrigation (EFMA) and environmental-flow withdrawals are not deducted, so DA energy revenue is an upper bound |
 | **Activation / imbalance** | Simulated, not backtested at real prices | No real REN activation-volume (SCADA) source is available |
+
+## Market Sequence and Reserve Allocation
+
+The Portuguese grid-operator rulebook (MPGGS, ERSE Directive 9/2025, Art. 80(3)) fixes the order of the day, and the pipeline follows it: **DA → aFRR band → mFRR band → IDA1 → IDA2 → IDA3 → XBID**. DA energy is committed first, and reserves are offered from the headroom the schedule leaves; the intraday stages keep that reserve capacity free.
+
+- **No fixed percentage.** The grid operator sets the national aFRR/mFRR need (inelastic); plants win a share in a merit-order auction, paid the last accepted price. See [docs/Reserve_Allocation_Interview_Answer.md](docs/Reserve_Allocation_Interview_Answer.md) for the rules with article numbers.
+- **Clock hours of the aFRR/mFRR band markets** are set in a separate REN notice ("Aviso do GGS") and are not in the rulebook, so they remain an estimate in `config/market.yaml`.
+- **Go-live dates (rulebook Art. 452–453):** national aFRR platform by 30 Jun 2026, PICASSO integration by 31 Oct 2026, daily mFRR band market by 1 Apr 2027. Paid mFRR capacity does exist today as quarterly/monthly ERSE auctions, but they reserve at least 75% of the awarded volume for consumption installations (in the Q4-2026 auction 13 industrial consumers took 165 of 180 MW) and cannot be modelled in a daily pipeline, so mFRR is counted as energy-only here (a conservative choice).
+- Detailed step-by-step sizing with a real run: [docs/aFRR_mFRR_Reserve_Sizing_Concept.md](docs/aFRR_mFRR_Reserve_Sizing_Concept.md).
 

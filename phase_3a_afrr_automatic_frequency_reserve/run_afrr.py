@@ -118,12 +118,12 @@ def _print_offers(cfg, source, offers, committed, revenue):
     print("  Note   : FAT = time to reach full offered MW after TSO's automatic")
     print("           AGC signal. Must then sustain that MW until frequency is")
     print("           restored or mFRR takes over (duration not fixed).")
-    print(f"\n  {'Hour':<5} {'Energy MW':>10} {'Up MW':>8} {'Dn MW':>8} "
+    print(f"\n  {'ISP':<5} {'Energy MW':>10} {'Up MW':>8} {'Dn MW':>8} "
           f"{'CapUp €/MW':>11} {'CapDn €/MW':>11}")
     print("  " + "-" * 64)
     for h in sorted(offers):
         o = offers[h]
-        print(f"  H{h:02d}  {committed.get(h,0.0):>+10.1f} {o.up_mw:>8.1f} {o.dn_mw:>8.1f} "
+        print(f"  {h:<5d}{committed.get(h,0.0):>+10.1f} {o.up_mw:>8.1f} {o.dn_mw:>8.1f} "
               f"{o.cap_price_up_eur_mw:>11.1f} {o.cap_price_dn_eur_mw:>11.1f}")
     print("  " + "-" * 64)
     print(f"  Expected aFRR capacity revenue: {revenue:>12,.2f} EUR")

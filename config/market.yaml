@@ -113,12 +113,21 @@ bid_limits:
   max_pump_mw: 447.4                # 4x111.6 pump + 1 BESS charge (matches PlantConfig.p_max_pump_mw) — pump ESTIMATED
 
 # -----------------------------------------------------------------------------
-# aFRR — Portugal national platform; PICASSO accession expected ~Q3 2026.
+# aFRR — Portugal national platform; PICASSO integration due by 31 Oct 2026.
+# MPGGS (ERSE Directive 9/2025, 11 Sep 2025), Art. 452: the national aFRR energy
+# and band platform starts by 30 Jun 2026 (rules effective 1 Apr 2026); Art.
+# 452(9): integration into PICASSO "as soon as possible and by 31 October 2026",
+# with the exact day announced >= 30 days ahead.
 # https://www.entsoe.eu/network_codes/eb/picasso/
 # -----------------------------------------------------------------------------
 afrr:
   platform: "NATIONAL"              # "NATIONAL" or "PICASSO" — update on REN accession
-  ren_picasso_accession_estimate: "2026-Q3"
+  ren_picasso_accession_estimate: "by 2026-10-31"   # MPGGS Art. 452(9)
+  # Market rules used by the sizing (MPGGS Art. 142, 145, 146, 151): the band is
+  # a 15-minute product, up and down bid SEPARATELY (not symmetric), min offer
+  # 1 MW; the TSO's need is inelastic and sized to cover 99% of historical
+  # deviations; the cheapest offers are taken and ALL contracted MW are paid
+  # the last accepted offer's price (pay-as-clear); the contract is firm.
   # gate_close: sequencing CONFIRMED against REN's own MPGGS rulebook (ERSE
   # Directive 9/2025, Article 80(3)): the real order is DA market -> PDVD
   # (REN's grid-security-checked version of the DA result, Article 81) ->
@@ -129,6 +138,8 @@ afrr:
   # stated in the MPGGS text — genuinely unconfirmable with tools available
   # in this session (no REN portal access). "D-1 afternoon/evening,
   # after DA" is the confirmed real order; the specific hour stays ESTIMATE.
+  # (Re-checked 2026-10 against the Sep 2025 MPGGS: Art. 80(3), 82, 83 and 145
+  # all say "before/within the time set in Aviso do GGS"; no clock hour given.)
   gate_close: "D-1 (after DA gate close ~12:00, before IDA1 15:00)"  # ESTIMATE (order confirmed, hour not)
   # max_offer_up/dn_mw: previously a flat, unsourced 100.0 MW with no comment
   # or REN reference — it silently capped aFRR/mFRR offers below the plant's
@@ -199,6 +210,26 @@ mfrr:
   # change it to reflect actual desk risk appetite, not a compliance target.
   max_offer_fraction: 0.20
   price_fraction_of_afrr: 0.40      # synthetic price fallback only
+  # mFRR capacity payment -- what the rulebook (MPGGS Sep 2025) actually says:
+  #  * A paid mFRR capacity market DOES exist. Today it is the specific "BmFRR"
+  #    product (Chapter XX): ERSE-run auctions for a quarter or a month, upward
+  #    only, pay-as-clear up to a reserve price, firm contract for every 15 min
+  #    of the period. The new DAILY band (Chapter XVI, D+1) only has to start by
+  #    1 Apr 2027 (Art. 453).
+  #  * Real example, ERSE notice for the Q4-2026 auction (25 Sep 2026): 180 MW per
+  #    quarter-hour (monthly lots 150 MW); reserve price 10 EUR/MW/qh (quarterly)
+  #    and 8 EUR/MW/qh (monthly), i.e. up to 40 / 32 EUR/MW/h; one offer area may
+  #    bid at most 40% of the volume; AT LEAST 75% of the awarded volume must come
+  #    from consumption installations (Art. 262(2) lets ERSE set such limits).
+  #    Actual results (OMIP / REN): Q4-2026 165 of 180 MW awarded at 10.00 to 13
+  #    consumption installations; year-2026 lot 300 MW at 10.49 to 30 installations;
+  #    monthly lots mostly unfilled. No generator or storage winner is reported.
+  #  * Eligibility: 15-minute Pel test, own offer area, contract + collateral, and
+  #    production units must not be subject to mandatory mFRR participation
+  #    (Art. 257(1)(a)). Alqueva's status under the ROR is NOT confirmed.
+  #  * The quarter/month-ahead auction cannot be modelled by this daily pipeline.
+  #  So capacity_payment=false is a CONSERVATIVE MODELLING CHOICE, not a ban.
+  # Need sizing (Art. 70): up = largest single loss + 2% load + 10% wind + 5% PV.
   # capacity_payment: false = energy-only. mFRR offers are still sized and
   # activated (activation energy is still earned), but no capacity payment is
   # counted. Evidence (2026-10): the price this project downloads (REN
