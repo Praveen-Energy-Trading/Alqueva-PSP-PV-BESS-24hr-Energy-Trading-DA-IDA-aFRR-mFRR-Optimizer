@@ -176,7 +176,15 @@ $$
 z^{su}_{u,h_1} \geq x^{trb}_{u,h_1} - x^{trb,0}_{u}, \qquad z^{su,pmp}_{u,h_1} \geq x^{pmp}_{u,h_1} - x^{pmp,0}_{u} \tag{13a}
 $$
 
-A unit that is already running therefore pays no start. The pipeline (DA, IDA1-3 and XBID gates) takes the status from the previous day's last period (`ComponentStore.load_chained_initial_state`, the same mechanism that carries the reservoir volumes and the battery state of charge), and falls back to `initial_state.units_on` in `config/plant.yaml` (turbines) with all pumps off when there is no previous record. Only the on/off status is carried, not how long each unit has already been in that state, so a minimum up or down time that straddles midnight is not enforced. The backtest still starts every day from all off, because its days are solved independently.
+A unit that is already running therefore pays no start. The pipeline (DA, IDA1-3 and XBID gates) takes the status from the previous day's last period (`ComponentStore.load_chained_initial_state`, the same mechanism that carries the reservoir volumes and the battery state of charge), and falls back to `initial_state.units_on` in `config/plant.yaml` (turbines) with all pumps off when there is no previous record. The backtest still starts every day from all off, because its days are solved independently.
+
+**Time already spent in that state.** The pipeline also carries how long each unit has already been on or off, $a_u$ (`units_turb_hours_in_state`, `units_pump_hours_in_state`, counted back from the previous day's last period; a unit unchanged all day gets 24 h). A minimum up or down time that started before midnight is then enforced in the first periods of the new day (the standard initial conditions of the minimum up/down time constraints, Carrión and Arroyo, 2006). With $L^{up}$ and $L^{dn}$ the minimum up and down times in periods and $\bar a_u = \lfloor a_u/\Delta t \rfloor$:
+
+$$
+x_{u,h} = 1 \quad \forall h \leq L^{up} - \bar a_u \ \text{ if } x^{0}_u = 1, \qquad x_{u,h} = 0 \quad \forall h \leq L^{dn} - \bar a_u \ \text{ if } x^{0}_u = 0 \tag{13d}
+$$
+
+for each mode $x \in \{x^{trb}, x^{pmp}\}$. Example: a turbine stopped at 23:30 (time in state 0.5 h, minimum down time 2 h) stays off until 01:30. If the time in state is unknown (older records, or the backtest) no extra constraint is added.
 
 **Pump start cost.** Pump starts are charged in the same way as turbine starts. Eq. 8 becomes
 

@@ -133,4 +133,24 @@ class ComponentStore:
                 units = default_state.get(key)
             if units is not None:
                 state[key] = [int(bool(x)) for x in units]
+        # How long each unit has already been in that on/off state (hours), counted back from
+        # the last period of the previous day, so minimum up/down times that straddle midnight
+        # are respected. A unit unchanged for the whole day gets 24 h (longer than any minimum).
+        if psp and last_psp:
+            periods = sorted(psp)
+            dt_h = 24.0 / len(periods)
+            for key, out_key in (("units_on_turb", "units_turb_hours_in_state"),
+                                 ("units_on_pump", "units_pump_hours_in_state")):
+                n_units = len((last_psp or {}).get(key) or [])
+                hours = []
+                for u in range(n_units):
+                    series = [int(bool((psp[p].get(key) or [0] * n_units)[u])) for p in periods]
+                    run = 1
+                    for k in range(len(series) - 2, -1, -1):
+                        if series[k] != series[-1]:
+                            break
+                        run += 1
+                    hours.append(24.0 if run == len(series) else run * dt_h)
+                if hours:
+                    state[out_key] = hours
         return state

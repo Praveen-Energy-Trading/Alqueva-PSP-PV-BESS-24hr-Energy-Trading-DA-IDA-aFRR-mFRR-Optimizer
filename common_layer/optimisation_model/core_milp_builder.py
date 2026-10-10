@@ -169,6 +169,42 @@ def _efficiency_surface(flow_grid: List[float], head_grid: List[float],
     return table
 
 
+def _hours_in_state(values, U) -> Dict[int, Optional[float]]:
+    """{unit: hours the unit has already been in its initial on/off state} (None = unknown)."""
+    out: Dict[int, Optional[float]] = {u: None for u in U}
+    if values:
+        for i, u in enumerate(U):
+            if i < len(values) and values[i] is not None:
+                out[u] = float(values[i])
+    return out
+
+
+def _initial_dwell_fixings(U, H, dt: float, min_up_h: float, min_down_h: float,
+                           init_on: Dict[int, int], hours: Dict[int, Optional[float]]):
+    """Periods at the start of the horizon where a unit's status is already decided by a
+    minimum up or down time that started before midnight (standard initial conditions of
+    the minimum up/down time constraints, Carrion and Arroyo 2006).
+
+    A unit that has been ON for a periods must stay on for max(0, L_up - a) more periods; a unit
+    that has been OFF for a periods must stay off for max(0, L_down - a) more. Returns a list of
+    (unit, period, required_status). Unknown time in state gives no constraint."""
+    L_up = max(1, round(min_up_h / dt))
+    L_dn = max(1, round(min_down_h / dt))
+    out = []
+    for u in U:
+        h_in = hours.get(u)
+        if h_in is None:
+            continue
+        age = int(h_in / dt + 1e-9)
+        if init_on.get(u, 0):
+            remaining, status = max(0, L_up - age), 1
+        else:
+            remaining, status = max(0, L_dn - age), 0
+        for h in H[:remaining]:
+            out.append((u, h, status))
+    return out
+
+
 def _init_status(values, U) -> Dict[int, int]:
     """{unit: 0/1} from an optional per-unit list of on/off flags (default: all off)."""
     if not values:
@@ -298,6 +334,8 @@ def build_core_model(
     init = inputs.get("initial_state", {})
     init_turb = _init_status(init.get("units_on_turb"), U)   # unit status at the start of the horizon
     init_pump = _init_status(init.get("units_on_pump"), U)
+    hrs_turb = _hours_in_state(init.get("units_turb_hours_in_state"), U)   # time already in that state
+    hrs_pump = _hours_in_state(init.get("units_pump_hours_in_state"), U)
 
     v_up0 = float(init.get("upper_reservoir_hm3", res.upper_initial_hm3))
     v_low0 = float(init.get("lower_reservoir_hm3", res.lower_initial_hm3))
@@ -481,6 +519,16 @@ def build_core_model(
     if psp.pump_fixed_speed:
         m.pump_fixed_flow = pyo.Constraint(m.U, m.H,
             rule=lambda mm, u, h: sum(mm.omega_pmp[u, FI[-1], hi, h] for hi in HI) == mm.on_pump[u, h])
+
+    # Minimum up/down times that started before midnight (time already spent in the initial state).
+    _fx_turb = _initial_dwell_fixings(U, H, dt, psp.min_mode_hours, psp.min_down_hours, init_turb, hrs_turb)
+    _fx_pump = _initial_dwell_fixings(U, H, dt, psp.min_mode_hours, psp.min_down_hours, init_pump, hrs_pump)
+    if _fx_turb:
+        m.init_dwell_turb = pyo.Constraint(range(len(_fx_turb)),
+            rule=lambda mm, i: mm.on_turb[_fx_turb[i][0], _fx_turb[i][1]] == _fx_turb[i][2])
+    if _fx_pump:
+        m.init_dwell_pump = pyo.Constraint(range(len(_fx_pump)),
+            rule=lambda mm, i: mm.on_pump[_fx_pump[i][0], _fx_pump[i][1]] == _fx_pump[i][2])
 
     # ── HEAD-VOLUME RELATIONSHIP ──────────────────────────────────────────────
     # Dynamic head: H_net[h] = H_MIN_OP + dH_dQ * (v_up[h]*M3_PER_HM3 - Q_ref)
@@ -751,6 +799,8 @@ def build_core_model_stochastic(
     init = inputs.get("initial_state", {})
     init_turb = _init_status(init.get("units_on_turb"), U)   # unit status at the start of the horizon
     init_pump = _init_status(init.get("units_on_pump"), U)
+    hrs_turb = _hours_in_state(init.get("units_turb_hours_in_state"), U)   # time already in that state
+    hrs_pump = _hours_in_state(init.get("units_pump_hours_in_state"), U)
 
     if abs(sum(probabilities.values()) - 1.0) > 1e-6:
         raise ValueError(
@@ -905,6 +955,15 @@ def build_core_model_stochastic(
         m.pump_fixed_flow = pyo.Constraint(m.U, m.H, m.S,
             rule=lambda mm, u, h, s: sum(mm.omega_pmp[u, FI[-1], hi, h, s] for hi in HI)
             == mm.on_pump[u, h, s])
+
+    _fx_turb = _initial_dwell_fixings(U, H, dt, psp.min_mode_hours, psp.min_down_hours, init_turb, hrs_turb)
+    _fx_pump = _initial_dwell_fixings(U, H, dt, psp.min_mode_hours, psp.min_down_hours, init_pump, hrs_pump)
+    if _fx_turb:
+        m.init_dwell_turb = pyo.Constraint(range(len(_fx_turb)), m.S,
+            rule=lambda mm, i, s: mm.on_turb[_fx_turb[i][0], _fx_turb[i][1], s] == _fx_turb[i][2])
+    if _fx_pump:
+        m.init_dwell_pump = pyo.Constraint(range(len(_fx_pump)), m.S,
+            rule=lambda mm, i, s: mm.on_pump[_fx_pump[i][0], _fx_pump[i][1], s] == _fx_pump[i][2])
 
     m.head_vol = pyo.Constraint(m.H, m.S,
         rule=lambda mm, h, s: mm.H_net[h, s] == (H_MIN_OP
