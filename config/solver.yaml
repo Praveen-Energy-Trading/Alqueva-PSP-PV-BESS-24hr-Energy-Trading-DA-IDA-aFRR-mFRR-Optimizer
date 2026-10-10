@@ -19,16 +19,18 @@ solver:
   # appsi_highs (HiGHS) runs automatically when CPLEX is absent; cbc is last resort.
   fallback_order: ["cplex", "appsi_highs", "cbc"]
 
-  # Efficiency-surface adjacency (SOS2) keeps the 5x5 interpolation weights on one grid cell.
-  #   off  = legacy convex-combination relaxation (DEFAULT). Overstates turbine power ~2-3% on
-  #          heavy generation days (realised revenue effect measured at 0.5-1.1%).
-  #   head = SOS2 on the head axis of the turbine surface (CPLEX only)
-  #   full = SOS2 on both axes, turbine + pump (CPLEX only, ~4x slower than head)
-  #   auto = head when CPLEX is the active solver, off otherwise
-  # NOT the default because, on the 15-min model, it pushes the DA solve to the 120 s limit
-  # (IDA1/IDA2 61-73 s of 90 s) and IDA3 becomes infeasible: its frozen hours (H1-H11) cannot be
-  # reproduced exactly under the tighter rule. Fix those first (see docs/mathematical_modeling.md C.4).
-  efficiency_adjacency: "off"
+  # Efficiency-surface adjacency (SOS2) keeps the 5x5 interpolation weights on one grid cell, so
+  # turbine power cannot exceed the efficiency surface (the old relaxation overstated it ~2-3% on
+  # heavy generation days).
+  #   auto = head-axis rule on the turbine surface when CPLEX is active, off otherwise (DEFAULT)
+  #   head = same, forced   | full = both axes, turbine + pump (exact, slower)
+  #   off  = legacy convex-combination relaxation (fastest, overstates turbine power)
+  efficiency_adjacency: "auto"
+  # How a model with SOS2 sets is solved: two_stage = solve the fast relaxed model, fix the on/off
+  # decisions, then solve again with SOS2 (about 8-10 s per gate on the 15-min model, turbine
+  # overstatement ~0.17%); joint = one solve (60-150 s per gate, gap often not reached in time).
+  # Falls back to the stage-1 solution with a warning if stage 2 ever fails.
+  adjacency_solve: "two_stage"
 
   mip_gap: 0.005          # 0.5% optimality gap — tight enough for trading, fast enough for gates
   threads: 0              # 0 = let CPLEX choose (all cores)

@@ -45,9 +45,11 @@ def _support(model, omega, u, h):
 
 
 class TestAdjacencyRule:
-    def test_default_is_off(self, cfg):
-        assert cfg.solver.efficiency_adjacency == "off"
-        assert _adjacency_form(cfg) == "off"
+    def test_default_is_auto_which_means_head_with_cplex(self, cfg):
+        assert cfg.solver.efficiency_adjacency == "auto"
+        if cfg.solver.resolve_executable() is None:
+            pytest.skip("CPLEX not found")
+        assert _adjacency_form(cfg) == "head"
 
     def test_auto_turns_the_rule_on_with_cplex(self, cfg):
         if cfg.solver.resolve_executable() is None:
@@ -60,7 +62,8 @@ class TestAdjacencyRule:
             _adjacency_form(bad)
 
     def test_off_builds_no_sos_sets(self, cfg):
-        model, _ = build_core_model(make_inputs(cfg), cfg)
+        off = _with(cfg, "off")
+        model, _ = build_core_model(make_inputs(off), off)
         for name in ("sosf_trb", "sosh_trb", "sosf_pmp", "sosh_pmp"):
             assert not hasattr(model, name), name
 

@@ -276,21 +276,23 @@ $$
 
 where $q^{trb}_{u,h}$ (m$^3$/h) is the turbine flow of unit $u$ in hour $h$ used in the reservoir water balance, and $H^{trb}_{u,h}$ is the McCormick auxiliary from Eq. 15, closing the link between the efficiency surface and the head model. Three analogous constraints (power, flow, head) apply to the pump mode using $\omega^{pmp}_{u,f,k,h}$, $c^{pmp}_{f,k}$, and $p^{pmp}_{u,h}$, $q^{pmp}_{u,h}$, $H^{pmp}_{u,h}$.
 
-**Adjacency (SOS2) on the turbine head axis — optional, off by default.** Equations 19–22 alone only force the weights to be a convex combination of the 25 grid cells. Because turbine power is a product of flow and head, a convex combination of non-neighbouring cells can read off more power per m$^3$ than the efficiency surface allows (about +2.6% on a heavy generation day; realised revenue effect measured at 0.5–1.1%). The standard fix (lambda formulation with SOS2 sets) restricts each marginal weight set to two neighbouring grid points. For the head axis:
+**Adjacency (SOS2) on the turbine head axis.** Equations 19–22 alone only force the weights to be a convex combination of the 25 grid cells. Because turbine power is a product of flow and head, a convex combination of non-neighbouring cells can read off more power per m$^3$ than the efficiency surface allows (about +2.9% on a heavy generation day; realised day-ahead revenue overstated by 0.3–1.3% on the days tested). The standard fix (lambda formulation with SOS2 sets) restricts each marginal weight set to two neighbouring grid points. For the head axis:
 
 $$
 \lambda^{H}_{u,k,h} = \sum_{f \in F} \omega^{trb}_{u,f,k,h}, \qquad \{\lambda^{H}_{u,k,h}\}_{k \in K} \ \text{is an SOS2 set} \qquad \forall u \in U,\ h \in H \tag{22a}
 $$
 
-where $\lambda^{H}_{u,k,h} \geq 0$ is the weight on head grid point $k$ and the SOS2 condition allows at most two non-zero entries, which must be adjacent. It is implemented (`solver.efficiency_adjacency`: `off` default, `head`, `full`, `auto`) and needs CPLEX (native SOS2). `head` applies it to the turbine surface only (the pump optimiser wants less power, which the relaxation does not reward, measured +0.01%); `full` adds the flow axis and the pump surface. Measured on a heavy 15-minute day-ahead solve (10 Sep 2026):
+where $\lambda^{H}_{u,k,h} \geq 0$ is the weight on head grid point $k$ and the SOS2 condition allows at most two non-zero entries, which must be adjacent. It needs CPLEX (native SOS2) and is controlled by `solver.efficiency_adjacency`: `auto` (default, the head-axis rule on the turbine surface when CPLEX is active), `head`, `full` (both axes, turbine and pump) and `off` (the legacy relaxation). The pump surface needs no rule: its optimiser wants less power, which the relaxation does not reward (measured +0.01%).
 
-| Setting | Solve time | Turbine power above the surface |
+**Two-stage solve.** Solving the SOS2 model in one go is slow (60–150 s per gate on the 15-minute model, with the optimality gap often not reached within the gate time limits), so `solver.adjacency_solve: two_stage` (default) solves it in two steps: (1) the model without the SOS2 sets, (2) every binary variable fixed at its stage-1 value and the SOS2 sets switched on. If stage 2 fails, the stage-1 solution is kept and a warning is printed, so a gate never fails because of the refinement. CPLEX presolve reductions are switched off in stage 2, because they wrongly declared the tightly constrained problem infeasible or unbounded (this broke IDA3, whose frozen hours come from IDA2). Measured on the four gates of 21 Aug 2026 (15-minute model):
+
+| Setting | Time per gate | Turbine power above the surface |
 |---|---|---|
-| `off` (legacy, default) | 2.5 s | +2.64% |
-| `head` | 19 s | +0.05% |
-| `full` | 83–90 s | +0.01% |
+| `off` (legacy) | 2.5–3.3 s | +2.9% |
+| `two_stage` (default) | 8–10 s | +0.17% |
+| `joint`, `head` | 60–150 s | +0.05% |
 
-**Why it is off by default (known limitation).** On the 15-minute model with `head`: the day-ahead solve reached the 120 s limit on a heavy day (21 Aug 2026: 121.9 s), IDA1 and IDA2 took 73 s and 61 s of their 90 s limits, and IDA3 became infeasible because its frozen hours (H1–H11) could not be reproduced exactly under the tighter rule. Turning it on requires fixing the frozen-hour handling and the gate time limits first. Until then the turbine power of the default model can be a few percent above the continuous efficiency surface on heavy generation days.
+On three real days the rule lowers the planned objective by 0.3–3.5% and the realised day-ahead revenue by 0.3–1.3%; all gates (IDA1, IDA2, IDA3, XBID) stay feasible, and a backtest day takes about 10–40 s longer.
 
 Reference: lambda formulation with SOS2 for piecewise-linear functions of several variables (Beale and Tomlin 1970; see also Vielma and Nemhauser 2011 for the modern formulations).
 
