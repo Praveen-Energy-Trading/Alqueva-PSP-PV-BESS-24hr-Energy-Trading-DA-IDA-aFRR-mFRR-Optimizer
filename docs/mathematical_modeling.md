@@ -200,7 +200,7 @@ $$
 \sum_{k \in K} \omega^{pmp}_{u,f_{max},k,h} = x^{pmp}_{u,h} \qquad \forall u \in U,\ h \in H \tag{13c}
 $$
 
-The default is false (pump power can vary between its minimum and maximum, i.e. variable-speed behaviour) because Alqueva's unit type is not confirmed.
+The default is false (pump power can vary between its minimum and maximum, i.e. variable-speed behaviour). This is an explicit assumption of the project: public sources (XFLEX Hydro, and the EU XFLEX ancillary-services study, which lists Alqueva II's baseline as fixed speed) describe Alqueva's four reversible units as fixed-speed, while EDP's variable-speed plant is Frades II. On three real days (10 Sep, 10 Jun, 10 Feb 2026) switching to fixed-speed pumps changed the planned objective by 0.1% or less and left the solve time unchanged. The choice matters more for reserve: a fixed-speed pump cannot raise its own power, so down-regulation while pumping would have to come from a second unit or from hydraulic short circuit, which the reserve sizing does not model.
 
 ### C.3 Head-Volume Relationship and McCormick Linearization
 

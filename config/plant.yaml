@@ -55,8 +55,14 @@ psp:
   startup_cost_pump_eur: 150.0
   # pump_fixed_speed: true = each pump runs only at its maximum flow (fixed-speed unit, power
   # varies only with head). false = pump power can vary between its minimum and maximum
-  # (variable-speed behaviour). Alqueva's unit type is NOT confirmed, so false keeps the
-  # previous behaviour.
+  # (variable-speed behaviour).
+  # DECISION (2026-10): false = variable-speed pumps, the project owner's assumption. Public
+  # sources (XFLEX Hydro: "four fixed-speed reversible pump-turbine units"; the EU XFLEX
+  # ancillary-services study lists Alqueva II's baseline as fixed speed) say the units are
+  # fixed-speed, and EDP's variable-speed plant is Frades II. Measured on three real days, the
+  # choice changes the planned objective by 0.1% or less. It matters more for reserve: a
+  # fixed-speed pump cannot raise its own power, so aFRR/mFRR 'down' while pumping would be
+  # lower (only via a second unit or hydraulic short circuit).
   pump_fixed_speed: false
 
 # -----------------------------------------------------------------------------
