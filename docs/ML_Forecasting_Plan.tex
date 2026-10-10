@@ -1,0 +1,341 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=accent,urlcolor=accent,citecolor=accent]{hyperref}
+
+\definecolor{accent}{RGB}{20,70,120}
+\definecolor{soft}{RGB}{240,244,248}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.25}
+
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{16pt}{6pt}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Forecasting Programme Plan}
+\fancyhead[R]{\small Alqueva PSP--PV--BESS Trading Optimizer}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\exitcrit}[1]{\par\smallskip\noindent\colorbox{soft}{\parbox{\dimexpr\linewidth-2\fboxsep}{\textbf{Exit criterion.} #1}}\par}
+
+\begin{document}
+
+% ---------------------------------------------------------------- title
+\begin{center}
+{\LARGE\bfseries\color{accent} A Professional Forecasting Programme\\[2pt]for an Electricity-Market Company}\\[8pt]
+{\large From raw data to monitored production forecasts}\\[6pt]
+{\normalsize Project: Alqueva PSP--PV--BESS 24-hour energy trading optimizer\\
+Document status: plan for review \quad|\quad Date: 10 October 2026}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{6pt}
+
+\section{Purpose and how to read this plan}
+
+This document describes, step by step, how a professional energy-market team would build,
+validate, deploy and maintain machine-learning forecasts, and how we will apply the same
+process to the forecasters of this project. It is deliberately complete: no step is
+shortened, because the work can be done on a computer without a deadline.
+
+The plan has six parts (A to F) and eighteen phases (0 to 17). Every phase lists its steps and an
+\emph{exit criterion}: the evidence that must exist before the next phase starts. We complete the phases
+in order, one at a time.
+
+\subsection*{What the literature and industry practice say}
+
+\begin{itemize}
+\item \textbf{Benchmark honestly.} The standard review of day-ahead price forecasting
+  (Lago et al., 2021) identifies the weak points of the field: short or single-market test
+  samples, no comparison with simple benchmarks, unsuitable accuracy metrics and no test of
+  statistical significance.
+\item \textbf{Backtest the way production will run.} Validation always trains on the past and tests on the
+  future with rolling origins; shuffled cross-validation leaks information. A model that cannot beat a
+  naive benchmark has not found structure in the data.
+\item \textbf{Probabilistic forecasts need proper scoring.} Quantile forecasts are scored with the
+  pinball loss; the CRPS is approximated by averaging pinball losses over a quantile grid; coverage is
+  tested separately; models are compared with Diebold--Mariano tests. Decision-based metrics
+  (profit) are added because a better CRPS does not always mean better decisions.
+\item \textbf{Balancing markets are harder.} Studies of German aFRR and imbalance prices find no
+  universally best model and poor results for activated volumes; Nordic mFRR studies find that
+  extra model or feature complexity does not reliably help. We found no Iberian study, so our own
+  evidence is needed.
+\item \textbf{Production needs MLOps.} Versioned features, a model registry, data validation, drift
+  monitoring and champion--challenger promotion are standard in energy-trading forecasting systems.
+\end{itemize}
+
+\subsection*{Where the project stands today}
+
+The following results were measured earlier on real market data (last twelve months as the test window).
+
+\begin{center}
+\begin{tabular}{lp{7.6cm}}
+\toprule
+\textbf{Forecast} & \textbf{Result versus the naive benchmark}\\
+\midrule
+Day-ahead price & about 2.6\% better\\
+IDA1--3 and XBID & 1\% to 5\% worse\\
+aFRR capacity price & very poor (no one-day lag feature)\\
+mFRR price & about 0.2\% better\\
+PV (irradiance and temperature) & worse than naive\\
+Reservoir inflow & worse than naive\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Existing foundations: real data rebuilt from OMIE and REN, leakage fixes, walk-forward cross-validation,
+naive baselines, autoregressive evaluation of the intraday forecasters. Missing: probabilistic
+forecasts, fundamental features (load, wind, solar, fuel prices), significance tests, experiment
+tracking, drift monitoring, a forecast archive and decision-value evaluation.
+
+% ================================================================ PART A
+\section{Part A --- Foundations}
+
+\subsection{Phase 0. Charter and decision mapping}
+\begin{itemize}
+\item List every decision that consumes a forecast: day-ahead bid, IDA1--3 and XBID trades, aFRR and mFRR
+  capacity offers, PV and inflow planning, risk limits.
+\item For each forecast define the \textbf{as-of time}: exactly which information exists at the moment of the
+  decision (day-ahead gate 12:00 CET, IDA1 15:00 CET, IDA2 22:00 CET, IDA3 10:00 CET, reserve gates, and so on).
+  This is the main protection against leakage.
+\item Define horizon, resolution (hourly and 15-minute), output format (point, quantiles or scenarios) and the
+  consumers of each forecast.
+\item Define success in euros (value of the forecast in the optimiser), not only in MAE.
+\item Fix the forecast catalogue: targets, owners, update schedule, fallback.
+\end{itemize}
+\exitcrit{A signed-off forecast catalogue with an as-of time and a consumer for every target.}
+
+\subsection{Phase 1. Data inventory and access}
+\begin{itemize}
+\item For every source (OMIE prices, REN reserve data, weather observations and forecasts, TSO fundamentals,
+  fuel and carbon prices, reservoir data): history length, update delay, licence, API limits, cost.
+\item Record \textbf{vintages}: the forecast that was issued at the time, not only the final actual value
+  (point-in-time data), for load, wind, solar and weather forecasts.
+\item Build a data dictionary (variable, unit, resolution, time zone, source, definition) and a lineage map.
+\item Identify gaps and substitutes, and the legal use of each dataset.
+\end{itemize}
+\exitcrit{Every input has an owner, a timestamp rule, a licence note and a quality note.}
+
+\subsection{Phase 2. Ingestion and storage}
+\begin{itemize}
+\item Three zones: \emph{raw} (immutable, as downloaded), \emph{cleaned}, and \emph{feature-ready}, each versioned.
+\item Incremental, repeatable loads: retries, idempotent writes, checksums, load logs.
+\item Time handled properly: UTC internally; 23- and 25-hour days; 92- and 100-period quarter-hour days;
+  the move from hourly to 15-minute products (2025); the 2024 intraday-auction reform; the 2026 aFRR platform
+  change. Each is stored as a \textbf{regime marker}.
+\item Data contracts: schema, types, ranges and freshness rules checked on every load.
+\end{itemize}
+\exitcrit{Any past date can be rebuilt exactly from the raw zone.}
+
+\subsection{Phase 3. Data quality and cleaning}
+\begin{itemize}
+\item Automated checks: schema, ranges, duplicates, gaps, stale feeds, unit consistency, DST artefacts.
+\item Price spikes and negative prices are information: flag them, never delete them blindly.
+\item Written imputation rules per variable that use only information available at the as-of time.
+\item Keep the provenance label (live, synthetic) on every row; synthetic rows are excluded from training and testing.
+\item A daily data-quality score and an automatic report.
+\end{itemize}
+\exitcrit{A quality report and a pass/fail gate that must be green before any model run.}
+
+\subsection{Phase 4. Exploratory analysis and market understanding}
+\begin{itemize}
+\item Seasonality (daily, weekly, annual), autocorrelation, stationarity, structural breaks (the 2022 energy
+  crisis, solar price cannibalisation, the April 2025 blackout effects).
+\item Relationships between markets: day-ahead, IDA1--3, XBID, reserves, imbalance.
+\item Frequency of spikes and negative prices, distribution shape, heteroscedasticity.
+\item Effective sample size after the regime changes; which history is still representative.
+\end{itemize}
+\exitcrit{A written findings note that justifies the modelling choices of the next parts.}
+
+% ================================================================ PART B
+\section{Part B --- Measurement before modelling}
+
+\subsection{Phase 5. Problem formulation per target}
+\begin{itemize}
+\item Output type: point, quantile or scenario; direct versus recursive multi-step; per-hour models versus a
+  full 24-hour vector.
+\item Targets as price levels or as spreads to the day-ahead price (important for intraday).
+\item A variance-stabilising transform that allows negative prices (for example the inverse hyperbolic sine).
+\item Consistency between hourly and 15-minute forecasts.
+\item The information set per target, written down and tested.
+\end{itemize}
+
+\subsection{Phase 6. Evaluation framework (the contract, built first)}
+\begin{itemize}
+\item Rolling-origin backtests with a realistic retraining schedule and a time gap between training and test.
+\item A \textbf{locked final test period} that nobody tunes on.
+\item Point metrics: MAE, RMSE and scaled errors against the naive forecast (percentage errors are avoided because
+  prices can be near zero or negative).
+\item Probabilistic metrics: pinball loss on a stated quantile grid, CRPS, coverage tests, interval scores,
+  PIT histograms.
+\item Significance: Diebold--Mariano tests with a HAC variance, corrected for testing many hours and models.
+\item Benchmarks per target: same hour yesterday, same hour last week, a simple regression (ARX), then the candidates.
+\item \textbf{Decision value}: profit of the Alqueva optimiser when fed each forecast (naive, model, perfect foresight).
+\item Automated leakage tests and reproducibility tests.
+\end{itemize}
+\exitcrit{One command scores any forecaster in the same way and produces the same report.}
+
+% ================================================================ PART C
+\section{Part C --- Modelling}
+
+\subsection{Phase 7. Feature engineering and feature store}
+\begin{itemize}
+\item Calendar and holidays for Portugal and Spain, bridge days, DST.
+\item Lags and rolling statistics that respect the as-of time.
+\item Fundamentals: load, wind and solar forecasts, residual load, gas and carbon prices, interconnection, hydro
+  levels, weather forecasts.
+\item A feature catalogue with each feature's availability time, and point-in-time correctness tests.
+\item Feature selection with stability checks across periods; versioned feature definitions.
+\end{itemize}
+
+\subsection{Phase 8. Baselines and candidate models}
+\begin{itemize}
+\item Statistical: seasonal naive, ARX, LASSO-estimated ARX with several calibration windows (a strong benchmark in
+  the review), generalised additive models.
+\item Machine learning: gradient boosting (LightGBM, XGBoost), random forest, quantile boosting.
+\item Deep learning: feed-forward networks, LSTM and GRU, N-BEATS, Temporal Fusion Transformer, distributional networks.
+\item Foundation models used zero-shot, as a benchmark only.
+\item Rule: a complex model must beat the simple one significantly, otherwise it is dropped.
+\end{itemize}
+
+\subsection{Phase 9. Training, tuning and ensembling}
+\begin{itemize}
+\item Hyper-parameters tuned inside the rolling backtest (nested, time-aware), never on the test period.
+\item Forecast combinations: simple averages often win and are tested first.
+\item Comparison of calibration-window lengths and retraining frequencies.
+\end{itemize}
+
+\subsection{Phase 10. Probabilistic forecasts and scenarios}
+\begin{itemize}
+\item Quantile models, quantile regression averaging, distributional networks.
+\item Conformal prediction for reliable intervals (recent studies apply it to day-ahead and balancing prices).
+\item Scenario generation that keeps the correlation across hours, feeding the stochastic CVaR bidding model.
+\item Calibration diagnostics and automatic recalibration.
+\end{itemize}
+\exitcrit{Intervals reach their nominal coverage out of sample, and scenarios pass the correlation checks.}
+
+% ================================================================ PART D
+\section{Part D --- Target-specific work}
+
+\subsection{Phase 11. One workstream per target}
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{12.2cm}}
+\toprule
+\textbf{Target} & \textbf{Focus}\\
+\midrule
+\endhead
+Day-ahead price & Biggest revenue lever; the full pipeline is built here first (Phases 5--10).\\
+IDA1--3 and XBID & Model the spread to the day-ahead price; use the outcome of the earlier gate as information; market-microstructure features.\\
+aFRR and mFRR capacity prices & Day-before lag, merit-order features, bid and award behaviour; handle the 2026 product and platform change as a regime; expect modest gains.\\
+Imbalance and activation & Probabilistic, low expectations; value is mainly in risk estimates.\\
+PV & Forecast irradiance and temperature with weather-model post-processing, then apply the physics model; compare with satellite irradiance; probabilistic.\\
+Reservoir inflow & Hydrological view (rainfall, runoff, irrigation rules); find out why the current forecast is worse than naive.\\
+\bottomrule
+\end{longtable}
+
+% ================================================================ PART E
+\section{Part E --- Industrialisation}
+
+\subsection{Phase 12. Experiment tracking and reproducibility}
+\begin{itemize}
+\item Every run records code version, data snapshot, configuration, random seed, metrics and plots.
+\item Automatic model cards (purpose, data, metrics, limits).
+\end{itemize}
+
+\subsection{Phase 13. Model selection, governance and acceptance gates}
+\begin{itemize}
+\item A model is promoted only if it beats the benchmark with statistical significance \emph{and} adds decision value.
+\item Champion--challenger rule, documented assumptions and a written fallback.
+\item Review and sign-off record for each promotion.
+\end{itemize}
+
+\subsection{Phase 14. Production pipeline}
+\begin{itemize}
+\item Scheduling tied to each market gate, retries, data-freshness limits, automatic fallback to a simple forecast
+  when data are late.
+\item A \textbf{forecast archive} with timestamps (essential for later evaluation).
+\item Tests in continuous integration, containers, a fixed validated interface to the optimiser.
+\end{itemize}
+
+\subsection{Phase 15. Monitoring and maintenance}
+\begin{itemize}
+\item Input drift (population stability index, Kolmogorov--Smirnov), error drift, bias and calibration drift
+  computed on realised data.
+\item Alert thresholds, a retraining policy (scheduled and triggered), shadow runs of challengers.
+\item Incident runbook and a periodic review.
+\end{itemize}
+
+% ================================================================ PART F
+\section{Part F --- Value and communication}
+
+\subsection{Phase 16. Decision value}
+\begin{itemize}
+\item Profit with perfect foresight versus model versus naive forecasts in the optimiser.
+\item Sensitivity of profit to forecast error and the value in euros of each improvement.
+\item Stochastic bidding with quantile forecasts versus point forecasts.
+\end{itemize}
+
+\subsection{Phase 17. Documentation and reporting}
+\begin{itemize}
+\item Methodology note, model cards, and the existing dashboard page extended with these metrics.
+\item A short narrative of the work for technical interviews.
+\end{itemize}
+
+% ================================================================ order
+\section{Proposed order of work}
+\begin{enumerate}
+\item Phases 0 and 1, plus an \textbf{audit} of today's forecasters (no new modelling code).
+\item Phases 2 to 4: data layer, data quality, exploratory analysis.
+\item Phase 6: the evaluation framework, before any new model.
+\item The day-ahead price end to end (Phases 5 and 7 to 10), then reserves, then intraday, PV and inflow.
+\item Phases 12 to 15, then Phase 16 to show the value.
+\end{enumerate}
+
+\section{Decisions needed before starting}
+\begin{enumerate}
+\item \textbf{Order of targets.} Proposed: day-ahead price, then aFRR and mFRR, then intraday, PV and inflow.
+\item \textbf{Data access.} Are Spanish and Portuguese TSO data (load, wind and solar forecasts) and a weather
+  forecast source available, or only freely available data?
+\item \textbf{Tools.} Open-source Python (pandas, scikit-learn, LightGBM, Optuna, MLflow-style tracking) or specific tools?
+\item \textbf{Tracking.} This document is the master checklist; each completed phase is recorded with its exit evidence.
+\end{enumerate}
+
+% ================================================================ references
+\section*{References}
+\begin{itemize}
+\item J.~Lago, G.~Marcjasz, B.~De~Schutter, R.~Weron, \emph{Forecasting day-ahead electricity prices: A review of
+  state-of-the-art algorithms, best practices and an open-access benchmark}, Applied Energy 293 (2021).
+  \url{https://arxiv.org/abs/2008.08004}
+\item J.~Nowotarski, R.~Weron, \emph{Recent advances in electricity price forecasting: A review of probabilistic
+  forecasting}, Renewable and Sustainable Energy Reviews 81 (2018) 1548--1568.
+\item \emph{The evolution of probabilistic price forecasting techniques: a review of the day-ahead, intra-day and
+  balancing markets}. \url{https://arxiv.org/pdf/2511.05523}
+\item \emph{Conformal prediction for electricity price forecasting in the day-ahead and real-time balancing market}.
+  \url{https://arxiv.org/pdf/2502.04935}
+\item \emph{Probabilistic forecasting of German electricity imbalance prices}. \url{https://arxiv.org/pdf/2205.11439}
+\item \emph{Forecast evaluation for data scientists: common pitfalls and best practices}.
+  \url{https://arxiv.org/pdf/2203.10716}
+\item \emph{Greykite: deploying flexible forecasting at scale at LinkedIn} (rolling-origin backtesting).
+  \url{https://arxiv.org/pdf/2207.07788}
+\end{itemize}
+
+\end{document}
