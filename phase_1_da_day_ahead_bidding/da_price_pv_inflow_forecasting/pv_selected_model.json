@@ -2,21 +2,21 @@
   "GHI": {
     "selected": "RandomForest",
     "cv_mae": {
-      "LightGBM": 13.8961,
-      "XGBoost": 13.6101,
-      "RandomForest": 13.1421
+      "LightGBM": 13.8878,
+      "XGBoost": 13.5679,
+      "RandomForest": 13.1428
     },
-    "data_end_date": "2026-11-07",
-    "updated_on": "2026-10-09"
+    "data_end_date": "2026-11-08",
+    "updated_on": "2026-10-10"
   },
   "T_amb": {
-    "selected": "XGBoost",
+    "selected": "LightGBM",
     "cv_mae": {
-      "LightGBM": 0.3528,
-      "XGBoost": 0.3486,
-      "RandomForest": 0.5025
+      "LightGBM": 0.3456,
+      "XGBoost": 0.3474,
+      "RandomForest": 0.5039
     },
-    "data_end_date": "2026-11-07",
-    "updated_on": "2026-10-09"
+    "data_end_date": "2026-11-08",
+    "updated_on": "2026-10-10"
   }
 }

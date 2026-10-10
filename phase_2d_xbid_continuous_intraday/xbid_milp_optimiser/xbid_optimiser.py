@@ -95,6 +95,8 @@ def build_xbid_inputs(delivery_date: str, cfg: AppConfig, window: str,
                 "upper_reservoir_hm3": cfg.plant.initial_state.upper_reservoir_hm3,
                 "lower_reservoir_hm3": cfg.plant.initial_state.lower_reservoir_hm3,
                 "bess_soc_frac": cfg.plant.initial_state.bess_soc_frac,
+                "units_on_turb": [int(bool(x)) for x in cfg.plant.initial_state.units_on],
+                "units_on_pump": [0] * len(cfg.plant.initial_state.units_on),
             },
             reservoir_bounds={
                 "upper_min_hm3": cfg.plant.reservoir.upper_min_hm3,

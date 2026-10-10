@@ -176,7 +176,7 @@ $$
 z^{su}_{u,h_1} \geq x^{trb}_{u,h_1} - x^{trb,0}_{u}, \qquad z^{su,pmp}_{u,h_1} \geq x^{pmp}_{u,h_1} - x^{pmp,0}_{u} \tag{13a}
 $$
 
-A unit that is already running therefore pays no start. The live pipeline does not yet pass the previous day's final unit status, so it defaults to all off.
+A unit that is already running therefore pays no start. The pipeline (DA, IDA1-3 and XBID gates) takes the status from the previous day's last period (`ComponentStore.load_chained_initial_state`, the same mechanism that carries the reservoir volumes and the battery state of charge), and falls back to `initial_state.units_on` in `config/plant.yaml` (turbines) with all pumps off when there is no previous record. Only the on/off status is carried, not how long each unit has already been in that state, so a minimum up or down time that straddles midnight is not enforced. The backtest still starts every day from all off, because its days are solved independently.
 
 **Pump start cost.** Pump starts are charged in the same way as turbine starts. Eq. 8 becomes
 

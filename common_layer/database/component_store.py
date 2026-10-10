@@ -86,6 +86,13 @@ class ComponentStore:
         ComponentStore record exists (first run, gaps in history) or that
         record is incomplete.
 
+        Also carries each unit's on/off status at the end of the previous day
+        (units_on_turb / units_on_pump, from the last period's psp_schedule) so a
+        unit that is still running at midnight is not charged a start in the first
+        period of the next day. Falls back to default_state's unit lists, then to
+        "all off", when the previous record has no unit status (older records). Only
+        the on/off status is carried, not how long the unit has been in that state.
+
         Clamped to the same feasible bounds core_milp_builder.py's v_up/v_low
         constraints enforce (reservoir_bounds: upper_min_hm3, upper_usable_hm3,
         lower_min_hm3, lower_capacity_hm3) -- the solved ending value can sit
@@ -113,8 +120,17 @@ class ComponentStore:
             lower_hm3 = max(reservoir_bounds["lower_min_hm3"],
                              min(reservoir_bounds["lower_capacity_hm3"], lower_hm3))
 
-        return {
+        state = {
             "upper_reservoir_hm3": upper_hm3,
             "lower_reservoir_hm3": lower_hm3,
             "bess_soc_frac": max(0.0, min(1.0, soc_frac)),
         }
+        psp = prev.get("psp_schedule") or {}
+        last_psp = psp.get(max(psp)) if psp else None
+        for key in ("units_on_turb", "units_on_pump"):
+            units = (last_psp or {}).get(key)
+            if units is None:
+                units = default_state.get(key)
+            if units is not None:
+                state[key] = [int(bool(x)) for x in units]
+        return state
