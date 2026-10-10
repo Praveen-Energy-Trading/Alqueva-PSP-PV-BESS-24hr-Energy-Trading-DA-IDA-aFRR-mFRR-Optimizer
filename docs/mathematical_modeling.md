@@ -570,13 +570,17 @@ where $\Delta t^{eff}_{isp}$ (h) is the effective ISP duration multiplier used t
 
 **Source:** `common_layer/physical_plant_models/pv_production_model.py`, function `production_mw`.
 
-The PV array's physically available power feeds $p^{av}_h$ in Eq. 28. It converts plane-of-array irradiance and cell temperature into AC power, applying a temperature derate and linear annual degradation since commissioning.
+The PV array's physically available power feeds $p^{av}_h$ in Eq. 28. It converts plane-of-array irradiance and cell temperature into AC power, applying a temperature derate, linear annual degradation since commissioning, and the DC-to-AC chain (inverter efficiency and other DC losses) in the PVWatts form (Dobos, 2014; IEC 61853).
 
 $$
-p^{av} = \mathrm{clip}\left( P^{peak} \cdot \frac{G}{G_{ref}} \cdot \left[1 + \gamma\left(T_{cell} - T_{ref}\right)\right] \cdot (1-\delta)^{Y},\ 0,\ P^{peak}_{eff} \right) \tag{58}
+p^{av} = \mathrm{clip}\left( P^{peak} \cdot \frac{G}{G_{ref}} \cdot \left[1 + \gamma\left(T_{cell} - T_{ref}\right)\right] \cdot (1-\delta)^{Y} \cdot \eta_{inv}\,(1 - L_{sys}),\ 0,\ P^{peak}_{eff} \right) \tag{58}
 $$
 
 where $P^{peak}$ (MW) is nameplate peak capacity, $G$ (W/m$^2$) is plane-of-array irradiance, $G_{ref} = 1000$ W/m$^2$ is reference irradiance, $\gamma$ ($^{\circ}\mathrm{C}^{-1}$) is the (negative) temperature coefficient, $T_{cell}$, $T_{ref} = 25\,^{\circ}\mathrm{C}$ are cell and reference temperature, $\delta$ (year$^{-1}$) is the annual degradation rate, $Y$ (years) is years elapsed since commissioning, and $P^{peak}_{eff} = P^{peak}(1-\delta)^Y$ is the degraded effective peak capacity that caps the result.
+
+$\eta_{inv} = 0.96$ is the nominal inverter efficiency and $L_{sys} = 0.1408$ the combined other DC losses (soiling 2%, shading 3%, mismatch 2%, wiring 2%, connections 0.5%, light-induced degradation 1.5%, nameplate rating 1%, availability 3%). Both are the NREL PVWatts v5 defaults, not Alqueva measurements; a floating array probably has less soiling and shading and runs cooler, so the combined factor $\eta_{inv}(1-L_{sys}) = 0.825$ is conservative. Age loss is not part of $L_{sys}$ because it is modelled separately by $\delta$. Setting `inverter_efficiency: 1.0` and `system_losses_frac: 0.0` in `config/plant.yaml` removes the chain.
+
+**Irradiance definition.** The forecaster passes global horizontal irradiance (GHI) as $G$, both in Eq. 58 and in the cell-temperature model (Eq. 75). A floating array lies close to horizontal, so GHI is used as a proxy for plane-of-array irradiance; no transposition model is applied.
 
 ### C.14 Post-Solve Checker Flow Model
 
@@ -739,7 +743,7 @@ $$
 T_{cell} = T_{amb} + \frac{NOCT - 20}{800} \cdot G \tag{75}
 $$
 
-where $T_{cell}$, $T_{amb}$ ($^{\circ}$C) are cell and ambient temperature, $NOCT = 45\,^{\circ}$C is the floating-array Nominal Operating Cell Temperature (IEC 61215), and $G$ (W/m$^2$) is plane-of-array irradiance (GHI).
+where $T_{cell}$, $T_{amb}$ ($^{\circ}$C) are cell and ambient temperature, $NOCT = 45\,^{\circ}$C is the floating-array Nominal Operating Cell Temperature (IEC 61215), and $G$ (W/m$^2$) is the irradiance, taken as GHI (a floating array is nearly horizontal, so GHI is used as the plane-of-array proxy).
 
 ### 1.7 Clearness Index
 

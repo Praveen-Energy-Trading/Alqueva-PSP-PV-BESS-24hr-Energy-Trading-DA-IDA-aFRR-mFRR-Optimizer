@@ -9,8 +9,13 @@ Spec mapping:
   PR-10  scheduled/used PV never exceeds available PV for that hour, and PV
          output never exceeds the (degraded) peak capacity.
 
-Standard PV power model:
+Standard PV power model (PVWatts form):
     P = P_peak * (G / G_ref) * [1 + gamma * (T_cell - T_ref)] * (1 - deg)^years
+        * eta_inverter * (1 - L_sys)
+eta_inverter and L_sys (config pv.inverter_efficiency / pv.system_losses_frac) are the
+DC-to-AC chain: inverter efficiency and the other DC losses (soiling, shading, mismatch,
+wiring). Irradiance G is used as the plane-of-array value; a floating array lies close to
+horizontal, so the forecaster passes GHI.
 where gamma is the temperature coefficient (negative), G_ref = 1000 W/m2,
 T_ref = 25 C. Result clamped to [0, degraded peak].
 """
@@ -35,6 +40,11 @@ class PVModel:
         return (1.0 - self.cfg.degradation_rate_per_year) ** years
 
     @property
+    def system_factor(self) -> float:
+        """DC-to-AC chain factor eta_inverter * (1 - L_sys)."""
+        return self.cfg.inverter_efficiency * (1.0 - self.cfg.system_losses_frac)
+
+    @property
     def effective_peak_mw(self) -> float:
         """Peak capacity after degradation — the hard ceiling for PR-10."""
         return self.cfg.peak_capacity_mw * self.degradation_factor
@@ -47,7 +57,8 @@ class PVModel:
         raw = (self.cfg.peak_capacity_mw
                * (irradiance_wm2 / self.cfg.g_ref_wm2)
                * temp_factor
-               * self.degradation_factor)
+               * self.degradation_factor
+               * self.system_factor)
         return min(max(raw, 0.0), self.effective_peak_mw)
 
     # -- validation ---------------------------------------------------------

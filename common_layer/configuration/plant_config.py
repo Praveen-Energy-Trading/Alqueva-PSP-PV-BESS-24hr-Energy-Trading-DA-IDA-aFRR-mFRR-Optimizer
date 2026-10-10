@@ -85,6 +85,8 @@ class PVConfig:
     g_ref_wm2: float                  # reference irradiance (1000 W/m2)
     commission_year: int              # 2022 — used to compute degradation years
     degradation_rate_per_year: float  # annual output loss fraction (e.g. 0.005 = 0.5%/yr)
+    inverter_efficiency: float = 1.0  # DC->AC inverter efficiency (PVWatts default 0.96)
+    system_losses_frac: float = 0.0   # other DC losses: soiling, shading, mismatch, wiring (PVWatts 0.1408)
 
     @staticmethod
     def from_dict(d: dict) -> "PVConfig":
@@ -97,6 +99,8 @@ class PVConfig:
             g_ref_wm2=float(d["g_ref_wm2"]),
             commission_year=int(d["commission_year"]),
             degradation_rate_per_year=float(d["degradation_rate_per_year"]),
+            inverter_efficiency=float(d.get("inverter_efficiency", 1.0)),
+            system_losses_frac=float(d.get("system_losses_frac", 0.0)),
         )
 
 

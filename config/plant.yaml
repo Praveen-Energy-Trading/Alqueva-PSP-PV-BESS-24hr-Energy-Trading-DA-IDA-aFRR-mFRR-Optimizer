@@ -72,6 +72,16 @@ pv:
   g_ref_wm2: 1000.0
   commission_year: 2022
   degradation_rate_per_year: 0.005
+  # DC-to-AC chain, NREL PVWatts v5 defaults (Dobos 2014, NREL/TP-6A20-62641):
+  #   inverter_efficiency  = 0.96   nominal inverter efficiency
+  #   system_losses_frac   = 0.1408 total DC losses (soiling 2, shading 3, mismatch 2, wiring 2,
+  #                          connections 0.5, light-induced degradation 1.5, nameplate 1,
+  #                          availability 3 -> combined 14.08%). Age loss is NOT included here:
+  #                          it is modelled separately by degradation_rate_per_year.
+  # Generic defaults, not Alqueva measurements. A floating array likely has less soiling and
+  # shading and runs cooler, so these losses are conservative. Set 1.0 / 0.0 to disable.
+  inverter_efficiency: 0.96
+  system_losses_frac: 0.1408
 
 # -----------------------------------------------------------------------------
 # BESS — CONFIRMED: XFLEX Hydro project (EDP), 1 MW / ~2 MWh.
