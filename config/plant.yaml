@@ -47,6 +47,17 @@ psp:
   # scheduling literature, distinct from the FAT-deliverability question).
   # Set to 1 to disable (allow hour-to-hour re-switching).
   min_mode_hours: 2
+  # min_down_hours: ESTIMATE. Once a unit stops in a mode (turbine or pump) it stays off in
+  # that mode for at least this many hours (standard minimum-down-time constraint,
+  # Carrion and Arroyo 2006). 1 disables it.
+  min_down_hours: 2
+  # startup_cost_pump_eur: ESTIMATE, same order as the turbine start (100-300 EUR per start).
+  startup_cost_pump_eur: 150.0
+  # pump_fixed_speed: true = each pump runs only at its maximum flow (fixed-speed unit, power
+  # varies only with head). false = pump power can vary between its minimum and maximum
+  # (variable-speed behaviour). Alqueva's unit type is NOT confirmed, so false keeps the
+  # previous behaviour.
+  pump_fixed_speed: false
 
 # -----------------------------------------------------------------------------
 # Floating PV — CONFIRMED: Alqueva floating solar, inaugurated July 2022, 5 MWp.

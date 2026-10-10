@@ -338,6 +338,7 @@ def extract_stochastic_results(
                 "q_turb_total_m3h": sum(v(model.q_turb[u, h, s]) for u in U),
                 "q_pump_total_m3h": sum(v(model.q_pump[u, h, s]) for u in U),
                 "units_start_turb": [round(v(model.start_turb[u, h, s])) for u in U],
+                "units_start_pump": [round(v(model.start_pump[u, h, s])) for u in U],
             }
             pv_to_bess = v(model.pv_to_bess[h, s])
             charge_mw = v(model.p_chg[h, s])
@@ -384,7 +385,9 @@ def extract_stochastic_results(
         spill_pen = meta.spillage_penalty_eur_m3 * sum(
             per_scenario_dispatch[s][h]["reservoir"]["spill_m3h"] * dt for h in H)
         start_pen = meta.startup_cost_eur * sum(
-            sum(per_scenario_dispatch[s][h]["psp"]["units_start_turb"]) for h in H)
+            sum(per_scenario_dispatch[s][h]["psp"]["units_start_turb"]) for h in H) + (
+            meta.startup_cost_pump_eur * sum(
+                sum(per_scenario_dispatch[s][h]["psp"]["units_start_pump"]) for h in H))
         per_scenario_profit[s] = (
             per_scenario_revenue[s] + water_val - pv_pen - bess_deg - spill_pen - start_pen)
 

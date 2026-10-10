@@ -148,6 +148,7 @@ class StochasticModelMeta:
     spillage_penalty_eur_m3: float = 0.0
     degradation_cost_eur_mwh: float = 0.0
     startup_cost_eur: float = 0.0
+    startup_cost_pump_eur: float = 0.0
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -166,6 +167,13 @@ def _efficiency_surface(flow_grid: List[float], head_grid: List[float],
             eta = a0 + a1*fn + a2*hn + a3*fn*hn + a4*fn**2 + a5*hn**2
             table[(fi, hi)] = max(ETA_LO, min(eta, ETA_HI))
     return table
+
+
+def _init_status(values, U) -> Dict[int, int]:
+    """{unit: 0/1} from an optional per-unit list of on/off flags (default: all off)."""
+    if not values:
+        return {u: 0 for u in U}
+    return {u: int(bool(values[i])) if i < len(values) else 0 for i, u in enumerate(U)}
 
 
 def _adjacency_form(cfg: AppConfig) -> str:
@@ -288,6 +296,8 @@ def build_core_model(
     pv_av = inputs["pv_available_mw"]
     inflow = inputs.get("inflow_m3h", {h: 0.0 for h in H})
     init = inputs.get("initial_state", {})
+    init_turb = _init_status(init.get("units_on_turb"), U)   # unit status at the start of the horizon
+    init_pump = _init_status(init.get("units_on_pump"), U)
 
     v_up0 = float(init.get("upper_reservoir_hm3", res.upper_initial_hm3))
     v_low0 = float(init.get("lower_reservoir_hm3", res.lower_initial_hm3))
@@ -411,7 +421,7 @@ def build_core_model(
     # Turbine start detection (for startup cost).
     def _start_rule(mm, u, h):
         if h == first:
-            return mm.start_turb[u, h] >= mm.on_turb[u, h]
+            return mm.start_turb[u, h] >= mm.on_turb[u, h] - init_turb[u]
         return mm.start_turb[u, h] >= mm.on_turb[u, h] - mm.on_turb[u, prev(h)]
     m.turb_start = pyo.Constraint(m.U, m.H, rule=_start_rule)
 
@@ -420,7 +430,7 @@ def build_core_model(
     # matching the existing turbine-only startup_cost_eur design).
     def _start_pump_rule(mm, u, h):
         if h == first:
-            return mm.start_pump[u, h] >= mm.on_pump[u, h]
+            return mm.start_pump[u, h] >= mm.on_pump[u, h] - init_pump[u]
         return mm.start_pump[u, h] >= mm.on_pump[u, h] - mm.on_pump[u, prev(h)]
     m.pump_start = pyo.Constraint(m.U, m.H, rule=_start_pump_rule)
 
@@ -450,6 +460,27 @@ def build_core_model(
             m.U, m.H, rule=lambda mm, u, h: _min_dwell_rule(mm, u, h, "turb"))
         m.pump_min_dwell = pyo.Constraint(
             m.U, m.H, rule=lambda mm, u, h: _min_dwell_rule(mm, u, h, "pump"))
+
+    # Minimum DOWN time per mode (standard form, Carrion and Arroyo 2006): if a unit was on in
+    # the previous period and is off now, it stays off for the next Ld periods.
+    Ld = max(1, round(psp.min_down_hours / dt))
+    if Ld > 1:
+        def _min_down_rule(mm, u, h, mode):
+            on_var = mm.on_turb if mode == "turb" else mm.on_pump
+            init_on = init_turb[u] if mode == "turb" else init_pump[u]
+            idx = H.index(h)
+            prev_on = init_on if h == first else on_var[u, prev(h)]
+            window = H[idx: idx + Ld]          # truncated at the horizon end (standard form)
+            return sum(1 - on_var[u, hh] for hh in window) >= len(window) * (prev_on - on_var[u, h])
+        m.turb_min_down = pyo.Constraint(
+            m.U, m.H, rule=lambda mm, u, h: _min_down_rule(mm, u, h, "turb"))
+        m.pump_min_down = pyo.Constraint(
+            m.U, m.H, rule=lambda mm, u, h: _min_down_rule(mm, u, h, "pump"))
+
+    # Fixed-speed pumps run only at their maximum flow grid point (power then varies with head).
+    if psp.pump_fixed_speed:
+        m.pump_fixed_flow = pyo.Constraint(m.U, m.H,
+            rule=lambda mm, u, h: sum(mm.omega_pmp[u, FI[-1], hi, h] for hi in HI) == mm.on_pump[u, h])
 
     # ── HEAD-VOLUME RELATIONSHIP ──────────────────────────────────────────────
     # Dynamic head: H_net[h] = H_MIN_OP + dH_dQ * (v_up[h]*M3_PER_HM3 - Q_ref)
@@ -637,7 +668,8 @@ def build_core_model(
             (mm.p_chg[h] + mm.pv_to_bess[h] + mm.p_dis[h]) * dt for h in H)
         spill_pen = econ.spillage_penalty_eur_m3 * sum(mm.spill[h] * dt for h in H)
         start_pen = psp.startup_cost_eur * sum(
-            mm.start_turb[u, h] for u in U for h in H)
+            mm.start_turb[u, h] for u in U for h in H) + psp.startup_cost_pump_eur * sum(
+            mm.start_pump[u, h] for u in U for h in H)
         return energy_rev + water_val - pv_pen - bess_deg - spill_pen - start_pen
 
     m.objective = pyo.Objective(rule=_objective, sense=pyo.maximize)
@@ -717,6 +749,8 @@ def build_core_model_stochastic(
     pv_av = inputs["pv_available_mw"]
     inflow = inputs.get("inflow_m3h", {h: 0.0 for h in H})
     init = inputs.get("initial_state", {})
+    init_turb = _init_status(init.get("units_on_turb"), U)   # unit status at the start of the horizon
+    init_pump = _init_status(init.get("units_on_pump"), U)
 
     if abs(sum(probabilities.values()) - 1.0) > 1e-6:
         raise ValueError(
@@ -828,13 +862,13 @@ def build_core_model_stochastic(
 
     def _start_rule(mm, u, h, s):
         if h == first:
-            return mm.start_turb[u, h, s] >= mm.on_turb[u, h, s]
+            return mm.start_turb[u, h, s] >= mm.on_turb[u, h, s] - init_turb[u]
         return mm.start_turb[u, h, s] >= mm.on_turb[u, h, s] - mm.on_turb[u, prev(h), s]
     m.turb_start = pyo.Constraint(m.U, m.H, m.S, rule=_start_rule)
 
     def _start_pump_rule(mm, u, h, s):
         if h == first:
-            return mm.start_pump[u, h, s] >= mm.on_pump[u, h, s]
+            return mm.start_pump[u, h, s] >= mm.on_pump[u, h, s] - init_pump[u]
         return mm.start_pump[u, h, s] >= mm.on_pump[u, h, s] - mm.on_pump[u, prev(h), s]
     m.pump_start = pyo.Constraint(m.U, m.H, m.S, rule=_start_pump_rule)
 
@@ -852,6 +886,25 @@ def build_core_model_stochastic(
             m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_dwell_rule(mm, u, h, s, "turb"))
         m.pump_min_dwell = pyo.Constraint(
             m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_dwell_rule(mm, u, h, s, "pump"))
+
+    Ld = max(1, round(psp.min_down_hours / dt))
+    if Ld > 1:
+        def _min_down_rule(mm, u, h, s, mode):
+            on_var = mm.on_turb if mode == "turb" else mm.on_pump
+            init_on = init_turb[u] if mode == "turb" else init_pump[u]
+            idx = H.index(h)
+            prev_on = init_on if h == first else on_var[u, prev(h), s]
+            window = H[idx: idx + Ld]          # truncated at the horizon end (standard form)
+            return sum(1 - on_var[u, hh, s] for hh in window) >= len(window) * (prev_on - on_var[u, h, s])
+        m.turb_min_down = pyo.Constraint(
+            m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_down_rule(mm, u, h, s, "turb"))
+        m.pump_min_down = pyo.Constraint(
+            m.U, m.H, m.S, rule=lambda mm, u, h, s: _min_down_rule(mm, u, h, s, "pump"))
+
+    if psp.pump_fixed_speed:
+        m.pump_fixed_flow = pyo.Constraint(m.U, m.H, m.S,
+            rule=lambda mm, u, h, s: sum(mm.omega_pmp[u, FI[-1], hi, h, s] for hi in HI)
+            == mm.on_pump[u, h, s])
 
     m.head_vol = pyo.Constraint(m.H, m.S,
         rule=lambda mm, h, s: mm.H_net[h, s] == (H_MIN_OP
@@ -1019,7 +1072,8 @@ def build_core_model_stochastic(
             (mm.p_chg[h, s] + mm.pv_to_bess[h, s] + mm.p_dis[h, s]) * dt for h in H)
         spill_pen = econ.spillage_penalty_eur_m3 * sum(mm.spill[h, s] * dt for h in H)
         start_pen = psp.startup_cost_eur * sum(
-            mm.start_turb[u, h, s] for u in U for h in H)
+            mm.start_turb[u, h, s] for u in U for h in H) + psp.startup_cost_pump_eur * sum(
+            mm.start_pump[u, h, s] for u in U for h in H)
         return energy_rev + water_val - pv_pen - bess_deg - spill_pen - start_pen
 
     risk_measure = cfg.stochastic.risk_measure
@@ -1065,6 +1119,7 @@ def build_core_model_stochastic(
         spillage_penalty_eur_m3=econ.spillage_penalty_eur_m3,
         degradation_cost_eur_mwh=bess.degradation_cost_eur_mwh,
         startup_cost_eur=psp.startup_cost_eur,
+        startup_cost_pump_eur=psp.startup_cost_pump_eur,
         probabilities=dict(probabilities),
         scenario_prices={s: dict(scenarios[s]) for s in S},
         pv_available=dict(pv_av),

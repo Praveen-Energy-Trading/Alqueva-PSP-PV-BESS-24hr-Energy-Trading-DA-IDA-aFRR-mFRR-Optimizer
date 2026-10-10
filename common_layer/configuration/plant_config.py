@@ -34,6 +34,9 @@ class PSPConfig:
     startup_cost_eur: float                # cost penalty per cold start in objective
     ramp_rate_mw_per_min_per_unit: float   # MW/min per unit; plant total = ×4
     min_mode_hours: int                    # min consecutive hours in a mode after switching (ESTIMATE)
+    min_down_hours: int = 1                # min hours a unit stays off in a mode after stopping (1 = off)
+    startup_cost_pump_eur: float = 0.0     # cost per pump start (ESTIMATE); 0 = none
+    pump_fixed_speed: bool = False         # True: pumps run only at maximum flow
 
     # --- derived plant-level totals (4 units) -----------------------------
     @property
@@ -63,6 +66,9 @@ class PSPConfig:
             startup_cost_eur=float(d["startup_cost_eur"]),
             ramp_rate_mw_per_min_per_unit=float(d.get("ramp_rate_mw_per_min_per_unit", 25.0)),
             min_mode_hours=int(d.get("min_mode_hours", 2)),
+            min_down_hours=int(d.get("min_down_hours", 1)),
+            startup_cost_pump_eur=float(d.get("startup_cost_pump_eur", 0.0)),
+            pump_fixed_speed=bool(d.get("pump_fixed_speed", False)),
         )
 
 

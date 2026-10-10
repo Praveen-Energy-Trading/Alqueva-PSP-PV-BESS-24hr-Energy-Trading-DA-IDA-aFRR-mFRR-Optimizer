@@ -170,6 +170,38 @@ $$
 
 where $h_1$ denotes the first hour of the horizon and $h-1$ denotes the immediately preceding hour in $H$.
 
+**Initial unit status.** The first-hour start (Eq. 13) uses the status each unit had at the start of the horizon, $x^{trb,0}_u$ and $x^{pmp,0}_u$ (inputs `initial_state.units_on_turb` and `units_on_pump`, default all off):
+
+$$
+z^{su}_{u,h_1} \geq x^{trb}_{u,h_1} - x^{trb,0}_{u}, \qquad z^{su,pmp}_{u,h_1} \geq x^{pmp}_{u,h_1} - x^{pmp,0}_{u} \tag{13a}
+$$
+
+A unit that is already running therefore pays no start. The live pipeline does not yet pass the previous day's final unit status, so it defaults to all off.
+
+**Pump start cost.** Pump starts are charged in the same way as turbine starts. Eq. 8 becomes
+
+$$
+C_{start} = \lambda_{su} \sum_{u \in U} \sum_{h \in H} z^{su}_{u,h} + \lambda_{su}^{pmp} \sum_{u \in U} \sum_{h \in H} z^{su,pmp}_{u,h} \tag{8a}
+$$
+
+where $\lambda_{su}^{pmp}$ (EUR) is the cost per pump start (`startup_cost_pump_eur`, an estimate of 150 EUR).
+
+**Minimum down time.** In addition to the minimum mode dwell (a minimum up time), a unit that stops in a mode stays off in that mode for at least $L_d$ periods, with $L_d = \mathrm{round}(\text{min\_down\_hours}/\Delta t)$ (Carrión and Arroyo, 2006):
+
+$$
+\sum_{k=h}^{\min(h+L_d-1,\,h_N)} \left(1 - x_{u,k}\right) \geq \left(\min(h+L_d-1,\,h_N) - h + 1\right)\left(x_{u,h-1} - x_{u,h}\right) \qquad \forall u \in U,\ h \in H \tag{13b}
+$$
+
+for each mode $x \in \{x^{trb}, x^{pmp}\}$, with $x_{u,h_1-1}$ the initial status. The window is truncated at the end of the horizon, which is the standard form. `min_down_hours` is an estimate (2 h); 1 disables the constraint.
+
+**Fixed-speed pumps (optional).** If `pump_fixed_speed` is true, each pump runs only at its maximum flow grid point, so its power varies with head only:
+
+$$
+\sum_{k \in K} \omega^{pmp}_{u,f_{max},k,h} = x^{pmp}_{u,h} \qquad \forall u \in U,\ h \in H \tag{13c}
+$$
+
+The default is false (pump power can vary between its minimum and maximum, i.e. variable-speed behaviour) because Alqueva's unit type is not confirmed.
+
 ### C.3 Head-Volume Relationship and McCormick Linearization
 
 **Source:** `common_layer/optimisation_model/core_milp_builder.py`, constraints `head_vol`, `mc_trb`, `mc_pmp`.
