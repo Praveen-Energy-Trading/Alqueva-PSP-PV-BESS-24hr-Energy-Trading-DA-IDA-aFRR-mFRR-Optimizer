@@ -7,8 +7,8 @@ evidence for it (tuning logs, figures, the comparison of the tuned algorithms an
 | Stage | What | Status |
 |---|---|---|
 | 1 | Experiment registry: every run recorded with its scores, digests and code version; repeats are checked for identical scores | built and tested |
-| 2 | Fair, stronger tuning (equal budget, Optuna, several inner validation blocks, parallel trials) | not started |
-| 3 | Tuning evidence (every trial logged, figures) | not started |
+| 2 | Fair, stronger tuning (equal budget, Optuna, several inner validation blocks, parallel block fits) | built and tested; day-ahead experiments running |
+| 3 | Tuning evidence (every trial logged, figures) | tools built and tested; figures to be generated from the stage 2 runs |
 | 4 | Algorithm comparison (pairwise Diebold-Mariano with Holm correction, win rates) | not started |
 | 5 | Written selection policy | not started |
 | 6 | Locked test of the champion | not started |
