@@ -1,0 +1,46 @@
+# =============================================================================
+# Market regime markers (Phase 2 of docs/ML_Forecasting_Plan.pdf)
+#
+# Dated rule changes that can shift price behaviour or the meaning of a data series. They are
+# stored with the data so models, backtests and monitors can treat each regime properly.
+#   kind:   rule_change  = the rule took effect on this delivery date
+#           deadline     = the latest date the rulebook allows (actual start may be earlier)
+#           context      = a market event that changed behaviour, not a rule
+#   status: confirmed    = date taken from the repository config or an official rulebook
+#           to_verify    = date from general knowledge; check before relying on it
+# =============================================================================
+version: 1
+events:
+  - {id: iberian_exception,    date: "2022-06-15", end: "2023-12-31", kind: rule_change, status: to_verify,
+     description: "Iberian gas-price cap mechanism ('Iberian exception') lowered Iberian day-ahead prices; period start and end to verify",
+     affects: [da_price, ida_price, xbid_price]}
+  - {id: ida_three_sessions,   date: "2024-06-13", kind: rule_change, status: confirmed,
+     description: "SIDC intraday reform: three intraday auctions (IDA1/2/3) replace the six-session regime (config/market.yaml)",
+     affects: [ida_price]}
+  - {id: mari_live,            date: "2024-11-27", kind: rule_change, status: confirmed,
+     description: "REN joined the MARI platform for mFRR (config/market.yaml)",
+     affects: [mfrr_price]}
+  - {id: pt_isp_15min,         date: "2025-03-19", kind: rule_change, status: confirmed,
+     description: "Portuguese imbalance settlement period becomes 15 minutes (config/market.yaml)",
+     affects: [imbalance_price, afrr_price, mfrr_price]}
+  - {id: iberian_blackout,     date: "2025-04-28", kind: context, status: to_verify,
+     description: "Iberian blackout; reinforced system operation and higher reserve needs afterwards; effect on prices to verify",
+     affects: [da_price, afrr_price, mfrr_price]}
+  - {id: sdac_15min,           date: "2025-10-01", kind: rule_change, status: confirmed,
+     description: "Day-ahead market moves to 15-minute products (first real quarter-hour data in the OMIE files)",
+     affects: [da_price, ida_price, xbid_price]}
+  - {id: afrr_national_rules,  date: "2026-04-01", kind: rule_change, status: confirmed,
+     description: "MPGGS rules for the national aFRR band and energy platform take effect (Directive 9/2025)",
+     affects: [afrr_price]}
+  - {id: price_floor_600,      date: "2026-05-29", kind: rule_change, status: confirmed,
+     description: "Harmonised day-ahead price floor lowered from -500 to -600 EUR/MWh (config/market.yaml bid_limits)",
+     affects: [da_price, ida_price, xbid_price]}
+  - {id: afrr_platform_start,  date: "2026-06-30", kind: deadline, status: confirmed,
+     description: "Latest start of the national aFRR platform (MPGGS Art. 452); actual start day not published",
+     affects: [afrr_price]}
+  - {id: picasso_integration,  date: "2026-10-31", kind: deadline, status: confirmed,
+     description: "Latest integration of the Portuguese aFRR platform into PICASSO (MPGGS Art. 452(9))",
+     affects: [afrr_price]}
+  - {id: mfrr_daily_band,      date: "2027-04-01", kind: deadline, status: confirmed,
+     description: "Latest start of the standard daily mFRR band market (MPGGS Art. 453)",
+     affects: [mfrr_price]}
