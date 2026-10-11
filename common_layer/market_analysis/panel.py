@@ -32,6 +32,12 @@ SERIES: Dict[str, Tuple[str, str, Optional[int]]] = {
     "mfrr_ap": ("mfrr_price", "price_programmed_activation", None),
     "imb_short": ("imbalance_price", "price_short_eur_mwh", None),
     "imb_long": ("imbalance_price", "price_long_eur_mwh", None),
+    # market results published together with the day-ahead price (Spain-Portugal interconnection, matched volumes)
+    "da_vol_total": ("da_price", "total_iberian_mw", None),
+    "da_vol_pt_buy": ("da_price", "buy_pt_mw", None),
+    "da_vol_pt_sell": ("da_price", "sell_pt_mw", None),
+    "da_flow_pt_to_es": ("da_price", "flow_pt_to_es_mw", None),
+    "da_flow_es_to_pt": ("da_price", "flow_es_to_pt_mw", None),
 }
 TZ_NAME = "Europe/Madrid"
 
