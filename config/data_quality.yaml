@@ -1,0 +1,119 @@
+# =============================================================================
+# Data quality rules (Phase 3 of docs/ML_Forecasting_Plan.pdf)
+#
+# Read by common_layer/data_quality. Thresholds are starting values chosen before looking at the
+# full history; they are reviewed once the first complete quality report exists (see
+# docs/forecasting/Phase3_Data_Quality.md). Spikes and negative prices are INFORMATION: they are
+# counted and flagged, never penalised and never removed.
+# =============================================================================
+version: 1
+
+# ---- per dataset: what to check -------------------------------------------------------------
+datasets:
+  da_price:
+    expected_start: "2020-01-01"
+    price_cols: [price_pt_eur_mwh, price_es_eur_mwh]
+    stuck_checks: true         # auction prices: constant-day, duplicate-day and DST-copy checks apply
+    sources: [omie_da]
+  ida_price:
+    expected_start: "2024-06-13"
+    price_cols: [price_pt_eur_mwh, price_es_eur_mwh]
+    stuck_checks: true
+    sources: [omie_ida1, omie_ida2, omie_ida3]     # session n <-> omie_ida<n>
+  xbid_price:
+    expected_start: "2024-06-13"
+    price_cols: [price_pt_mean_eur_mwh]
+    stuck_checks: true
+    sources: [omie_xbid]
+  afrr_price:
+    expected_start: "2019-01-01"
+    price_cols: [price_adjusted_up, price_adjusted_dn]
+    stuck_checks: false        # the band price is legitimately constant for many hours and days
+    sources: [ren_afrr]
+  mfrr_price:
+    expected_start: "2024-11-27"
+    price_cols: [price_programmed_activation]
+    stuck_checks: false
+    sources: [ren_mfrr]
+  imbalance_price:
+    expected_start: "2019-01-01"
+    price_cols: [price_short_eur_mwh, price_long_eur_mwh]
+    stuck_checks: false
+    sources: [ren_imbalance]
+
+# ---- value flags (information only) ----------------------------------------------------------
+spikes:
+  window_days: 14              # trailing window: only past values are used, so the flag is usable as a feature
+  robust_z: 6.0                # |x - median| / (IQR / 1.349), median and IQR over the trailing window
+  min_abs_deviation_eur: 30.0  # and at least this far from the median
+  min_history_periods: 96
+cap_tolerance_eur: 0.5         # a price within this of the bid limits is flagged "at_limit"
+
+# ---- consistency checks ----------------------------------------------------------------------
+cross_source:
+  da_reference_tolerance_eur: 0.02   # REN files carry the day-ahead price; it must equal the OMIE value
+  max_mismatch_share: 0.05           # more than this share of periods differing in a day = warning
+level_jump:
+  trailing_days: 30
+  ratio: 20.0                        # day median vs trailing median (catches unit or scaling errors)
+  min_abs_median_eur: 5.0
+# Stuck or stale feed (auction prices only). Hourly equality is NOT evidence: the Portuguese day-ahead
+# price really sat at 1.95 EUR/MWh for up to 9 hours on several days in 2020-2021.
+stuck:
+  flat_run_hours: 24                 # a whole day at one value
+  duplicate_day_share: 0.98          # share of periods equal to the same period of the previous day
+dst_copy:
+  enabled: true                      # quarter-hour 25 h days: repeated hour identical to the first one
+
+# ---- daily score: 100 minus penalties; a missing day scores 0 ------------------------------------
+penalties:
+  missing_day: 100
+  flat_run: 25
+  duplicate_day: 25
+  dst_copy_suspect: 25
+  cross_mismatch: 20
+  level_jump: 20
+  range: 10
+  below_floor: 10
+  regime_resolution: 10
+  missing_all: 5
+  default: 5
+
+# ---- gate: must be green before any model run -------------------------------------------------
+gate:
+  max_missing_day_share:             # per dataset (per session for IDA), over the checked window
+    default: 0.02
+    ida_price: 0.06                  # auctions can have no result on a day (empty publication)
+    xbid_price: 0.05
+  min_mean_score: 95.0
+  max_share_days_below_70: 0.02
+  max_stale_days_extra: 0            # on top of each dataset's allowed lag
+  require_raw_checksums: true
+
+# ---- imputation rules (as-of safe: a value is only ever filled from the past) ------------------
+# method: none | ffill (carry the last observed value up to max_periods) |
+#         prev_day (value exactly 24 h earlier, if observed)
+# Every filled value gets a companion boolean column <col>__imputed. Rules are applied when
+# features are built (Phase 5), never in the clean zone.
+imputation:
+  default: {method: none}
+  da_price.price_pt_eur_mwh:             {method: none, why: "an auction price is never missing on a published day; a gap is an error, not something to fill"}
+  da_price.price_es_eur_mwh:             {method: none}
+  ida_price.price_pt_eur_mwh:            {method: none, why: "no result means the auction did not clear; the model must see the gap"}
+  ida_price.price_es_eur_mwh:            {method: none}
+  xbid_price.price_pt_mean_eur_mwh:      {method: none, why: "no Portuguese trade is information (pt_traded=0), not a missing price"}
+  afrr_price.price_adjusted_up:          {method: ffill, max_periods: 4, why: "band price is set per block and rarely changes"}
+  afrr_price.price_adjusted_dn:          {method: ffill, max_periods: 4}
+  mfrr_price.price_programmed_activation: {method: prev_day, why: "isolated gaps only; same period yesterday is the least biased proxy"}
+  imbalance_price.price_short_eur_mwh:   {method: none}
+  imbalance_price.price_long_eur_mwh:    {method: none}
+
+# ---- provenance: which rows are real ------------------------------------------------------------
+# Market data in the clean zone is "live" by construction (every row comes from a downloaded file).
+# External series that are not (Phase 1, D1) are labelled by date. Rows labelled synthetic are
+# excluded from training and testing.
+provenance:
+  market_default: live
+  external:
+    pv_weather:  {live_until: "2026-06-30", after: synthetic, note: "static file; later rows are synthetic"}
+    inflow:      {live_until: "2026-06-30", after: synthetic, note: "static file; later rows are climatology"}
