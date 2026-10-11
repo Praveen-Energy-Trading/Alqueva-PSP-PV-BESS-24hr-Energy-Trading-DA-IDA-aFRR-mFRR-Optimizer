@@ -83,6 +83,9 @@ def forecast_da_prices(hours: List[int], delivery_date: str,
     Trains LightGBM (or best CV model) live on OMIE historical data.
     Falls back to synthetic Iberian curve if data unavailable.
     """
+    champion = _champion_forecast("da_price", hours, delivery_date)    # registry champion, if switched on (config/live_models.yaml)
+    if champion is not None:
+        return champion
     try:
         return _model_forecast(hours, delivery_date)
     except Exception as exc:
@@ -93,6 +96,15 @@ def forecast_da_prices(hours: List[int], delivery_date: str,
             RuntimeWarning, stacklevel=2
         )
         return _synthetic_fallback(hours, delivery_date, mean_level, amplitude)
+
+
+def _champion_forecast(target, hours, delivery_date, base_prices=None):
+    """The registry champion's forecast, or None to use the legacy model below (stage 10; default mode is legacy)."""
+    try:
+        from common_layer.model_development import live
+    except ImportError:                                   # the repository root is not importable: legacy only
+        return None
+    return live.champion_prices(target, hours, delivery_date, base_prices)
 
 
 # ---------------------------------------------------------------------------

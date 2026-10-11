@@ -1,0 +1,26 @@
+# =============================================================================
+# Which model the live pipeline uses for each price forecast (stage 10 of docs/Model_Development_Plan.pdf)
+#
+#   legacy     the original forecasters of the phase folders (walk-forward selection with fixed settings); the default
+#   auto       the verified champion of config/model_selection.yaml's registry if one is active and fitted; otherwise the
+#              legacy forecaster, with a warning (the pipeline never fails because a champion is missing)
+#   registry   the champion only; an error if it is missing or cannot be verified
+#
+# Every target starts as `legacy`. A target is switched by editing this file, after tools/compare_old_new.py has recorded how
+# the champion and the legacy model did on the same days. The legacy code is deleted only after every switch that is going to
+# happen has happened and its tests pass. The environment variable LIVE_MODELS_MODE (legacy, auto or registry) overrides this
+# file for every target (used by the comparison tool, which must see the legacy model).
+#
+# Only the forecasts the new framework models one-to-one are listed. Not switchable yet: aFRR capacity (the legacy forecaster
+# returns an up AND a down price; the framework models only the up price) and mFRR (the legacy forecast is the capacity price;
+# the framework's target is the activation price, and it is deferred). The 15-minute day-ahead forecast (forecast_da_prices_isp)
+# also stays legacy: the framework models hourly products.
+# =============================================================================
+version: 1
+
+targets:
+  da_price:   {mode: legacy}
+  ida1_price: {mode: legacy}
+  ida2_price: {mode: legacy}
+  ida3_price: {mode: legacy}
+  xbid_price: {mode: legacy}

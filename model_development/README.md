@@ -15,7 +15,7 @@ evidence for it (tuning logs, figures, the comparison of the tuned algorithms an
 | 7 | Champion registry and promotion rule (`config/champion_policy.yaml`) | built and tested; no champion registered yet (waits for the final decision) |
 | 8 | Monitoring and retraining (`config/monitoring.yaml`) | built and tested; waits for a registered champion to monitor |
 | 9 | Roll-out to all price targets (`config/rollout.yaml`: standard for day-ahead and aFRR capacity, limited evidence for IDA1-3 and XBID, mFRR deferred) | tooling built and tested; runs wait for the stage 2 experiments |
-| 10 | Replace the old fixed-settings selection | not started |
+| 10 | Replace the old fixed-settings selection (`config/live_models.yaml`: every target starts as `legacy`; switch per target after `tools/compare_old_new.py`; delete the old code last) | adapter, wiring and comparison built and tested; no target switched; nothing deleted |
 
 ## Stage 1: the experiment registry
 

@@ -74,6 +74,9 @@ def forecast_ida1_prices(hours: List[int], delivery_date: str,
     Returns:
         {hour: EUR/MWh} IDA1 price = DA + predicted spread, floored at -600.
     """
+    champion = _champion_forecast("ida1_price", hours, delivery_date, da_prices)    # registry champion, if switched on (config/live_models.yaml)
+    if champion is not None:
+        return champion
     try:
         return _model_forecast(hours, delivery_date, da_prices)
     except Exception as exc:
@@ -83,6 +86,14 @@ def forecast_ida1_prices(hours: List[int], delivery_date: str,
             RuntimeWarning, stacklevel=2
         )
         return {h: da_prices.get(h, 55.0) for h in hours}
+
+def _champion_forecast(target, hours, delivery_date, base_prices=None):
+    """The registry champion's forecast, or None to use the legacy model below (stage 10; default mode is legacy)."""
+    try:
+        from common_layer.model_development import live
+    except ImportError:                                   # the repository root is not importable: legacy only
+        return None
+    return live.champion_prices(target, hours, delivery_date, base_prices)
 
 
 def _model_forecast(hours: List[int], delivery_date: str,
