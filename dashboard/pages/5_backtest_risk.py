@@ -24,7 +24,7 @@ def _render() -> None:
     files = data.list_backtest_reports()
     if not files:
         st.info("No backtest reports found in `runtime/reports/backtest_*.xlsx`. "
-                "Run `phase_6_backtesting_and_validation/run_backtest.py` to generate one.")
+                "Run `phase_7_backtesting_and_validation/run_backtest.py` to generate one.")
         return
 
     chosen = st.selectbox("Backtest report", files, format_func=lambda p: p.name)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement import (
+from phase_7_backtesting_and_validation.backtest_engine.live_bid_resettlement import (
     resettle_live_bid, _isp_delta_revenue, _prior_gate,
 )
 
@@ -72,7 +72,7 @@ def test_isp_delta_revenue_negative_delta_pumping():
 def test_resettle_live_bid_no_commitments_returns_empty_result(monkeypatch, tmp_path):
     """A date with nothing in PositionStore/ReserveStore at all must return
     an empty-but-valid result, not raise."""
-    import phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
+    import phase_7_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
 
     class _EmptyPositionStore:
         def load_position(self, delivery_date, gate):
@@ -100,7 +100,7 @@ def test_resettle_live_bid_gate_with_real_price_unavailable_reports_independentl
     scenario simulated here) must independently report 'unavailable' while
     DA still reports real -- never all-or-nothing across gates, same
     invariant already established for the existing real-price backtest."""
-    import phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
+    import phase_7_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
     from common_layer.utilities import date_utils as du
 
     day = du.parse_date(_REAL_ALL_GATES_DATE)
@@ -143,7 +143,7 @@ def test_resettle_live_bid_gate_with_real_price_unavailable_reports_independentl
 
 
 def test_reserve_capacity_realised_and_activation_flagged_excluded(monkeypatch):
-    import phase_6_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
+    import phase_7_backtesting_and_validation.backtest_engine.live_bid_resettlement as mod
 
     afrr_offers = {h: {"up_mw": 5.0, "dn_mw": 3.0,
                        "cap_up_eur_mw": 8.0, "cap_dn_eur_mw": 6.0} for h in range(1, 25)}

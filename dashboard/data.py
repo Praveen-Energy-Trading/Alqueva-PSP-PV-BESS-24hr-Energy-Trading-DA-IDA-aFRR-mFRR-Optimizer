@@ -35,7 +35,7 @@ from common_layer.utilities.timezone_utils import resolve_gate_time  # noqa: E40
 from common_layer.configuration.config_loader import load_config  # noqa: E402
 from common_layer.optimisation_model.fcr_activation import simulate_fcr_response  # noqa: E402
 from common_layer.optimisation_model.reserve_activation import simulate_ace_series  # noqa: E402
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices_isp  # noqa: E402
+from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices_isp  # noqa: E402
 
 
 @st.cache_data
@@ -423,11 +423,11 @@ _GATE_LABEL = {
     "DA": "Day-Ahead (DA)", "IDA1": "IDA1", "IDA2": "IDA2", "IDA3": "IDA3",
     "XBID": "XBID", "AFRR": "aFRR capacity", "MFRR": "mFRR capacity",
 }
-# Folder/module naming convention (phase_3a_afrr, phase_3b_mfrr) -- distinct
+# Folder/module naming convention (phase_4a_afrr, phase_4b_mfrr) -- distinct
 # from run_production.py's own _PHASES table (which numbers these 2 and 3).
 # Shown on the reserve-capacity cards because that's the scheme the user
 # asked these cards to be labeled with.
-_RESERVE_PHASE_LABEL = {"AFRR": "Phase 3A", "MFRR": "Phase 3B"}
+_RESERVE_PHASE_LABEL = {"AFRR": "Phase 4A", "MFRR": "Phase 4B"}
 
 
 def _gate_close_display(gate: str, delivery_date: str) -> str | None:
@@ -517,7 +517,7 @@ def _da_anchor(delivery_date: str) -> str | None:
     other phase's event timestamped before this cannot belong to the
     current run - see all_gate_tickets' docstring for the full rationale.
     Shared by every staleness check in this module (gate tickets, XBID
-    windows, and the phase 4A/4B/4C delivery cards)."""
+    windows, and the phase 5A/5B/5C delivery cards)."""
     _, decisions = _collect_decisions(delivery_date)
     da_timestamps = [e.get("timestamp_cet", "") for g, s, e in decisions if g == "DA"]
     return max(da_timestamps) if da_timestamps else None
@@ -743,13 +743,13 @@ def load_capacity_vs_activation(delivery_date: str) -> dict | None:
 # activation). Not "decisions" like the gates above (no Submitted/Held
 # choice - delivery always happens once a committed position exists), so
 # they don't fit _DECISION_SUFFIX/_build_ticket's vocabulary. Read directly
-# from DeliveryStore/ActivationStore (the per-ISP tables Phase 4 writes)
+# from DeliveryStore/ActivationStore (the per-ISP tables Phase 5 writes)
 # plus each phase's own audit summary event.
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=5)
 def load_rt_delivery(delivery_date: str) -> dict | None:
-    """Phase 4A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
+    """Phase 5A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this
     date, or if the only matching event predates this run's DA decision
     (a leftover from an earlier, since-cleared attempt - see _da_anchor)."""
@@ -775,7 +775,7 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
 
 @st.cache_data(ttl=5)
 def load_imbalance_settlement(delivery_date: str) -> dict | None:
-    """Phase 5C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
+    """Phase 6C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
     whatever price source that run actually used -- REN live or the
     DA-multiplier fallback, see ren_imbalance_price_loader.py) plus a
     per-ISP chart built from data already loaded elsewhere on this page:
@@ -826,7 +826,7 @@ def load_imbalance_settlement(delivery_date: str) -> dict | None:
 
 @st.cache_data(ttl=5)
 def load_activation_summary(delivery_date: str, product: str) -> dict | None:
-    """Phase 4B (aFRR) / 4C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
+    """Phase 5B (aFRR) / 5C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
     activated energy/prices from ActivationStore, with revenue computed
     directly from up/dn MW * price * eff_isp_h (the same math reserve
     settlement uses) - available the moment activation runs, well before
@@ -1467,53 +1467,53 @@ def latest_gate_ticket(delivery_date: str) -> dict | None:
 _MODEL_ROSTER = [
     # (group, target label, json path, training data path or None, unit)
     ("Day-Ahead (DA)", "DA price (hourly)",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model.json",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model.json",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
      "EUR/MWh"),
     ("Day-Ahead (DA)", "DA price (96-ISP)",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model_isp.json",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_selected_model_isp.json",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_training_data_isp_2025_2026.xlsx",
      "EUR/MWh"),
     ("Day-Ahead (DA)", "PV output - solar irradiance (GHI)",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:GHI",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "W/m²"),
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:GHI",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "W/m²"),
     ("Day-Ahead (DA)", "PV output - ambient temperature",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:T_amb",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "°C"),
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_selected_model.json:T_amb",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_training_data_from_2015.xlsx", "°C"),
     ("Day-Ahead (DA)", "Reservoir inflow",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_selected_model.json",
-     "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_training_data_from_2015.xlsx", "m³/h"),
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_selected_model.json",
+     "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/inflow_training_data_from_2015.xlsx", "m³/h"),
     ("IDA1", "IDA1 price",
-     "phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_selected_model.json",
-     "phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_training_data_2024_2025.xlsx",
+     "phase_3a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_selected_model.json",
+     "phase_3a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_training_data_2024_2025.xlsx",
      "EUR/MWh"),
     ("IDA2", "IDA2 price",
-     "phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_selected_model.json",
-     "phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_training_data_2024_2025.xlsx",
+     "phase_3b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_selected_model.json",
+     "phase_3b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_training_data_2024_2025.xlsx",
      "EUR/MWh"),
     ("IDA3", "IDA3 price",
-     "phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_selected_model.json",
-     "phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_training_data_2024_2025.xlsx",
+     "phase_3c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_selected_model.json",
+     "phase_3c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_training_data_2024_2025.xlsx",
      "EUR/MWh"),
     ("XBID", "XBID price",
-     "phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_selected_model.json",
-     "phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_training_data_2024_2025.xlsx",
+     "phase_3d_xbid_continuous_intraday/xbid_price_forecasting/xbid_selected_model.json",
+     "phase_3d_xbid_continuous_intraday/xbid_price_forecasting/xbid_training_data_2024_2025.xlsx",
      "EUR/MWh"),
     ("aFRR", "aFRR up-regulation price",
-     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_up_selected_model.json",
-     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
+     "phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_up_selected_model.json",
+     "phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
      "EUR/MW"),
     ("aFRR", "aFRR down-regulation price",
-     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_dn_selected_model.json",
-     "phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
+     "phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_dn_selected_model.json",
+     "phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_training_data_2019_2025.xlsx",
      "EUR/MW"),
     ("mFRR", "mFRR up-regulation price",
-     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_up_selected_model.json",
-     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
+     "phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_up_selected_model.json",
+     "phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
      "EUR/MW"),
     ("mFRR", "mFRR down-regulation price",
-     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_dn_selected_model.json",
-     "phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
+     "phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_dn_selected_model.json",
+     "phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_training_data_2024_2025.xlsx",
      "EUR/MW"),
 ]
 

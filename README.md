@@ -76,10 +76,10 @@ python run_production.py --date <YYYY-MM-DD> --only da,afrr,mfrr
 python run_production.py --dry-run
 
 # 8. Daily data pipeline on its own — offline demo on a real 25-hour day, no network, no licence needed
-python phase_0_data_pipeline/run_data_pipeline.py --demo
+python phase_1_data_pipeline/run_data_pipeline.py --demo
 ```
 
-Phase 0 (the daily data pipeline) runs first inside `run_production.py`; see [`phase_0_data_pipeline/README.md`](phase_0_data_pipeline/README.md).
+Phase 1 (the daily data pipeline) runs first inside `run_production.py`; see [`phase_1_data_pipeline/README.md`](phase_1_data_pipeline/README.md).
 
 > [!TIP]
 > **No CPLEX licence?** The pipeline auto-selects **HiGHS** (free, bundled via `highspy`) or CBC. Set solver preference in `config/solver.yaml`. Everything works out of the box.
@@ -88,7 +88,7 @@ Phase 0 (the daily data pipeline) runs first inside `run_production.py`; see [`p
 
 ## Example Run
 
-Real output of a full pipeline run for delivery on 10 Oct 2026, solved with IBM CPLEX on real OMIE and REN market data (`python run_production.py --auto`). All 19 phases passed; the rolling-backtest phase 6E was skipped for this run with `--no-backtest`.
+Real output of a full pipeline run for delivery on 10 Oct 2026, solved with IBM CPLEX on real OMIE and REN market data (`python run_production.py --auto`). All 19 phases passed; the rolling-backtest phase 7E was skipped for this run with `--no-backtest`.
 
 ```
   PHASE                                          STATUS     TIME  NOTE
@@ -137,7 +137,7 @@ Rolling backtest over 1 Oct 2025 to 30 Sep 2026: every day is solved with foreca
 | Bootstrap VaR 95% (10,000 resamples) | EUR 25,990 +/- 7,381 |
 
 > [!NOTE]
-> This table was produced before the 65 / 20 / 14 / 1 allocation (aFRR cap 95 MW, mFRR 20% of the leftover, no idle rule). Re-run `python phase_6_backtesting_and_validation/run_backtest.py` to refresh it with the current settings.
+> This table was produced before the 65 / 20 / 14 / 1 allocation (aFRR cap 95 MW, mFRR 20% of the leftover, no idle rule). Re-run `python phase_7_backtesting_and_validation/run_backtest.py` to refresh it with the current settings.
 
 VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day), not a loss. The year is uneven because real prices are: February 2026 averaged EUR 11/MWh, September 2026 EUR 144/MWh. These figures are an **upper bound**, not a forecast of plant earnings; see Modelling Assumptions below.
 
@@ -150,28 +150,28 @@ VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day),
 
 | Phase | Entry Point | What It Does |
 |-------|------------|--------------|
-| **Phase 0, Data** | `run_data_pipeline.py` | Daily: download new OMIE / REN files into an immutable raw zone, validate against data contracts into a clean zone, quality checks + daily score + report, pass/fail gate ([details](phase_0_data_pipeline/README.md)) |
-| **Phase 1, DA** | `run_da.py` | MILP solve → physical check → risk check → trader approval → position save |
-| **Phase 2A, IDA1** | `run_ida1.py` | Re-optimise H1–H24, no-churn threshold, SIDC delta bids |
-| **Phase 2B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
-| **Phase 2C, IDA3** | `run_ida3.py` | H1–H11 frozen, re-optimise H12–H24 |
-| **Phase 2D/W1, XBID** | `run_xbid.py` | Continuous intraday check window 1 (D-1 18:30), per-order caps |
-| **Phase 2D/W2, XBID** | `run_xbid.py` | Continuous intraday check window 2 (D-1 22:30), per-order caps |
-| **Phase 2D/W3, XBID** | `run_xbid.py` | Continuous intraday check window 3 (D 03:00), per-order caps |
-| **Phase 2D/W4, XBID** | `run_xbid.py` | Continuous intraday check window 4 (D 06:00), per-order caps |
-| **Phase 2D/W5, XBID** | `run_xbid.py` | Continuous intraday check window 5 (D 09:30), per-order caps |
-| **Phase 2D/W6, XBID** | `run_xbid.py` | Continuous intraday check window 6 (D 12:00), per-order caps |
-| **Phase 3A, aFRR** | `run_afrr.py` | Capacity offers, PICASSO, FAT 5 min, `eff_isp_h` = 0.2083 h |
-| **Phase 3B, mFRR** | `run_mfrr.py` | Capacity offers, MARI, FAT 12.5 min, `eff_isp_h` = 0.1458 h |
-| **Phase 4A, Real-Time** | `run_realtime.py` | 96 ISPs/day, PSP + BESS setpoints, REN telemetry feed |
-| **Phase 4B, aFRR Act.** | `run_afrr_activation.py` | TSO activation → ramp-corrected energy, min hold 2 ISPs |
-| **Phase 4C, mFRR Act.** | `run_mfrr_activation.py` | TSO activation → ramp-corrected energy, min hold 3 ISPs |
-| **Phase 5A, Energy** | `run_energy_settlement.py` | DA + IDA delta per gate, OMIE prices, no double-counting |
-| **Phase 5B, Reserve** | `run_reserve_settlement.py` | Capacity (hourly) + activation, `eff_isp_h` ramp-corrected, PICASSO + MARI |
-| **Phase 5C, Imbalance** | `run_imbalance_settlement.py` | Long→DA×0.85, Short→DA×1.20, REN imbalance prices |
-| **Phase 5D, Analytics** | `run_analytics.py` | Daily P&L, KPIs, 5-sheet Excel report, 9 production figures |
-| **Phase 6E, Rolling backtest** | `rolling_backtest.py` | Runs after every pipeline: backtests each new completed day at real prices, refreshes late-published days, re-values the actual bids, updates the 1-year Profit-at-Risk report |
-| **Phase 6, Backtest** | `run_backtest.py` | Full 1-year real-price replay (seeds the rolling backtest), forecast validation, MILP quality, Profit-at-Risk on realized P&L |
+| **Phase 1, Data** | `run_data_pipeline.py` | Daily: download new OMIE / REN files into an immutable raw zone, validate against data contracts into a clean zone, quality checks + daily score + report, pass/fail gate ([details](phase_1_data_pipeline/README.md)) |
+| **Phase 2, DA** | `run_da.py` | MILP solve → physical check → risk check → trader approval → position save |
+| **Phase 3A, IDA1** | `run_ida1.py` | Re-optimise H1–H24, no-churn threshold, SIDC delta bids |
+| **Phase 3B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
+| **Phase 3C, IDA3** | `run_ida3.py` | H1–H11 frozen, re-optimise H12–H24 |
+| **Phase 3D/W1, XBID** | `run_xbid.py` | Continuous intraday check window 1 (D-1 18:30), per-order caps |
+| **Phase 3D/W2, XBID** | `run_xbid.py` | Continuous intraday check window 2 (D-1 22:30), per-order caps |
+| **Phase 3D/W3, XBID** | `run_xbid.py` | Continuous intraday check window 3 (D 03:00), per-order caps |
+| **Phase 3D/W4, XBID** | `run_xbid.py` | Continuous intraday check window 4 (D 06:00), per-order caps |
+| **Phase 3D/W5, XBID** | `run_xbid.py` | Continuous intraday check window 5 (D 09:30), per-order caps |
+| **Phase 3D/W6, XBID** | `run_xbid.py` | Continuous intraday check window 6 (D 12:00), per-order caps |
+| **Phase 4A, aFRR** | `run_afrr.py` | Capacity offers, PICASSO, FAT 5 min, `eff_isp_h` = 0.2083 h |
+| **Phase 4B, mFRR** | `run_mfrr.py` | Capacity offers, MARI, FAT 12.5 min, `eff_isp_h` = 0.1458 h |
+| **Phase 5A, Real-Time** | `run_realtime.py` | 96 ISPs/day, PSP + BESS setpoints, REN telemetry feed |
+| **Phase 5B, aFRR Act.** | `run_afrr_activation.py` | TSO activation → ramp-corrected energy, min hold 2 ISPs |
+| **Phase 5C, mFRR Act.** | `run_mfrr_activation.py` | TSO activation → ramp-corrected energy, min hold 3 ISPs |
+| **Phase 6A, Energy** | `run_energy_settlement.py` | DA + IDA delta per gate, OMIE prices, no double-counting |
+| **Phase 6B, Reserve** | `run_reserve_settlement.py` | Capacity (hourly) + activation, `eff_isp_h` ramp-corrected, PICASSO + MARI |
+| **Phase 6C, Imbalance** | `run_imbalance_settlement.py` | Long→DA×0.85, Short→DA×1.20, REN imbalance prices |
+| **Phase 6D, Analytics** | `run_analytics.py` | Daily P&L, KPIs, 5-sheet Excel report, 9 production figures |
+| **Phase 7E, Rolling backtest** | `rolling_backtest.py` | Runs after every pipeline: backtests each new completed day at real prices, refreshes late-published days, re-values the actual bids, updates the 1-year Profit-at-Risk report |
+| **Phase 7, Backtest** | `run_backtest.py` | Full 1-year real-price replay (seeds the rolling backtest), forecast validation, MILP quality, Profit-at-Risk on realized P&L |
 
 ---
 
@@ -183,7 +183,7 @@ VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day),
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │
-├── run_production.py                             # ◄ Master orchestrator — all 21 phases (phase 0 = data pipeline)
+├── run_production.py                             # ◄ Master orchestrator — all 21 phases (phase 1 = data pipeline)
 │
 ├── common_layer/                                 # Shared foundation — imported by every phase
 │   ├── configuration/
@@ -216,7 +216,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── audit_store.py                        #   AuditStore (read-only) → audit_<date>.jsonl
 │   │   └── schema_validator.py                   #   input schema validation
 │   │
-│   ├── data_layer/                               #   Phase 0 library: market data in three zones
+│   ├── data_layer/                               #   Phase 1 library: market data in three zones
 │   │   ├── calendar.py                           #   true market time: UTC starts, 23/25 h and 92/100-period days
 │   │   ├── regimes.py                            #   dated market-rule changes (config/market_regimes.yaml)
 │   │   ├── raw_store.py                          #   immutable raw zone: SHA-256, versions, as-of reads
@@ -226,7 +226,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── fetchers.py                           #   polite HTTP: pacing, retries, 404 = not published
 │   │   └── ingest.py                             #   idempotent load, load log, rebuild from raw
 │   │
-│   ├── data_quality/                             #   Phase 0 library: checks, score, gate
+│   ├── data_quality/                             #   Phase 1 library: checks, score, gate
 │   │   ├── checks.py                             #   gaps, stale/duplicate days, DST copies, cross-source, spikes (info)
 │   │   ├── scoring.py                            #   daily 0–100 score and the pass/fail gate
 │   │   ├── imputation.py                         #   per-variable fill rules that never look forward
@@ -244,13 +244,13 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       ├── date_utils.py                         #   delivery date parsing, D-1 calculations
 │       └── logging_utils.py                      #   phase-prefixed logger setup
 │
-├── phase_0_data_pipeline/                        # ── Phase 0, daily data pipeline ──────────
+├── phase_1_data_pipeline/                        # ── Phase 1, daily data pipeline ──────────
 │   ├── run_data_pipeline.py                      #   ingest → clean → quality → gate (CLI, --demo, run_production hook)
 │   ├── demo.py                                   #   offline stand-in for the 8 sources (real saved 25-hour day)
 │   ├── README.md                                 #   flow diagram, zones, how to read the report
 │   └── schedule/                                 #   Windows Task Scheduler script, crontab example
 │
-├── phase_1_da_day_ahead_bidding/                 # ── Phase 1, Day-Ahead ─────────────────────
+├── phase_2_da_day_ahead_bidding/                 # ── Phase 2, Day-Ahead ─────────────────────
 │   ├── run_da.py                                 #   entry point
 │   ├── da_price_pv_inflow_forecasting/
 │   │   ├── da_price_forecaster.py                #   ML DA price forecast
@@ -269,7 +269,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── trader_approval/
 │       └── trader_approval_prompt.py             #   [A]/[R] interactive prompt
 │
-├── phase_2a_ida1_intraday_auction_1/             # ── Phase 2A, IDA1 ──────────────────────
+├── phase_3a_ida1_intraday_auction_1/             # ── Phase 3A, IDA1 ──────────────────────
 │   ├── run_ida1.py                               #   entry point
 │   ├── ida1_price_forecasting/
 │   │   ├── ida1_price_forecaster.py
@@ -280,7 +280,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── ida1_bid_formatting/
 │       └── ida1_bid_formatter.py                 #   SIDC delta bid payload
 │
-├── phase_2b_ida2_intraday_auction_2/             # ── Phase 2B, IDA2 ──────────────────────
+├── phase_3b_ida2_intraday_auction_2/             # ── Phase 3B, IDA2 ──────────────────────
 │   ├── run_ida2.py
 │   ├── ida2_price_forecasting/
 │   │   ├── ida2_price_forecaster.py
@@ -291,7 +291,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── ida2_bid_formatting/
 │       └── ida2_bid_formatter.py
 │
-├── phase_2c_ida3_intraday_auction_3/             # ── Phase 2C, IDA3 ──────────────────────
+├── phase_3c_ida3_intraday_auction_3/             # ── Phase 3C, IDA3 ──────────────────────
 │   ├── run_ida3.py
 │   ├── ida3_price_forecasting/
 │   │   ├── ida3_price_forecaster.py
@@ -302,7 +302,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── ida3_bid_formatting/
 │       └── ida3_bid_formatter.py
 │
-├── phase_2d_xbid_continuous_intraday/            # ── Phase 2D, XBID ──────────────────────
+├── phase_3d_xbid_continuous_intraday/            # ── Phase 3D, XBID ──────────────────────
 │   ├── run_xbid.py
 │   ├── xbid_price_forecasting/
 │   │   ├── xbid_price_forecaster.py
@@ -313,7 +313,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── xbid_bid_formatting/
 │       └── xbid_bid_formatter.py
 │
-├── phase_3a_afrr_automatic_frequency_reserve/    # ── Phase 3A, aFRR ──────────────────────
+├── phase_4a_afrr_automatic_frequency_reserve/    # ── Phase 4A, aFRR ──────────────────────
 │   ├── run_afrr.py
 │   ├── afrr_price_forecasting/
 │   │   ├── afrr_price_forecaster.py
@@ -323,7 +323,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       ├── afrr_offer_builder.py                 #   headroom → symmetric up/dn offers
 │       └── afrr_offer_checker.py                 #   FAT deliverability, cap ≤ 250 EUR/MW
 │
-├── phase_3b_mfrr_manual_frequency_reserve/       # ── Phase 3B, mFRR ──────────────────────
+├── phase_4b_mfrr_manual_frequency_reserve/       # ── Phase 4B, mFRR ──────────────────────
 │   ├── run_mfrr.py
 │   ├── mfrr_price_forecasting/
 │   │   ├── mfrr_price_forecaster.py
@@ -333,7 +333,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       ├── mfrr_offer_builder.py
 │       └── mfrr_offer_checker.py
 │
-├── phase_4a_isp_real_time_dispatch/              # ── Phase 4A, Real-Time ─────────────────────
+├── phase_5a_isp_real_time_dispatch/              # ── Phase 5A, Real-Time ─────────────────────
 │   ├── run_realtime.py
 │   ├── isp_setpoint_dispatch/
 │   │   ├── psp_setpoint_dispatcher.py            #   PSP unit setpoints per ISP
@@ -343,35 +343,35 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── telemetry/
 │       └── ren_isp_signal_loader.py              #   REN telemetry feed
 │
-├── phase_4b_afrr_activation_response/            # ── Phase 4B, aFRR Activation ────────────────
+├── phase_5b_afrr_activation_response/            # ── Phase 5B, aFRR Activation ────────────────
 │   ├── run_afrr_activation.py
 │   ├── afrr_setpoint_dispatch/
 │   │   └── afrr_activation_handler.py            #   ramp, min hold 2 ISPs, eff_isp_h
 │   └── afrr_activation_tracking/
 │       └── afrr_activation_logger.py
 │
-├── phase_4c_mfrr_activation_response/            # ── Phase 4C, mFRR Activation ────────────────
+├── phase_5c_mfrr_activation_response/            # ── Phase 5C, mFRR Activation ────────────────
 │   ├── run_mfrr_activation.py
 │   ├── mfrr_setpoint_dispatch/
 │   │   └── mfrr_activation_handler.py            #   ramp, min hold 3 ISPs, eff_isp_h
 │   └── mfrr_activation_tracking/
 │       └── mfrr_activation_logger.py
 │
-├── phase_5a_da_ida_settlement/                   # ── Phase 5A, Energy Settlement ───────────────
+├── phase_6a_da_ida_settlement/                   # ── Phase 6A, Energy Settlement ───────────────
 │   ├── run_energy_settlement.py
 │   └── energy_settlement_calculation/
 │       ├── da_settlement_calculator.py           #   DA volume × OMIE settlement price
 │       ├── ida_settlement_calculator.py          #   IDA delta per gate, no double-counting
 │       └── omie_settlement_price_loader.py       #   final OMIE settlement prices
 │
-├── phase_5b_reserve_settlement/                  # ── Phase 5B, Reserve Settlement ──────────────
+├── phase_6b_reserve_settlement/                  # ── Phase 6B, Reserve Settlement ──────────────
 │   ├── run_reserve_settlement.py
 │   └── reserve_settlement_calculation/
 │       ├── afrr_settlement_calculator.py         #   capacity (hourly) + activation, eff_isp_h
 │       ├── mfrr_settlement_calculator.py         #   reuses generic settle_reserve()
 │       └── ren_reserve_settlement_loader.py      #   PICASSO + MARI invoice loader
 │
-├── phase_5c_imbalance_settlement/                # ── Phase 5C, Imbalance Settlement ────────────
+├── phase_6c_imbalance_settlement/                # ── Phase 6C, Imbalance Settlement ────────────
 │   ├── run_imbalance_settlement.py
 │   ├── imbalance_price_and_volume/
 │   │   ├── imbalance_volume_calculator.py        #   actual − scheduled per ISP
@@ -379,7 +379,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── imbalance_settlement_calculation/
 │       └── imbalance_settlement_calculator.py    #   long→DA×0.85, short→DA×1.20
 │
-├── phase_5d_analytics_and_reporting/             # ── Phase 5D, Analytics ─────────────────────
+├── phase_6d_analytics_and_reporting/             # ── Phase 6D, Analytics ─────────────────────
 │   ├── run_analytics.py
 │   ├── analytics_and_kpis/
 │   │   ├── daily_pnl_calculator.py               #   compute_daily_pnl()
@@ -391,11 +391,11 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       ├── dispatch_sheet_builder.py             #   Dispatch_Hourly (94 cols)
 │       └── summary_kpi_builder.py                #   Summary_KPIs sheet
 │
-├── phase_6_backtesting_and_validation/           # ── Phase 6, Backtesting ─────────────────────
+├── phase_7_backtesting_and_validation/           # ── Phase 7, Backtesting ─────────────────────
 │   ├── run_backtest.py
 │   ├── backtest_engine/
 │   │   ├── backtest_runner.py                    #   historical date-range replay
-│   │   ├── rolling_backtest.py                   #   phase 6E: rolling 1-year backtest
+│   │   ├── rolling_backtest.py                   #   phase 7E: rolling 1-year backtest
 │   │   ├── live_bid_resettlement.py              #   actual bids re-valued at real prices
 │   │   └── historical_data_loader.py             #   load historical prices / inflows
 │   ├── forecast_and_model_validation/
@@ -442,12 +442,14 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       └── daily_report_YYYY-MM-DD.xlsx          #   5-sheet Excel report
 │
 ├── docs/                                         # ── Architecture Diagrams ─────────────────────────────
+│   ├── pipeline_architecture.html                #   editable source of the diagram (labels, phase numbers)
 │   ├── pipeline_architecture.png                 #   pipeline diagram (2× retina, 940 px)
-│   └── pipeline_architecture.svg                 #   same diagram as scalable SVG
+│   └── pipeline_architecture.svg                 #   same diagram wrapped as SVG (render: tools/render_pipeline_diagram.py)
 │
 ├── tools/                                        # ── Data maintenance ──────────────────
 │   ├── ingest_market_data.py                     #   backfill / rebuild the raw and clean zones for a date range
 │   ├── run_data_quality.py                       #   quality checks + gate on the clean zone (exit 1 = red)
+│   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
 └── requirements.txt                              # pip install -r requirements.txt

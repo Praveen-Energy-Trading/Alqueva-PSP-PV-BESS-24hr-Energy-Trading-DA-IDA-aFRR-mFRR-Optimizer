@@ -15,7 +15,7 @@ import pytest
 import sys
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting"))
+    "phase_2_da_day_ahead_bidding", "da_price_pv_inflow_forecasting"))
 
 from ml_train_val_test_common import (
     paired_significance_test,
@@ -76,7 +76,7 @@ def test_da_isp_selection_json_has_extended_metrics():
     production artifact, not a throwaway test fixture)."""
     json_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting",
+        "phase_2_da_day_ahead_bidding", "da_price_pv_inflow_forecasting",
         "da_selected_model_isp.json")
     backup_path = json_path + ".test_backup"
     assert os.path.isfile(json_path), "real da_selected_model_isp.json must exist"
@@ -123,9 +123,9 @@ def test_ida_selection_json_has_extended_metrics(gate, module_name, json_name, f
     force a re-selection on real training data, confirm the written JSON
     has the extended-metrics keys with real finite values, restore the original file."""
     _gate_dir = {
-        "IDA1": ("phase_2a_ida1_intraday_auction_1", "ida1_price_forecasting"),
-        "IDA2": ("phase_2b_ida2_intraday_auction_2", "ida2_price_forecasting"),
-        "IDA3": ("phase_2c_ida3_intraday_auction_3", "ida3_price_forecasting"),
+        "IDA1": ("phase_3a_ida1_intraday_auction_1", "ida1_price_forecasting"),
+        "IDA2": ("phase_3b_ida2_intraday_auction_2", "ida2_price_forecasting"),
+        "IDA3": ("phase_3c_ida3_intraday_auction_3", "ida3_price_forecasting"),
     }[gate]
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     module_dir = os.path.join(repo_root, *_gate_dir)

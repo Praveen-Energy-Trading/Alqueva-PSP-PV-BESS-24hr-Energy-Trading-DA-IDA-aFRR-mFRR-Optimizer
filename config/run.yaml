@@ -47,7 +47,7 @@ mode: trader
 data_source: live
 
 # ── Reports ───────────────────────────────────────────────────────────────────
-# Export the daily P&L, KPI and schedule Excel workbook after Phase 5D.
+# Export the daily P&L, KPI and schedule Excel workbook after Phase 6D.
 export_excel: true
 
 # ── Pipeline phase switches ───────────────────────────────────────────────────
@@ -74,19 +74,19 @@ export_excel: true
 #  5D      Analytics + report         All settlements
 
 phases:
-  data:                  true    # Phase 0    — Daily data pipeline (ingest, validate, quality gate)
-  da:                    true    # Phase 1    — Day-Ahead bidding (OMIE DA auction)
-  ida1:                  true    # Phase 2A   — IDA1 intraday re-optimisation
-  ida2:                  true    # Phase 2B   — IDA2 intraday re-optimisation
-  ida3:                  true    # Phase 2C   — IDA3 intraday re-optimisation
-  xbid:                  true    # Phase 2D   — XBID continuous intraday (W1 and W2)
-  afrr:                  true    # Phase 3A   — aFRR capacity offer (PICASSO / REN)
-  mfrr:                  true    # Phase 3B   — mFRR capacity offer (MARI)
-  realtime:              true    # Phase 4A   — ISP real-time dispatch simulation (96 ISPs)
-  afrr_activation:       true    # Phase 4B   — aFRR TSO activation response
-  mfrr_activation:       true    # Phase 4C   — mFRR TSO activation response
-  energy_settlement:     true    # Phase 5A   — DA / IDA energy settlement
-  reserve_settlement:    true    # Phase 5B   — aFRR / mFRR reserve settlement
-  imbalance_settlement:  true    # Phase 5C   — Imbalance settlement (REN balancing)
-  analytics:             true    # Phase 5D   — Daily P&L + KPIs + Excel export
-  rolling_backtest:      true    # Phase 6E   — Rolling 1-year real-price backtest + P&L re-settlement
+  data:                  true    # Phase 1    — Daily data pipeline (ingest, validate, quality gate)
+  da:                    true    # Phase 2    — Day-Ahead bidding (OMIE DA auction)
+  ida1:                  true    # Phase 3A   — IDA1 intraday re-optimisation
+  ida2:                  true    # Phase 3B   — IDA2 intraday re-optimisation
+  ida3:                  true    # Phase 3C   — IDA3 intraday re-optimisation
+  xbid:                  true    # Phase 3D   — XBID continuous intraday (W1 and W2)
+  afrr:                  true    # Phase 4A   — aFRR capacity offer (PICASSO / REN)
+  mfrr:                  true    # Phase 4B   — mFRR capacity offer (MARI)
+  realtime:              true    # Phase 5A   — ISP real-time dispatch simulation (96 ISPs)
+  afrr_activation:       true    # Phase 5B   — aFRR TSO activation response
+  mfrr_activation:       true    # Phase 5C   — mFRR TSO activation response
+  energy_settlement:     true    # Phase 6A   — DA / IDA energy settlement
+  reserve_settlement:    true    # Phase 6B   — aFRR / mFRR reserve settlement
+  imbalance_settlement:  true    # Phase 6C   — Imbalance settlement (REN balancing)
+  analytics:             true    # Phase 6D   — Daily P&L + KPIs + Excel export
+  rolling_backtest:      true    # Phase 7E   — Rolling 1-year real-price backtest + P&L re-settlement

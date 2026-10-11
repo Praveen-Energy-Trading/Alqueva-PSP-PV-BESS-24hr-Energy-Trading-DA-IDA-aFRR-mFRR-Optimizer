@@ -475,7 +475,7 @@ _INPUTS = """
 <text x="612" y="378" class="tgt" fill="#534AB7">&#8594; section I</text>
 
 <rect x="20" y="264" width="270" height="290" rx="8" fill="#FDF8EE" stroke="#854F0B"/>
-<text x="32" y="282" class="sec" fill="#412402">Forecasts (per-ISP, phase 1 output)</text>
+<text x="32" y="282" class="sec" fill="#412402">Forecasts (per-ISP, phase 2 output)</text>
 <text x="32" y="296" font-size="7.5" fill="#555">da_price_pv_inflow_forecasting/</text>
 <g class="f8" fill="#412402">
 <text x="32" y="314">lambda_t,DA - day-ahead price, 96 ISPs</text>

@@ -40,32 +40,32 @@ from common_layer.optimisation_model.scenario_generator import (
     generate_price_scenarios, default_scenarios_for_gate,
 )
 import os
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
+from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
     forecast_da_prices, forecast_da_prices_isp,
 )
-from phase_2a_ida1_intraday_auction_1.ida1_price_forecasting.ida1_price_forecaster import (
+from phase_3a_ida1_intraday_auction_1.ida1_price_forecasting.ida1_price_forecaster import (
     forecast_ida1_prices,
 )
-from phase_2b_ida2_intraday_auction_2.ida2_price_forecasting.ida2_price_forecaster import (
+from phase_3b_ida2_intraday_auction_2.ida2_price_forecasting.ida2_price_forecaster import (
     forecast_ida2_prices,
 )
-from phase_2c_ida3_intraday_auction_3.ida3_price_forecasting.ida3_price_forecaster import (
+from phase_3c_ida3_intraday_auction_3.ida3_price_forecasting.ida3_price_forecaster import (
     forecast_ida3_prices,
 )
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.pv_power_forecaster import (
+from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.pv_power_forecaster import (
     forecast_pv_available_isp,
 )
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.reservoir_inflow_forecaster import (
+from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.reservoir_inflow_forecaster import (
     forecast_inflow,
 )
-from phase_1_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
+from phase_2_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
     check_da_bid, BidCheckError,
 )
-from phase_1_da_day_ahead_bidding.risk_and_bid_validation.pre_trade_risk_checker import (
+from phase_2_da_day_ahead_bidding.risk_and_bid_validation.pre_trade_risk_checker import (
     PreTradeRiskChecker,
 )
 
-log = get_logger("phase2.ida")
+log = get_logger("phase3.ida")
 
 # Which gate's committed schedule each IDA starts from.
 _BASELINE_GATE = {"IDA1": "DA", "IDA2": "IDA1", "IDA3": "IDA2"}
@@ -153,15 +153,15 @@ def _update_gate_training_data(gate: str, delivery_date: str) -> None:
     any OMIE download failure (never blocks the pipeline)."""
     try:
         if gate == "IDA1":
-            from phase_2a_ida1_intraday_auction_1.ida1_price_forecasting.omie_ida1_price_loader import (
+            from phase_3a_ida1_intraday_auction_1.ida1_price_forecasting.omie_ida1_price_loader import (
                 update_training_data,
             )
         elif gate == "IDA2":
-            from phase_2b_ida2_intraday_auction_2.ida2_price_forecasting.omie_ida2_price_loader import (
+            from phase_3b_ida2_intraday_auction_2.ida2_price_forecasting.omie_ida2_price_loader import (
                 update_training_data,
             )
         else:
-            from phase_2c_ida3_intraday_auction_3.ida3_price_forecasting.omie_ida3_price_loader import (
+            from phase_3c_ida3_intraday_auction_3.ida3_price_forecasting.omie_ida3_price_loader import (
                 update_training_data,
             )
         update_training_data(delivery_date)

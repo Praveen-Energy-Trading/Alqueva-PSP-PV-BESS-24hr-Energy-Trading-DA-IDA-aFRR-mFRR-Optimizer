@@ -65,28 +65,28 @@ def _ensure_pipeline():
     # earlier pass had this reversed based on Germany's regelleistung.net
     # precedent; reverted once REN's own document was found and confirmed.
     # run_da takes config_dir (not cfg); auto_approve controls prompt.
-    from phase_1_da_day_ahead_bidding.run_da import run_da
+    from phase_2_da_day_ahead_bidding.run_da import run_da
     r = run_da(TEST_DATE, auto_approve=True)
     assert r["status"] == "SUBMITTED", f"DA failed: {r}"
 
     # Remaining phases take the cfg object and no_pause flag.
-    from phase_3a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
+    from phase_4a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
     r = run_afrr(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"aFRR offer failed: {r}"
 
-    from phase_3b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
+    from phase_4b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
     r = run_mfrr(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"mFRR offer failed: {r}"
 
-    from phase_4a_isp_real_time_dispatch.run_realtime import run_realtime
+    from phase_5a_isp_real_time_dispatch.run_realtime import run_realtime
     r = run_realtime(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "OK", f"RT dispatch failed: {r}"
 
-    from phase_4b_afrr_activation_response.run_afrr_activation import run_afrr_activation
+    from phase_5b_afrr_activation_response.run_afrr_activation import run_afrr_activation
     r = run_afrr_activation(TEST_DATE, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"aFRR activation failed: {r}"
 
-    from phase_4c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
+    from phase_5c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
     r = run_mfrr_activation(TEST_DATE, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"mFRR activation failed: {r}"
 
@@ -352,7 +352,7 @@ class T7_SettlementSeparatePrices(unittest.TestCase):
     def _check_settlement_math(self, product: str):
         cfg = _ensure_pipeline()
         from common_layer.database import ActivationStore
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 
@@ -409,7 +409,7 @@ class T8_ImbalanceExcludesActivations(unittest.TestCase):
 
         Architecture note (from imbalance_volume_calculator.py docstring):
         In simulation, actual_mw = scheduled + noise only — activation energy is
-        NOT added to actual_mw because Phase 4B/4C run after 4A. Subtracting
+        NOT added to actual_mw because Phase 5B/5C run after 5A. Subtracting
         instructed activations that were never in actual_mw would create phantom
         imbalances. The correct simulation formula is therefore:
             imbalance_mwh = (actual - sched) * isp_h   (noise only)
@@ -418,7 +418,7 @@ class T8_ImbalanceExcludesActivations(unittest.TestCase):
         (actual - sched) values from DeliveryStore, confirming no double-counting.
         """
         cfg = _ensure_pipeline()
-        from phase_5c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
+        from phase_6c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
             compute_imbalance,
         )
         from common_layer.database import DeliveryStore

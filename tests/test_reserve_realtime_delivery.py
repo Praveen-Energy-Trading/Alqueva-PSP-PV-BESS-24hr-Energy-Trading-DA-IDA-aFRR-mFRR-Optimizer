@@ -55,27 +55,27 @@ def _ensure_pipeline():
             "(this project's solving is CPLEX-only, no free-solver fallback relied on)")
     _pipeline_cfg = cfg
 
-    from phase_1_da_day_ahead_bidding.run_da import run_da
+    from phase_2_da_day_ahead_bidding.run_da import run_da
     r = run_da(TEST_DATE, auto_approve=True)
     assert r["status"] == "SUBMITTED", f"DA failed: {r}"
 
-    from phase_3a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
+    from phase_4a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
     r = run_afrr(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"aFRR offer failed: {r}"
 
-    from phase_3b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
+    from phase_4b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
     r = run_mfrr(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"mFRR offer failed: {r}"
 
-    from phase_4a_isp_real_time_dispatch.run_realtime import run_realtime
+    from phase_5a_isp_real_time_dispatch.run_realtime import run_realtime
     r = run_realtime(TEST_DATE, cfg, no_pause=True)
     assert r["status"] == "OK", f"RT dispatch failed: {r}"
 
-    from phase_4b_afrr_activation_response.run_afrr_activation import run_afrr_activation
+    from phase_5b_afrr_activation_response.run_afrr_activation import run_afrr_activation
     r = run_afrr_activation(TEST_DATE, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"aFRR activation failed: {r}"
 
-    from phase_4c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
+    from phase_5c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
     r = run_mfrr_activation(TEST_DATE, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"mFRR activation failed: {r}"
 
@@ -301,7 +301,7 @@ class T16_SettlementTotalIntegrity(unittest.TestCase):
 
     def _check(self, product: str):
         cfg = _ensure_pipeline()
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 
@@ -635,7 +635,7 @@ class T22_CombinedPositivePnL(unittest.TestCase):
 
     def test_reserve_settlement_positive(self):
         cfg = _ensure_pipeline()
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 
@@ -655,7 +655,7 @@ class T22_CombinedPositivePnL(unittest.TestCase):
         capacity payment (both are offered). mFRR with capacity_payment=false
         (energy-only, see market.yaml) must settle its capacity at exactly 0."""
         cfg = _ensure_pipeline()
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 
@@ -680,7 +680,7 @@ class T22_CombinedPositivePnL(unittest.TestCase):
         """
         cfg = _ensure_pipeline()
         from common_layer.database import ActivationStore
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 

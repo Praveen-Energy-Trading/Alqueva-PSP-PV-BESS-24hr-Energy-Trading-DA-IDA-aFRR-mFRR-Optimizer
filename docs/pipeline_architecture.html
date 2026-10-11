@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alqueva PSP + PV + BESS — 24-Hour Trading Pipeline</title>
+<!-- Source of docs/pipeline_architecture.png and .svg. Edit here, then run: python tools/render_pipeline_diagram.py -->
+<style>
+  :root{
+    --bg:#0a0e19; --panel:#0e1422; --panel-b:#1c2540; --card:#0a0d16; --txt:#e8ecf5; --mut:#8b95ad; --dim:#5d6780;
+    --blue:#4c9bff; --green:#3ec65a; --amber:#f0b429; --red:#ff5c5c; --purple:#b583ff; --teal:#35c2c2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:940px;background:var(--bg);color:var(--txt);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;padding:22px 24px 18px}
+  h1{font-size:23px;text-align:center;font-weight:700;letter-spacing:.2px}
+  .sub{font-size:12.5px;color:var(--mut);text-align:center;margin:5px 0 18px}
+  .sec{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin:0 0 7px 2px}
+  .num{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;border:1.5px solid currentColor}
+  .panel{background:var(--panel);border:1px solid var(--panel-b);border-radius:12px;padding:12px}
+  .row{display:flex;gap:10px}
+  .card{flex:1;background:var(--card);border:1.2px solid;border-radius:9px;padding:9px 11px 8px;min-width:0}
+  .badge{display:inline-block;font-size:9.5px;font-weight:700;border-radius:4px;padding:2px 7px;margin-bottom:6px;border:1px solid}
+  .ttl{font-size:15.5px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .ttl.sm{font-size:14px}
+  .txt{font-size:10.5px;color:var(--mut);line-height:1.5}
+  .foot{margin-top:8px;padding-top:6px;border-top:1px solid #1c2540;font-size:9.5px;color:var(--dim)}
+  .core{display:flex;gap:9px}
+  .core .c{flex:1;background:#0d111b;border:1px solid #1e2740;border-radius:9px;padding:10px 4px;text-align:center}
+  .core .c b{display:block;font-size:11px;font-weight:600;margin-top:4px}
+  .core .c i{display:block;font-style:normal;font-size:8.5px;color:var(--dim);margin-top:2px}
+  .core .ic{font-size:19px}
+  .arrow{display:flex;flex-direction:column;align-items:center;margin:5px 0 7px}
+  .arrow .ln{width:2px;height:15px;background:#3b82f6}
+  .arrow .hd{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #3b82f6}
+  .arrow .lb{font-size:10.5px;color:#fff;margin:5px 0}
+  .flow{display:flex;align-items:stretch;gap:5px}
+  .flow .go{align-self:center;color:#2b3550;font-size:13px}
+  .vline{width:2px;background:#252d44;border-radius:1px;margin:0 3px}
+  .col{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+  .down{display:flex;justify-content:space-around;height:20px;align-items:center}
+  .down span{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #3b82f6;position:relative}
+  .down span::before{content:"";position:absolute;left:-1px;top:-17px;width:2px;height:10px;background:#3b82f6}
+  .eq{font-family:Consolas,"Cascadia Mono",monospace}
+  /* colour sets */
+  .k-blue{border-color:#2a4f8a;background:#0a1220}.k-blue .badge{color:#7db3ff;border-color:#2a4f8a;background:#12294d}.k-blue .ttl{color:#e8f0ff}
+  .k-green{border-color:#245a31;background:#0a130d}.k-green .badge{color:#6fe38a;border-color:#245a31;background:#102a17}.k-green .ttl{color:#7ee895}
+  .k-purple{border-color:#4d3a7a;background:#0f0b18}.k-purple .badge{color:#c8a2ff;border-color:#4d3a7a;background:#24183f}.k-purple .ttl{color:#cfaeff}
+  .k-amber{border-color:#6b5316;background:#120f07}.k-amber .badge{color:#f3c24a;border-color:#6b5316;background:#2f2508}.k-amber .ttl{color:#f3c24a}
+  .k-red{border-color:#6b2222;background:#150808}.k-red .badge{color:#ff8b8b;border-color:#6b2222;background:#3a1010}.k-red .ttl{color:#ff7a7a}
+  .k-teal{border-color:#1f5d5d;background:#081414}.k-teal .badge{color:#5fe0e0;border-color:#1f5d5d;background:#0d2b2b}.k-teal .ttl{color:#69e6e6}
+  .green-line{border-top-color:#245a31!important;color:#6fe38a}
+</style>
+</head>
+<body>
+
+<h1>⚡ Alqueva PSP + PV + BESS — 24-Hour Trading Pipeline</h1>
+<div class="sub">518.4 MW Hydro &nbsp;·&nbsp; 5 MW PV &nbsp;·&nbsp; 1 MW / 2 MWh BESS &nbsp;·&nbsp; MIBEL / OMIE</div>
+
+<!-- ============ PHASE 1 · DATA PIPELINE ============ -->
+<div class="sec" style="color:var(--teal)"><span class="num">1</span>Daily data pipeline — runs first, twice a day</div>
+<div class="panel">
+  <div class="flow">
+    <div class="card k-teal"><span class="badge">Phase 1 · SOURCES</span><div class="ttl sm">🌐 OMIE · REN</div>
+      <div class="txt">8 sources: day-ahead, IDA1–3,<br>continuous market, aFRR, mFRR,<br>imbalance prices</div><div class="foot">polite download · retries · 404 = not published</div></div>
+    <div class="go">▶</div>
+    <div class="card k-teal"><span class="badge">Phase 1 · RAW ZONE</span><div class="ttl sm">🗄️ Immutable files</div>
+      <div class="txt">written once, SHA-256 per file<br>revisions become version 2<br>"as known on that morning"</div><div class="foot">rebuild any past day exactly</div></div>
+    <div class="go">▶</div>
+    <div class="card k-teal"><span class="badge">Phase 1 · CLEAN ZONE</span><div class="ttl sm">🧾 Data contracts</div>
+      <div class="txt">true 23 / 25 h days (92 / 100<br>periods), UTC starts, ranges,<br>lineage on every row</div><div class="foot">SQLite · idempotent per day</div></div>
+    <div class="go">▶</div>
+    <div class="card k-teal"><span class="badge">Phase 1 · QUALITY GATE</span><div class="ttl sm">🚦 Score + report</div>
+      <div class="txt">gaps · stale or repeated days ·<br>DST copies · cross-source checks<br>spikes flagged, never removed</div><div class="foot">green → models run · red → warn / block</div></div>
+  </div>
+</div>
+
+<div class="arrow"><div class="ln"></div><div class="lb">validated market data feeds forecasts and every optimisation</div><div class="ln" style="height:6px"></div><div class="hd"></div></div>
+
+<!-- ============ SHARED CORE ============ -->
+<div class="sec" style="color:#4c9bff"><span class="num">2</span>Shared core — drives every gate</div>
+<div class="panel">
+  <div class="core">
+    <div class="c"><div class="ic">⚙️</div><b>Configuration</b><i>plant · market · solver</i></div>
+    <div class="c"><div class="ic">🧮</div><b>MILP Core</b><i>24h · McCormick · 5×5 η</i></div>
+    <div class="c"><div class="ic">⚡</div><b>Plant Models</b><i>PSP · PV · BESS · reservoir</i></div>
+    <div class="c"><div class="ic">🗃️</div><b>Database</b><i>positions · reserve · audit</i></div>
+    <div class="c"><div class="ic">🕐</div><b>Gate Scheduler</b><i>CET gate-time resolver</i></div>
+    <div class="c"><div class="ic">🛠️</div><b>Utilities</b><i>logging · timezone · ISP</i></div>
+  </div>
+</div>
+<div class="arrow"><div class="ln"></div><div class="lb">shared physics + one MILP solve per gate</div><div class="ln" style="height:6px"></div><div class="hd"></div></div>
+
+<!-- ============ TRADING GATES ============ -->
+<div class="sec" style="color:#3ec65a"><span class="num">3</span>Trading gates — energy markets</div>
+<div class="panel">
+  <div class="flow">
+    <div class="card k-blue"><span class="badge">Phase 2 · DA</span><div class="ttl">🏛️ Day-Ahead</div><div class="txt">MILP solve · risk check<br>trader [A/VR] approval</div><div class="foot">🕐 D-1 12:00 CET · H1–H24</div></div>
+    <div class="go">▶</div>
+    <div class="card k-green"><span class="badge">Phase 3A · IDA1</span><div class="ttl">📊 IDA1</div><div class="txt">Re-optimise all hours<br>no-churn threshold</div><div class="foot">🕐 D-1 15:00 · H1–H24</div></div>
+    <div class="go">▶</div>
+    <div class="card k-green"><span class="badge">Phase 3B · IDA2</span><div class="ttl">📊 IDA2</div><div class="txt">H1–H2 frozen<br>re-optimise H3–H24</div><div class="foot">🕐 D-1 22:00 · H3–H24</div></div>
+    <div class="go">▶</div>
+    <div class="card k-green"><span class="badge">Phase 3C · IDA3</span><div class="ttl">📊 IDA3</div><div class="txt">H1–H11 frozen<br>re-optimise H12–H24</div><div class="foot">🕐 D 10:00 · H12–H24</div></div>
+    <div class="go">▶</div>
+    <div class="card k-purple"><span class="badge">Phase 3D · XBID</span><div class="ttl">⚡ XBID</div><div class="txt">Continuous intraday<br>per-order caps</div><div class="foot">🕐 H-1 rolling</div></div>
+  </div>
+</div>
+<div class="arrow"><div class="ln"></div><div class="lb">committed net position → headroom = capacity − p_net − FCR</div><div class="ln" style="height:6px"></div><div class="hd"></div></div>
+
+<!-- ============ RESERVES + REAL-TIME ============ -->
+<div class="sec" style="color:#f0b429"><span class="num">4</span>Reserve markets &amp; real-time dispatch</div>
+<div class="panel">
+  <div class="row">
+    <div style="flex:2.3;display:flex;flex-direction:column;gap:0">
+      <div class="row">
+        <div class="card k-amber"><span class="badge">Phase 4A</span><div class="ttl sm">⚡ aFRR Offers</div><div class="txt">PICASSO · symmetric<br>FAT = 5 min<br><span class="eq">eff_isp_h = 0.2083 h</span></div><div class="foot">DA+1h · ≤250 EUR/MW</div></div>
+        <div class="card k-amber"><span class="badge">Phase 4B</span><div class="ttl sm">⚡ mFRR Offers</div><div class="txt">MARI · symmetric<br>FAT = 12.5 min<br><span class="eq">eff_isp_h = 0.1458 h</span></div><div class="foot">DA+1h · REN Nov 2024</div></div>
+      </div>
+      <div class="row down"><span></span><span></span></div>
+      <div class="row">
+        <div class="card k-red"><span class="badge">Phase 5B</span><div class="ttl sm">⚡ aFRR Activation</div><div class="txt">TSO signal · ramp-corrected<br>energy · min hold 2 ISPs</div><div class="foot">Within FAT 5 min</div></div>
+        <div class="card k-red"><span class="badge">Phase 5C</span><div class="ttl sm">⚡ mFRR Activation</div><div class="txt">TSO signal · ramp-corrected<br>energy · min hold 3 ISPs</div><div class="foot">Within FAT 12.5 min</div></div>
+      </div>
+    </div>
+    <div class="vline"></div>
+    <div style="flex:1.25"><div class="card k-red" style="height:100%"><span class="badge">Phase 5A</span><div class="ttl sm">🔄 ISP Real-Time Dispatch</div>
+      <div class="txt" style="line-height:1.85;margin-top:6px">PSP setpoints per ISP<br>BESS setpoints per ISP<br>REN telemetry feed<br>96 ISPs / day (15 min)<br>from 19 Mar 2025</div></div></div>
+  </div>
+</div>
+<div class="arrow"><div class="ln"></div><div class="lb">actual vs scheduled → settlement calculation</div><div class="ln" style="height:6px"></div><div class="hd"></div></div>
+
+<!-- ============ SETTLEMENT ============ -->
+<div class="sec" style="color:#3ec65a"><span class="num">5</span>Settlement</div>
+<div class="panel">
+  <div class="row">
+    <div class="card k-green"><span class="badge">Phase 6A</span><div class="ttl sm">💰 Energy Settlement</div><div class="txt">DA + IDA delta per gate<br>OMIE settlement prices<br>no double-counting</div><div class="foot green-line eq">EUR = Σ gate_vol × price</div></div>
+    <div class="card k-green"><span class="badge">Phase 6B</span><div class="ttl sm">💰 Reserve Settlement</div><div class="txt">Capacity (hourly) + activation<br>Uses eff_isp_h (ramp-corrected)<br>Separate up / dn prices</div><div class="foot green-line">PICASSO + MARI invoices</div></div>
+    <div class="card k-green"><span class="badge">Phase 6C</span><div class="ttl sm">💰 Imbalance Settlement</div><div class="txt">Long → DA × 0.85<br>Short → DA × 1.20<br>REN imbalance price loader</div><div class="foot green-line">Post-delivery · ISP = 0.25 h</div></div>
+  </div>
+</div>
+<div class="arrow"><div class="ln"></div><div class="hd"></div></div>
+
+<!-- ============ ANALYTICS ============ -->
+<div class="sec" style="color:#b583ff"><span class="num">6</span>Analytics &amp; validation</div>
+<div class="panel">
+  <div class="row">
+    <div class="card k-purple"><span class="badge">Phase 6D</span><div class="ttl sm">📊 Phase 6D — Analytics &amp; Reporting</div>
+      <div class="txt" style="line-height:1.8;margin-top:4px">Daily P&amp;L · KPIs · revenue breakdown<br>Excel: 5 sheets · 94 columns<br>Dispatch_Hourly · ISP_Activation · Gate_Decisions<br>Summary_KPIs · Glossary<br>9 production figures auto-generated</div></div>
+    <div class="card k-purple"><span class="badge">Phase 7</span><div class="ttl sm">📋 Phase 7 — Backtesting &amp; Validation</div>
+      <div class="txt" style="line-height:1.8;margin-top:4px">Historical replay · forecast validation<br>MILP solution quality check<br>PV / price / inflow forecast accuracy<br>Portfolio risk metrics<br>Backtest Excel report</div></div>
+  </div>
+</div>
+
+<div style="border-top:1px solid #1c2540;margin-top:16px;padding-top:9px;text-align:center;font-size:10.5px;color:var(--dim);line-height:1.7">
+  One shared MILP core &nbsp;·&nbsp; Physics in exactly one place &nbsp;·&nbsp; Every gate re-validates before submission<br>
+  <span class="eq" style="color:#7db3ff">common_layer/optimisation_model/core_milp_builder.py</span> — a constraint fix propagates to every gate
+</div>
+</body>
+</html>

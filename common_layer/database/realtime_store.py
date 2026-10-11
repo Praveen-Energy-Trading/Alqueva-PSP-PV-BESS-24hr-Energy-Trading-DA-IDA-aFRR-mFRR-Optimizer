@@ -1,8 +1,8 @@
 """
-realtime_store.py — delivery actuals and reserve activations (Phase 4 → Phase 5).
+realtime_store.py — delivery actuals and reserve activations (Phase 5 → Phase 6).
 
-Two SQLite-backed stores written during delivery (Phase 4) and read at settlement
-(Phase 5):
+Two SQLite-backed stores written during delivery (Phase 5) and read at settlement
+(Phase 6):
 
     DeliveryStore     per-ISP scheduled vs actual net MW → imbalance settlement
     ActivationStore   per-ISP aFRR/mFRR activated energy (up/dn MW) → reserve settlement

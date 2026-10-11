@@ -13,10 +13,10 @@ import dataclasses
 import pytest
 
 from common_layer.configuration import load_config
-from phase_3a_afrr_automatic_frequency_reserve.afrr_reserve_offer_builder.afrr_offer_builder import (
+from phase_4a_afrr_automatic_frequency_reserve.afrr_reserve_offer_builder.afrr_offer_builder import (
     build_afrr_offers,
 )
-from phase_3b_mfrr_manual_frequency_reserve.mfrr_reserve_offer_builder.mfrr_offer_builder import (
+from phase_4b_mfrr_manual_frequency_reserve.mfrr_reserve_offer_builder.mfrr_offer_builder import (
     build_mfrr_offers,
 )
 
@@ -121,7 +121,7 @@ class TestFutureBandScenario:
 
     def test_mfrr_capacity_price_is_zero_when_unpaid(self, cfg, monkeypatch):
         import common_layer.configuration as c
-        from phase_6_backtesting_and_validation.backtest_engine.historical_data_loader import (
+        from phase_7_backtesting_and_validation.backtest_engine.historical_data_loader import (
             real_ren_capacity_price,
         )
         monkeypatch.setattr(c, "load_config", lambda *a, **k: self._scenario_cfg(cfg, False))
@@ -130,7 +130,7 @@ class TestFutureBandScenario:
 
     def test_mfrr_capacity_is_paid_at_the_afrr_band_price_in_the_scenario(self, cfg, monkeypatch):
         import common_layer.configuration as c
-        from phase_6_backtesting_and_validation.backtest_engine.historical_data_loader import (
+        from phase_7_backtesting_and_validation.backtest_engine.historical_data_loader import (
             real_ren_capacity_price,
         )
         monkeypatch.setattr(c, "load_config", lambda *a, **k: self._scenario_cfg(cfg, True))

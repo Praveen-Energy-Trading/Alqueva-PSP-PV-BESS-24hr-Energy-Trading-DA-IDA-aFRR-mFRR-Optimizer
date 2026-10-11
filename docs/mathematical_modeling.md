@@ -21,17 +21,18 @@ A reader unfamiliar with European electricity market structure or the plant's ph
 
 | When | Gate / Phase | What happens |
 |---|---|---|
-| D-1, noon | DA (Part 1) | Main day-ahead position is bid for all 24 hours |
-| D-1, 15:00 | IDA1 (Part 2A) | First correction, all 24 hours still open |
-| D-1, 18:30 | XBID window W1 (Part 2D) | Continuous trading opens, all hours still open |
-| D-1, 22:00 | IDA2 (Part 2B) | Second correction, hours 1–2 now locked |
-| D-1 onward | aFRR / mFRR capacity offers (Parts 3A, 3B) | Reserve capacity offered for the next delivery day |
-| D, 09:30 | XBID window W2 (Part 2D) | Continuous trading check, hours $\geq$ 11 still open |
-| D, 10:00 | IDA3 (Part 2C) | Final correction, hours 1–11 now locked |
-| D, during each hour | Real-time dispatch, aFRR/mFRR activation (Parts 4A, 4B, 4C) | The schedule is physically executed; the TSO may call reserve at any moment |
-| After D ends | Settlement (Parts 5A, 5B, 5C) | Every gate and every activation is priced against final cleared/settlement prices |
-| After settlement | Analytics and reporting (Part 5D) | Daily P&L, KPIs, and the Excel report are assembled |
-| Periodically, offline | Backtesting (Part 6) | Many past days are replayed to validate forecast accuracy and compute portfolio risk |
+| Before every run (twice daily) | Data pipeline (Part 1) | New OMIE and REN files are stored unchanged, validated, quality-scored; a red gate stops model runs |
+| D-1, noon | DA (Part 2) | Main day-ahead position is bid for all 24 hours |
+| D-1, 15:00 | IDA1 (Part 3A) | First correction, all 24 hours still open |
+| D-1, 18:30 | XBID window W1 (Part 3D) | Continuous trading opens, all hours still open |
+| D-1, 22:00 | IDA2 (Part 3B) | Second correction, hours 1–2 now locked |
+| D-1 onward | aFRR / mFRR capacity offers (Parts 4A, 4B) | Reserve capacity offered for the next delivery day |
+| D, 09:30 | XBID window W2 (Part 3D) | Continuous trading check, hours $\geq$ 11 still open |
+| D, 10:00 | IDA3 (Part 3C) | Final correction, hours 1–11 now locked |
+| D, during each hour | Real-time dispatch, aFRR/mFRR activation (Parts 5A, 5B, 5C) | The schedule is physically executed; the TSO may call reserve at any moment |
+| After D ends | Settlement (Parts 6A, 6B, 6C) | Every gate and every activation is priced against final cleared/settlement prices |
+| After settlement | Analytics and reporting (Part 6D) | Daily P&L, KPIs, and the Excel report are assembled |
+| Periodically, offline | Backtesting (Part 7) | Many past days are replayed to validate forecast accuracy and compute portfolio risk |
 
 **Key acronyms and abbreviations used throughout:**
 
@@ -649,13 +650,31 @@ where $\Delta v^{up}_{isp}$ (hm$^3$) is the upper-reservoir volume change for on
 
 ---
 
-## Part 1 — Phase 1: Day-Ahead Bidding
+## Part 1 — Phase 1: Daily Data Pipeline
 
-Phase 1 forecasts the three exogenous inputs the core MILP needs (DA price, PV availability, reservoir inflow), solves the model from Part 0, runs the bid checker (re-validating the Part 0 invariants against the solved schedule), runs a commercial risk gate, and formats the result as an OMIE bid. This part documents only the equations not already covered in Part 0: the forecasting feature engineering, the physical solar models, the accuracy metrics used for model selection, and the risk-gate thresholds.
+Phase 1 introduces **no optimisation equations**. It defines how market data reaches every other phase and the statistics used to judge it. All of it is deterministic: the same raw files always produce the same tables (`phase_1_data_pipeline/`, `common_layer/data_layer/`, `common_layer/data_quality/`).
 
-### 1.1 Cyclical Calendar Feature Encoding
+**True market time.** A delivery day runs from local midnight to local midnight in Europe/Madrid and has $h \in \{23, 24, 25\}$ hours, i.e. $N = 4h \in \{92, 96, 100\}$ quarter-hours (or $h$ hourly periods). Every period is stored with its UTC start, so the autumn day's two "hour 3" slots are distinct. The optimiser's fixed 24- or 96-period grid is produced in one place (`calendar.to_model_grid`): on a 23-hour day the missing hour is $	ilde{x}_3 = (x_2 + x_4)/2$; on a 25-hour day the two hour-3 values are averaged, $	ilde{x}_3 = (x_{3a} + x_{3b})/2$ (the same applies per quarter-hour).
 
-**Source:** `phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_price_forecaster.py`, `pv_power_forecaster.py`, `reservoir_inflow_forecaster.py`, function `_build_features` in each.
+**Spike flag (information only).** For a price $x_t$, let $m_t$ and $q_t$ be the median and interquartile range of the values in the 14 days *before* $t$. With $\sigma_t = q_t / 1.349$, the value is flagged when $|x_t - m_t| / \sigma_t > 6$ and $|x_t - m_t| > 30$ EUR/MWh. Only earlier values are used, so the flag could be a model input without leakage. Spikes, negative prices and prices at the market limit are counted, never removed.
+
+**Daily quality score.** For dataset $k$ and delivery day $d$: $S_{k,d} = \max\left(0,\; 100 - \sum_i \pi_i\right)$ over the warnings raised that day, with penalties $\pi_i$ from `config/data_quality.yaml` (for example 25 for a stuck feed, 10 for a value outside its plausibility band); a day with no data scores 0.
+
+**Gate.** The gate is green only if, for every dataset, the share of missing days is within its limit (2 % by default), the mean score of present days is at least 95, at most 2 % of days score below 70, no feed is stale and every raw-file checksum verifies. Model runs call `require_green()` first.
+
+**Imputation.** A value at time $t$ may use only observations before $t$: none (default), carry-forward for at most $k$ periods, or the value exactly 24 hours earlier. Filled values are marked and the clean zone itself is never filled.
+
+**Source:** `phase_1_data_pipeline/run_data_pipeline.py`; `common_layer/data_layer/` (zones, parsers, contracts, ingestion); `common_layer/data_quality/` (checks, scoring, imputation, provenance); settings in `config/data_pipeline.yaml`, `config/data_quality.yaml`, `config/market_regimes.yaml`.
+
+---
+
+## Part 2 — Phase 2: Day-Ahead Bidding
+
+Phase 2 forecasts the three exogenous inputs the core MILP needs (DA price, PV availability, reservoir inflow), solves the model from Part 0, runs the bid checker (re-validating the Part 0 invariants against the solved schedule), runs a commercial risk gate, and formats the result as an OMIE bid. This part documents only the equations not already covered in Part 0: the forecasting feature engineering, the physical solar models, the accuracy metrics used for model selection, and the risk-gate thresholds.
+
+### 2.1 Cyclical Calendar Feature Encoding
+
+**Source:** `phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_price_forecaster.py`, `pv_power_forecaster.py`, `reservoir_inflow_forecaster.py`, function `_build_features` in each.
 
 Calendar variables (hour-of-day, day-of-week, month, day-of-year) are cyclical, so each is encoded as a sine/cosine pair rather than a raw integer, ensuring the model sees period 23 and period 0 as adjacent rather than maximally distant.
 
@@ -665,7 +684,7 @@ $$
 
 where $k$ is the raw calendar value (hour-of-day, day-of-week, month, or day-of-year), $k_0$ is the index offset so the cycle starts at zero, and $K$ is the period (24 for hour, 7 for day-of-week, 12 for month, 365 for day-of-year). This same encoding is applied independently to each calendar variable used as a model feature in the DA price, PV (GHI and ambient temperature), and inflow forecasters.
 
-### 1.2 Lag, Rolling, and Trend Features
+### 2.2 Lag, Rolling, and Trend Features
 
 **Source:** `da_price_forecaster.py`, `pv_power_forecaster.py`, `reservoir_inflow_forecaster.py`, function `_build_features` in each.
 
@@ -685,9 +704,9 @@ $$
 
 where $y_h$ is the target series (DA price in EUR/MWh, GHI in W/m$^2$, ambient temperature in $^{\circ}$C, or daily inflow in m$^3$/h), $\ell$ is a lag offset (e.g., 24 h, 48 h, 168 h, 336 h for hourly targets; 1, 7, 30 days for the daily inflow target), $w$ is a rolling window length (24 h or 168 h for hourly targets; 7 or 30 days for inflow), and $\Delta y_h$ is the short-term trend feature, the difference between two lagged values ($\ell_1=24$h, $\ell_2=48$h for DA price; 1-day lag for inflow).
 
-### 1.3 Model Accuracy Metrics
+### 2.3 Model Accuracy Metrics
 
-**Source:** `phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/ml_train_val_test_common.py`, functions `mae`, `metrics`.
+**Source:** `phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/ml_train_val_test_common.py`, functions `mae`, `metrics`.
 
 Four metrics quantify forecast accuracy and are used both for offline evaluation and for the walk-forward model-selection rule (Eq. 70).
 
@@ -709,7 +728,7 @@ $$
 
 where $\hat{y}_i$, $y_i$ are the predicted and actual values for sample $i$, $n$ is the number of evaluation samples, and $\mathrm{MAE}_{naive}$ is the MAE of the naive (persistence) baseline, so Skill expresses the fractional accuracy improvement of a model over simple persistence.
 
-### 1.4 Walk-Forward Cross-Validation and Model Selection
+### 2.4 Walk-Forward Cross-Validation and Model Selection
 
 **Source:** `ml_train_val_test_common.py`, function `walk_forward_cv`; auto-selection logic in each forecaster's `_auto_select_model`.
 
@@ -729,7 +748,7 @@ $$
 
 where $m^{\ast}$ is the selected model and $\mathrm{MAE}_{m,k}$ (Eq. 68) is model $m$'s validation MAE on fold $k$.
 
-### 1.5 Day-Ahead Price Synthetic Fallback
+### 2.5 Day-Ahead Price Synthetic Fallback
 
 **Source:** `da_price_forecaster.py`, function `_synthetic_fallback`.
 
@@ -741,11 +760,11 @@ $$
 
 where $\pi^{synth}_h$ (EUR/MWh) is the synthetic price for hour $h$, $\mu = 55.0$ EUR/MWh is the configured mean price level, $A = 22.0$ EUR/MWh is the configured amplitude, $n_h = -0.8$ for $h \leq 6$ or $h \geq 23$ (night discount) and $0$ otherwise, and $\epsilon_h$ is uniform noise on $[-3,3]$ EUR/MWh drawn from a delivery-date-seeded random generator (deterministic given the date).
 
-This identical formula appears a second time, independently implemented, in `phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/omie_da_price_loader.py` (function `_synthetic_prices`), used to gap-fill the training Excel file when a live OMIE download fails. Both call sites compute the same Eq. 74; this is noted as a code-duplication observation, not a second equation.
+This identical formula appears a second time, independently implemented, in `phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/omie_da_price_loader.py` (function `_synthetic_prices`), used to gap-fill the training Excel file when a live OMIE download fails. Both call sites compute the same Eq. 74; this is noted as a code-duplication observation, not a second equation.
 
-### 1.6 PV Cell Temperature Model
+### 2.6 PV Cell Temperature Model
 
-**Source:** `phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py`, inline in `_model_forecast` and `_synthetic_fallback` (IEC 61215 NOCT model).
+**Source:** `phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py`, inline in `_model_forecast` and `_synthetic_fallback` (IEC 61215 NOCT model).
 
 Forecasted ambient temperature is converted to PV cell temperature — the temperature that actually drives the PV production model (Eq. 58) — using the Nominal Operating Cell Temperature (NOCT) model.
 
@@ -755,7 +774,7 @@ $$
 
 where $T_{cell}$, $T_{amb}$ ($^{\circ}$C) are cell and ambient temperature, $NOCT = 45\,^{\circ}$C is the floating-array Nominal Operating Cell Temperature (IEC 61215), and $G$ (W/m$^2$) is the irradiance, taken as GHI (a floating array is nearly horizontal, so GHI is used as the plane-of-array proxy).
 
-### 1.7 Clearness Index
+### 2.7 Clearness Index
 
 **Source:** `pv_power_forecaster.py`, function `_build_features`.
 
@@ -767,7 +786,7 @@ $$
 
 where $k_t$ is the clearness index, $G$ (W/m$^2$) is measured/historical GHI, and $G_{clear}$ (W/m$^2$) is the theoretical clear-sky GHI for the same hour and location.
 
-### 1.8 Clear-Sky GHI — Bird Simplified Model
+### 2.8 Clear-Sky GHI — Bird Simplified Model
 
 **Source:** `pv_power_forecaster.py`, function `_clearsky_ghi`.
 
@@ -821,7 +840,7 @@ $$
 
 where $I_0$ (W/m$^2$) is extraterrestrial irradiance corrected for Earth-Sun distance, $I_b = 0.9662\, I_0 \sin\alpha\, \tau_r \tau_a \tau_w \tau_o$ (W/m$^2$) is the direct-beam component appearing inside Eq. 84's diffuse term, and $G_{clear}$ (W/m$^2$) is the resulting clear-sky GHI, clipped to a physically realistic ceiling of 1200 W/m$^2$.
 
-### 1.9 PV and Inflow Synthetic Fallbacks
+### 2.9 PV and Inflow Synthetic Fallbacks
 
 **Source:** `pv_power_forecaster.py`, function `_synthetic_fallback`; `reservoir_inflow_forecaster.py`, function `_climatology_fallback`.
 
@@ -835,9 +854,9 @@ where $G^{synth}_h$ (W/m$^2$) is synthetic irradiance for hour $h$, $G_{peak}$ (
 
 The inflow forecaster's fallback is simpler: when the trained model or sufficient history is unavailable, it returns the configured monthly climatological mean inflow directly (Source: `common_layer/configuration/plant_config.py`, method `inflow_for_month`, already defined as $I_h$ in Part 0 Section C.7) — no additional formula beyond that lookup.
 
-### 1.10 Pre-Trade Commercial Risk Gate
+### 2.10 Pre-Trade Commercial Risk Gate
 
-**Source:** `phase_1_da_day_ahead_bidding/risk_and_bid_validation/pre_trade_risk_checker.py`, method `PreTradeRiskChecker.check`.
+**Source:** `phase_2_da_day_ahead_bidding/risk_and_bid_validation/pre_trade_risk_checker.py`, method `PreTradeRiskChecker.check`.
 
 Before submission, a commercial risk gate — separate from and downstream of the physical bid checker, which re-validates the Part 0 invariants (Eq. 9–13, 23–34) against the solved schedule and introduces no new equations — enforces two portfolio-level sanity limits independent of any single hour's physical feasibility.
 
@@ -856,13 +875,13 @@ where $R_{energy}$ (EUR) is the expected energy revenue from Eq. 2, and $R_{max}
 
 ---
 
-## Part 2A — Phase 2A: IDA1 (First Intraday Auction)
+## Part 3A — Phase 3A: IDA1 (First Intraday Auction)
 
 IDA1 closes D-1 15:00 CET (the afternoon of the day before delivery, three hours after the DA gate). It re-optimizes the full 24-hour horizon (no hours are frozen, since the DA gate is the only prior commitment) against an IDA1-specific price forecast, using the shared engine documented in Part 0, Section C.9 (Eq. 40–44). This part documents only what is specific to IDA1: its price forecasting model and its delta-bid formatting.
 
-### 2A.1 IDA1 Price Spread Forecasting
+### 3A.1 IDA1 Price Spread Forecasting
 
-**Source:** `phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_price_forecaster.py`, function `_model_forecast`.
+**Source:** `phase_3a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_price_forecaster.py`, function `_model_forecast`.
 
 Rather than forecasting the IDA1 price directly, the model forecasts the spread between IDA1 and DA clearing prices for the same hour, which is a more stable, lower-variance target than the price level itself; the IDA1 price is then recovered by adding the predicted spread back onto the (already-known) DA price.
 
@@ -878,15 +897,15 @@ $$
 
 where $\hat{s}_h$ (EUR/MWh) is the model-predicted spread for hour $h$, and the result is clipped to the OMIE regulatory price bounds (floor $-600$ EUR/MWh, effective delivery 29 May 2026; ceiling $3000$ EUR/MWh).
 
-### 2A.2 IDA1 Re-Optimization
+### 3A.2 IDA1 Re-Optimization
 
-**Source:** `phase_2a_ida1_intraday_auction_1/ida1_milp_reoptimiser/ida1_reoptimiser.py`.
+**Source:** `phase_3a_ida1_intraday_auction_1/ida1_milp_reoptimiser/ida1_reoptimiser.py`.
 
 IDA1 calls the shared intraday re-optimization engine directly with no IDA1-specific physics: $H^{trade} = H$ (all 24 hours tradable, since no earlier intraday gate has frozen any hours), and the no-churn decision rule of Eq. 40–44 applies unchanged with $\pi_h = \pi^{IDA1}_h$ from Eq. 89.
 
-### 2A.3 IDA1 Delta Bid Economics
+### 3A.3 IDA1 Delta Bid Economics
 
-**Source:** `phase_2a_ida1_intraday_auction_1/ida1_bid_formatting/ida1_bid_formatter.py`, function `format_ida1_bids`.
+**Source:** `phase_3a_ida1_intraday_auction_1/ida1_bid_formatting/ida1_bid_formatter.py`, function `format_ida1_bids`.
 
 Each IDA1 order is expressed as a signed volume delta against the DA-committed position, together with its expected revenue impact at the IDA1 price.
 
@@ -899,31 +918,31 @@ where $\delta_h$ (MWh) is the per-hour volume delta (positive — "buy back" —
 
 ---
 
-## Part 2B — Phase 2B: IDA2 (Second Intraday Auction)
+## Part 3B — Phase 3B: IDA2 (Second Intraday Auction)
 
 IDA2 closes D-1 22:00 CET and re-optimizes against the IDA1-committed position (not DA), restricted to hours 3–24 — hours 1–2 are frozen because they fall within the delivery window that IDA1's gate-close no longer allows re-trading (spec INV-11). The pricing model, re-optimization mechanism, and delta-bid economics are structurally identical to IDA1 (Eq. 88–90), substituting IDA1's committed position for DA's and IDA2-specific training data for the spread model. No new equations are introduced.
 
-**Source:** `phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_price_forecaster.py` (Eq. 88–89, trained on `ida2_training_data_2024_2025.xlsx`, SIDC IDA2 clearing prices, H3–H24); `ida2_milp_reoptimiser/ida2_reoptimiser.py` (Eq. 40–44 with $H^{trade} = \{3,\dots,24\}$ per `config/market.yaml` gate `IDA2.delivery_hours: [3, 24]`); `ida2_bid_formatting/ida2_bid_formatter.py` (Eq. 90, with $N^{DA}_h$ replaced by $N^{IDA1}_h$, the IDA1-committed position).
+**Source:** `phase_3b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_price_forecaster.py` (Eq. 88–89, trained on `ida2_training_data_2024_2025.xlsx`, SIDC IDA2 clearing prices, H3–H24); `ida2_milp_reoptimiser/ida2_reoptimiser.py` (Eq. 40–44 with $H^{trade} = \{3,\dots,24\}$ per `config/market.yaml` gate `IDA2.delivery_hours: [3, 24]`); `ida2_bid_formatting/ida2_bid_formatter.py` (Eq. 90, with $N^{DA}_h$ replaced by $N^{IDA1}_h$, the IDA1-committed position).
 
 
 ---
 
-## Part 2C — Phase 2C: IDA3 (Third Intraday Auction)
+## Part 3C — Phase 3C: IDA3 (Third Intraday Auction)
 
 IDA3 closes D 10:00 CET (same delivery day, not D-1) and re-optimizes against the IDA2-committed position, restricted to hours 12–24 — hours 1–11 are frozen, confirmed in `config/market.yaml`: `IDA3.delivery_hours: [12, 24]` ("hours 1-11 are NOT in the IDA3 product"). A line-by-line diff of `ida3_price_forecaster.py`, `ida3_reoptimiser.py`, and `ida3_bid_formatter.py` against their IDA2 counterparts confirms the formulas are unchanged — only naming, the gate-close time, the training-data file (SIDC IDA3 clearing prices, H12–H24), and the baseline position (IDA2-committed) differ. No new equations are introduced.
 
-**Source:** `phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_price_forecaster.py` (Eq. 88–89, trained on `ida3_training_data_2024_2025.xlsx`, H12–H24); `ida3_milp_reoptimiser/ida3_reoptimiser.py` (Eq. 40–44 with $H^{trade} = \{12,\dots,24\}$); `ida3_bid_formatting/ida3_bid_formatter.py` (Eq. 90, with $N^{DA}_h$ replaced by $N^{IDA2}_h$, the IDA2-committed position).
+**Source:** `phase_3c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_price_forecaster.py` (Eq. 88–89, trained on `ida3_training_data_2024_2025.xlsx`, H12–H24); `ida3_milp_reoptimiser/ida3_reoptimiser.py` (Eq. 40–44 with $H^{trade} = \{12,\dots,24\}$); `ida3_bid_formatting/ida3_bid_formatter.py` (Eq. 90, with $N^{DA}_h$ replaced by $N^{IDA2}_h$, the IDA2-committed position).
 
 
 ---
 
-## Part 2D — Phase 2D: XBID Continuous Intraday
+## Part 3D — Phase 3D: XBID Continuous Intraday
 
 XBID (SIDC continuous intraday) differs structurally from the IDA auctions: instead of a single gate-close auction, the plant checks the market opportunistically at two windows (W1: D-1 18:30 CET, W2: D 09:30 CET) and may only nudge its position within a small per-order MW cap, since continuous markets trade in small increments rather than clearing a full re-optimization at once. This part documents the genuinely new mechanics: the trade-band constraint, the spread-beating order test, the price proxy and its real OMIE training data, and the open-hours window rule.
 
-### 2D.1 Per-Order Trade-Band Constraint
+### 3D.1 Per-Order Trade-Band Constraint
 
-**Source:** `phase_2d_xbid_continuous_intraday/xbid_milp_optimiser/xbid_optimiser.py`, function `optimise_xbid`.
+**Source:** `phase_3d_xbid_continuous_intraday/xbid_milp_optimiser/xbid_optimiser.py`, function `optimise_xbid`.
 
 Unlike the IDA gates, which let the shared MILP re-optimize tradable hours freely (subject only to the Part 0 envelope), XBID adds an extra constraint on every open hour limiting how far the position may move from the currently committed net — modeling the reality that continuous-market liquidity only supports small incremental trades, not a full re-clear.
 
@@ -933,7 +952,7 @@ $$
 
 where $H^{open} \subseteq H$ is the set of hours still open at the current check window (Eq. 93), $N_h$ (MW) is the net position committed by the latest prior gate (DA, or the most recent IDA auction if it has run), and $C$ (MW) is the configured per-order volume cap (`xbid_max_volume_per_order_mw`). Hours outside $H^{open}$ remain frozen via Eq. 39, exactly as in the IDA gates.
 
-### 2D.2 XBID Order Acceptance Test
+### 3D.2 XBID Order Acceptance Test
 
 **Source:** `xbid_optimiser.py`, function `optimise_xbid`.
 
@@ -949,9 +968,9 @@ $$
 
 where $I$ (EUR) and $\Phi$ (MWh) are the same expected-improvement and one-way-volume quantities as Eq. 41–42 (computed here over $H^{open}$ rather than a gate's full tradable window), $\sigma_{min}$ (EUR/MWh) is the configured minimum XBID spread (`xbid_min_spread_eur_mwh`), so $\sigma_{min} \cdot \Phi$ is the minimum acceptable total gain at that average spread, and $\epsilon$ is a small constant avoiding division by zero when $\Phi \to 0$.
 
-### 2D.3 Open-Hours Window Rule
+### 3D.3 Open-Hours Window Rule
 
-**Source:** `phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_loader.py`, function `tradable_hours_for_window`.
+**Source:** `phase_3d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_loader.py`, function `tradable_hours_for_window`.
 
 XBID closes trading 1 hour before each delivery period. At check window W1 (the evening before delivery), the entire day is still more than 1 hour away, so all hours are open; at check window W2 (mid-morning of the delivery day), hours up to approximately 10:30 are within or past the 1-hour cutoff.
 
@@ -959,11 +978,11 @@ $$
 H^{open} = \begin{cases} H & \text{window} = W1 \\ \{h \in H : h \geq 11\} & \text{window} = W2 \end{cases} \tag{94}
 $$
 
-### 2D.4 XBID Price Proxy and Window Drift
+### 3D.4 XBID Price Proxy and Window Drift
 
 **Source:** `xbid_price_forecasting/xbid_price_loader.py`, function `fetch_xbid_prices`; `xbid_price_forecasting/xbid_price_forecaster.py`.
 
-No live XBID order-book feed is available without a commercial EPEX SPOT subscription, so the price is proxied by the same spread-forecasting methodology as the IDA gates (Eq. 88–89, trained on OMIE's real continuous-intraday prices — Section 2D.5), with a small additional per-window drift layered on top to approximate intra-window order-book movement.
+No live XBID order-book feed is available without a commercial EPEX SPOT subscription, so the price is proxied by the same spread-forecasting methodology as the IDA gates (Eq. 88–89, trained on OMIE's real continuous-intraday prices — Section 3D.5), with a small additional per-window drift layered on top to approximate intra-window order-book movement.
 
 $$
 \pi^{XBID}_{h,w} = \max\left(1.0,\ \pi^{XBID,base}_h + u_{h,w}\right) \tag{95}
@@ -971,7 +990,7 @@ $$
 
 where $\pi^{XBID}_{h,w}$ (EUR/MWh) is the XBID proxy price for hour $h$ at check window $w$, $\pi^{XBID,base}_h$ is the spread-model price from Eq. 89, and $u_{h,w}$ is uniform drift noise on $[-1.5, 1.5]$ EUR/MWh, seeded by window and delivery date (deterministic given those inputs).
 
-### 2D.5 XBID Training Data — Real OMIE Continuous-Market Prices
+### 3D.5 XBID Training Data — Real OMIE Continuous-Market Prices
 
 **Source:** `tools/rebuild_real_market_history.py` (history) and `xbid_price_forecasting/xbid_price_loader.py` (daily updates).
 
@@ -979,22 +998,22 @@ The spread-model training labels (Eq. 88) are real: OMIE's public continuous-int
 
 Equations 96–98 (an Ornstein-Uhlenbeck spread simulator and a synthetic DA price curve that generated the earlier training data) were retired on 2026-10-03, when that synthetic history was replaced by the real one; the numbers are kept unused so later equation references stay stable.
 
-### 2D.7 XBID Order Economics
+### 3D.7 XBID Order Economics
 
-**Source:** `phase_2d_xbid_continuous_intraday/xbid_bid_formatting/xbid_bid_formatter.py`, function `format_xbid_orders`.
+**Source:** `phase_3d_xbid_continuous_intraday/xbid_bid_formatting/xbid_bid_formatter.py`, function `format_xbid_orders`.
 
 XBID order sizing and revenue-impact accounting reuse the identical delta-bid economics of Eq. 90 ($\delta_h$, $\rho_h$), with the baseline $N^{DA}_h$ generalized to "the latest committed position across all prior gates" (DA, or the most recent IDA auction if it has run), and an additional minimum-delta filter suppressing orders below a configurable noise floor (default 0.1 MWh) before submission.
 
 
 ---
 
-## Part 3A — Phase 3A: aFRR Capacity Offer
+## Part 4A — Phase 4A: aFRR Capacity Offer
 
 aFRR (automatic Frequency Restoration Reserve, PICASSO platform, FAT 5 min) capacity offers are sized by the shared reserve-offer builder of Part 0, Section C.10 (Eq. 45–53), with `headroom_fraction = 1.0` since aFRR has first call on the plant's available headroom ahead of mFRR. This part documents the aFRR-specific capacity-price forecast and its real REN training data, which differ structurally from the spread model used for energy prices.
 
-### 3A.1 aFRR Capacity Price Forecast
+### 4A.1 aFRR Capacity Price Forecast
 
-**Source:** `phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py`, function `_model_forecast`.
+**Source:** `phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py`, function `_model_forecast`.
 
 Unlike the energy-price forecasters (Eq. 88–89), which predict a spread added onto the DA price, aFRR capacity prices are forecast directly as two independent price levels — one model for upward capacity, one for downward — since capacity availability payments are not anchored to the DA energy price the way intraday energy prices are.
 
@@ -1004,13 +1023,13 @@ $$
 
 where $c^{up}_h$, $c^{dn}_h$ (EUR/MW) are the final forecast upward and downward capacity availability prices for hour $h$, $\hat{c}^{up}_h$, $\hat{c}^{dn}_h$ are the raw model predictions (separately trained Random Forest/XGBoost/LightGBM models, selected via the same walk-forward CV machinery as Eq. 72–73, using cyclical calendar features (Eq. 64), the DA price level and its 24-hour rolling mean/std, and each direction's own 7-day-lagged capacity price as predictors), and $C_{max} = 250$ EUR/MW is the REN regulatory price ceiling.
 
-### 3A.2 aFRR Offer Sizing and Checking
+### 4A.2 aFRR Offer Sizing and Checking
 
-**Source:** `phase_3a_afrr_automatic_frequency_reserve/afrr_reserve_offer_builder/afrr_offer_builder.py`, `afrr_offer_checker.py`.
+**Source:** `phase_4a_afrr_automatic_frequency_reserve/afrr_reserve_offer_builder/afrr_offer_builder.py`, `afrr_offer_checker.py`.
 
 Both modules are thin parameter bindings to the shared reserve-offer engine: `build_afrr_offers` calls Eq. 45–50 with `product="aFRR"`, `fat_min = 5` minutes, the market's configured maximum offer sizes, and `headroom_fraction = 1.0`; `check_afrr_offers` calls the shared checker (Eq. 51–53) with `cap_price_max = 250` EUR/MW (Eq. 99's ceiling). No new equations are introduced.
 
-### 3A.3 aFRR Training Data — Real REN Band Prices
+### 4A.3 aFRR Training Data — Real REN Band Prices
 
 **Source:** `tools/rebuild_real_market_history.py` (history) and `afrr_price_forecasting/picasso_afrr_price_loader.py` (daily updates).
 
@@ -1021,24 +1040,24 @@ Equations 100–103 (an Ornstein-Uhlenbeck capacity-price simulator that generat
 
 ---
 
-## Part 3B — Phase 3B: mFRR Capacity Offer
+## Part 4B — Phase 4B: mFRR Capacity Offer
 
 mFRR (manual Frequency Restoration Reserve, MARI platform, FAT 12.5 min) is sized from whatever headroom aFRR did not take: `build_mfrr_offers` calls the shared engine (Eq. 45–50) with `reserved_up`/`reserved_dn` set to the aFRR commitment (the $R^{up,prior}_h$, $R^{dn,prior}_h$ terms already defined generically in Eq. 45–46) and `headroom_fraction = 0.20` (`mfrr.max_offer_fraction`), leaving an operating margin rather than committing the entire residual envelope to a single, slower product. `check_mfrr_offers` likewise binds directly to the shared checker (Eq. 51–53) with the same `reserved_up`/`reserved_dn` terms. No new offer-sizing equations are introduced.
 
 The capacity-price forecast (Eq. 99) is structurally identical to aFRR, but mFRR pricing is **not** a fixed fraction of aFRR — it is an independent model trained on REN's mFRR price series (`MFRRPreco`, field `AP_PRECO`) from 2024-11-27, when REN joined MARI. REN does not publish a separate mFRR up/down capacity price, so `AP_PRECO` (an activation price) is used as a documented proxy for both directions; quarter-hours without an activation carry no price, and hours without a complete set of quarters are filled with the day's mean of the real hours and labelled `SYNTHETIC`.
 
-**Source:** `phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py` (Eq. 99, trained on `mfrr_training_data_2024_2025.xlsx`, 3-fold CV); `mfrr_reserve_offer_builder/mfrr_offer_builder.py`, `mfrr_offer_checker.py` (bindings to Eq. 45–53); `mari_mfrr_price_loader.py`, `run_mfrr.py`, `mfrr_price_train_val_test.py` (no new equations).
+**Source:** `phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py` (Eq. 99, trained on `mfrr_training_data_2024_2025.xlsx`, 3-fold CV); `mfrr_reserve_offer_builder/mfrr_offer_builder.py`, `mfrr_offer_checker.py` (bindings to Eq. 45–53); `mari_mfrr_price_loader.py`, `run_mfrr.py`, `mfrr_price_train_val_test.py` (no new equations).
 
 
 ---
 
-## Part 4A — Phase 4A: ISP Real-Time Dispatch
+## Part 5A — Phase 5A: ISP Real-Time Dispatch
 
-Phase 4A turns the committed hourly net position into concrete per-unit PSP setpoints and a BESS trim, simulates actual delivery against the schedule, and tracks the resulting per-ISP deviation that feeds Phase 5C imbalance settlement. This is the first phase whose math is not solved by the shared MILP — it is real-time allocation logic operating on the MILP's already-committed hourly target.
+Phase 5A turns the committed hourly net position into concrete per-unit PSP setpoints and a BESS trim, simulates actual delivery against the schedule, and tracks the resulting per-ISP deviation that feeds Phase 6C imbalance settlement. This is the first phase whose math is not solved by the shared MILP — it is real-time allocation logic operating on the MILP's already-committed hourly target.
 
-### 4A.1 PSP Greedy Unit Allocation
+### 5A.1 PSP Greedy Unit Allocation
 
-**Source:** `phase_4a_isp_real_time_dispatch/isp_setpoint_dispatch/psp_setpoint_dispatcher.py`, function `_spread`.
+**Source:** `phase_5a_isp_real_time_dispatch/isp_setpoint_dispatch/psp_setpoint_dispatcher.py`, function `_spread`.
 
 The MILP optimizes plant-level totals; real-time dispatch must convert an hourly PSP net target into concrete per-unit setpoints honoring each unit's minimum-stable-load band (Eq. 10) or pump band (Eq. 11). The dispatcher commits the fewest units necessary, distributing the target as evenly as possible across them.
 
@@ -1054,9 +1073,9 @@ $$
 
 where $p_i$ (MW) is the per-unit setpoint, assigned to units sequentially with any final sub-minimum remainder folded into the previous unit's setpoint rather than left as an infeasible sliver.
 
-### 4A.2 BESS Real-Time Trim
+### 5A.2 BESS Real-Time Trim
 
-**Source:** `phase_4a_isp_real_time_dispatch/isp_setpoint_dispatch/bess_setpoint_dispatcher.py`, function `setpoint`.
+**Source:** `phase_5a_isp_real_time_dispatch/isp_setpoint_dispatch/bess_setpoint_dispatcher.py`, function `setpoint`.
 
 The battery covers the fast residual between the hourly net target and what the allocated PSP units deliver ($r = N_h - \sum_i p_i$, the difference between the committed target and Eq. 105's PSP total), trimmed by both rated power and the energy actually available given current SoC.
 
@@ -1066,11 +1085,11 @@ $$
 
 where $r$ (MW) is the residual to be covered (positive = discharge, negative = charge), $e$ (MWh) is current BESS stored energy, and the energy-availability terms mirror the SoC continuity relationship of Eq. 26, ensuring the real-time setpoint can never be physically infeasible regardless of what the residual calls for.
 
-### 4A.3 Simulated Actual Delivery and ISP Deviation Tracking
+### 5A.3 Simulated Actual Delivery and ISP Deviation Tracking
 
-**Source:** `phase_4a_isp_real_time_dispatch/telemetry/ren_isp_signal_loader.py`, function `simulate_actual_delivery`; `isp_activation_tracking/isp_position_tracker.py`, function `track`.
+**Source:** `phase_5a_isp_real_time_dispatch/telemetry/ren_isp_signal_loader.py`, function `simulate_actual_delivery`; `isp_activation_tracking/isp_position_tracker.py`, function `track`.
 
-Without live SCADA/REN telemetry, actual per-ISP delivery is simulated as the scheduled net position plus small random delivery error, representing unavoidable forecast and control-lag deviations; the resulting deviation is what Phase 5C settles as imbalance.
+Without live SCADA/REN telemetry, actual per-ISP delivery is simulated as the scheduled net position plus small random delivery error, representing unavoidable forecast and control-lag deviations; the resulting deviation is what Phase 6C settles as imbalance.
 
 $$
 a_{isp} = s_{isp} + \nu_{isp}, \qquad \nu_{isp} \sim \mathrm{Uniform}(-3,\,3)\ \text{MW} \tag{107}
@@ -1082,36 +1101,36 @@ $$
 d_{isp} = a_{isp} - s_{isp}, \qquad \bar{d} = \frac{1}{n}\sum_{isp} \left| d_{isp} \right|, \qquad D = \sum_{isp} \left| d_{isp} \right| \Delta t_{isp} \tag{108}
 $$
 
-where $d_{isp}$ (MW) is the per-ISP deviation, $\bar{d}$ (MW) is the mean absolute deviation across $n$ ISPs (a delivery-quality KPI), and $D$ (MWh) is the total absolute deviation volume, the quantity that feeds the imbalance settlement calculation in Part 5C.
+where $d_{isp}$ (MW) is the per-ISP deviation, $\bar{d}$ (MW) is the mean absolute deviation across $n$ ISPs (a delivery-quality KPI), and $D$ (MWh) is the total absolute deviation volume, the quantity that feeds the imbalance settlement calculation in Part 6C.
 
 
 ---
 
-## Part 4B — Phase 4B: aFRR Activation Response
+## Part 5B — Phase 5B: aFRR Activation Response
 
-Phase 4B handles TSO-instructed aFRR activations during delivery. Every file in this phase is a thin binding to the shared activation engine documented in Part 0 (`common_layer/optimisation_model/reserve_activation.py`, function `simulate_and_log_activation`, which determines activation pricing and applies the ramp-corrected effective energy of Eq. 56–57) or a pure data read-back. No new equations are introduced.
+Phase 5B handles TSO-instructed aFRR activations during delivery. Every file in this phase is a thin binding to the shared activation engine documented in Part 0 (`common_layer/optimisation_model/reserve_activation.py`, function `simulate_and_log_activation`, which determines activation pricing and applies the ramp-corrected effective energy of Eq. 56–57) or a pure data read-back. No new equations are introduced.
 
-**Source:** `phase_4b_afrr_activation_response/afrr_setpoint_dispatch/afrr_activation_handler.py` (calls the shared engine with `fat_min = 5` minutes); `afrr_activation_tracking/afrr_activation_logger.py` (reads back logged activations for display and Phase 5B settlement, no computation); `run_afrr_activation.py` (orchestration only).
-
-
----
-
-## Part 4C — Phase 4C: mFRR Activation Response
-
-Structurally identical to Phase 4B, confirmed via diff: the same shared activation engine (Eq. 56–57) is called with `fat_min = 12.5` minutes (`cfg.market.mfrr.fat_min`) in place of aFRR's 5 minutes. No new equations.
-
-**Source:** `phase_4c_mfrr_activation_response/mfrr_setpoint_dispatch/mfrr_activation_handler.py`, `mfrr_activation_tracking/mfrr_activation_logger.py`, `run_mfrr_activation.py`.
+**Source:** `phase_5b_afrr_activation_response/afrr_setpoint_dispatch/afrr_activation_handler.py` (calls the shared engine with `fat_min = 5` minutes); `afrr_activation_tracking/afrr_activation_logger.py` (reads back logged activations for display and Phase 6B settlement, no computation); `run_afrr_activation.py` (orchestration only).
 
 
 ---
 
-## Part 5A — Phase 5A: DA/IDA Energy Settlement
+## Part 5C — Phase 5C: mFRR Activation Response
 
-Phase 5A computes actual post-delivery energy revenue from the committed positions across all gates, valued at final OMIE settlement prices (as opposed to the forecast prices used during bidding). This is the first genuinely new revenue-accounting logic in the document — distinct from the objective function's energy-revenue term (Eq. 2), which values a forecast schedule, not a settled one.
+Structurally identical to Phase 5B, confirmed via diff: the same shared activation engine (Eq. 56–57) is called with `fat_min = 12.5` minutes (`cfg.market.mfrr.fat_min`) in place of aFRR's 5 minutes. No new equations.
 
-### 5A.1 Day-Ahead Settlement
+**Source:** `phase_5c_mfrr_activation_response/mfrr_setpoint_dispatch/mfrr_activation_handler.py`, `mfrr_activation_tracking/mfrr_activation_logger.py`, `run_mfrr_activation.py`.
 
-**Source:** `phase_5a_da_ida_settlement/energy_settlement_calculation/da_settlement_calculator.py`, function `settle_da`.
+
+---
+
+## Part 6A — Phase 6A: DA/IDA Energy Settlement
+
+Phase 6A computes actual post-delivery energy revenue from the committed positions across all gates, valued at final OMIE settlement prices (as opposed to the forecast prices used during bidding). This is the first genuinely new revenue-accounting logic in the document — distinct from the objective function's energy-revenue term (Eq. 2), which values a forecast schedule, not a settled one.
+
+### 6A.1 Day-Ahead Settlement
+
+**Source:** `phase_6a_da_ida_settlement/energy_settlement_calculation/da_settlement_calculator.py`, function `settle_da`.
 
 $$
 R_{DA} = \sum_{h \in H} V^{DA}_h \cdot \pi^{settle}_h \tag{109}
@@ -1119,9 +1138,9 @@ $$
 
 where $R_{DA}$ (EUR) is total DA settlement revenue, $V^{DA}_h$ (MWh) is the committed DA volume for hour $h$ (positive for net sell, negative for net buy/pumping), and $\pi^{settle}_h$ (EUR/MWh) is the final OMIE settlement price for hour $h$ (falling back to the originally bid price if a settlement price is unavailable).
 
-### 5A.2 Intraday Delta Settlement
+### 6A.2 Intraday Delta Settlement
 
-**Source:** `phase_5a_da_ida_settlement/energy_settlement_calculation/ida_settlement_calculator.py`, function `settle_intraday`.
+**Source:** `phase_6a_da_ida_settlement/energy_settlement_calculation/ida_settlement_calculator.py`, function `settle_intraday`.
 
 Each intraday gate (IDA1, IDA2, IDA3, XBID) is settled only on the volume it *changed* relative to the position committed by the prior gate in sequence — not on its full position — so that walking the gate chain DA $\rightarrow$ IDA1 $\rightarrow$ IDA2 $\rightarrow$ IDA3 $\rightarrow$ XBID accounts for the total traded volume exactly once per gate, with no double-counting of hours that were not re-traded at a given gate.
 
@@ -1134,13 +1153,13 @@ where $g$ indexes the intraday gates in chain order, $V^{g}_h$ (MWh) is the comm
 
 ---
 
-## Part 5B — Phase 5B: Reserve Settlement
+## Part 6B — Phase 6B: Reserve Settlement
 
 Reserve settlement has two independent revenue streams — capacity (availability) payments owed regardless of activation, and activation (energy) payments owed only for MW actually called by the TSO. A single product-agnostic function serves both aFRR and mFRR settlement; `settle_mfrr` is a direct call into the same calculator `settle_afrr` uses, confirmed by reading both files.
 
-### 5B.1 Capacity (Availability) Settlement
+### 6B.1 Capacity (Availability) Settlement
 
-**Source:** `phase_5b_reserve_settlement/reserve_settlement_calculation/afrr_settlement_calculator.py`, function `settle_reserve`.
+**Source:** `phase_6b_reserve_settlement/reserve_settlement_calculation/afrr_settlement_calculator.py`, function `settle_reserve`.
 
 $$
 R_{cap} = \sum_{h} \left( o^{up}_h \cdot c^{up}_h + o^{dn}_h \cdot c^{dn}_h \right) \tag{111}
@@ -1148,7 +1167,7 @@ $$
 
 where $R_{cap}$ (EUR) is total capacity settlement revenue, $o^{up}_h$, $o^{dn}_h$ (MW) are the offered up/down capacity for hour $h$ (Eq. 49–50), and $c^{up}_h$, $c^{dn}_h$ (EUR/MW) are the cleared capacity prices — paid for the full hour regardless of whether the TSO ever calls the reserve.
 
-### 5B.2 Activation (Energy) Settlement
+### 6B.2 Activation (Energy) Settlement
 
 **Source:** `afrr_settlement_calculator.py`, function `settle_reserve`.
 
@@ -1163,21 +1182,21 @@ Total reserve settlement revenue for a product is $R_{cap} + R_{act}$.
 
 ---
 
-## Part 5C — Phase 5C: Imbalance Settlement
+## Part 6C — Phase 6C: Imbalance Settlement
 
-Imbalance is the uninstructed deviation between actual and scheduled delivery — deliberately excluding TSO-instructed reserve activations, which are fully settled separately in Part 5B. Portugal applies dual imbalance pricing: a long (over-delivered) position is sold at a discount, a short (under-delivered) position is bought back at a premium, creating an incentive to deliver exactly the committed schedule.
+Imbalance is the uninstructed deviation between actual and scheduled delivery — deliberately excluding TSO-instructed reserve activations, which are fully settled separately in Part 6B. Portugal applies dual imbalance pricing: a long (over-delivered) position is sold at a discount, a short (under-delivered) position is bought back at a premium, creating an incentive to deliver exactly the committed schedule.
 
-### 5C.1 Imbalance Volume
+### 6C.1 Imbalance Volume
 
-**Source:** `phase_5c_imbalance_settlement/imbalance_price_and_volume/imbalance_volume_calculator.py`, function `compute_imbalance`.
+**Source:** `phase_6c_imbalance_settlement/imbalance_price_and_volume/imbalance_volume_calculator.py`, function `compute_imbalance`.
 
 $$
 m_{isp} = a_{isp} - s_{isp}, \qquad M_{isp} = m_{isp} \cdot \Delta t_{isp} \tag{113}
 $$
 
-where $m_{isp}$ (MW) is the uninstructed imbalance power for ISP $isp$ (the same $a_{isp} - s_{isp}$ quantity as Eq. 108's deviation, deliberately not adjusted for reserve activations since those are excluded from the simulated actual delivery and settled independently in Part 5B), and $M_{isp}$ (MWh) is the imbalance volume; positive (long) means more delivered than scheduled, negative (short) means less.
+where $m_{isp}$ (MW) is the uninstructed imbalance power for ISP $isp$ (the same $a_{isp} - s_{isp}$ quantity as Eq. 108's deviation, deliberately not adjusted for reserve activations since those are excluded from the simulated actual delivery and settled independently in Part 6B), and $M_{isp}$ (MWh) is the imbalance volume; positive (long) means more delivered than scheduled, negative (short) means less.
 
-### 5C.2 Dual Imbalance Pricing — Fallback Prices
+### 6C.2 Dual Imbalance Pricing — Fallback Prices
 
 **Source:** `imbalance_price_and_volume/ren_imbalance_price_loader.py`, function `fetch_imbalance_prices`.
 
@@ -1189,7 +1208,7 @@ $$
 
 where $\pi^{short}_h$, $\pi^{long}_h$ (EUR/MWh) are the short (premium) and long (discount) fallback imbalance prices, and $\phi_{short} = 1.20$, $\phi_{long} = 0.85$ are the configured fallback multipliers (`market.imbalance.fallback_short_factor`, `fallback_long_factor`).
 
-### 5C.3 Imbalance Settlement
+### 6C.3 Imbalance Settlement
 
 **Source:** `imbalance_settlement_calculation/imbalance_settlement_calculator.py`, function `settle_imbalance`.
 
@@ -1206,13 +1225,13 @@ where $R_{long}$ (EUR) is revenue from long (over-delivered) ISPs at the discoun
 
 ---
 
-## Part 5D — Phase 5D: Analytics and Reporting
+## Part 6D — Phase 6D: Analytics and Reporting
 
-Phase 5D consolidates the settlement streams of Parts 5A–5C into a single daily P&L, derives operational and economic KPIs from the solved schedule, and exports everything to the 5-sheet Excel report. Risk metrics (VaR, CVaR, Sharpe ratio) are **not** computed here — they belong to Phase 6 Backtesting (`risk_analytics/portfolio_risk_metrics.py`), documented in Part 6 below.
+Phase 6D consolidates the settlement streams of Parts 6A–6C into a single daily P&L, derives operational and economic KPIs from the solved schedule, and exports everything to the 5-sheet Excel report. Risk metrics (VaR, CVaR, Sharpe ratio) are **not** computed here — they belong to Phase 7 Backtesting (`risk_analytics/portfolio_risk_metrics.py`), documented in Part 7 below.
 
-### 5D.1 Daily P&L Aggregation
+### 6D.1 Daily P&L Aggregation
 
-**Source:** `phase_5d_analytics_and_reporting/analytics_and_kpis/daily_pnl_calculator.py`, function `compute_daily_pnl`.
+**Source:** `phase_6d_analytics_and_reporting/analytics_and_kpis/daily_pnl_calculator.py`, function `compute_daily_pnl`.
 
 $$
 \Pi = R_{DA} + \sum_g R_g + R^{aFRR}_{tot} + R^{mFRR}_{tot} + R_{imb} \tag{117}
@@ -1220,7 +1239,7 @@ $$
 
 where $\Pi$ (EUR) is total daily P&L, $R_{DA}$ is Eq. 109, $\sum_g R_g$ is the summed intraday delta revenue of Eq. 110 (IDA1+IDA2+IDA3+XBID), $R^{aFRR}_{tot}$, $R^{mFRR}_{tot}$ are each product's $R_{cap}+R_{act}$ from Eq. 111–112, and $R_{imb}$ is Eq. 116.
 
-### 5D.2 Revenue Share by Stream
+### 6D.2 Revenue Share by Stream
 
 **Source:** `analytics_and_kpis/revenue_breakdown_analyzer.py`, function `revenue_shares`; `analytics_and_kpis/operational_analytics.py`, function `compute_economic_kpis_extended` (DA/FRR split).
 
@@ -1230,7 +1249,7 @@ $$
 
 where $s_k$ (%) is revenue stream $k$'s share of gross positive revenue (only positive-revenue streams contribute to the denominator, so a net imbalance cost is reported separately rather than distorting the shares of the streams that actually earned).
 
-### 5D.3 Capacity Factors and PV Utilization
+### 6D.3 Capacity Factors and PV Utilization
 
 **Source:** `operational_analytics.py`, function `compute_economic_kpis_extended`.
 
@@ -1246,7 +1265,7 @@ $$
 
 where $U_{PV}$ (%) is PV utilization — the share of physically available solar energy (Eq. 58) actually delivered to the grid rather than curtailed (Eq. 28).
 
-### 5D.4 Reservoir Fill Percentage
+### 6D.4 Reservoir Fill Percentage
 
 **Source:** `operational_analytics.py`, function `compute_economic_kpis_extended`; restated for display in `daily_excel_reports/dispatch_sheet_builder.py`.
 
@@ -1256,7 +1275,7 @@ $$
 
 where $F_{res}$ (%) is the upper reservoir's fill level at the end of the horizon, expressed as a fraction of its usable range (Eq. 31's bounds).
 
-### 5D.5 Price-Dispatch Correlation
+### 6D.5 Price-Dispatch Correlation
 
 **Source:** `operational_analytics.py`, function `_correlation`.
 
@@ -1273,11 +1292,11 @@ The remaining functions in this phase (`compute_operational_patterns`, `compute_
 
 ---
 
-## Part 6 — Phase 6: Backtesting and Validation
+## Part 7 — Phase 7: Backtesting and Validation
 
-Phase 6 replays a span of historical delivery days through the full pipeline, validates forecast accuracy and MILP solution quality, and computes the portfolio-level risk metrics used in trading-desk risk reporting. This part contains the document's final new material: forecast error metrics (MAE/RMSE, Eq. 68–69, reused here unchanged), synthetic historical-realization generation, and the complete VaR/CVaR/Sharpe/drawdown risk framework.
+Phase 7 replays a span of historical delivery days through the full pipeline, validates forecast accuracy and MILP solution quality, and computes the portfolio-level risk metrics used in trading-desk risk reporting. This part contains the document's final new material: forecast error metrics (MAE/RMSE, Eq. 68–69, reused here unchanged), synthetic historical-realization generation, and the complete VaR/CVaR/Sharpe/drawdown risk framework.
 
-### 6.2 Synthetic Historical Realization
+### 7.2 Synthetic Historical Realization
 
 **Source:** `backtest_engine/historical_data_loader.py`, function `realised_from_forecast`.
 
@@ -1289,9 +1308,9 @@ $$
 
 where $y_h$ is the synthetic realized value, $\hat{y}_h$ is the forecast value being validated, and $\rho = 0.10$ (10%) is the configured relative error bound.
 
-### 6.3 Portfolio Risk Metrics
+### 7.3 Portfolio Risk Metrics
 
-**Source:** `phase_6_backtesting_and_validation/risk_analytics/portfolio_risk_metrics.py`, functions `historical_var`, `historical_cvar`, `bootstrap_var_cvar`, `sharpe_ratio`, `max_drawdown`.
+**Source:** `phase_7_backtesting_and_validation/risk_analytics/portfolio_risk_metrics.py`, functions `historical_var`, `historical_cvar`, `bootstrap_var_cvar`, `sharpe_ratio`, `max_drawdown`.
 
 These five functions compute the complete risk framework from the daily P&L series (Eq. 117) produced by replaying the backtest window, implemented in pure Python with no numpy/scipy dependency.
 
@@ -1333,11 +1352,11 @@ $$
 
 where $C_d$ (EUR) is cumulative P&L through day $d$, and $MDD$ (EUR) is the maximum drawdown — the largest gap between any running peak and a subsequent trough in the cumulative curve, reported as a positive number.
 
-The MILP solution-quality checker (`forecast_and_model_validation/milp_solution_quality_checker.py`) and the backtest runner/exporter (`backtest_engine/backtest_runner.py`, `backtest_excel_reports/backtest_report_exporter.py`, `run_backtest.py`) call already-documented functions from Part 0 and Part 5D and introduce no further equations.
+The MILP solution-quality checker (`forecast_and_model_validation/milp_solution_quality_checker.py`) and the backtest runner/exporter (`backtest_engine/backtest_runner.py`, `backtest_excel_reports/backtest_report_exporter.py`, `run_backtest.py`) call already-documented functions from Part 0 and Part 6D and introduce no further equations.
 
 
 ---
 
 ## Document Summary
 
-This document extracts **129 equations** from the complete production codebase, organized into Part 0 (Common Layer, 63 equations) and Parts 1 through 6 (phase-specific extensions and reuses, 66 equations), with every equation traced to its source file and function and cross-referenced where one part reuses or extends another. Parts confirmed as pure structural reuse with zero new equations (2B, 2C, 3B, 4B, 4C) demonstrate the codebase's stated design principle — "the physics lives once" — holding true under direct line-by-line and diff-based verification across all 15 phases and the shared common layer.
+This document extracts **129 equations** from the complete production codebase, organized into Part 0 (Common Layer, 63 equations) Part 1 (daily data pipeline, no optimisation equations) and Parts 2 through 7 (phase-specific extensions and reuses, 66 equations), with every equation traced to its source file and function and cross-referenced where one part reuses or extends another. Parts confirmed as pure structural reuse with zero new equations (3B, 3C, 4B, 5B, 5C) demonstrate the codebase's stated design principle — "the physics lives once" — holding true under direct line-by-line and diff-based verification across all 16 phases and the shared common layer.

@@ -28,7 +28,7 @@ sources:
     publication: "result for day D published D-1 ~12:45 (SDAC coupling); confirm empirically from load logs"
     history: {start: "2020-01-01", end: "2026-10-10"}
     live_feed: true
-    loader: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/omie_da_price_loader.py
+    loader: phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/omie_da_price_loader.py
     stored_in: ["da_training_data_2020_2026.xlsx", "da_training_data_isp_2025_2026.xlsx"]
     licence: {status: unverified, note: "public download, no key; read the 'Aviso legal' in the omie.es footer for reuse and citation terms"}
     cost: free
@@ -48,7 +48,7 @@ sources:
     publication: "IDA1 D-1 ~15:30, IDA2 D-1 ~22:30, IDA3 D ~10:30; confirm empirically"
     history: {start: "2024-06-13", end: "2026-10-09"}
     live_feed: true
-    loader: "phase_2{a,b,c}_*/ida*_price_forecasting/omie_ida*_price_loader.py"
+    loader: "phase_3{a,b,c}_*/ida*_price_forecasting/omie_ida*_price_loader.py"
     stored_in: ["ida1_training_data_2024_2025.xlsx", "ida2_training_data_2024_2025.xlsx", "ida3_training_data_2024_2025.xlsx"]
     licence: {status: unverified, note: "same as omie_da"}
     cost: free
@@ -68,7 +68,7 @@ sources:
     publication: "published after delivery; the forecast at a window uses earlier days only"
     history: {start: "2024-06-13", end: "2026-10-09"}
     live_feed: true
-    loader: phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_loader.py
+    loader: phase_3d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_loader.py
     stored_in: ["xbid_training_data_2024_2025.xlsx"]
     licence: {status: unverified, note: "same as omie_da; the free summary is not the order book (order-book depth needs a commercial EPEX SPOT subscription)"}
     cost: free
@@ -88,7 +88,7 @@ sources:
     publication: "not documented; band results are published after the market session"
     history: {start: "2019-01-01 (aFRR); 2024-11-27 (mFRR)", end: "2026-10-09"}
     live_feed: true
-    loader: "phase_3{a,b}_*/**/*_price_loader.py, phase_5c_*/ren_imbalance_price_loader.py"
+    loader: "phase_4{a,b}_*/**/*_price_loader.py, phase_6c_*/ren_imbalance_price_loader.py"
     stored_in: ["afrr_training_data_2019_2025.xlsx", "mfrr_training_data_2024_2025.xlsx"]
     licence: {status: unverified, note: "no published terms found; this is the website's internal API, not a documented public API, so it can change or be blocked without notice"}
     cost: free
@@ -108,7 +108,7 @@ sources:
     publication: "none: there is no live feed; recent days are filled by a synthetic generator (_fill_gaps)"
     history: {start: "2015-01-01", end: "2026-06-30 (real); 2026-07-01 to 2027-03-14 synthetic"}
     live_feed: false
-    loader: "none (phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py only reads and gap-fills)"
+    loader: "none (phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py only reads and gap-fills)"
     stored_in: ["pv_training_data_from_2015.xlsx"]
     licence: {status: unverified, note: "origin unknown, so the licence is unknown"}
     cost: unknown

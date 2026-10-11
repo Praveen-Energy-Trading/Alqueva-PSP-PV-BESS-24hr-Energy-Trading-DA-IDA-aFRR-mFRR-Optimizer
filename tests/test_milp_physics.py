@@ -230,7 +230,7 @@ class TestMILPConstraints:
         model, meta, results = self._solve(cfg, base_inputs)
         assert results.objective_eur > 0, "Objective should be positive with arbitrage prices"
         # Run the DA bid checker
-        from phase_1_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
+        from phase_2_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
             check_da_bid, BidCheckError,
         )
         try:

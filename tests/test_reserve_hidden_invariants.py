@@ -87,27 +87,27 @@ def _run_pipeline(delivery_date: str):
             "CPLEX not found — skipping full-pipeline integration tests "
             "(this project's solving is CPLEX-only, no free-solver fallback relied on)")
 
-    from phase_1_da_day_ahead_bidding.run_da import run_da
+    from phase_2_da_day_ahead_bidding.run_da import run_da
     r = run_da(delivery_date, auto_approve=True)
     assert r["status"] == "SUBMITTED", f"DA failed for {delivery_date}: {r}"
 
-    from phase_3a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
+    from phase_4a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
     r = run_afrr(delivery_date, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"aFRR offer failed for {delivery_date}: {r}"
 
-    from phase_3b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
+    from phase_4b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
     r = run_mfrr(delivery_date, cfg, no_pause=True)
     assert r["status"] == "SUBMITTED", f"mFRR offer failed for {delivery_date}: {r}"
 
-    from phase_4a_isp_real_time_dispatch.run_realtime import run_realtime
+    from phase_5a_isp_real_time_dispatch.run_realtime import run_realtime
     r = run_realtime(delivery_date, cfg, no_pause=True)
     assert r["status"] == "OK", f"RT dispatch failed for {delivery_date}: {r}"
 
-    from phase_4b_afrr_activation_response.run_afrr_activation import run_afrr_activation
+    from phase_5b_afrr_activation_response.run_afrr_activation import run_afrr_activation
     r = run_afrr_activation(delivery_date, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"aFRR activation failed for {delivery_date}: {r}"
 
-    from phase_4c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
+    from phase_5c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
     r = run_mfrr_activation(delivery_date, cfg, no_pause=True)
     assert r["status"] in ("OK", "NO_OFFER"), f"mFRR activation failed for {delivery_date}: {r}"
 
@@ -794,7 +794,7 @@ class T41_ImbalanceForNonActivatedISPs(unittest.TestCase):
 
     def test_non_activated_isps_have_small_imbalance(self):
         _ensure_pipeline()
-        from phase_5c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
+        from phase_6c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
             compute_imbalance,
         )
         from common_layer.database import ActivationStore
@@ -836,7 +836,7 @@ class T41_ImbalanceForNonActivatedISPs(unittest.TestCase):
     def test_imbalance_row_count_equals_delivery(self):
         """compute_imbalance must return exactly one row per delivery ISP."""
         _ensure_pipeline()
-        from phase_5c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
+        from phase_6c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
             compute_imbalance,
         )
         from common_layer.configuration import load_config
@@ -859,7 +859,7 @@ class T42_ActivatedISPImbalanceMagnitude(unittest.TestCase):
         """Verify activated ISPs have imbalance bounded by the RT noise model.
 
         Architecture note: in simulation, actual_mw = scheduled + noise ONLY.
-        Activation energy is NOT included in actual_mw (Phase 4A runs before 4B/4C).
+        Activation energy is NOT included in actual_mw (Phase 5A runs before 5B/5C).
         Therefore imbalance = (actual - sched) * isp_h = noise * isp_h.
         For ALL ISPs (activated or not), |imbalance_mwh| is bounded by the RT noise.
 
@@ -868,7 +868,7 @@ class T42_ActivatedISPImbalanceMagnitude(unittest.TestCase):
         double-counted in the imbalance settlement.
         """
         _ensure_pipeline()
-        from phase_5c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
+        from phase_6c_imbalance_settlement.imbalance_price_and_volume.imbalance_volume_calculator import (
             compute_imbalance,
         )
         from common_layer.database import ActivationStore
@@ -912,13 +912,13 @@ class T43_ZeroActivationYieldsZeroActivationRevenue(unittest.TestCase):
 
     def test_zero_activation_revenue(self):
         from unittest.mock import patch
-        from phase_5b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
+        from phase_6b_reserve_settlement.reserve_settlement_calculation.afrr_settlement_calculator import (
             settle_reserve,
         )
 
         # Patch the name in the calculator's own namespace.
         patch_target = (
-            "phase_5b_reserve_settlement.reserve_settlement_calculation"
+            "phase_6b_reserve_settlement.reserve_settlement_calculation"
             ".afrr_settlement_calculator.load_activations"
         )
         with patch(patch_target, return_value=[]):

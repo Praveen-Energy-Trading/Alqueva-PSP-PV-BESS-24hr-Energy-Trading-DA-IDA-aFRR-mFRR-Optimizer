@@ -60,12 +60,12 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _REPO)
 
 from common_layer.utilities.date_utils import portugal_today  # noqa: E402
-from phase_3a_afrr_automatic_frequency_reserve.afrr_price_forecasting.picasso_afrr_price_loader import (  # noqa: E402
+from phase_4a_afrr_automatic_frequency_reserve.afrr_price_forecasting.picasso_afrr_price_loader import (  # noqa: E402
     _REN_API_KEY_B64,
 )
 
 _CACHE = os.path.join(_REPO, "runtime", "cache", "market_history")
-_FCST = os.path.join(_REPO, "phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting")
+_FCST = os.path.join(_REPO, "phase_2_da_day_ahead_bidding", "da_price_pv_inflow_forecasting")
 
 DA_XLSX = os.path.join(_FCST, "da_training_data_2020_2026.xlsx")
 DA_SHEET = "DA_Price_2020_2026"
@@ -74,20 +74,20 @@ ISP_SHEET = "DA_Price_ISP_2025_2026"
 ISP_START = dt.date(2025, 10, 1)     # first OMIE day-ahead session with 96 quarter-hours
 
 _IDA = {
-    "ida1": ("01", os.path.join(_REPO, "phase_2a_ida1_intraday_auction_1", "ida1_price_forecasting",
+    "ida1": ("01", os.path.join(_REPO, "phase_3a_ida1_intraday_auction_1", "ida1_price_forecasting",
                                 "ida1_training_data_2024_2025.xlsx"), "IDA1_2024_2025"),
-    "ida2": ("02", os.path.join(_REPO, "phase_2b_ida2_intraday_auction_2", "ida2_price_forecasting",
+    "ida2": ("02", os.path.join(_REPO, "phase_3b_ida2_intraday_auction_2", "ida2_price_forecasting",
                                 "ida2_training_data_2024_2025.xlsx"), "IDA2_2024_2025"),
-    "ida3": ("03", os.path.join(_REPO, "phase_2c_ida3_intraday_auction_3", "ida3_price_forecasting",
+    "ida3": ("03", os.path.join(_REPO, "phase_3c_ida3_intraday_auction_3", "ida3_price_forecasting",
                                 "ida3_training_data_2024_2025.xlsx"), "IDA3_2024_2025"),
 }
-XBID_XLSX = os.path.join(_REPO, "phase_2d_xbid_continuous_intraday", "xbid_price_forecasting",
+XBID_XLSX = os.path.join(_REPO, "phase_3d_xbid_continuous_intraday", "xbid_price_forecasting",
                          "xbid_training_data_2024_2025.xlsx")
 XBID_SHEET = "XBID_2024_2025"
-AFRR_XLSX = os.path.join(_REPO, "phase_3a_afrr_automatic_frequency_reserve", "afrr_price_forecasting",
+AFRR_XLSX = os.path.join(_REPO, "phase_4a_afrr_automatic_frequency_reserve", "afrr_price_forecasting",
                          "afrr_training_data_2019_2025.xlsx")
 AFRR_SHEET = "AFRR_2019_2025"
-MFRR_XLSX = os.path.join(_REPO, "phase_3b_mfrr_manual_frequency_reserve", "mfrr_price_forecasting",
+MFRR_XLSX = os.path.join(_REPO, "phase_4b_mfrr_manual_frequency_reserve", "mfrr_price_forecasting",
                          "mfrr_training_data_2024_2025.xlsx")
 MFRR_SHEET = "MFRR_2024_2025"
 

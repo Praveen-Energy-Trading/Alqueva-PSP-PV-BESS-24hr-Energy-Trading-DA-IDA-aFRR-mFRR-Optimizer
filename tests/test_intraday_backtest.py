@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import pytest
 
-from phase_6_backtesting_and_validation.backtest_engine.historical_data_loader import (
+from phase_7_backtesting_and_validation.backtest_engine.historical_data_loader import (
     real_ida_price,
 )
-from phase_6_backtesting_and_validation.forecast_and_model_validation.milp_solution_quality_checker import (
+from phase_7_backtesting_and_validation.forecast_and_model_validation.milp_solution_quality_checker import (
     check_solution_quality,
 )
-from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import run_backtest
+from phase_7_backtesting_and_validation.backtest_engine.backtest_runner import run_backtest
 
 from tests.conftest import make_inputs
 

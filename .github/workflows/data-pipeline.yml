@@ -1,6 +1,6 @@
 name: data-pipeline
 
-# Phase 0 (daily data pipeline): runs its tests and the OFFLINE demo on every change to the pipeline,
+# Phase 1 (daily data pipeline): runs its tests and the OFFLINE demo on every change to the pipeline,
 # and publishes the demo's data-quality report in the run summary. The demo replays real saved files of
 # the 25-hour day 2025-10-26 (100 quarter-hours) through all eight sources, so nothing here touches the
 # network or needs a market-data licence.
@@ -10,7 +10,7 @@ name: data-pipeline
 on:
   push:
     paths:
-      - "phase_0_data_pipeline/**"
+      - "phase_1_data_pipeline/**"
       - "common_layer/data_layer/**"
       - "common_layer/data_quality/**"
       - "config/data_pipeline.yaml"
@@ -18,7 +18,7 @@ on:
       - "config/market_regimes.yaml"
       - "tests/test_data_layer.py"
       - "tests/test_data_quality.py"
-      - "tests/test_phase0_pipeline.py"
+      - "tests/test_phase1_pipeline.py"
       - "tests/fixtures/**"
       - ".github/workflows/data-pipeline.yml"
   pull_request:
@@ -43,10 +43,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Data-layer, data-quality and pipeline tests
-        run: python -m pytest tests/test_data_layer.py tests/test_data_quality.py tests/test_phase0_pipeline.py -v
+        run: python -m pytest tests/test_data_layer.py tests/test_data_quality.py tests/test_phase1_pipeline.py -v
 
       - name: Offline demo of the daily pipeline
-        run: python phase_0_data_pipeline/run_data_pipeline.py --demo --workdir demo_out
+        run: python phase_1_data_pipeline/run_data_pipeline.py --demo --workdir demo_out
 
       - name: Publish the data-quality report in the run summary
         run: cat demo_out/reports/data_quality_*.md >> "$GITHUB_STEP_SUMMARY"

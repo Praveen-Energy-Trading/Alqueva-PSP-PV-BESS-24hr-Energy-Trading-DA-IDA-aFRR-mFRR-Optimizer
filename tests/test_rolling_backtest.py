@@ -1,5 +1,5 @@
 """
-test_rolling_backtest.py — phase 6E rolling backtest (no solver needed).
+test_rolling_backtest.py — phase 7E rolling backtest (no solver needed).
 
 The per-day backtest is replaced by a stub, so these tests check only the
 rolling logic: which days get (re)run, that the store is updated idempotently,
@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import datetime as dt
 
-from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import (
+from phase_7_backtesting_and_validation.backtest_engine.backtest_runner import (
     realised_pnl, summarize_rows,
 )
-from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
+from phase_7_backtesting_and_validation.backtest_engine.rolling_backtest import (
     MAX_NEW_DAYS_PER_RUN, REFRESH_LOOKBACK_DAYS, gates_pending, load_store, plan_days,
     update_rolling_backtest,
 )

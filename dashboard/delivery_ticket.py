@@ -1,4 +1,4 @@
-"""delivery_ticket.py - renders phase 4A/4B/4C delivery cards. Distinct
+"""delivery_ticket.py - renders phase 5A/5B/5C delivery cards. Distinct
 from gate_ticket.py: these phases don't "decide" Submitted/Held, they
 simulate delivery of whatever was already committed, so the card shape is
 metrics + a trace, not a decision pill. See dashboard/data.py::load_rt_delivery

@@ -39,7 +39,7 @@ targets:
       forbidden: ["any price of day D", "intraday results of day D"]
     output: point            # target: quantiles / scenarios (Phase 10)
     current:
-      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_price_forecaster.py
+      module: phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_price_forecaster.py
       features: "calendar, price lags (24/48/168/336 h or 1d/2d/1w/2w), rolling mean/std ending yesterday"
       fundamentals: none
       history: "hourly 2020-2026 (real); 15-min only since 2025-10-01"
@@ -60,7 +60,7 @@ targets:
       forbidden: ["observations of day D"]
     output: point
     current:
-      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py
+      module: phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py
       features: "lags 24/48/168 h, rolling means ending yesterday, clearness index; no numerical weather forecast"
     fallback: "Bird clear-sky model with cloud factor"
     priority: 3
@@ -79,7 +79,7 @@ targets:
       forbidden: ["inflow of day D", "inflow of D-1 unless already published"]
     output: point
     current:
-      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/reservoir_inflow_forecaster.py
+      module: phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/reservoir_inflow_forecaster.py
       features: "lags 1/7/30 days, calendar"
       history: "research dataset 2015-; monthly climatology fills gaps"
     fallback: "monthly mean inflow (plant.yaml)"
@@ -99,7 +99,7 @@ targets:
       forbidden: ["IDA1 result for D"]
     output: point
     current:
-      module: phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_price_forecaster.py
+      module: phase_3a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_price_forecaster.py
       features: "calendar, DA price, within-day DA mean/std, spread 7 days ago, previous-hour spread"
     fallback: "DA price (zero spread)"
     priority: 2
@@ -118,7 +118,7 @@ targets:
       forbidden: ["IDA2 result for D"]
     output: point
     current:
-      module: phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_price_forecaster.py
+      module: phase_3b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_price_forecaster.py
       features: "same as IDA1 (does not use the IDA1 result)"
     fallback: "DA price"
     priority: 2
@@ -137,7 +137,7 @@ targets:
       forbidden: ["IDA3 result for D"]
     output: point
     current:
-      module: phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_price_forecaster.py
+      module: phase_3c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_price_forecaster.py
       features: "same as IDA1 (uses neither IDA1/IDA2 results nor early XBID trades)"
     fallback: "DA price"
     priority: 2
@@ -156,7 +156,7 @@ targets:
       forbidden: ["trades after the window"]
     output: point
     current:
-      module: phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_forecaster.py
+      module: phase_3d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_forecaster.py
       features: "same as IDA1; one model for all windows"
     fallback: "DA price"
     priority: 2
@@ -175,7 +175,7 @@ targets:
       forbidden: ["band prices of day D"]
     output: point
     current:
-      module: phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py
+      module: phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py
       features: "calendar, DA price, DA rolling mean/std, band price 7 days ago; no 1-day lag"
     fallback: "flat 25 / 12 EUR/MW"
     priority: 2
@@ -194,7 +194,7 @@ targets:
       forbidden: ["prices of day D"]
     output: point
     current:
-      module: phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py
+      module: phase_4b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py
       features: "same pattern as aFRR"
     fallback: "synthetic fraction of aFRR price"
     priority: 3

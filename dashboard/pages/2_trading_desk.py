@@ -84,9 +84,9 @@ def _render() -> None:
     # Real-price re-settlement: the SAME committed bid above, valued against
     # the real archived settlement price instead of each gate's own
     # forecast/bid price -- a true apples-to-apples check, unlike the
-    # separate Phase 6 backtest (which re-solves a different bid entirely).
+    # separate Phase 7 backtest (which re-solves a different bid entirely).
     # Only rendered when a report has been generated for this date
-    # (`python phase_6_backtesting_and_validation/run_live_resettlement.py
+    # (`python phase_7_backtesting_and_validation/run_live_resettlement.py
     # --date <date>`) -- never fabricated when absent.
     # ---------------------------------------------------------------------------
     live_resettle = data.load_live_resettlement_report(selected_date)

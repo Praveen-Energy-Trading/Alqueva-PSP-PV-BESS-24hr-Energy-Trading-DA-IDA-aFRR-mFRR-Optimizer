@@ -110,9 +110,9 @@ def generate_price_scenarios(
 # gate's own walk-forward-CV model selection). Add a gate here only once its
 # forecaster actually writes a selected_model json in this shape.
 _SELECTED_MODEL_PATH: Dict[str, Tuple[str, str, str]] = {
-    "DA": ("phase_1_da_day_ahead_bidding", "da_price_pv_inflow_forecasting",
+    "DA": ("phase_2_da_day_ahead_bidding", "da_price_pv_inflow_forecasting",
            "da_selected_model_isp.json"),
-    "IDA1": ("phase_2a_ida1_intraday_auction_1", "ida1_price_forecasting",
+    "IDA1": ("phase_3a_ida1_intraday_auction_1", "ida1_price_forecasting",
              "ida1_selected_model.json"),
 }
 

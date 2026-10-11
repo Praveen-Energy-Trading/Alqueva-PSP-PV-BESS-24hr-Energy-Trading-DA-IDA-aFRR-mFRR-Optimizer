@@ -19,7 +19,7 @@ import pytest
 from common_layer.optimisation_model import (
     build_core_model_stochastic, solve_core_model, extract_stochastic_results,
 )
-from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import (
+from phase_7_backtesting_and_validation.backtest_engine.backtest_runner import (
     run_stochastic_risk_comparison,
 )
 

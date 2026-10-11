@@ -400,7 +400,7 @@ class TestOperationalAnalytics:
         return psp, bess, pv, prices
 
     def test_H1_operational_patterns_returns_expected_keys(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_operational_patterns,
         )
         psp, bess, pv, prices = self._mock_schedule()
@@ -414,7 +414,7 @@ class TestOperationalAnalytics:
             assert k in result, f"Missing key '{k}' in operational patterns"
 
     def test_H2_turbine_hours_correct(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_operational_patterns,
         )
         psp, bess, pv, prices = self._mock_schedule()
@@ -424,7 +424,7 @@ class TestOperationalAnalytics:
             f"Expected 4 turbine hours, got {result['turbine_hours_total']}"
 
     def test_H3_pump_hours_correct(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_operational_patterns,
         )
         psp, bess, pv, prices = self._mock_schedule()
@@ -434,7 +434,7 @@ class TestOperationalAnalytics:
             f"Expected 2 pump hours, got {result['pump_hours_total']}"
 
     def test_H4_temporal_patterns_band_structure(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_temporal_patterns,
         )
         psp, bess, pv, prices = self._mock_schedule()
@@ -444,7 +444,7 @@ class TestOperationalAnalytics:
             assert band in result, f"Missing band '{band}' in temporal patterns"
 
     def test_H5_frr_strategy_pv_gating_zero_pv(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_frr_strategy_metrics,
         )
         pv_schedule = {h: {"available_mw": 0.0} for h in range(1, 25)}
@@ -455,7 +455,7 @@ class TestOperationalAnalytics:
         assert gating.get("bess_up_frr_blocked_hours") == 24
 
     def test_H6_frr_strategy_pv_gating_half_day(self):
-        from phase_5d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
+        from phase_6d_analytics_and_reporting.analytics_and_kpis.operational_analytics import (
             compute_frr_strategy_metrics,
         )
         # PV available for hours 8-18 (11 hours), zero otherwise

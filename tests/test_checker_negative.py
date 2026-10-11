@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from common_layer.configuration import load_config
 from common_layer.optimisation_model.core_milp_solver import GateResults
-from phase_1_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
+from phase_2_da_day_ahead_bidding.da_bid_formatting.da_bid_checker import (
     check_da_bid, BidCheckError,
 )
 

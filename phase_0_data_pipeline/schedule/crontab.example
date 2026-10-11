@@ -1,9 +1,0 @@
-# Daily data pipeline on Linux / macOS / inside a container host.
-# Times are in the server's time zone; the example assumes it is set to Europe/Madrid (CET/CEST).
-# Morning: yesterday's final files and today's intraday auctions. Afternoon: tomorrow's day-ahead (about 13:00 CET).
-# Install with:  crontab -e   (paste the two lines, fix the path)
-30 7  * * *  cd /path/to/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer && python phase_0_data_pipeline/run_data_pipeline.py >> runtime/logs/data_pipeline.log 2>&1
-30 13 * * *  cd /path/to/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer && python phase_0_data_pipeline/run_data_pipeline.py >> runtime/logs/data_pipeline.log 2>&1
-
-# Docker (mount runtime/ so the zones survive the container):
-#   docker run --rm -v "$PWD/runtime:/app/runtime" <image> python phase_0_data_pipeline/run_data_pipeline.py

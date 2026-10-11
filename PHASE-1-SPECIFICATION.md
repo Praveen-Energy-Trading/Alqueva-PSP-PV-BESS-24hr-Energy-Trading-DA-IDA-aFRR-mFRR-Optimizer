@@ -5,6 +5,8 @@
 **Date written:** 2026-06-21
 **Status:** AWAITING USER APPROVAL — no code until approved
 
+> **Numbering note (2026-10-11).** This is the original specification. "Phase 1 / 2 / 3" in the title and in the text about implementation and verification mean the *project lifecycle* (specification, implementation, verification). The pipeline phases in the FR-2 to FR-7 headings follow the current numbering: Phase 1 is the daily data pipeline (added later), Phase 2 is day-ahead, and so on up to Phase 7, backtesting.
+
 This document is the contract. Phase 3 verification (Step A automated checker + Step B
 adversarial review) tests the code against every requirement, prohibition, and invariant below.
 If the code violates any item here, the code is wrong — not the spec.
@@ -42,7 +44,7 @@ Plant net power sign convention: **generation = positive, pumping/charging = neg
 - FR-1.5 Write an immutable audit record for every decision (solve, check, approval, submit, reject).
 - FR-1.6 Solve every MILP with CPLEX (executable via Pyomo SolverFactory). On solver failure, STOP — never emit an unsolved/feasible-unknown bid.
 
-### FR-2 — Phase 1 Day-Ahead (DA)
+### FR-2 — Phase 2 Day-Ahead (DA)
 - FR-2.1 Load OMIE DA price (PT zone) for delivery date; if real data missing, use clearly-labelled synthetic.
 - FR-2.2 Forecast PV production and inflow for all 24 hours.
 - FR-2.3 Optimize 24h schedule maximizing expected revenue subject to all physical constraints (§2, §3).
@@ -52,7 +54,7 @@ Plant net power sign convention: **generation = positive, pumping/charging = neg
 - FR-2.7 Require trader [A]/[R] approval before submit (unless `--auto-approve`).
 - FR-2.8 On approval, submit (stub) and save DA position. On reject, save nothing.
 
-### FR-3 — Phase 2 Intraday (IDA1 D-1 15:00, IDA2 D-1 22:00, IDA3 D 10:00, XBID continuous)
+### FR-3 — Phase 3 Intraday (IDA1 D-1 15:00, IDA2 D-1 22:00, IDA3 D 10:00, XBID continuous)
 - FR-3.1 Each IDA re-optimizes against the *current committed position* using updated prices/forecasts.
 - FR-3.2 IDA only changes a position when the improvement clears the configured threshold
   (`ida_min_delta_mwh`, `ida_min_spread_eur_mwh`); otherwise NO_CHANGE.
@@ -60,27 +62,27 @@ Plant net power sign convention: **generation = positive, pumping/charging = neg
 - FR-3.4 XBID triggers an order only when spread clears `xbid_min_spread_eur_mwh` and within slippage/volume caps.
 - FR-3.5 Every IDA/XBID bid passes the same bid checker and risk check before submission.
 
-### FR-4 — Phase 3 Reserve Offers (aFRR, mFRR)
+### FR-4 — Phase 4 Reserve Offers (aFRR, mFRR)
 - FR-4.1 Build an aFRR capacity offer (up/down MW) only from physically available headroom after energy commitments.
 - FR-4.2 Build an mFRR capacity offer the same way.
 - FR-4.3 Respect aFRR FAT = 5 min and mFRR FAT = 12.5 min when sizing what the plant can actually deliver.
 - FR-4.4 Offer volumes never exceed configured market caps (`max_offer_up/dn_mw`, mFRR `max_offer_fraction`).
 - FR-4.5 Reserve offer checker (Phase 3A) runs before submission.
 
-### FR-5 — Phase 4 Real-Time Dispatch & Activation
+### FR-5 — Phase 5 Real-Time Dispatch & Activation
 - FR-5.1 Translate committed energy schedule into per-ISP setpoints (PSP units, BESS).
 - FR-5.2 On aFRR activation signal, ramp to deliver activated MW within 5 min FAT; log delivered MW per ISP.
 - FR-5.3 On mFRR activation signal, deliver within 12.5 min FAT; log delivered MW per ISP.
 - FR-5.4 Track actual vs scheduled position per ISP for imbalance settlement.
 
-### FR-6 — Phase 5 Settlement & Analytics
+### FR-6 — Phase 6 Settlement & Analytics
 - FR-6.1 DA/IDA settlement = committed volume × final settlement price per market.
 - FR-6.2 Reserve settlement = capacity payment + energy activation payment from REN data.
 - FR-6.3 Imbalance settlement = (actual − scheduled) × imbalance price (dual pricing).
 - FR-6.4 Daily P&L = DA + IDA + XBID + aFRR + mFRR ± imbalance, with per-market breakdown and KPIs.
 - FR-6.5 Export an Excel report.
 
-### FR-7 — Phase 6 Backtesting & Validation
+### FR-7 — Phase 7 Backtesting & Validation
 - FR-7.1 Replay historical dates through the full pipeline.
 - FR-7.2 Validate price/PV forecasts (MAE/RMSE) and MILP solution quality vs realised outcomes.
 

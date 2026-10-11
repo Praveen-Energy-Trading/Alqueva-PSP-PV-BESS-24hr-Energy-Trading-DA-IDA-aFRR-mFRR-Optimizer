@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import pytest
 
-from phase_6_backtesting_and_validation.backtest_engine.historical_data_loader import (
+from phase_7_backtesting_and_validation.backtest_engine.historical_data_loader import (
     real_ida_price,
 )
-from phase_6_backtesting_and_validation.backtest_engine.backtest_runner import run_backtest
-from phase_2d_xbid_continuous_intraday.xbid_milp_optimiser.xbid_optimiser import build_xbid_inputs
+from phase_7_backtesting_and_validation.backtest_engine.backtest_runner import run_backtest
+from phase_3d_xbid_continuous_intraday.xbid_milp_optimiser.xbid_optimiser import build_xbid_inputs
 
 # 2026-08-21 has confirmed real DA/IDA1/IDA2/IDA3/XBID coverage.
 _REAL_ALL_GATES_DATE = "2026-08-21"
@@ -68,7 +68,7 @@ def test_backtest_xbid_unavailable_reports_independently(cfg, monkeypatch):
     if exe is None:
         pytest.skip("CPLEX not found — skipping XBID backtest integration tests")
 
-    import phase_6_backtesting_and_validation.backtest_engine.backtest_runner as runner
+    import phase_7_backtesting_and_validation.backtest_engine.backtest_runner as runner
     real = runner.real_ida_price
     monkeypatch.setattr(runner, "real_ida_price",
                         lambda gate, date, hours: None if gate == "XBID" else real(gate, date, hours))

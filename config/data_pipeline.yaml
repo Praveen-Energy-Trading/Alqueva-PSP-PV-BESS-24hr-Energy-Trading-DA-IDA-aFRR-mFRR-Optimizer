@@ -1,5 +1,5 @@
 # =============================================================================
-# Phase 0 — daily data pipeline (phase_0_data_pipeline/run_data_pipeline.py)
+# Phase 1 — daily data pipeline (phase_1_data_pipeline/run_data_pipeline.py)
 #
 # Each run: download what is new (raw zone) -> validate and build tables (clean zone)
 #           -> quality checks, daily score and report -> gate decision.

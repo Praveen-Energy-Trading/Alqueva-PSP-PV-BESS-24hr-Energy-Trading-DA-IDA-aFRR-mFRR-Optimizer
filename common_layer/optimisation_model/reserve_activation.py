@@ -2,7 +2,7 @@
 reserve_activation.py — shared TSO-activation simulation for aFRR / mFRR.
 
 During delivery the TSO calls part of the offered reserve in some ISPs. This
-engine, shared by Phase 4B (aFRR) and 4C (mFRR):
+engine, shared by Phase 5B (aFRR) and 5C (mFRR):
   * simulates a synthetic per-ISP Area Control Error (ACE, MW) for the control
     area — the actual physical quantity PICASSO/MARI dispatch responds to —
     via simulate_ace_series() (see its docstring for the modeling detail),
@@ -37,7 +37,7 @@ from common_layer.optimisation_model.reserve_offer_builder import (
     fat_deliverable_mw, fat_deliverable_dn_mw,
 )
 from common_layer.optimisation_model.activation_ramp_tracker import effective_isp_hours
-from phase_1_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
+from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import (
     forecast_da_prices_isp,
 )
 

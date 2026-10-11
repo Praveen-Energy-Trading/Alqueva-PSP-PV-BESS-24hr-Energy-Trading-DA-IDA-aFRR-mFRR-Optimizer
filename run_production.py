@@ -31,12 +31,12 @@ COMMON CLI OVERRIDES  (no YAML edit needed)
     # Validate config and imports without executing anything
     python run_production.py --dry-run
 
-    # Skip the rolling backtest (phase 6E) for a quick run
+    # Skip the rolling backtest (phase 7E) for a quick run
     python run_production.py --no-backtest
 
 PHASE KEYS (--from-phase / --only)
 ------------------------------------
-  data  (phase 0: daily data pipeline, ingest + quality gate)
+  data  (phase 1: daily data pipeline, ingest + quality gate)
   da  ida1  ida2  ida3
   xbid_w1  xbid_w2  xbid_w3  xbid_w4  xbid_w5  xbid_w6
   afrr  mfrr  realtime
@@ -81,7 +81,7 @@ def _ensure_dashboard_running() -> None:
     Best-effort only: any failure here (streamlit missing, port probe error,
     browser-open error, etc.) is swallowed — the pipeline itself must never
     fail because the dashboard couldn't start. Scoped to this script only;
-    phase_6_backtesting_and_validation/run_backtest.py does not import
+    phase_7_backtesting_and_validation/run_backtest.py does not import
     run_production.py, so backtests are unaffected.
     """
     try:
@@ -263,33 +263,33 @@ _PHASES: List[tuple] = [
     # but NOT what REN's own document specifies for Portugal) — reverted
     # here once the real REN sequence was found and confirmed (Article 81
     # for PDVD's DA-dependency, Article 82-83 for aFRR/mFRR band markets).
-    # Phase 0 runs first: download new market data, validate it, run the quality checks and decide
+    # Phase 1 runs first: download new market data, validate it, run the quality checks and decide
     # the gate. Whether a red gate blocks trading is set in config/data_pipeline.yaml (gate_mode);
     # in the default "warn" mode it reports DATA_WARN and the trading phases still run.
-    ("data",                "0      Data pipeline  (ingest + quality gate)", True),
-    ("da",                  "1      Day-Ahead bidding  (OMIE DA)",        True),
-    ("afrr",                "2      aFRR capacity offer  (PICASSO/REN)", True),
-    ("mfrr",                "3      mFRR capacity offer  (MARI)",        False),
-    ("ida1",                "4A     IDA1 intraday re-optimisation",       True),
-    ("ida2",                "4B     IDA2 intraday re-optimisation",       True),
-    ("ida3",                "4C     IDA3 intraday re-optimisation",       True),
-    ("xbid_w1",             "4D/W1  XBID continuous  (D-1 18:30)",       False),
-    ("xbid_w2",             "4D/W2  XBID continuous  (D-1 22:30)",       False),
-    ("xbid_w3",             "4D/W3  XBID continuous  (D  03:00)",        False),
-    ("xbid_w4",             "4D/W4  XBID continuous  (D  06:00)",        False),
-    ("xbid_w5",             "4D/W5  XBID continuous  (D  09:30)",        False),
-    ("xbid_w6",             "4D/W6  XBID continuous  (D  12:00)",        False),
-    ("realtime",            "5A     RT dispatch simulation  (96 ISPs)",   True),
-    ("afrr_activation",     "5B     aFRR activation response",            True),
-    ("mfrr_activation",     "5C     mFRR activation response",            False),
-    ("energy_settlement",   "6A     Energy settlement  (DA / IDA)",       True),
-    ("reserve_settlement",  "6B     Reserve settlement  (aFRR / mFRR)",   True),
-    ("imbalance_settlement","6C     Imbalance settlement  (REN balance)", True),
-    ("analytics",           "6D     Analytics + KPI report + Excel",      False),
+    ("data",                "1      Data pipeline  (ingest + quality gate)", True),
+    ("da",                  "2      Day-Ahead bidding  (OMIE DA)",        True),
+    ("afrr",                "3      aFRR capacity offer  (PICASSO/REN)", True),
+    ("mfrr",                "4      mFRR capacity offer  (MARI)",        False),
+    ("ida1",                "5A     IDA1 intraday re-optimisation",       True),
+    ("ida2",                "5B     IDA2 intraday re-optimisation",       True),
+    ("ida3",                "5C     IDA3 intraday re-optimisation",       True),
+    ("xbid_w1",             "5D/W1  XBID continuous  (D-1 18:30)",       False),
+    ("xbid_w2",             "5D/W2  XBID continuous  (D-1 22:30)",       False),
+    ("xbid_w3",             "5D/W3  XBID continuous  (D  03:00)",        False),
+    ("xbid_w4",             "5D/W4  XBID continuous  (D  06:00)",        False),
+    ("xbid_w5",             "5D/W5  XBID continuous  (D  09:30)",        False),
+    ("xbid_w6",             "5D/W6  XBID continuous  (D  12:00)",        False),
+    ("realtime",            "6A     RT dispatch simulation  (96 ISPs)",   True),
+    ("afrr_activation",     "6B     aFRR activation response",            True),
+    ("mfrr_activation",     "6C     mFRR activation response",            False),
+    ("energy_settlement",   "7A     Energy settlement  (DA / IDA)",       True),
+    ("reserve_settlement",  "7B     Reserve settlement  (aFRR / mFRR)",   True),
+    ("imbalance_settlement","7C     Imbalance settlement  (REN balance)", True),
+    ("analytics",           "7D     Analytics + KPI report + Excel",      False),
     # Reporting only, never blocks trading: backtests every completed day
     # since the last run (real prices exist only for past days, never for the
     # delivery date) and refreshes the rolling 1-year Profit-at-Risk report.
-    ("rolling_backtest",    "6E     Rolling backtest + P&L re-settlement", False),
+    ("rolling_backtest",    "7E     Rolling backtest + P&L re-settlement", False),
 ]
 
 # The YAML phases block uses "xbid" to gate all check windows (W1..W6).
@@ -320,68 +320,68 @@ def _dispatch(key: str, date: str, cfg, syn: bool, auto: bool) -> tuple[str, str
         return FAIL, f"{st}: {reason}"
 
     if key == "data":
-        from phase_0_data_pipeline.run_data_pipeline import run_data_phase
+        from phase_1_data_pipeline.run_data_pipeline import run_data_phase
         return _run(run_data_phase, date, cfg, use_synthetic=syn)
 
     if key == "da":
-        from phase_1_da_day_ahead_bidding.run_da import run_da
+        from phase_2_da_day_ahead_bidding.run_da import run_da
         return _run(run_da, date, use_synthetic=syn, auto_approve=auto)
 
     if key == "ida1":
-        from phase_2a_ida1_intraday_auction_1.ida1_milp_reoptimiser.ida1_reoptimiser import optimise_ida1
+        from phase_3a_ida1_intraday_auction_1.ida1_milp_reoptimiser.ida1_reoptimiser import optimise_ida1
         return _run(optimise_ida1, date, cfg, no_pause=auto, use_synthetic=syn)
 
     if key == "ida2":
-        from phase_2b_ida2_intraday_auction_2.ida2_milp_reoptimiser.ida2_reoptimiser import optimise_ida2
+        from phase_3b_ida2_intraday_auction_2.ida2_milp_reoptimiser.ida2_reoptimiser import optimise_ida2
         return _run(optimise_ida2, date, cfg, no_pause=auto, use_synthetic=syn)
 
     if key == "ida3":
-        from phase_2c_ida3_intraday_auction_3.ida3_milp_reoptimiser.ida3_reoptimiser import optimise_ida3
+        from phase_3c_ida3_intraday_auction_3.ida3_milp_reoptimiser.ida3_reoptimiser import optimise_ida3
         return _run(optimise_ida3, date, cfg, no_pause=auto, use_synthetic=syn)
 
     if key.startswith("xbid_w"):
-        from phase_2d_xbid_continuous_intraday.xbid_milp_optimiser.xbid_optimiser import optimise_xbid
+        from phase_3d_xbid_continuous_intraday.xbid_milp_optimiser.xbid_optimiser import optimise_xbid
         window = "W" + key[len("xbid_w"):]
         return _run(optimise_xbid, date, cfg, window=window, no_pause=auto, use_synthetic=syn)
 
     if key == "afrr":
-        from phase_3a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
+        from phase_4a_afrr_automatic_frequency_reserve.run_afrr import run_afrr
         return _run(run_afrr, date, cfg, no_pause=auto, use_synthetic=syn)
 
     if key == "mfrr":
-        from phase_3b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
+        from phase_4b_mfrr_manual_frequency_reserve.run_mfrr import run_mfrr
         return _run(run_mfrr, date, cfg, no_pause=auto, use_synthetic=syn)
 
     if key == "realtime":
-        from phase_4a_isp_real_time_dispatch.run_realtime import run_realtime
+        from phase_5a_isp_real_time_dispatch.run_realtime import run_realtime
         return _run(run_realtime, date, cfg, no_pause=auto)
 
     if key == "afrr_activation":
-        from phase_4b_afrr_activation_response.run_afrr_activation import run_afrr_activation
+        from phase_5b_afrr_activation_response.run_afrr_activation import run_afrr_activation
         return _run(run_afrr_activation, date, cfg, no_pause=auto)
 
     if key == "mfrr_activation":
-        from phase_4c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
+        from phase_5c_mfrr_activation_response.run_mfrr_activation import run_mfrr_activation
         return _run(run_mfrr_activation, date, cfg, no_pause=auto)
 
     if key == "energy_settlement":
-        from phase_5a_da_ida_settlement.run_energy_settlement import run_energy_settlement
+        from phase_6a_da_ida_settlement.run_energy_settlement import run_energy_settlement
         return _run(run_energy_settlement, date)
 
     if key == "reserve_settlement":
-        from phase_5b_reserve_settlement.run_reserve_settlement import run_reserve_settlement
+        from phase_6b_reserve_settlement.run_reserve_settlement import run_reserve_settlement
         return _run(run_reserve_settlement, date)
 
     if key == "imbalance_settlement":
-        from phase_5c_imbalance_settlement.run_imbalance_settlement import run_imbalance_settlement
+        from phase_6c_imbalance_settlement.run_imbalance_settlement import run_imbalance_settlement
         return _run(run_imbalance_settlement, date)
 
     if key == "analytics":
-        from phase_5d_analytics_and_reporting.run_analytics import run_analytics
+        from phase_6d_analytics_and_reporting.run_analytics import run_analytics
         return _run(run_analytics, date, cfg, export_excel=True)
 
     if key == "rolling_backtest":
-        from phase_6_backtesting_and_validation.backtest_engine.rolling_backtest import (
+        from phase_7_backtesting_and_validation.backtest_engine.rolling_backtest import (
             run_rolling_backtest,
         )
         return _run(run_rolling_backtest, cfg)
@@ -516,7 +516,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run",    dest="dry_run", action="store_true",
                    help="Validate config and imports; run nothing")
     p.add_argument("--no-backtest", dest="no_backtest", action="store_true",
-                   help="Skip phase 6E (rolling backtest + P&L re-settlement) for this run")
+                   help="Skip phase 7E (rolling backtest + P&L re-settlement) for this run")
     p.add_argument("--no-dashboard", dest="no_dashboard", action="store_true",
                    help="Don't auto-launch the Streamlit dashboard (it's on by default)")
     return p

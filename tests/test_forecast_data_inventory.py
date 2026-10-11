@@ -60,7 +60,7 @@ def test_uncovered_forecast_is_reported():
 
 def test_dates_stated_in_the_inventory_match_the_data_files():
     """The end of the real PV weather and inflow data (2026-06-30) is the factual basis of finding D1."""
-    base = "phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/"
+    base = "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/"
     import os
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pv = pd.read_excel(os.path.join(root, base, "pv_training_data_from_2015.xlsx"))
