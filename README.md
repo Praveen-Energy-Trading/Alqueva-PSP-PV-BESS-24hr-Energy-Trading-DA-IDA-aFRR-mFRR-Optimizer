@@ -260,7 +260,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── comparison.py, comparison_figures.py  #   stage 4: pairwise tests with Holm correction, where each algorithm wins
 │   │   ├── selection.py                          #   stage 5: champion selection policy applied by code
 │   │   ├── locked_test.py                        #   stage 6: checks before, and report after, the one locked-period look
-│   │   └── champions.py, serving.py              #   stage 7: champion registry, promotion rule, fitted champion for live use
+│   │   ├── champions.py, serving.py              #   stage 7: champion registry, promotion rule, fitted champion for live use
+│   │   └── monitoring.py                         #   stage 8: forecast log, degradation flags, refit and re-tuning schedule
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
 │   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
@@ -493,6 +494,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── select_champion.py                        #   stage 5: apply config/model_selection.yaml, write the decision
 │   ├── run_locked_test.py                        #   stage 6: preflight (dry run) and the single locked-period test
 │   ├── champion.py                               #   stage 7: init / show / history / fit / challenge / rollback
+│   ├── monitor_champion.py                       #   stage 8: calibrate / log / plan / report
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │

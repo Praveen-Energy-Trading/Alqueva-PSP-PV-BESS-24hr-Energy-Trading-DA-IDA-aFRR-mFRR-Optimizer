@@ -1,0 +1,40 @@
+# =============================================================================
+# Champion monitoring and retraining schedule (stage 8 of docs/Model_Development_Plan.pdf)
+#
+# The champion's forecasts are logged one delivery day at a time (append-only: a forecast cannot be replaced once logged),
+# scored against the outcomes when they are known, and compared with thresholds taken from the champion's own development
+# window, so "normal" means what was seen before going live. Rule (common_layer/model_development/monitoring.py):
+#
+#   level flag      the mean absolute error of the last `window_days` days is above the `quantile` of the same statistic over
+#                   all `window_days` windows of the development predictions
+#   bias flag       the mean signed error of the last `window_days` days is larger in size than the `quantile` of the same
+#                   statistic over the development windows
+#   coverage flag   fewer than `coverage_min` of the days with outcomes in the window have a logged forecast
+#   relative flag   (needs the reference's forecasts logged too) over the last `relative.window_days` days the reference has
+#                   a significantly smaller loss than the champion (Diebold-Mariano at `relative.alpha`, same settings as the
+#                   evaluation framework): the champion no longer earns its complexity
+#
+#   status: degraded  if the relative flag, or both the level and bias flags, are raised
+#           warning   if any other flag is raised
+#           ok        if none is raised
+#           insufficient_data  if fewer than `min_days` scored days are in the window (no verdict is given)
+#
+# Nothing here changes the champion. A degraded status recommends a review: a challenge (config/champion_policy.yaml) and a
+# forced re-tuning. The refit and re-tuning schedule below must equal the ones used in the evaluation (checked on loading),
+# otherwise live and evaluated behaviour would differ.
+# =============================================================================
+version: 1
+
+tracking:
+  window_days: 28
+  min_days: 21
+  quantile: 0.95
+  coverage_min: 0.9
+
+relative:
+  window_days: 90
+  alpha: 0.05
+
+schedule:
+  refit_every_days: 30            # = config/evaluation.yaml schedule.retrain_every_days
+  retune_every_days: 180          # = config/tuning.yaml search.retune_every_days

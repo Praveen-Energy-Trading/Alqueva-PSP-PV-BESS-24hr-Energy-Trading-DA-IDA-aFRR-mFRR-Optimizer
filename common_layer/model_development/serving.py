@@ -55,36 +55,69 @@ def _builder(iface: ModelInterface, feature_set: str):
     return FeatureBuilder(iface, cat, ids), feature_set_version(ids, cat)
 
 
+def _read_artifact(reg: dict) -> dict:
+    """The pickled artifact of a registered file, after checking that it exists and matches its registered hash."""
+    if not os.path.exists(reg["path"]):
+        raise ChampionError(f"artifact file missing: {reg['path']}")
+    if _sha256(reg["path"]) != reg["sha256"]:
+        raise ChampionError(f"artifact {reg['path']} does not match the hash in the registry; refusing to load it")
+    with open(reg["path"], "rb") as fh:
+        return pickle.load(fh)
+
+
+def role_spec(spec: dict, role: str) -> dict:
+    """The specification to fit: the champion itself, or its reference (the simplest algorithm, same settings policy)."""
+    if role == "champion":
+        return spec
+    if role == "reference":
+        return {**spec, "type": "single", "members": [spec["reference"]], "method": None}
+    raise ValueError("role must be 'champion' or 'reference'")
+
+
 def fit_artifact(target: str, panel: pd.DataFrame, form: dict, cfg: dict, tuning_cfg: dict, first_forecast_day: dt.date,
-                 db_path: Optional[str] = None, history_days: int = 400, now: Optional[dt.datetime] = None) -> dict:
-    """Fit the active champion of `target` to be used from `first_forecast_day` and register the artifact."""
+                 db_path: Optional[str] = None, history_days: int = 400, now: Optional[dt.datetime] = None,
+                 role: str = "champion", force_retune: bool = False) -> dict:
+    """Fit the active champion of `target` (or its reference) to be used from `first_forecast_day` and register the artifact.
+
+    Tuned settings of the previous artifact of the same version and role are reused until `retune_every_days` of history
+    have passed since they were chosen (the rule of the evaluation framework); `force_retune` searches again."""
     champ = champions.active(target, db_path)
     if champ is None:
         raise ChampionError(f"{target} has no active champion")
-    spec = champ["spec"]
+    spec = role_spec(champ["spec"], role)
     view = AsOfView(panel, form, target)
     sched = {**cfg["schedule"], **{k: v for k, v in spec["schedule"].items() if v is not None or k == "train_window_days"}}
     fold = make_folds(first_forecast_day, first_forecast_day, view.first_day(), {**sched, "retrain_every_days": 1})[0]
     ctx = FitContext(view, fold.train_days, fold.train_end, history_days)
     iface, cache, members = view.interface(), {}, {}
+    prior_reg = None if (force_retune or not spec["tuned"]) else champions.latest_artifact(target, champ["version"], db_path, role)
+    prior = _read_artifact(prior_reg)["members"] if prior_reg else {}
     for name, factory in tree_candidates(spec["members"], spec["feature_set"], spec["tuned"], tuning_cfg).items():
+        base = name[:-len("_tuned")] if name.endswith("_tuned") else name
+        if base in prior and prior[base].get("tuned_at"):
+            _, ver = _builder(iface, spec["feature_set"])
+            cache[("tuned", target, base, ver)] = {"tuned_at": dt.date.fromisoformat(prior[base]["tuned_at"]), "params": prior[base]["params"]}
         fc = factory(iface, cache)
         fc.fit(ctx)
-        members[name[:-len("_tuned")] if name.endswith("_tuned") else name] = {
-            "model": fc.model, "cols": list(fc.cols), "fill": np.asarray(fc.fill, dtype=float), "params": dict(getattr(fc, "params", {}) or {}),
-            "set_version": fc.set_version}
+        state = cache.get(("tuned", target, base, fc.set_version))
+        members[base] = {"model": fc.model, "cols": list(fc.cols), "fill": np.asarray(fc.fill, dtype=float),
+                         "params": dict(getattr(fc, "params", {}) or {}), "set_version": fc.set_version,
+                         "tuned_at": str(state["tuned_at"]) if state else None}
     versions = {m["set_version"] for m in members.values()}
-    artifact = {"target": target, "version": champ["version"], "spec": spec, "train_end": str(fold.train_end),
+    artifact = {"target": target, "version": champ["version"], "role": role, "spec": spec, "train_end": str(fold.train_end),
                 "first_forecast_day": str(first_forecast_day), "members": members, "set_version": versions.pop(),
                 "transform": dict(view.spec["transform"]), "history_days": history_days, "train_days": len(fold.train_days)}
     folder = os.path.join(models_root(db_path), target, f"v{champ['version']}")
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, f"{fold.train_end}.pkl")
+    path = os.path.join(folder, f"{role}_{fold.train_end}.pkl")
     with open(path, "wb") as fh:
         pickle.dump(artifact, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    tuned = [m["tuned_at"] for m in members.values() if m["tuned_at"]]
+    tuned_at = dt.date.fromisoformat(min(tuned)) if tuned else None                      # the oldest tuning among the members
     champions.register_artifact(target, champ["version"], fold.train_end, first_forecast_day, path, _sha256(path), artifact["set_version"],
-                                list(members), db_path, now)
-    return {"path": path, "train_end": fold.train_end, "version": champ["version"], "members": list(members)}
+                                list(members), db_path, now, role, tuned_at)
+    return {"path": path, "train_end": fold.train_end, "version": champ["version"], "members": list(members), "role": role,
+            "tuned_at": tuned_at}
 
 
 class ChampionForecaster:
@@ -120,23 +153,21 @@ class ChampionForecaster:
         return (day - dt.date.fromisoformat(self.artifact["train_end"])).days
 
 
-def load_champion(target: str, iface: ModelInterface, db_path: Optional[str] = None) -> ChampionForecaster:
-    """The active champion of a target, verified: registered file, matching hash, same version, unchanged feature definitions."""
+def load_champion(target: str, iface: ModelInterface, db_path: Optional[str] = None, role: str = "champion") -> ChampionForecaster:
+    """The active champion of a target (or its reference), verified: registered file, matching hash, same version, unchanged
+    feature definitions."""
     champ = champions.active(target, db_path)
     if champ is None:
         raise ChampionError(f"{target} has no active champion")
-    reg = champions.latest_artifact(target, champ["version"], db_path)
+    reg = champions.latest_artifact(target, champ["version"], db_path, role)
     if reg is None:
-        raise ChampionError(f"champion version {champ['version']} of {target} has no fitted artifact; fit one first")
-    if not os.path.exists(reg["path"]):
-        raise ChampionError(f"artifact file missing: {reg['path']}")
-    if _sha256(reg["path"]) != reg["sha256"]:
-        raise ChampionError(f"artifact {reg['path']} does not match the hash in the registry; refusing to load it")
-    with open(reg["path"], "rb") as fh:
-        art = pickle.load(fh)
-    if art["version"] != champ["version"] or art["spec"] != champ["spec"]:
+        raise ChampionError(f"champion version {champ['version']} of {target} has no fitted {role} artifact; fit one first")
+    art = _read_artifact(reg)
+    if art["version"] != champ["version"] or art["spec"] != role_spec(champ["spec"], role):
         raise ChampionError("the artifact does not belong to the active champion version")
     _, current = _builder(iface, champ["spec"]["feature_set"])
     if current != art["set_version"]:
         raise ChampionError(f"feature definitions changed since the fit (artifact {art['set_version']}, now {current}); refit the champion")
-    return ChampionForecaster(art, iface)
+    fc = ChampionForecaster(art, iface)
+    fc.name = f"{role}_v{art['version']}"
+    return fc

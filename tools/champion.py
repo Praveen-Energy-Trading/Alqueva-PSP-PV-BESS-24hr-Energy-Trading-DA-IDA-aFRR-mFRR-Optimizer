@@ -5,6 +5,7 @@ champion.py — the champion registry from the command line (stage 7 of docs/Mod
     python tools/champion.py show --target da_price                                         active champion and versions
     python tools/champion.py history --target da_price                                      every change, with its numbers
     python tools/champion.py fit --target da_price --first-day 2026-10-12                   fit and store the artifact
+        [--role reference] [--force-retune]       (the reference is fitted for the monitoring comparison)
     python tools/champion.py challenge --target da_price --challenger-decision FILE \\
         --champion-preds champion.csv --challenger-preds challenger.csv --as-of 2026-12-31   apply the promotion rule
     python tools/champion.py rollback --target da_price --to 1 --reason "why"                reactivate an earlier version
@@ -47,6 +48,8 @@ def main() -> int:
     p = sub.add_parser("fit")
     p.add_argument("--target", required=True)
     p.add_argument("--first-day", required=True, type=_date)
+    p.add_argument("--role", choices=["champion", "reference"], default="champion", help="fit the champion or its reference")
+    p.add_argument("--force-retune", action="store_true", help="search the settings again instead of reusing the earlier ones")
     p = sub.add_parser("challenge")
     p.add_argument("--target", required=True)
     p.add_argument("--challenger-decision", required=True)
@@ -77,8 +80,10 @@ def main() -> int:
         from common_layer.forecast_evaluation.tuning import load_tuning_config
         from common_layer.market_analysis import panel as pnl
         from common_layer.model_development import serving
-        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore()), load_forecast_formulation(), cfg, load_tuning_config(), a.first_day)
-        print(f"fitted version {r['version']} ({', '.join(r['members'])}), training ends {r['train_end']}: {r['path']}")
+        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore()), load_forecast_formulation(), cfg, load_tuning_config(), a.first_day,
+                                 role=a.role, force_retune=a.force_retune)
+        print(f"fitted {r['role']} of version {r['version']} ({', '.join(r['members'])}), training ends {r['train_end']}, "
+              f"settings tuned {r['tuned_at']}: {r['path']}")
     elif a.cmd == "challenge":
         pol = champions.load_champion_policy()
         read = lambda f: pd.read_csv(f, index_col=0, parse_dates=True)       # noqa: E731

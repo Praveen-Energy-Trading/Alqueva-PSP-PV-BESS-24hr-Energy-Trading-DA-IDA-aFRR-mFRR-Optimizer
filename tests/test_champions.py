@@ -239,7 +239,7 @@ def test_a_new_version_cannot_be_served_before_it_is_fitted(db):
     panel, cfg, view, day, _ = _setup(db, decision())
     ev = champions.evaluate_challenge(table(5.0, 150, 1), table(3.0, 150, 2), POL, CMP, dt.date.fromordinal(D0 + 149), 120)
     champions.apply_challenge("da_price", decision({"type": "single", "model": "xgboost"}), FS, ev, "d2", db)
-    with pytest.raises(serving.ChampionError, match="no fitted artifact"):
+    with pytest.raises(serving.ChampionError, match="no fitted champion artifact"):
         serving.load_champion("da_price", view.interface(), db)
     with pytest.raises(serving.ChampionError, match="no active champion"):
         serving.load_champion("ida1_price", view.interface(), db)

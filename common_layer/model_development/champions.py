@@ -34,8 +34,9 @@ CREATE TABLE IF NOT EXISTS champions (
     policy_digest TEXT, source TEXT, promoted_utc TEXT NOT NULL, retired_utc TEXT, notes TEXT, PRIMARY KEY (target, version));
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_champion ON champions(target) WHERE status = 'active';
 CREATE TABLE IF NOT EXISTS champion_artifacts (
-    target TEXT NOT NULL, version INTEGER NOT NULL, train_end TEXT NOT NULL, first_forecast_day TEXT, path TEXT NOT NULL,
-    sha256 TEXT NOT NULL, set_version TEXT, members_json TEXT, created_utc TEXT NOT NULL, PRIMARY KEY (target, version, train_end));
+    target TEXT NOT NULL, version INTEGER NOT NULL, role TEXT NOT NULL DEFAULT 'champion', train_end TEXT NOT NULL,
+    first_forecast_day TEXT, path TEXT NOT NULL, sha256 TEXT NOT NULL, set_version TEXT, members_json TEXT, tuned_at TEXT,
+    created_utc TEXT NOT NULL, PRIMARY KEY (target, version, role, train_end));
 CREATE TABLE IF NOT EXISTS champion_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, at_utc TEXT NOT NULL, event TEXT NOT NULL, version INTEGER,
     detail_json TEXT);
@@ -228,19 +229,22 @@ def days_since_last_promotion(target: str, as_of: dt.date, db_path: Optional[str
 
 
 def register_artifact(target: str, version: int, train_end: dt.date, first_forecast_day: dt.date, path: str, sha256: str,
-                      set_version: str, members: List[str], db_path: Optional[str] = None, now: Optional[dt.datetime] = None) -> None:
+                      set_version: str, members: List[str], db_path: Optional[str] = None, now: Optional[dt.datetime] = None,
+                      role: str = "champion", tuned_at: Optional[dt.date] = None) -> None:
     with _Db(db_path) as con:
-        con.execute("INSERT OR REPLACE INTO champion_artifacts VALUES (?,?,?,?,?,?,?,?,?)",
-                    (target, version, str(train_end), str(first_forecast_day), path, sha256, set_version, json.dumps(members), _now(now)))
-        _event(con, target, "artifact_fitted", version, {"train_end": str(train_end), "first_forecast_day": str(first_forecast_day),
-                                                         "path": path, "sha256": sha256}, now)
+        con.execute("INSERT OR REPLACE INTO champion_artifacts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (target, version, role, str(train_end), str(first_forecast_day), path, sha256, set_version, json.dumps(members),
+                     str(tuned_at) if tuned_at else None, _now(now)))
+        _event(con, target, "artifact_fitted", version, {"role": role, "train_end": str(train_end),
+                                                         "first_forecast_day": str(first_forecast_day), "path": path, "sha256": sha256,
+                                                         "tuned_at": str(tuned_at) if tuned_at else None}, now)
 
 
-def latest_artifact(target: str, version: int, db_path: Optional[str] = None) -> Optional[dict]:
+def latest_artifact(target: str, version: int, db_path: Optional[str] = None, role: str = "champion") -> Optional[dict]:
     with _Db(db_path) as con:
-        row = con.execute("SELECT train_end, first_forecast_day, path, sha256, set_version, members_json FROM champion_artifacts "
-                          "WHERE target=? AND version=? ORDER BY train_end DESC LIMIT 1", (target, version)).fetchone()
+        row = con.execute("SELECT train_end, first_forecast_day, path, sha256, set_version, members_json, tuned_at FROM champion_artifacts "
+                          "WHERE target=? AND version=? AND role=? ORDER BY train_end DESC LIMIT 1", (target, version, role)).fetchone()
     if row is None:
         return None
     return {"train_end": row[0], "first_forecast_day": row[1], "path": row[2], "sha256": row[3], "set_version": row[4],
-            "members": json.loads(row[5])}
+            "members": json.loads(row[5]), "tuned_at": row[6], "role": role}
