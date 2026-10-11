@@ -51,7 +51,7 @@ class CleanStore:
         self._init()
 
     def _conn(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path)
+        return sqlite3.connect(self.path, timeout=60)      # two loaders may write side by side
 
     def _init(self) -> None:
         with self._conn() as c:

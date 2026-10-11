@@ -233,8 +233,10 @@ _REN_MAPS = {
 
 
 def parse_ren(raw: bytes, day: dt.date, dataset: str) -> pd.DataFrame:
-    """REN market-service JSON (BaFRRPreco, MFRRPreco, DesvioPreco): one row per quarter-hour.
+    """REN market-service JSON (BaFRRPreco, MFRRPreco, DesvioPreco): one row per period.
 
+    Hourly (23/24/25 rows) before 2025-03-19 for the aFRR and imbalance prices, quarter-hourly (92/96/100)
+    afterwards (mFRR is quarter-hourly from its start in 2024). The resolution is taken from the row count.
     REN gives the UTC start of every period (DATA_UTC); it is checked against the calendar."""
     if dataset not in _REN_MAPS:
         raise ParseError(f"unknown REN dataset {dataset}")
@@ -245,10 +247,11 @@ def parse_ren(raw: bytes, day: dt.date, dataset: str) -> pd.DataFrame:
         raise ParseError("empty or non-list REN response")
     rows = {int(r["PERIODO"]): r for r in payload}
     n = len(rows)
-    if cal.detect_resolution_min(day, n) != 15:
-        raise ParseError(f"{n} quarter-hour rows do not form a full day on {day}")
+    res = cal.detect_resolution_min(day, n)
+    if res is None:
+        raise ParseError(f"{n} rows do not form a full hourly or quarter-hourly day on {day}")
     idx = sorted(rows)
-    df = _frame(day, n, 15, idx)
+    df = _frame(day, n, res, idx)
     for r_idx, i in enumerate(idx):
         if rows[i].get("DATA_UTC") and not df.loc[r_idx, "start_utc"].startswith(rows[i]["DATA_UTC"].replace(" ", "T")):
             raise ParseError(f"DATA_UTC {rows[i]['DATA_UTC']} disagrees with calendar {df.loc[r_idx, 'start_utc']}")

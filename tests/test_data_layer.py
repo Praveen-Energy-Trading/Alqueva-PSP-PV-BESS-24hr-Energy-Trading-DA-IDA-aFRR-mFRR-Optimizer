@@ -322,3 +322,24 @@ def test_empty_intraday_file_is_reported_not_stored(zones):
     out = ingest.ingest_day("omie_ida1", dt.date(2025, 10, 27), raw=raw, clean=clean,
                             fetcher=fetcher_with(http), log=log)
     assert out["status"] == "empty_publication" and raw.keys("omie_ida1") == []
+
+
+# ------------------------------------ hourly-era REN files (before 2025-03-19), found in the first backfill
+def test_ren_hourly_era_files_parse_with_true_periods_on_both_dst_days():
+    autumn, spring = dt.date(2020, 10, 25), dt.date(2020, 3, 29)
+    a = parsers.parse_ren(fx("ren_afrr_20201025_hourly.json"), autumn, "afrr_price")
+    s = parsers.parse_ren(fx("ren_afrr_20200329_hourly.json"), spring, "afrr_price")
+    i = parsers.parse_ren(fx("ren_imbalance_20201025_hourly.json"), autumn, "imbalance_price")
+    assert (len(a), set(a.resolution_min)) == (25, {60}) and (len(s), set(s.resolution_min)) == (23, {60})
+    assert len(i) == 25 and a.start_utc.iloc[0] == "2020-10-24T22:00:00Z" and a.start_utc.iloc[-1] == "2020-10-25T22:00:00Z"
+    assert validate_day("afrr_price", a, autumn).ok and validate_day("afrr_price", s, spring).ok
+    assert validate_day("imbalance_price", i, autumn).ok
+
+
+def test_ren_row_count_that_is_neither_hourly_nor_quarterly_is_still_rejected():
+    import json
+    rows = json.loads(fx("ren_afrr_20201025_hourly.json").decode("utf-8"))
+    if isinstance(rows, str):
+        rows = json.loads(rows)
+    with pytest.raises(parsers.ParseError):
+        parsers.parse_ren(json.dumps(rows[:20]).encode(), dt.date(2020, 10, 25), "afrr_price")
