@@ -1,0 +1,115 @@
+# =============================================================================
+# Feature catalogue (Phase 7 of docs/ML_Forecasting_Plan.pdf)
+#
+# Every feature the models may use: what it is, how it is built (kind + params, implemented once in
+# common_layer/feature_engineering/builder.py and used for training, evaluation and live prediction), and its
+# `version`. What a feature READS and WHEN that is known is not typed here: it is derived from kind and params
+# (catalogue.requirements) and checked against each target's information set in config/forecast_formulation.yaml.
+# A feature is available for a target only if everything it reads is known at that target's as-of time.
+#
+# Kinds and their params
+#   calendar_hour    field: hour | hour_sin | hour_cos
+#   calendar_day     field: any key of calendar.day_features (dow, month, is_holiday_pt, ...)
+#   modelled_lag     lag_days            the modelled quantity (level, or spread) k days earlier, same hour
+#   modelled_roll    window_days, stat (mean|std|min|max), scope (hour|day), [end_lag_days = 1]   over the days before D
+#   modelled_yday    stat (mean|max|min), [lag_days = 1]   the daily statistic of the modelled quantity k days earlier
+#   base_now         field (value|dev|day_mean|day_max|day_min|rank|shape)   the base price of day D (spread targets)
+#   base_lag         lag_days            the base price k days earlier, same hour
+#   base_change      lag_days            base price of D minus k days earlier
+#   series_value     col, day_offset     a panel series at day D+offset, same hour
+#   series_spread    col, base_col, day_offset   col minus base_col at day D+offset, same hour
+#   series_day_stat  col, day_offset, stat      a daily statistic of a series, repeated for each hour
+#   fundamental      (not built) status: not_collected, blocked_on: the data source still to be set up
+# =============================================================================
+version: 1
+
+features:
+  # ---------------------------------------------------------------- calendar and market rules
+  - {id: cal_hour,              group: calendar, kind: calendar_hour, params: {field: hour},     version: 1, description: "hour of day, market time (0-23)"}
+  - {id: cal_hour_sin,          group: calendar, kind: calendar_hour, params: {field: hour_sin}, version: 1, description: "sine of the hour angle"}
+  - {id: cal_hour_cos,          group: calendar, kind: calendar_hour, params: {field: hour_cos}, version: 1, description: "cosine of the hour angle"}
+  - {id: cal_dow,               group: calendar, kind: calendar_day, params: {field: dow},      version: 1, description: "day of week (0 = Monday)"}
+  - {id: cal_month,             group: calendar, kind: calendar_day, params: {field: month},    version: 1, description: "calendar month"}
+  - {id: cal_is_weekend,        group: calendar, kind: calendar_day, params: {field: is_weekend}, version: 1, description: "Saturday or Sunday"}
+  - {id: cal_doy_sin,           group: calendar, kind: calendar_day, params: {field: doy_sin},  version: 1, description: "annual cycle, sine"}
+  - {id: cal_doy_cos,           group: calendar, kind: calendar_day, params: {field: doy_cos},  version: 1, description: "annual cycle, cosine"}
+  - {id: cal_is_holiday_pt,     group: calendar, kind: calendar_day, params: {field: is_holiday_pt}, version: 1, description: "national holiday in Portugal"}
+  - {id: cal_is_holiday_es,     group: calendar, kind: calendar_day, params: {field: is_holiday_es}, version: 1, description: "national holiday in Spain"}
+  - {id: cal_is_bridge_pt,      group: calendar, kind: calendar_day, params: {field: is_bridge_pt}, version: 1, description: "bridge day (Monday before a Tuesday holiday, Friday after a Thursday holiday), Portugal"}
+  - {id: cal_is_bridge_es,      group: calendar, kind: calendar_day, params: {field: is_bridge_es}, version: 1, description: "bridge day, Spain"}
+  - {id: cal_days_to_holiday_pt,    group: calendar, kind: calendar_day, params: {field: days_to_holiday_pt}, version: 1, description: "days to the next Portuguese holiday (capped at 30)"}
+  - {id: cal_days_since_holiday_pt, group: calendar, kind: calendar_day, params: {field: days_since_holiday_pt}, version: 1, description: "days since the last Portuguese holiday (capped at 30)"}
+  - {id: cal_dst_day_type,      group: calendar, kind: calendar_day, params: {field: dst_day_type}, version: 1, description: "-1 spring day (23 h), 0 normal, +1 autumn day (25 h)"}
+  - {id: rule_da_resolution_min, group: market_rule, kind: calendar_day, params: {field: da_resolution_min}, version: 1, description: "day-ahead product length in force (60 or 15 minutes)"}
+  - {id: rule_price_floor,      group: market_rule, kind: calendar_day, params: {field: price_floor_eur_mwh}, version: 1, description: "harmonised price floor in force"}
+
+  # ------------------------------------------------------------ the modelled quantity: lags and rolling statistics
+  - {id: y_lag_1d,   group: lag, kind: modelled_lag, params: {lag_days: 1},  version: 1, description: "same hour yesterday"}
+  - {id: y_lag_2d,   group: lag, kind: modelled_lag, params: {lag_days: 2},  version: 1, description: "same hour two days ago"}
+  - {id: y_lag_7d,   group: lag, kind: modelled_lag, params: {lag_days: 7},  version: 1, description: "same hour one week ago"}
+  - {id: y_lag_14d,  group: lag, kind: modelled_lag, params: {lag_days: 14}, version: 1, description: "same hour two weeks ago"}
+  - {id: y_roll_mean_7d_hour,  group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: mean, scope: hour}, version: 1, description: "mean of the same hour over the previous 7 days"}
+  - {id: y_roll_std_7d_hour,   group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: std,  scope: hour}, version: 1, description: "standard deviation of the same hour over the previous 7 days"}
+  - {id: y_roll_min_7d_hour,   group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: min,  scope: hour}, version: 1, description: "minimum of the same hour over the previous 7 days"}
+  - {id: y_roll_max_7d_hour,   group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: max,  scope: hour}, version: 1, description: "maximum of the same hour over the previous 7 days"}
+  - {id: y_roll_mean_28d_hour, group: rolling, kind: modelled_roll, params: {window_days: 28, stat: mean, scope: hour}, version: 1, description: "mean of the same hour over the previous 28 days"}
+  - {id: y_roll_mean_7d_all,   group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: mean, scope: day},  version: 1, description: "mean of all hours of the previous 7 days (the recent level)"}
+  - {id: y_roll_std_7d_all,    group: rolling, kind: modelled_roll, params: {window_days: 7,  stat: std,  scope: day},  version: 1, description: "standard deviation of all hours of the previous 7 days (recent volatility)"}
+  # the same windows ending two or three days back, for targets whose own series is published later
+  - {id: y_roll_mean_7d_hour_e2, group: rolling, kind: modelled_roll, params: {window_days: 7, stat: mean, scope: hour, end_lag_days: 2}, version: 1, description: "mean of the same hour over the 7 days ending two days back"}
+  - {id: y_roll_mean_7d_all_e2,  group: rolling, kind: modelled_roll, params: {window_days: 7, stat: mean, scope: day,  end_lag_days: 2}, version: 1, description: "recent level: mean of all hours of the 7 days ending two days back"}
+  - {id: y_roll_std_7d_all_e2,   group: rolling, kind: modelled_roll, params: {window_days: 7, stat: std,  scope: day,  end_lag_days: 2}, version: 1, description: "recent volatility, window ending two days back"}
+  - {id: y_roll_mean_7d_hour_e3, group: rolling, kind: modelled_roll, params: {window_days: 7, stat: mean, scope: hour, end_lag_days: 3}, version: 1, description: "mean of the same hour over the 7 days ending three days back"}
+  - {id: y_roll_mean_7d_all_e3,  group: rolling, kind: modelled_roll, params: {window_days: 7, stat: mean, scope: day,  end_lag_days: 3}, version: 1, description: "recent level, window ending three days back"}
+  - {id: y_roll_std_7d_all_e3,   group: rolling, kind: modelled_roll, params: {window_days: 7, stat: std,  scope: day,  end_lag_days: 3}, version: 1, description: "recent volatility, window ending three days back"}
+  - {id: y_day_mean_lag2d, group: rolling, kind: modelled_yday, params: {stat: mean, lag_days: 2}, version: 1, description: "daily mean two days ago"}
+  - {id: y_day_mean_lag3d, group: rolling, kind: modelled_yday, params: {stat: mean, lag_days: 3}, version: 1, description: "daily mean three days ago"}
+  - {id: y_yday_mean, group: rolling, kind: modelled_yday, params: {stat: mean}, version: 1, description: "yesterday's daily mean"}
+  - {id: y_yday_max,  group: rolling, kind: modelled_yday, params: {stat: max},  version: 1, description: "yesterday's daily maximum"}
+  - {id: y_yday_min,  group: rolling, kind: modelled_yday, params: {stat: min},  version: 1, description: "yesterday's daily minimum"}
+
+  # ---------------------------------------------- the base (day-ahead) price of day D, for the spread targets
+  - {id: base_value,     group: base, kind: base_now, params: {field: value},    version: 1, description: "day-ahead price of this hour"}
+  - {id: base_dev,       group: base, kind: base_now, params: {field: dev},      version: 1, description: "day-ahead price minus the day's mean"}
+  - {id: base_day_mean,  group: base, kind: base_now, params: {field: day_mean}, version: 1, description: "day-ahead daily mean"}
+  - {id: base_day_max,   group: base, kind: base_now, params: {field: day_max},  version: 1, description: "day-ahead daily maximum"}
+  - {id: base_day_min,   group: base, kind: base_now, params: {field: day_min},  version: 1, description: "day-ahead daily minimum"}
+  - {id: base_rank,      group: base, kind: base_now, params: {field: rank},     version: 1, description: "rank of this hour's day-ahead price within the day (0-1)"}
+  - {id: base_shape,     group: base, kind: base_now, params: {field: shape},    version: 1, description: "mean of hours 11-15 minus mean of hours 19-21 of the day-ahead price (solar dip against evening ramp)"}
+  - {id: base_lag_1d,    group: base, kind: base_lag, params: {lag_days: 1},     version: 1, description: "day-ahead price of the same hour yesterday"}
+  - {id: base_change_1d, group: base, kind: base_change, params: {lag_days: 1},  version: 1, description: "day-ahead price minus the same hour yesterday"}
+
+  # ------------------------------------------------ day-ahead market results published with the price
+  - {id: dar_vol_total_d0,      group: market_result, kind: series_value, params: {col: da_vol_total,      day_offset: 0}, version: 1, description: "Iberian matched volume of the day (demand proxy), day D"}
+  - {id: dar_flow_pt_to_es_d0,  group: market_result, kind: series_value, params: {col: da_flow_pt_to_es,  day_offset: 0}, version: 1, description: "Portugal-to-Spain flow, day D"}
+  - {id: dar_flow_es_to_pt_d0,  group: market_result, kind: series_value, params: {col: da_flow_es_to_pt,  day_offset: 0}, version: 1, description: "Spain-to-Portugal flow, day D"}
+  - {id: dar_vol_pt_buy_d0,     group: market_result, kind: series_value, params: {col: da_vol_pt_buy,     day_offset: 0}, version: 1, description: "Portuguese purchases, day D"}
+  - {id: dar_vol_pt_sell_d0,    group: market_result, kind: series_value, params: {col: da_vol_pt_sell,    day_offset: 0}, version: 1, description: "Portuguese sales, day D"}
+  - {id: dar_es_minus_pt_d0,    group: market_result, kind: series_spread, params: {col: da_es, base_col: da_pt, day_offset: 0}, version: 1, description: "Spanish minus Portuguese price (market splitting), day D"}
+  - {id: dar_vol_total_lag1d,     group: market_result, kind: series_value, params: {col: da_vol_total,     day_offset: -1}, version: 1, description: "matched volume, same hour yesterday"}
+  - {id: dar_flow_pt_to_es_lag1d, group: market_result, kind: series_value, params: {col: da_flow_pt_to_es, day_offset: -1}, version: 1, description: "Portugal-to-Spain flow, same hour yesterday"}
+  - {id: dar_flow_es_to_pt_lag1d, group: market_result, kind: series_value, params: {col: da_flow_es_to_pt, day_offset: -1}, version: 1, description: "Spain-to-Portugal flow, same hour yesterday"}
+  - {id: dar_es_minus_pt_lag1d,   group: market_result, kind: series_spread, params: {col: da_es, base_col: da_pt, day_offset: -1}, version: 1, description: "Spanish minus Portuguese price, same hour yesterday"}
+
+  # ------------------------------------------------ other markets: earlier auctions of the day, and lags
+  - {id: ida1_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA1 minus day-ahead, day D (known after the IDA1 result)"}
+  - {id: ida2_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida2_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA2 minus day-ahead, day D (known after the IDA2 result)"}
+  - {id: ida1_spread_lag1d, group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: -1}, version: 1, description: "IDA1 minus day-ahead, same hour yesterday"}
+  - {id: ida2_spread_lag1d, group: cross_market, kind: series_spread, params: {col: ida2_pt, base_col: da_pt, day_offset: -1}, version: 1, description: "IDA2 minus day-ahead, same hour yesterday"}
+  - {id: ida3_spread_lag2d, group: cross_market, kind: series_spread, params: {col: ida3_pt, base_col: da_pt, day_offset: -2}, version: 1, description: "IDA3 minus day-ahead, same hour two days ago"}
+  - {id: xbid_spread_lag2d, group: cross_market, kind: series_spread, params: {col: xbid_pt, base_col: da_pt, day_offset: -2}, version: 1, description: "continuous-market mean minus day-ahead, two days ago"}
+  - {id: afrr_lag_1d,       group: cross_market, kind: series_value, params: {col: afrr_up, day_offset: -1}, version: 1, description: "aFRR band price, same hour yesterday"}
+  - {id: imb_short_lag_6d,  group: cross_market, kind: series_value, params: {col: imb_short, day_offset: -6}, version: 1, description: "imbalance price (shortfall), same hour six days ago (the latest day REN has published at the as-of time)"}
+  - {id: imb_long_lag_6d,   group: cross_market, kind: series_value, params: {col: imb_long,  day_offset: -6}, version: 1, description: "imbalance price (surplus), same hour six days ago"}
+  - {id: mfrr_lag_3d,       group: cross_market, kind: series_value, params: {col: mfrr_ap,   day_offset: -3}, version: 1, description: "mFRR activation price, same hour three days ago"}
+
+  # ------------------------------------------------ fundamentals: defined, not yet built (data not collected)
+  - {id: fund_load_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead load forecast for the hour"}
+  - {id: fund_wind_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead wind generation forecast"}
+  - {id: fund_solar_forecast,  group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead solar generation forecast"}
+  - {id: fund_residual_load,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "load minus wind minus solar forecast (the main driver of the hourly price shape)"}
+  - {id: fund_gas_ttf,         group: fundamental, kind: fundamental, status: not_collected, blocked_on: fuel_carbon, version: 1, description: "gas price (TTF), latest end-of-day value known at the as-of time"}
+  - {id: fund_carbon_eua,      group: fundamental, kind: fundamental, status: not_collected, blocked_on: fuel_carbon, version: 1, description: "carbon price (EUA), latest end-of-day value"}
+  - {id: fund_hydro_level,     group: fundamental, kind: fundamental, status: not_collected, blocked_on: reservoir_levels, version: 1, description: "reservoir levels (Iberian hydro reserves)"}
+  - {id: fund_ghi_forecast,    group: fundamental, kind: fundamental, status: not_collected, blocked_on: weather_forecast, version: 1, description: "forecast global horizontal irradiance for the hour"}
+  - {id: fund_temp_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: weather_forecast, version: 1, description: "forecast air temperature for the hour (heating and cooling demand)"}

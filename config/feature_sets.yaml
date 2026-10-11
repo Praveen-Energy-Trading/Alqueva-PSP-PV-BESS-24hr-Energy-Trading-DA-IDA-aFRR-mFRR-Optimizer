@@ -1,0 +1,25 @@
+# =============================================================================
+# Feature sets (Phase 7): named, versioned selections from config/feature_catalogue.yaml.
+#
+#   baseline_v1  a small starting set (the lags, base price and calendar the first models used)
+#   full_v1      every active feature that is available for the target (resolved per target)
+#   selected_v1  the features that passed the stability check across periods (written by
+#                tools/run_feature_selection.py from development data only; empty until it has run)
+#
+# The version of a set used in a run is the hash of its features' definitions (kind, params, version), so a
+# change to a feature is a new version, never a silent edit. Used by common_layer/forecast_evaluation.
+# =============================================================================
+version: 1
+
+feature_sets:
+  baseline_v1:
+    description: "calendar basics, lags of the modelled quantity, base price for spread targets"
+    features: [cal_hour, cal_dow, cal_month, cal_is_weekend,
+               y_lag_1d, y_lag_2d, y_lag_7d, y_roll_mean_7d_hour, y_yday_mean,
+               base_value, base_dev]
+  full_v1:
+    description: "every active catalogue feature available for the target"
+    features: all_available
+  selected_v1:
+    description: "stability-selected features per target (development data only), read from config/feature_selection_results.yaml"
+    features: from_selection

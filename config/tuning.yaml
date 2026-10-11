@@ -1,0 +1,78 @@
+# =============================================================================
+# Hyper-parameter tuning, ensembling and schedule comparison (Phase 9 of docs/ML_Forecasting_Plan.pdf)
+#
+# Tuning is NESTED and TIME-AWARE: for each outer fold of the rolling backtest (config/evaluation.yaml) only that
+# fold's training window is used. Its latest `validation_days` form the inner validation set, separated from the inner
+# training days by the same gap as the outer folds; `n_iter` settings are drawn at random from the search space below,
+# fitted on the inner training days and scored on the inner validation days in price units; the best is refitted on the
+# whole training window. The search is repeated once `retune_every_days` of history have passed, so every choice uses
+# only data known when it was made, and the test period is never touched.
+# =============================================================================
+version: 1
+
+search:
+  n_iter: 12
+  validation_days: 90
+  gap_days: 1                 # between the inner training days and the inner validation days
+  retune_every_days: 180
+  metric: mae                 # mae or rmse (price units) used to pick the best setting on the inner validation set
+  seed: 0
+
+# Search spaces. Loss functions are searched as settings: squared error follows spikes and negative-price hours,
+# absolute error and Huber follow the typical day. Trees and forests keep squared error (the absolute-error
+# criterion is orders of magnitude slower and not stable enough to search).
+space:
+  decision_tree:
+    max_depth: [4, 6, 8, 12, 16]
+    min_samples_leaf: [5, 10, 20, 50, 100]
+  random_forest:
+    n_estimators: [100, 200]
+    max_features: [0.3, 0.5, 0.8, 1.0]
+    min_samples_leaf: [3, 5, 10, 20]
+    max_depth: [12, 20, null]
+  gradient_boosting:
+    loss: [squared_error, absolute_error, huber]
+    n_estimators: [150, 300, 500]
+    learning_rate: [0.03, 0.05, 0.1]
+    max_depth: [3, 4, 5, 6]
+    subsample: [0.7, 0.9]
+  xgboost:
+    objective: ["reg:squarederror", "reg:absoluteerror", "reg:pseudohubererror"]
+    n_estimators: [150, 300, 500]
+    learning_rate: [0.03, 0.05, 0.1]
+    max_depth: [3, 5, 7]
+    subsample: [0.7, 0.9]
+    colsample_bytree: [0.6, 0.8, 1.0]
+    min_child_weight: [1, 5, 10]
+    reg_lambda: [1.0, 5.0, 20.0]
+  lightgbm:
+    objective: [regression, regression_l1, huber]
+    n_estimators: [150, 300, 500]
+    learning_rate: [0.03, 0.05, 0.1]
+    num_leaves: [15, 31, 63]
+    min_child_samples: [20, 50, 100]
+    subsample: [0.7, 0.9]
+    colsample_bytree: [0.6, 0.8, 1.0]
+    reg_lambda: [0.0, 5.0, 20.0]
+
+# ---- forecast combinations of the tree models (weights use only errors known at the as-of time)
+ensembles:
+  methods: [mean, median, trimmed_mean, inverse_error, top3_mean]
+  inverse_error:
+    window_days: 28           # trailing window of daily absolute errors
+    lag_days: 2               # errors of the latest `lag_days` days are not yet known at the forecast time
+  top3_mean:
+    window_days: 28
+    lag_days: 2
+
+# ---- calibration window and retraining frequency comparison (tools/run_schedule_comparison.py)
+schedule_comparison:
+  model: lightgbm
+  reference: {train_window_days: 730, retrain_every_days: 30}
+  variants:
+    - {train_window_days: 365,  retrain_every_days: 30}
+    - {train_window_days: 730,  retrain_every_days: 30}
+    - {train_window_days: 1095, retrain_every_days: 30}
+    - {train_window_days: null, retrain_every_days: 30}     # expanding window
+    - {train_window_days: 730,  retrain_every_days: 7}
+    - {train_window_days: 730,  retrain_every_days: 90}

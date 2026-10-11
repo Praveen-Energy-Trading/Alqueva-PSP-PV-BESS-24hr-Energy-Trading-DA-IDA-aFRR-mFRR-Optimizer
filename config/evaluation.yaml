@@ -1,0 +1,52 @@
+# =============================================================================
+# Evaluation framework (Phase 6 of docs/ML_Forecasting_Plan.pdf)
+#
+# One contract for scoring every forecaster of every target: rolling-origin backtests, a locked final test
+# period, three point metrics (SSE, MAE, RMSE) and a Diebold-Mariano comparison. Read by
+# common_layer/forecast_evaluation. Metrics are always computed on PRICES in EUR/MWh (or EUR/MW/h for the
+# reserve band), never on a transformed scale: a model trained on asinh(price) is judged in euros.
+# =============================================================================
+version: 1
+
+# ---- time windows (delivery days, inclusive)
+development:
+  first_origin: "2021-01-02"      # earliest forecast day (needs min_train_days of history from 2020-01-01)
+  test_start:   "2023-01-01"      # development scoring starts here
+  test_end:     "2025-10-11"      # development scoring ends before the locked period
+locked_test:
+  start: "2025-10-12"             # the latest 12 months at the time of locking: one full seasonal cycle in the
+  end:   "2026-10-11"             # current regime (15-minute day-ahead era). Nobody tunes on this period.
+  # Fill in by tools/evaluate_forecaster.py --lock once the data for the period is final; later runs check it.
+  data_digest: null
+
+# ---- retraining schedule (what would have happened live)
+schedule:
+  retrain_every_days: 30          # a model is refitted every 30 delivery days
+  gap_days: 1                     # training targets end this many days before the first day the model predicts
+  min_train_days: 365
+  train_window_days: 730          # rolling window; null = expanding
+
+# ---- metrics
+metrics:
+  point: [sse, mae, rmse]
+  groupings: [overall, hour_of_day, month, period]
+
+# ---- comparison of two forecasters on the same days
+comparison:
+  test: diebold_mariano
+  loss: absolute                  # absolute or squared error
+  aggregate: daily                # one loss difference per delivery day (24 hours are not independent)
+  hac_lags: 7
+  small_sample: hln               # Harvey-Leybourne-Newbold correction
+
+# ---- the model family: tree algorithms only. Every one is scored on the same folds, days and information,
+# and compared (Diebold-Mariano) with the reference model.
+models:
+  candidates: [decision_tree, random_forest, gradient_boosting, xgboost, lightgbm]
+  reference: decision_tree
+  feature_set: baseline_v1          # a set from config/feature_sets.yaml; its version hash is printed in every report
+
+# ---- the locked period may be scored only with --final; every access is logged
+guards:
+  access_log: runtime/evaluation/locked_test_access.jsonl
+  max_final_runs_per_forecaster: 1

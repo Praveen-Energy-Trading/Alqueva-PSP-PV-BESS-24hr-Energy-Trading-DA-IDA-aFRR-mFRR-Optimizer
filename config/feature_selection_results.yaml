@@ -1,0 +1,125 @@
+generated_by: tools/run_feature_selection.py
+targets:
+  afrr_cap_price:
+    candidates: 53
+    feature_set_version: 5680d386153d
+    mean_rank_correlation: 0.38
+    periods:
+    - y2021
+    - y2022
+    - y2023
+    - y2024
+    - y2025
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - cal_dow
+    - y_lag_1d
+    - y_roll_mean_28d_hour
+    - y_yday_mean
+    - dar_flow_es_to_pt_d0
+    - afrr_lag_1d
+  da_price:
+    candidates: 51
+    feature_set_version: d22aba3712e8
+    mean_rank_correlation: 0.436
+    periods:
+    - y2021
+    - y2022
+    - y2023
+    - y2024
+    - y2025
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - cal_hour_cos
+    - cal_dow
+    - y_lag_1d
+    - y_lag_7d
+    - y_roll_mean_7d_hour
+    - y_yday_max
+  ida1_price:
+    candidates: 63
+    feature_set_version: cde86c5c7b20
+    mean_rank_correlation: 0.186
+    periods:
+    - block1
+    - block2
+    - block3
+    - block4
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - y_day_mean_lag3d
+    - base_value
+    - base_dev
+    - dar_es_minus_pt_d0
+  ida2_price:
+    candidates: 64
+    feature_set_version: 1823a3452c38
+    mean_rank_correlation: 0.212
+    periods:
+    - block1
+    - block2
+    - block3
+    - block4
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - base_value
+    - base_dev
+    - ida1_spread_d0
+  ida3_price:
+    candidates: 65
+    feature_set_version: 96639f04e01c
+    mean_rank_correlation: 0.32
+    periods:
+    - block1
+    - block2
+    - block3
+    - block4
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - ida1_spread_d0
+    - ida2_spread_d0
+  mfrr_price:
+    candidates: 35
+    feature_set_version: 2423bec2d57d
+    mean_rank_correlation: 0.276
+    periods:
+    - block1
+    - block2
+    - block3
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - cal_hour_sin
+    - cal_dow
+    - dar_vol_total_d0
+    - dar_vol_total_lag1d
+  xbid_price:
+    candidates: 51
+    feature_set_version: 2b7ee5e63507
+    mean_rank_correlation: 0.27
+    periods:
+    - block1
+    - block2
+    - block3
+    - block4
+    rule:
+      min_period_fraction: 0.75
+      min_share: 0.01
+    selected:
+    - cal_hour
+    - y_day_mean_lag2d
+    - base_dev
+    - base_change_1d
+    - ida1_spread_d0
+version: 1

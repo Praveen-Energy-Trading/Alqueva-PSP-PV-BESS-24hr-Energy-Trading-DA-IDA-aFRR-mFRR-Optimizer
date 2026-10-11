@@ -1,0 +1,37 @@
+# =============================================================================
+# Feature selection with stability checks (Phase 7)
+#
+# Used by tools/run_feature_selection.py. Development data only: every period lies before the locked test period
+# (config/evaluation.yaml). In each period a LightGBM model is trained on the first `train_fraction` of the days and
+# the error increase from shuffling each feature is measured on the remaining days, in price units (permutation
+# importance). A feature is selected if its share of the total positive importance is at least `min_share` in at
+# least `min_period_fraction` of the periods. Permutation importance splits credit between correlated features, so
+# a feature can fall below the threshold only because a close relative carries the signal.
+# =============================================================================
+version: 1
+
+periods:
+  - {id: y2021, start: "2021-02-01", end: "2021-12-31"}
+  - {id: y2022, start: "2022-01-01", end: "2022-12-31"}
+  - {id: y2023, start: "2023-01-01", end: "2023-12-31"}
+  - {id: y2024, start: "2024-01-01", end: "2024-12-31"}
+  - {id: y2025, start: "2025-01-01", end: "2025-10-11"}
+
+# Targets whose labelled history starts after the first configured period (the intraday and reserve markets begin in
+# mid-2024) use consecutive blocks of `auto_block_days` cut from their own development history instead.
+auto_block_days: 100
+min_block_days: 80
+
+train_fraction: 0.7
+permutation_repeats: 3
+min_share: 0.01
+min_period_fraction: 0.75
+seed: 0
+
+learner:
+  n_estimators: 200
+  learning_rate: 0.05
+  num_leaves: 15
+  subsample: 0.8
+  subsample_freq: 1
+  colsample_bytree: 0.8
