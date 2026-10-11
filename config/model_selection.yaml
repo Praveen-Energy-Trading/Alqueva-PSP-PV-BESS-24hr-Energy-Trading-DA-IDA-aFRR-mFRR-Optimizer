@@ -1,0 +1,34 @@
+# =============================================================================
+# Champion selection policy (stage 5 of docs/Model_Development_Plan.pdf)
+#
+# The rule that turns the out-of-sample comparison of the tuned algorithms (development window only) into ONE champion
+# for a target. It is written here, before the results of the stage 2 experiments exist, and the decision file records the
+# digest of this file, so a rule cannot be changed to suit a result without the change showing.
+#
+# The rule, in order (common_layer/model_development/selection.py):
+#   0. Evidence: refuse to choose if there are fewer than `min_days` delivery days or the forecasts cover less than
+#      `min_coverage` of the hours.
+#   1. Rank the candidates by the mean loss of `metric` on the same hours.
+#   2. Parsimony: the best candidate must beat `reference` (the simplest algorithm) significantly at `alpha` (one test,
+#      Diebold-Mariano on daily losses); otherwise the reference is the champion, because a more complex model that
+#      cannot be shown to be better is not worth its cost.
+#   3. Ties: every candidate that cannot be told apart from the best (Holm correction over the comparisons with the best,
+#      level `alpha`) is "tied". With one candidate left the champion is that candidate. With several, `tie_break` decides:
+#        average    the champion is the equal-weight average (`average_method`) of the tied candidates, unless that average
+#                   is significantly worse than the best single candidate, in which case it is the best single candidate
+#        simplest   the tied candidate that comes first in `complexity_order`
+#        best_mae   the candidate with the smallest mean loss, ties ignored
+# The decision lists every test used and every reason, and is reproducible from the predictions it was made from.
+# =============================================================================
+version: 1
+
+policy:
+  candidates: [decision_tree, random_forest, gradient_boosting, xgboost, lightgbm]
+  metric: mae                   # mae | rmse | sse; the tests use absolute loss for mae and squared loss for rmse and sse
+  alpha: 0.05
+  min_days: 365
+  min_coverage: 0.99
+  reference: decision_tree
+  tie_break: average            # average | simplest | best_mae
+  average_method: mean          # mean | median
+  complexity_order: [decision_tree, random_forest, gradient_boosting, xgboost, lightgbm]

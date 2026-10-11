@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS tuning_choices (
     run_key TEXT NOT NULL, attempt INTEGER NOT NULL, model TEXT NOT NULL, tuned_at TEXT NOT NULL, score REAL,
     default_score REAL, n_trials INTEGER, inner_train_days INTEGER, validation_days INTEGER, params_json TEXT,
     PRIMARY KEY (run_key, attempt, model, tuned_at));
+CREATE TABLE IF NOT EXISTS selections (
+    target TEXT NOT NULL, created_utc TEXT NOT NULL, policy_digest TEXT, source TEXT, status TEXT, champion_json TEXT,
+    decision_json TEXT, PRIMARY KEY (target, created_utc));
 CREATE TABLE IF NOT EXISTS tuning_trials (
     run_key TEXT NOT NULL, attempt INTEGER NOT NULL, model TEXT NOT NULL, tuned_at TEXT NOT NULL, trial INTEGER NOT NULL,
     params_json TEXT, score REAL, pruned INTEGER, is_default INTEGER, duplicate INTEGER, selected INTEGER,
@@ -251,6 +254,22 @@ def tuning_trials_of(run_key: str, attempt: Optional[int] = None, db_path: Optio
         return pd.read_sql_query("SELECT model, tuned_at, trial, params_json, score, pruned, is_default, duplicate, selected, "
                                  "block_scores FROM tuning_trials WHERE run_key=? AND attempt=? ORDER BY model, tuned_at, trial",
                                  con, params=(run_key, a))
+
+
+def record_selection(decision: dict, source: str = "", db_path: Optional[str] = None) -> None:
+    """Store a champion decision (from model_development.selection.select) with the digest of the policy that made it."""
+    with session(db_path) as con:
+        con.execute("INSERT INTO selections VALUES (?,?,?,?,?,?,?)",
+                    (decision["target"], dt.datetime.now(dt.timezone.utc).isoformat(), decision["policy_digest"], source,
+                     decision["status"], json.dumps(decision["champion"], sort_keys=True),
+                     json.dumps(decision, sort_keys=True, default=str)))
+
+
+def latest_selection(target: str, db_path: Optional[str] = None) -> Optional[dict]:
+    """The most recent recorded decision for a target, or None."""
+    with session(db_path) as con:
+        row = con.execute("SELECT decision_json FROM selections WHERE target=? ORDER BY created_utc DESC LIMIT 1", (target,)).fetchone()
+    return json.loads(row[0]) if row else None
 
 
 def reproducibility(db_path: Optional[str] = None) -> pd.DataFrame:
