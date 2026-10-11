@@ -11,8 +11,9 @@ Tests: `tests/test_tuning_ensembles.py` (12). Raw outputs: `runtime/analysis/pha
 On the day-ahead price, over the 1,015 development days (2023-01-01 to 2025-10-11), three things were measured, each against
 a stated reference with the Diebold–Mariano test (daily losses, HAC 7 lags, small-sample correction).
 **(a) Nested tuning helps the boosted models and costs time:** LightGBM improves from MAE 18.29 to 17.43 (p < 0.001) and
-XGBoost from 18.24 to 17.72 (p < 0.001); the random forest and gradient boosting gain a little (not significant). It took
-about 22 times longer than the untuned run (7.7 hours against 21 minutes, partly because three jobs shared the machine).
+XGBoost from 18.24 to 17.72 (p < 0.001); the random forest and gradient boosting gain a little (not significant). The tuned run
+took 7.7 hours while sharing the machine with two other jobs, and 38 minutes when repeated alone (the untuned run, which
+shared the machine, took 21 minutes; the two times are not directly comparable).
 **(b) Combinations are as good as the best single model, not clearly better:** against the best tuned model the simple
 and weighted averages differ by −0.08 to +0.12 MAE with p between 0.22 and 0.99. Against the best untuned model the
 median and the trimmed mean win by 0.15 (p 0.03–0.04), which is not convincing after five comparisons.
@@ -93,10 +94,14 @@ Calibration window and refit frequency (LightGBM, defaults; DM against 730 days 
 * One target (day-ahead price) and the development window only. The locked test period has not been touched; IDA, aFRR and
   mFRR targets have not been tuned.
 * Twelve random draws from a large space is a light search; a different seed or more draws could pick other settings.
-  The search is seeded (`config/tuning.yaml`); that a repeat reproduces the scores is being checked by the repeat run below.
+  The search is seeded (`config/tuning.yaml`), and a repeat of the whole tuned run reproduced every score to the last digit.
 * The significance tests are not adjusted for the number of comparisons made in this phase (five models, five
   combinations, six schedules).
-* The tuning log (settings chosen per model and fold) was not saved by the first run because of a defect in the tool that
-  printed it (fixed: it is now written to `tuning_log.csv`). A repeat run to recover it is in progress; this document's scores
-  do not depend on it.
+* The first run did not save its tuning log because of a defect in the tool that printed it (fixed: it is now written to
+  `tuning_log.csv`). The repeat run produced the log: six tuning rounds per model, and in all 30 the chosen setting beat the
+  defaults on the inner validation, by 1.8% (random forest) to 7.3% (XGBoost) on average. These inner gains are larger
+  than the outer gains in Section 3 (LightGBM 4.7%, XGBoost 2.8%, gradient boosting 1.1%, random forest 0.3%), as expected
+  when the best of 12 draws is judged on the same block that chose it. The loss function chosen varies by round:
+  LightGBM took the absolute-error objective in 4 of 6 rounds, XGBoost in 3 of 6, gradient boosting chose each of
+  squared, absolute and Huber twice. The log is not committed (it is in `runtime/`).
 * The expanding window grows the training time with the history; at the current size (about three years) it is acceptable.

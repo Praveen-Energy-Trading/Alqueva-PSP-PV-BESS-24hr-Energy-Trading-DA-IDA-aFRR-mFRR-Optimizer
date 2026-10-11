@@ -1,0 +1,232 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=accent,urlcolor=accent,citecolor=accent]{hyperref}
+
+\definecolor{accent}{RGB}{20,70,120}
+\definecolor{soft}{RGB}{240,244,248}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.25}
+
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{16pt}{6pt}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Model Development Plan}
+\fancyhead[R]{\small Alqueva PSP--PV--BESS Trading Optimizer}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\notebox}[2]{\par\smallskip\noindent\colorbox{soft}{\parbox{\dimexpr\linewidth-2\fboxsep}{\textbf{#1} #2}}\par}
+
+\begin{document}
+
+{\LARGE\bfseries\color{accent} Model development, tuning and selection}\\[4pt]
+{\large A plan for building the training section the way a data-science team in a company would}\\[2pt]
+{\small Written 2026-10-11. Reference document; nothing in Sections 4--6 has been built yet.}
+
+\medskip
+\hrule
+
+\section{Why this document}
+
+Two questions came up while preparing for interviews, and one decision followed from them.
+
+\begin{enumerate}
+\item \textbf{How can algorithms that have different hyperparameters be compared} (a decision tree against LightGBM, for
+      example), and how is one of them chosen to forecast a new day?
+\item \textbf{How should hyperparameter tuning be shown} so that it is a strong, defensible part of the project and not just
+      a grid search that anyone can run?
+\item \textbf{Decision:} build this as a proper section of the project, with the old fixed-settings selection replaced once
+      the new one is shown to work.
+\end{enumerate}
+
+\section{How different algorithms are compared}
+
+\subsection{The principle}
+
+The hyperparameters are never compared. Each algorithm is a different function with its own knobs (depth and leaf size for
+a tree; learning rate, number of leaves and sampling for LightGBM). What is compared is \textbf{how wrong the forecasts
+were on days the model had not seen}. A ``model'' in this comparison is the algorithm together with its tuning procedure.
+
+\subsection{The procedure}
+
+\begin{enumerate}
+\item \textbf{Tune each algorithm on its own}, using only its training window. An inner validation block (the latest days
+      of the training window, separated by a gap) picks the settings. All algorithms get the \textbf{same search effort}.
+\item \textbf{Score all tuned algorithms the same way}: rolling-forward folds, same delivery days, same data, same metrics
+      (sum of squared errors, MAE and RMSE in price units). Never a random split, which lets the future leak into the past.
+\item \textbf{Test whether a difference is real.} The lowest MAE can be luck. The Diebold--Mariano test on daily errors
+      says whether one model is better or whether the two cannot be told apart.
+\item \textbf{Use a written selection rule.} If the leading models are not significantly different, prefer an average of
+      them or the simpler model.
+\item \textbf{Score the chosen model once on a locked test period} that played no part in tuning or selection. That is
+      the honest accuracy to quote.
+\item \textbf{For a new day, use the selected algorithm refitted on the latest data}, and repeat the selection on a
+      schedule, because the best algorithm changes with the market.
+\end{enumerate}
+
+\subsection{``Which algorithm is best for one particular day?''}
+
+One day cannot answer this: a single day is mostly luck. What can be shown is how often each model wins across many
+days, hours and market regimes, and which model has been best recently. The error-weighted combination in the framework
+already uses the second idea (weights from the last 28 days of errors, lagged by two days).
+
+\subsection{Weakness to keep in mind}
+
+Equal \emph{number} of trials is not equal \emph{coverage}: LightGBM has eight settings to search and a decision tree
+two, so twelve draws cover the large space more thinly. The plan raises the budget and uses a smarter search for this
+reason.
+
+\section{Where the project stands}
+
+\subsection{What the old pipeline does}
+
+The existing price forecasters (day-ahead, IDA1--3, XBID, aFRR, mFRR) share \texttt{ml\_\allowbreak train\_\allowbreak val\_\allowbreak test\_\allowbreak common.py}. Each
+algorithm (XGBoost, LightGBM, random forest) is fitted with \textbf{fixed, hand-set} parameters, scored on
+walk-forward folds, and the lowest mean MAE is chosen. A Wilcoxon test on per-fold errors is available.
+
+\subsection{What was added in Phases 6, 7 and 9}
+
+\begin{itemize}
+\item \textbf{Phase 6:} one evaluation contract, rolling-origin backtest, Diebold--Mariano test with HAC variance, locked
+      test period, leakage check. \textbf{Phase 7:} point-in-time feature catalogue and store.
+\item \textbf{Phase 9:} nested, time-aware tuning (12 random draws, defaults always included, re-tuned every 180 days),
+      forecast combinations, and a comparison of window length and refit frequency.
+\end{itemize}
+
+\subsection{Phase 9 results on the day-ahead price (development window, 1\,015 days)}
+
+\begin{center}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Model & MAE untuned & MAE tuned & Tuned vs untuned & DM $p$ \\
+\midrule
+Decision tree     & 20.28 & 19.82 & better & 0.012 \\
+Random forest     & 18.11 & 18.06 & no clear difference & 0.46 \\
+Gradient boosting & 17.96 & 17.77 & no clear difference & 0.17 \\
+XGBoost           & 18.24 & 17.72 & better & 0.0003 \\
+LightGBM          & 18.29 & \textbf{17.43} & better & $<0.0001$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \textbf{Tuning changes the ranking.} Untuned, gradient boosting led; tuned, LightGBM leads. This is the reason a
+      comparison of fixed-setting models is not trustworthy.
+\item \textbf{Combinations} (mean, median, trimmed mean, inverse error, top three) are within 0.1 MAE of the best single
+      tuned model and cannot be told apart from it ($p$ from 0.22 to 0.99). They are insurance, not an improvement.
+\item \textbf{A longer calibration window helped as much as tuning.} LightGBM at defaults: 730 days 18.29, expanding window
+      17.56 (DM $p<0.001$). Refit every 7, 30 or 90 days made no detectable difference. Whether tuning and the longer
+      window add up is \textbf{not tested}.
+\item The tuned run took 7.7 hours while sharing the machine with two other jobs, and 38 minutes when repeated alone; the
+      repeat reproduced every score exactly. All 30 tuning rounds beat the defaults on the inner validation.
+\end{itemize}
+
+\notebox{Limits.}{One target and the development window only; the locked test period is untouched. Twelve random draws is a
+light search. The significance tests are not adjusted for the number of comparisons.}
+
+\section{Plan}
+
+The code goes in \texttt{common\_layer/model\_development/}; a showcase folder \texttt{model\_development/} holds the README
+that tells the story, the tuning logs, the figures and one script that reproduces everything. Tests in
+\texttt{tests/test\_model\_development.py}. Tree models only (decision tree, random forest, gradient boosting, XGBoost,
+LightGBM); metrics SSE, MAE and RMSE, as already decided.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.4cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{7.0cm}>{\raggedright\arraybackslash}p{4.4cm}@{}}
+\toprule
+\# & Stage & What is built & Done when \\
+\midrule
+\endhead
+1 & Experiment tracking & A local run registry (SQLite): every run stores model, feature set, window, settings, scores,
+data digest and code version. & Every number in the documents traces to a run. \\
+2 & Fair, stronger tuning & Same trial budget for every algorithm (for example 40). Smarter search (Optuna). Several
+rolling inner validation blocks instead of one 90-day block. Parallel trials. & Tuned never worse than default on
+validation; no leakage (existing tests plus new ones). \\
+3 & Tuning evidence & Log every trial. Figures: error against each setting, which settings matter, stability of choices
+across folds, default against tuned, overfitting gap (inner against outer error), time cost. & The tuning folder reads
+without running anything. \\
+4 & Algorithm comparison & Five tuned algorithms on the same days. Pairwise Diebold--Mariano matrix with Holm correction.
+Win rate by hour, month and regime. & The ranking states which differences are real. \\
+5 & Selection policy & A written rule in the config: lowest tuned MAE on the development window; if the top models are not
+significantly different, prefer an average or the simpler model. & The rule is applied by code, not by hand. \\
+6 & Locked test & The champion is scored once on the locked period; the digest is locked. & One honest number per
+target. \\
+7 & Champion registry & The fitted model, settings, feature-set version and digests are stored. A challenger replaces the
+champion only if it beats it significantly over the last $N$ days. & Live code loads the champion from the registry. \\
+8 & Monitoring and retraining & Rolling error tracking, a drift flag, re-tuning every 180 days, refit every 30 days. & A
+report shows when the champion degrades. \\
+9 & Roll-out & Repeat for DA, IDA1, IDA2, IDA3, XBID, aFRR and mFRR. & One table of champions with locked-test
+scores. \\
+10 & Replace the old selection & Switch the dashboard and the phase forecasters from fixed-setting, lowest-MAE selection to
+the registry. & Existing pipeline tests still pass. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Order and cost}
+
+Stages 1--6 on the day-ahead price first, then 7--8, then 9, and 10 last, because stage 10 changes the live pipeline.
+Compute is the main cost: a tuned run for one target at 12 trials took 38 minutes alone (7.7 hours when three jobs shared
+the machine). A larger budget needs parallel trials and re-tuning only every 180 days; the time will be measured before it
+is promised.
+
+\section{What happens to the old code}
+
+Nothing is deleted before the new section has been shown to work. The old code runs the live pipeline, and it is the
+baseline that the new framework has to beat.
+
+\begin{itemize}
+\item \textbf{Replaced at stage 10:} the fixed-settings fitting functions and lowest-MAE selection in
+      \texttt{ml\_\allowbreak train\_\allowbreak val\_\allowbreak test\_\allowbreak common.py}; the per-forecaster \texttt{*\_train\_val\_test.py} scripts; and
+      \texttt{tests/\allowbreak test\_\allowbreak model\_\allowbreak selection\_\allowbreak metrics.py}, which is rewritten for the new selection.
+\item \textbf{Kept:} the forecaster modules (they load a model and predict, but from the registry); the PV and
+      reservoir-inflow forecasters (not price targets, outside this programme unless requested); the walk-forward utilities
+      until each use has been checked.
+\item \textbf{Safe procedure:} build alongside the old code; compare old against new on the same days and record it;
+      switch one forecaster at a time, running its tests after each; delete the old code in a separate commit so it can be
+      restored from history.
+\end{itemize}
+
+\section{Decisions needed}
+
+\begin{enumerate}
+\item \textbf{Optuna} as a dependency, or stay with random search? (Recommended: Optuna.)
+\item \textbf{Registry:} a local SQLite registry, or MLflow? (Recommended: local first, with a clean path to MLflow.)
+\item \textbf{First target:} day-ahead price, or another? (Recommended: day-ahead.)
+\item \textbf{Stage 10:} agreement to change the existing phase forecasters at the end.
+\end{enumerate}
+
+\section{Short answers for an interview}
+
+\textbf{``How do you compare algorithms with different hyperparameters?''} I do not compare the hyperparameters. I tune each
+algorithm on its own with the same search effort, using only training data and a time-ordered validation block, and then I
+compare the tuned models by out-of-sample error on the same days. I test the difference with Diebold--Mariano, and if two
+models cannot be separated I average them or take the simpler one.
+
+\textbf{``How do you pick the model for a new day?''} The selected algorithm, refitted on the latest data, with a locked
+test period that was never used for selection, and a scheduled re-check, because the best algorithm changes with the
+market.
+
+\textbf{``Did tuning help?''} For LightGBM and XGBoost, yes (4.7\% and 2.8\% lower MAE, significant). For the forest and
+gradient boosting, not significantly. A longer training window helped as much as tuning, and an average of models was as
+good as the best single model.
+
+\end{document}

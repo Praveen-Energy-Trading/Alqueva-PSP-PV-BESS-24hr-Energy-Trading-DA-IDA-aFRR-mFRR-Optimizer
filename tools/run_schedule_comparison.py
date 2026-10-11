@@ -81,6 +81,20 @@ def main() -> int:
     print(f"\nreference: window {sc['reference']['train_window_days']} days, refit every {sc['reference']['retrain_every_days']} days "
           f"(negative statistic = smaller loss than the reference)")
     print(out.round(3).to_string(index=False))
+    from common_layer.model_development import registry
+    label = lambda v: f"{sc['model']}|window={v['train_window_days'] or 'expanding'}|refit={v['retrain_every_days']}"  # noqa: E731
+    r = registry.register(
+        "schedule_comparison", a.target,
+        [{"forecaster": label(v), "n": row["n"], "sse": row["sse"], "mae": row["mae"], "rmse": row["rmse"], "role": "schedule"}
+         for v, row in zip(variants, rows)],
+        stage="dev", window=(res["meta"]["test_start"], res["meta"]["test_end"]), feature_set=str(base_cfg["models"]["feature_set"]),
+        schedule={"reference": sc["reference"]}, config_digest=registry.digest_of({"schedule_comparison": sc, "evaluation": base_cfg["comparison"]}),
+        data_digest=res["meta"]["data_digest"], code_revision=res["meta"]["code"],
+        comparisons=[{"forecaster": label(v), "reference": label(sc["reference"]), "n_days": None, "mean_diff": None,
+                      "statistic": st["dm_vs_reference"], "p_value": st["p_value"]}
+                     for v, st in zip(variants, stats) if _key(v) != _key(sc["reference"])],
+        source="run_schedule_comparison", artifacts_dir=a.out)
+    print(f"registered run {r['run_key']} attempt {r['attempt']}")
     return 0
 
 

@@ -42,6 +42,7 @@ def main() -> int:
     ap.add_argument("--stage", choices=["dev", "final"], default="dev")
     ap.add_argument("--models", nargs="+", help="subset of the tree models in config/evaluation.yaml")
     ap.add_argument("--feature-set", help="feature set from config/feature_sets.yaml (default: models.feature_set)")
+    ap.add_argument("--no-register", action="store_true", help="do not record the run in the experiment registry")
     ap.add_argument("--tuned", action="store_true", help="tune each model inside every fold (config/tuning.yaml; nested, time-aware)")
     ap.add_argument("--ensembles", nargs="*", help="forecast combinations to add (default none; no names = all in config/tuning.yaml)")
     ap.add_argument("--candidate", help="module:function returning a forecaster factory(interface, cache)")
@@ -84,6 +85,11 @@ def main() -> int:
     if res.get("tuning_log") is not None:
         res["tuning_log"].to_csv(os.path.join(out, "tuning_log.csv"), index=False, float_format="%.4f")
         print(res["tuning_log"].round(3).to_string(index=False))
+    if not a.no_register:
+        from common_layer.model_development import registry
+        r = registry.register_evaluation(res, tuning_cfg=tcfg, artifacts_dir=out)
+        print(f"registered run {r['run_key']} attempt {r['attempt']}"
+              + ("" if r["reproduced"] is None else f" (same scores as earlier attempts: {r['reproduced']})"))
     return 0
 
 

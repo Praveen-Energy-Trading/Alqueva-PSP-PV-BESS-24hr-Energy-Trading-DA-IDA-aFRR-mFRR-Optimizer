@@ -254,6 +254,9 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── ensemble.py                           #   Phase 9: mean, median, trimmed mean, error-weighted combinations
 │   │   └── guards.py, backtest.py, runner.py     #   locked test period, leakage check, run and report
 │   │
+│   ├── model_development/                        #   training, tuning and selection (docs/Model_Development_Plan.pdf)
+│   │   └── registry.py                           #   stage 1: experiment registry (SQLite), reproducibility check
+│   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
 │   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
 │   │   ├── catalogue.py, builder.py              #   catalogue, derived availability, one builder for train/serve
@@ -479,6 +482,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── evaluate_forecaster.py                    #   Phase 6: score the tree models (or any forecaster) the same way
 │   ├── run_feature_selection.py                  #   Phase 7: stability-checked feature selection
 │   ├── run_schedule_comparison.py                #   Phase 9: calibration-window length and retraining frequency
+│   ├── model_registry.py                         #   list / show / check / backfill the experiment registry
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
