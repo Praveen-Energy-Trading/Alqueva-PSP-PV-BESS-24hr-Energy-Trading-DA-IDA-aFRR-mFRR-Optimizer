@@ -10,11 +10,10 @@
 # rule is written down once. Gate clock times live in config/market.yaml; here we
 # refer to gates by name. All times are CET (Europe/Madrid). D = delivery day.
 #
-# status: draft (Phase 0, 2026-10-11). Open points are listed in
-# docs/forecasting/Phase0_Forecast_Catalogue.md.
+# status: confirmed (Phase 0, 2026-10-11); see docs/forecasting/Phase0_Forecast_Catalogue.md.
 # =============================================================================
 version: 1
-status: draft
+status: confirmed   # decisions confirmed by the project owner on 2026-10-11
 
 # Information-publication times used to decide what is "known" at an as-of time.
 # (OMIE/SIDC results and REN data publication times; confirm in Phase 1.)

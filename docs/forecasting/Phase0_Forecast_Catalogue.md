@@ -88,14 +88,14 @@ From the timeline in section 2: **every gate after the day-ahead result must use
 not a forecast of it** (F2), and each later gate must also use the earlier gates' results (F3). This is a
 design rule now; the code change belongs to Phase 7 (features) and Phase 14 (serving).
 
-## 7. Open points
+## 7. Decisions (confirmed by the project owner on 2026-10-11)
 
-1. **Order of targets.** Drafted as: day-ahead price (priority 1), then IDA/XBID and aFRR (2), then PV, inflow, mFRR (3). Confirm or change.
-2. **Reserve gate hours.** The aFRR and mFRR band-market hours are set by a REN notice that is not public; the as-of rule uses "after the DA result, before IDA1". Acceptable?
-3. **Rule for F2.** Use the actual DA result at all later gates (recommended).
-4. **Imbalance and activation forecasts.** Out of scope for now (settlement uses real or fallback prices). Add later?
+1. **Order of targets:** day-ahead price first (priority 1), then IDA/XBID and aFRR (2), then PV, inflow and mFRR (3). Confirmed.
+2. **Reserve gate hours:** the as-of rule "after the DA result, before IDA1" is accepted, since the real hours are not public. Confirmed.
+3. **Rule for later gates:** every gate after the day-ahead result uses the **actual** DA result, not a forecast of it (finding F2), and later gates also use the earlier gates' results (F3). Confirmed as a design rule; the code change belongs to Phases 7 and 14.
+4. **Imbalance and activation forecasts:** out of scope for now. Confirmed.
 
 ## 8. Exit criterion
 
-Met when the points above are confirmed: a signed-off catalogue with an as-of time and a consumer for
-every target. The file and its validator are in place.
+Met: the catalogue has an as-of time and a consumer for every target, and the four points above are confirmed.
+The file and its validator are in place.

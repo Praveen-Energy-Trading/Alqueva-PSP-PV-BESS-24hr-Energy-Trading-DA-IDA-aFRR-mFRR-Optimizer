@@ -1,0 +1,312 @@
+# =============================================================================
+# Forecast data inventory (Phase 1 of docs/ML_Forecasting_Plan.pdf)
+#
+# One entry per data source, in use today or a candidate. Exit criterion of Phase 1:
+# every input has an owner, a timestamp rule, a licence note and a quality note
+# (checked by tests/test_forecast_data_inventory.py).
+#
+# status:  in_use    = the pipeline reads it today
+#          candidate = proposed for a later phase, not yet used
+#          gap       = needed but no live source exists
+# licence.status: verified | unverified (terms not found online; read the site notice)
+# vintage: does the source keep what was PUBLISHED at the time (needed for point-in-time tests)?
+# History end dates are as of 2026-10-11. All times CET.
+# =============================================================================
+version: 1
+as_of_date: "2026-10-11"
+owner_default: "project owner (Praveen)"
+
+sources:
+
+  # ------------------------------------------------------------------ in use
+  - id: omie_da
+    status: in_use
+    provider: "OMIE (MIBEL market operator)"
+    content: "Day-ahead clearing prices, Portugal and Spain (hourly; 15-minute from 2025-10-01)"
+    access: {method: "file download", url: "https://www.omie.es/sites/default/files/dados/AGNO_<YYYY>/MES_<MM>/TXT/ (marginalpdbc files)", auth: none}
+    resolution: ["hourly to 2025-09-30", "15-minute from 2025-10-01"]
+    publication: "result for day D published D-1 ~12:45 (SDAC coupling); confirm empirically from load logs"
+    history: {start: "2020-01-01", end: "2026-10-10"}
+    live_feed: true
+    loader: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/omie_da_price_loader.py
+    stored_in: ["da_training_data_2020_2026.xlsx", "da_training_data_isp_2025_2026.xlsx"]
+    licence: {status: unverified, note: "public download, no key; read the 'Aviso legal' in the omie.es footer for reuse and citation terms"}
+    cost: free
+    rate_limits: "none documented; the loader fetches one file per day"
+    vintage: partial   # results are final at publication; no revisions seen, but old files are overwritten only by OMIE
+    used_by: [da_price, ida1_price, ida2_price, ida3_price, xbid_price, afrr_cap_price, mfrr_price]
+    owner: "project owner (Praveen)"
+    quality_note: "all rows OMIE_LIVE; PT equals ES price in 93.4% of hours (market coupling); file stores exactly 24 (96) slots per day, so the 23- and 25-hour daylight-saving days are not represented as such (Phase 2)"
+    findings: [D5]
+
+  - id: omie_ida
+    status: in_use
+    provider: "OMIE / SIDC"
+    content: "Intraday auction clearing prices IDA1, IDA2, IDA3 (marginalpibcpt files, session 01/02/03)"
+    access: {method: "file download", url: "https://www.omie.es/es/file-download?parents=marginalpibcpt&filename=marginalpibcpt_<YYYYMMDD><SS>.1", auth: none}
+    resolution: ["hourly"]
+    publication: "IDA1 D-1 ~15:30, IDA2 D-1 ~22:30, IDA3 D ~10:30; confirm empirically"
+    history: {start: "2024-06-13", end: "2026-10-09"}
+    live_feed: true
+    loader: "phase_2{a,b,c}_*/ida*_price_forecasting/omie_ida*_price_loader.py"
+    stored_in: ["ida1_training_data_2024_2025.xlsx", "ida2_training_data_2024_2025.xlsx", "ida3_training_data_2024_2025.xlsx"]
+    licence: {status: unverified, note: "same as omie_da"}
+    cost: free
+    rate_limits: "none documented"
+    vintage: partial
+    used_by: [ida1_price, ida2_price, ida3_price]
+    owner: "project owner (Praveen)"
+    quality_note: "SYNTHETIC rows inside the files: IDA1 7.8%, IDA2 2.1%, IDA3 1.7% (days OMIE published empty files); three-session regime only from 2024-06-13"
+    findings: [D5]
+
+  - id: omie_xbid
+    status: in_use
+    provider: "OMIE (continuous market summary)"
+    content: "Continuous intraday per-period min/max/volume-weighted mean price; the Portuguese weighted mean (MedioPT) is used"
+    access: {method: "file download", url: "https://www.omie.es/es/file-download?parents=precios_pibcic&filename=<file>", auth: none}
+    resolution: ["hourly"]
+    publication: "published after delivery; the forecast at a window uses earlier days only"
+    history: {start: "2024-06-13", end: "2026-10-09"}
+    live_feed: true
+    loader: phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_loader.py
+    stored_in: ["xbid_training_data_2024_2025.xlsx"]
+    licence: {status: unverified, note: "same as omie_da; the free summary is not the order book (order-book depth needs a commercial EPEX SPOT subscription)"}
+    cost: free
+    rate_limits: "none documented"
+    vintage: no
+    used_by: [xbid_price]
+    owner: "project owner (Praveen)"
+    quality_note: "0.7% SYNTHETIC (hours without trades); no intra-day price path, only one summary per hour"
+    findings: [D5]
+
+  - id: ren_reserve_prices
+    status: in_use
+    provider: "REN (Portuguese TSO), mercado.ren.pt website API"
+    content: "aFRR band price (BaFRRPreco, up and down), mFRR price series (MFRRPreco, the activation energy price), imbalance price (DesvioPreco, includes the day-ahead reference)"
+    access: {method: "JSON over HTTPS", url: "https://mercadoservices.ren.pt/api/<Service>/Get<Service>?language=PT&dayQuery=<D>&monthQuery=<M>&yearQuery=<Y>", auth: "static key (X-ApiKey) copied from REN's own web pages"}
+    resolution: ["15-minute (96 per day), averaged to hourly by the loaders"]
+    publication: "not documented; band results are published after the market session"
+    history: {start: "2019-01-01 (aFRR); 2024-11-27 (mFRR)", end: "2026-10-09"}
+    live_feed: true
+    loader: "phase_3{a,b}_*/**/*_price_loader.py, phase_5c_*/ren_imbalance_price_loader.py"
+    stored_in: ["afrr_training_data_2019_2025.xlsx", "mfrr_training_data_2024_2025.xlsx"]
+    licence: {status: unverified, note: "no published terms found; this is the website's internal API, not a documented public API, so it can change or be blocked without notice"}
+    cost: free
+    rate_limits: "unknown"
+    vintage: no
+    used_by: [afrr_cap_price, mfrr_price]
+    owner: "project owner (Praveen)"
+    quality_note: "aFRR 0.1% and mFRR 2.2% SYNTHETIC rows; the aFRR product changes: national aFRR platform rules apply from 2026-04-01 and PICASSO integration is due by 2026-10-31, so the series has a regime change; REN's 'Ajustado' price is preferred over 'Inicial'"
+    findings: [D3, D5]
+
+  - id: pv_weather_history
+    status: in_use
+    provider: "unknown (file labelled PLANT_SENSOR)"
+    content: "Hourly global horizontal irradiance GHI (W/m2) and ambient temperature (C), Alqueva"
+    access: {method: "static Excel file, no downloader in the code", url: none, auth: none}
+    resolution: ["hourly"]
+    publication: "none: there is no live feed; recent days are filled by a synthetic generator (_fill_gaps)"
+    history: {start: "2015-01-01", end: "2026-06-30 (real); 2026-07-01 to 2027-03-14 synthetic"}
+    live_feed: false
+    loader: "none (phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py only reads and gap-fills)"
+    stored_in: ["pv_training_data_from_2015.xlsx"]
+    licence: {status: unverified, note: "origin unknown, so the licence is unknown"}
+    cost: unknown
+    rate_limits: n/a
+    vintage: no
+    used_by: [pv_weather]
+    owner: "project owner (Praveen)"
+    quality_note: "The label PLANT_SENSOR cannot be literal before mid-2022 (the floating PV pilot was inaugurated in July 2022); daily July GHI varies by only 11% (std/mean), so the data may be reanalysis or modelled. The last 3.3 months and the future rows are synthetic (clear-sky times a constant cloud factor)"
+    findings: [D1, D2]
+
+  - id: inflow_history
+    status: in_use
+    provider: "unknown ('Alqueva Reservoir Inflow - Guadiana River Research Dataset')"
+    content: "Daily natural inflow into the Alqueva reservoir (m3/h)"
+    access: {method: "static Excel file, no downloader in the code", url: none, auth: none}
+    resolution: ["daily"]
+    publication: "none: no live feed; later days are filled with monthly climatology"
+    history: {start: "2015-01-01", end: "2026-06-30 (research data); 174 climatology rows after"}
+    live_feed: false
+    loader: "none (reservoir_inflow_forecaster.py only reads and gap-fills)"
+    stored_in: ["inflow_training_data_from_2015.xlsx"]
+    licence: {status: unverified, note: "origin unknown"}
+    cost: unknown
+    rate_limits: n/a
+    vintage: no
+    used_by: [reservoir_inflow]
+    owner: "project owner (Praveen)"
+    quality_note: "real-looking spread (monthly std 20-65% of the mean, flood peaks to 5 million m3/h); inflow is not measured directly at Alqueva, so the series is itself an estimate; the dataset ends on the same day as the PV weather file, which suggests one bulk export"
+    findings: [D1, D2]
+
+  # --------------------------------------------------------------- candidates
+  - id: entsoe_transparency
+    status: candidate
+    provider: "ENTSO-E Transparency Platform"
+    content: "Load forecast and actual, wind and solar generation forecasts and actuals, generation by type, cross-border flows, day-ahead prices (Portugal and Spain bidding zones)"
+    access: {method: "RESTful API (XML)", url: "https://web-api.tp.entsoe.eu/api", auth: "free security token: register, then email transparency@entsoe.eu to enable API access"}
+    resolution: ["hourly or 15-minute depending on the item"]
+    publication: "day-ahead forecasts are published before the day-ahead gate; exact times per item to be confirmed for the PT/ES zones"
+    history: {start: "2015 onward for most items", end: "live"}
+    live_feed: true
+    loader: none
+    stored_in: []
+    licence: {status: verified, note: "EU Regulation 543/2013: free of charge to the public; ENTSO-E states TSO data is released under an open data licence; read the current terms before redistribution"}
+    cost: free
+    rate_limits: "400 requests per minute (documented by ENTSO-E)"
+    vintage: partial   # forecasts are stored as published; a clean per-issue archive must be checked in Phase 2
+    used_by: [da_price, ida1_price, ida2_price, ida3_price, xbid_price, pv_weather]
+    owner: "project owner (Praveen)"
+    quality_note: "Portuguese items sometimes have gaps; coverage per item to be audited in Phase 2"
+    findings: [D4]
+
+  - id: ree_esios
+    status: candidate
+    provider: "REE (Red Electrica), ESIOS"
+    content: "Spanish demand forecast, wind and solar forecasts, generation, prices (the Iberian system is coupled, so Spanish fundamentals drive Portuguese prices)"
+    access: {method: "REST API (JSON)", url: "https://api.esios.ree.es", auth: "personal token, requested by email to REE (consultasios@ree.es)"}
+    resolution: ["hourly or 15-minute"]
+    publication: "demand and wind forecasts are published for the following days; exact times to be confirmed"
+    history: {start: "varies by indicator", end: "live"}
+    live_feed: true
+    loader: none
+    stored_in: []
+    licence: {status: unverified, note: "terms to be read on the ESIOS site when the token is requested"}
+    cost: free
+    rate_limits: "unknown"
+    vintage: partial
+    used_by: [da_price, ida1_price]
+    owner: "project owner (Praveen)"
+    quality_note: "indicator identifiers differ between community guides: take them from the ESIOS indicator catalogue"
+    findings: [D4]
+
+  - id: ren_datahub
+    status: candidate
+    provider: "REN Data Hub (datahub.ren.pt)"
+    content: "Portuguese consumption (real time and forecast), production by source, 15-minute updates"
+    access: {method: "JSON API (the documented examples cover gas endpoints; electricity endpoints to be confirmed)", url: "https://datahub.ren.pt", auth: "none documented"}
+    resolution: ["15-minute"]
+    publication: "updated every 15 minutes"
+    history: {start: "to be confirmed", end: "live"}
+    live_feed: true
+    loader: none
+    stored_in: []
+    licence: {status: verified, note: "REN describes the Data Hub as open data that can be shared and used at any time; confirm the exact licence text"}
+    cost: free
+    rate_limits: "unknown"
+    vintage: no
+    used_by: [da_price]
+    owner: "project owner (Praveen)"
+    quality_note: "figures for the current day are provisional (remote metering and estimates)"
+    findings: [D4]
+
+  - id: nasa_power
+    status: candidate
+    provider: "NASA POWER"
+    content: "Hourly irradiance and meteorology reanalysis/satellite product for any coordinate (hourly from 2001)"
+    access: {method: "REST API (JSON/CSV)", url: "https://power.larc.nasa.gov/api/temporal/hourly/point", auth: none}
+    resolution: ["hourly"]
+    publication: "reanalysis with a delay of days; not a forecast"
+    history: {start: "2001", end: "a few days before today"}
+    live_feed: true
+    loader: none
+    stored_in: []
+    licence: {status: verified, note: "CC BY 4.0"}
+    cost: free
+    rate_limits: "fair use"
+    vintage: no
+    used_by: [pv_weather]
+    owner: "project owner (Praveen)"
+    quality_note: "replacement candidate for the unverified PV weather history; a reanalysis, not a plant sensor"
+    findings: [D1, D2]
+
+  - id: pvgis_cams
+    status: candidate
+    provider: "PVGIS (EU JRC) and CAMS radiation service (Copernicus)"
+    content: "Hourly satellite-based irradiance (PVGIS SARAH/ERA5 databases; CAMS from 2004)"
+    access: {method: "REST API (PVGIS CSV/JSON); CAMS needs a free SoDa account", url: "https://re.jrc.ec.europa.eu/api/ and CAMS SoDa", auth: "PVGIS none; CAMS account"}
+    resolution: ["hourly or finer"]
+    publication: "delay of days; CAMS capped at 100 requests per day"
+    history: {start: "2004", end: "a few days before today"}
+    live_feed: true
+    loader: none
+    stored_in: []
+    licence: {status: unverified, note: "PVGIS and CAMS terms not retrieved; read them before use"}
+    cost: free
+    rate_limits: "CAMS radiation service: 100 requests per day"
+    vintage: no
+    used_by: [pv_weather]
+    owner: "project owner (Praveen)"
+    quality_note: "best choice for validated satellite irradiance over Portugal"
+    findings: [D2]
+
+  - id: weather_forecast
+    status: gap
+    provider: "to be decided (numerical weather prediction, archived runs)"
+    content: "Forecast irradiance, temperature, wind, cloud cover issued before the as-of time, with the issue time stored (vintage)"
+    access: {method: "to be decided", url: none, auth: "to be decided"}
+    resolution: ["hourly"]
+    publication: "model runs at fixed hours; the as-of rule needs the run issued before D-1 11:00"
+    history: {start: "to be decided", end: "live"}
+    live_feed: false
+    loader: none
+    stored_in: []
+    licence: {status: unverified, note: "Open-Meteo free tier is non-commercial only (CC BY 4.0, 10,000 calls per day); commercial use needs a paid licence. Whether it offers archived forecast runs was not confirmed"}
+    cost: "free for non-commercial use; paid for commercial"
+    rate_limits: "Open-Meteo free tier: 10,000 per day, 5,000 per hour, 600 per minute"
+    vintage: "required"
+    used_by: [pv_weather, da_price]
+    owner: "project owner (Praveen)"
+    quality_note: "no source with stored issue times is confirmed yet; without one, forecasts of weather cannot be tested point-in-time"
+    findings: [D2, D4]
+
+  - id: fuel_carbon
+    status: gap
+    provider: "to be decided (TTF gas and EU carbon allowance daily prices)"
+    content: "Daily gas and carbon prices, drivers of marginal cost in the Iberian market"
+    access: {method: "to be decided", url: none, auth: "to be decided"}
+    resolution: ["daily"]
+    publication: "end of day"
+    history: {start: "to be decided", end: "live"}
+    live_feed: false
+    loader: none
+    stored_in: []
+    licence: {status: unverified, note: "exchange data is usually licensed; check a free source first"}
+    cost: "unknown"
+    rate_limits: unknown
+    vintage: no
+    used_by: [da_price]
+    owner: "project owner (Praveen)"
+    quality_note: "not investigated; a daily series is enough"
+    findings: [D4]
+
+  - id: reservoir_levels
+    status: gap
+    provider: "EDIA (daily bulletins) and SNIRH/APA (hydrological stations)"
+    content: "Alqueva level and stored volume, station flows, precipitation; inflow can be derived from volume change and releases"
+    access: {method: "PDF bulletins (EDIA); SNIRH site, API not confirmed", url: "https://www.edia.pt (data in brief)", auth: "none"}
+    resolution: ["daily"]
+    publication: "daily bulletin"
+    history: {start: "to be decided", end: "live"}
+    live_feed: false
+    loader: none
+    stored_in: []
+    licence: {status: unverified, note: "no reuse terms found for the EDIA bulletins; SNIRH metadata mirrors show CC BY-NC 4.0, to be confirmed on the SNIRH site"}
+    cost: free
+    rate_limits: n/a
+    vintage: no
+    used_by: [reservoir_inflow]
+    owner: "project owner (Praveen)"
+    quality_note: "PDF scraping is fragile; the derived inflow is a water-balance estimate, not a measurement"
+    findings: [D1]
+
+# -----------------------------------------------------------------------------
+# Findings of the Phase 1 data audit
+# -----------------------------------------------------------------------------
+findings:
+  D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no live feed: the real data end on 2026-06-30 and every later row is synthetic or climatology, so recent training history and the PV 'actuals' are not real"}
+  D2: {severity: medium, fix_in_phase: 2,  summary: "PV weather history has unknown provenance (label PLANT_SENSOR for 2015 onward cannot be literal); replace or validate against NASA POWER or PVGIS/CAMS, and start archiving weather forecasts with their issue time"}
+  D3: {severity: medium, fix_in_phase: 2,  summary: "REN data come from the website's internal API with a static key and no published terms or service level; build a monitored loader with a stored raw copy"}
+  D4: {severity: medium, fix_in_phase: 2,  summary: "No fundamentals are collected (load, wind and solar forecasts, gas, carbon, reservoir levels); the free candidates are ENTSO-E (token), ESIOS (token), REN Data Hub, NASA POWER, PVGIS/CAMS"}
+  D5: {severity: medium, fix_in_phase: 2,  summary: "Stored files force 24 (or 96) slots per day, so daylight-saving days with 23 or 25 hours are not represented as such; raw downloads are not kept, so the fix needs a rebuild from the source"}
+  D6: {severity: medium, fix_in_phase: 2,  summary: "No source keeps vintages (what was published at the time); our own forecasts are not archived either, so point-in-time evaluation of features and of past forecasts is not yet possible"}
