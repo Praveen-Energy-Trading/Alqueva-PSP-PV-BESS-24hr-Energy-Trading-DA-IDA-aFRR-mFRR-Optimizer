@@ -69,6 +69,11 @@ def main() -> int:
     policy = selection.load_policy(a.policy)
     preds = ev.read_predictions(a.run, a.suffix)
     d = selection.select(preds, policy, load_evaluation_config()["comparison"], a.target)
+    meta_path = os.path.join(a.run, "run.json")
+    meta = json.load(open(meta_path, encoding="utf-8")) if os.path.exists(meta_path) else {}
+    d["source"] = {"run": _rel(a.run), "suffix": a.suffix, "tuned": a.suffix == "_tuned",
+                   "schedule": {k: meta.get(k) for k in ("retrain_every_days", "gap_days", "train_window_days")},
+                   "window": [meta.get("test_start"), meta.get("test_end")]}
     os.makedirs(a.out, exist_ok=True)
     with open(os.path.join(a.out, f"{a.target}.json"), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(d, fh, indent=2, sort_keys=True)

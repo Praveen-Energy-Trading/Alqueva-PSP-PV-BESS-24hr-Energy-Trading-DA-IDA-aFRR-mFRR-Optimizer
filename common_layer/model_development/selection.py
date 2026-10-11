@@ -122,6 +122,7 @@ def select(preds: Dict[str, pd.DataFrame], policy: dict, comparison: dict, targe
                           "mean_diff": _f(r["mean_diff"]), "passed": passed}
         if not passed:
             d["champion"] = {"type": "single", "model": ref}
+            d["champion_dev_loss"] = mean_loss[ref]
             d["reasons"].append(f"{best} is not significantly better than the reference {ref} (p = {r['p_value']:.3g}, "
                                 f"alpha {alpha}); the reference is the champion")
             return d
@@ -133,6 +134,7 @@ def select(preds: Dict[str, pd.DataFrame], policy: dict, comparison: dict, targe
                         for row in vb.to_dict("records")]
     tied = cmp.top_set(vb)
     d["tied"] = sorted(tied, key=lambda m: policy["complexity_order"].index(m))
+    d["champion_dev_loss"] = mean_loss[best]
     if len(tied) == 1:
         d["champion"] = {"type": "single", "model": best}
         d["reasons"].append(f"every other algorithm is significantly worse than {best} after the Holm correction; {best} is the champion")
@@ -145,6 +147,7 @@ def select(preds: Dict[str, pd.DataFrame], policy: dict, comparison: dict, targe
     elif tb == "simplest":
         simplest = d["tied"][0]
         d["champion"] = {"type": "single", "model": simplest}
+        d["champion_dev_loss"] = mean_loss[simplest]
         d["reasons"].append(f"tie_break simplest: {simplest} is the simplest of the tied algorithms")
     else:
         combo = combine({m: prep[m] for m in d["tied"]}, policy["average_method"])
@@ -158,6 +161,7 @@ def select(preds: Dict[str, pd.DataFrame], policy: dict, comparison: dict, targe
                                 f"(p = {r['p_value']:.3g}); {best} is the champion")
         else:
             d["champion"] = {"type": "ensemble", "members": d["tied"], "method": policy["average_method"]}
+            d["champion_dev_loss"] = _f(daily_losses(combo, loss).mean())
             d["reasons"].append(f"tie_break average: the {policy['average_method']} of {', '.join(d['tied'])} is not worse than "
                                 f"{best} (mean loss difference {r['mean_diff']:+.3f}, p = {r['p_value']:.3g}); it is the champion")
     return d

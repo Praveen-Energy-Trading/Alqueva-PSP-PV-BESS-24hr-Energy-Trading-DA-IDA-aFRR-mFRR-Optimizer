@@ -258,7 +258,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── registry.py                           #   stage 1: experiment registry (SQLite), reproducibility check
 │   │   ├── evidence.py, evidence_figures.py      #   stage 3: what the tuning did, from the logged trials
 │   │   ├── comparison.py, comparison_figures.py  #   stage 4: pairwise tests with Holm correction, where each algorithm wins
-│   │   └── selection.py                          #   stage 5: champion selection policy applied by code
+│   │   ├── selection.py                          #   stage 5: champion selection policy applied by code
+│   │   └── locked_test.py                        #   stage 6: checks before, and report after, the one locked-period look
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
 │   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
@@ -489,6 +490,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── make_tuning_evidence.py                   #   stage 3: tuning figures and tables (model_development/)
 │   ├── compare_algorithms.py                     #   stage 4: algorithm comparison on the same days (model_development/)
 │   ├── select_champion.py                        #   stage 5: apply config/model_selection.yaml, write the decision
+│   ├── run_locked_test.py                        #   stage 6: preflight (dry run) and the single locked-period test
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
