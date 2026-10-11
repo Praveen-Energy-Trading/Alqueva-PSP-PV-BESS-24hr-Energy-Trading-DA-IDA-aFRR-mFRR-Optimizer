@@ -128,7 +128,7 @@ def test_the_report_tool_runs_end_to_end_and_is_repeatable(tmp_path):
         out = tmp_path / f"out{i}"
         cmd = [sys.executable, os.path.join(_REPO, "tools", "make_tuning_evidence.py"), "--tpe", str(runs["tpe"]), "--random",
                str(runs["random"]), "--untuned", str(runs["untuned"]), "--out", str(out)]
-        r = subprocess.run(cmd, capture_output=True, text=True, cwd=_REPO)
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=_REPO, stdin=subprocess.DEVNULL)
         assert r.returncode == 0, r.stderr[-1500:]
         outs.append(out)
     md = (outs[0] / "tuning_evidence.md").read_text(encoding="utf-8")
