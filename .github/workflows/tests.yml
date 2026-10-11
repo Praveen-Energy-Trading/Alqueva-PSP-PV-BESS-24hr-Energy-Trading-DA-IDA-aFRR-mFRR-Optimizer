@@ -1,5 +1,8 @@
 name: tests
 
+# NOTE: these tests are run on the author's own PC, not on GitHub. This workflow is manual-only (workflow_dispatch):
+# it no longer starts on push, pull request or schedule, and can still be started by hand from the Actions tab.
+
 # Runs the full pytest suite on every push/PR. CI runners have no CPLEX
 # license (it's commercial software), so every test that actually solves the
 # MILP skips gracefully rather than fails: each one checks
@@ -16,10 +19,7 @@ name: tests
 # license and only runs locally, not in CI.
 
 on:
-  push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+  workflow_dispatch:
 
 jobs:
   test:

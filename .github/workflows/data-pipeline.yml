@@ -1,5 +1,8 @@
 name: data-pipeline
 
+# NOTE: these tests are run on the author's own PC, not on GitHub. This workflow is manual-only (workflow_dispatch):
+# it no longer starts on push, pull request or schedule, and can still be started by hand from the Actions tab.
+
 # Phase 1 (daily data pipeline): runs its tests and the OFFLINE demo on every change to the pipeline,
 # and publishes the demo's data-quality report in the run summary. The demo replays real saved files of
 # the 25-hour day 2025-10-26 (100 quarter-hours) through all eight sources, so nothing here touches the
@@ -8,23 +11,7 @@ name: data-pipeline
 # The scheduled run (weekly) catches breakage from library updates when nobody has pushed.
 
 on:
-  push:
-    paths:
-      - "phase_1_data_pipeline/**"
-      - "common_layer/data_layer/**"
-      - "common_layer/data_quality/**"
-      - "config/data_pipeline.yaml"
-      - "config/data_quality.yaml"
-      - "config/market_regimes.yaml"
-      - "tests/test_data_layer.py"
-      - "tests/test_data_quality.py"
-      - "tests/test_phase1_pipeline.py"
-      - "tests/fixtures/**"
-      - ".github/workflows/data-pipeline.yml"
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "17 5 * * 1"
 
 jobs:
   data-pipeline:
