@@ -303,3 +303,22 @@ def test_exit_criterion_clean_zone_rebuilds_exactly_from_raw(zones, tmp_path):
     # lineage: every clean row points to the raw file it came from
     lin = rebuilt.read("da_price", lineage=True)
     assert lin.raw_sha256.str.len().eq(64).all() and (lin.parser_version == parsers.PARSER_VERSION).all()
+
+
+# ------------------------------------------- findings from the first live run
+def test_ida3_covers_only_the_last_12_hours_and_passes_the_contract():
+    ida3 = parsers.parse_omie_ida(fx("ida3_20251026.txt"), D_AUTUMN, 3)
+    assert len(ida3) == 48 and ida3.period_index.min() == 53 and ida3.period_index.max() == 100
+    assert validate_day("ida_price", ida3, D_AUTUMN).ok
+    assert not validate_day("ida_price", ida3.iloc[1:], D_AUTUMN).ok          # 47 periods
+    ida1 = parsers.parse_omie_ida(fx("ida1_20251026.txt"), D_AUTUMN, 1)
+    assert not validate_day("ida_price", ida1.iloc[48:], D_AUTUMN).ok         # IDA1 must be the full day
+
+
+def test_empty_intraday_file_is_reported_not_stored(zones):
+    raw, clean, log = zones
+    url = fetchers.url_omie_ida(dt.date(2025, 10, 27), 1)
+    http = FakeHttp({url: fx("ida1_20251027_empty.txt")})
+    out = ingest.ingest_day("omie_ida1", dt.date(2025, 10, 27), raw=raw, clean=clean,
+                            fetcher=fetcher_with(http), log=log)
+    assert out["status"] == "empty_publication" and raw.keys("omie_ida1") == []

@@ -88,6 +88,10 @@ DATASETS: Dict[str, Dataset] = {
 
 _COMMON = ("delivery_date", "period_index", "resolution_min", "start_utc")
 
+# Intraday auctions that deliver only part of the day: session -> hours covered, ending at midnight.
+# Checked on real files (2025-10-25, 2025-10-26): IDA1 and IDA2 cover the full day, IDA3 the last 12 h.
+SESSION_WINDOW_HOURS = {3: 12}
+
 
 @dataclass
 class Issue:
@@ -140,15 +144,20 @@ def validate_day(dataset: str, df: pd.DataFrame, day: dt.date) -> ContractResult
     for sess, g in groups:
         tag = f" (session {sess})" if sess is not None else ""
         resolution = int(g["resolution_min"].iloc[0])
-        want = cal.expected_periods(day, resolution)
+        full = cal.expected_periods(day, resolution)
+        # IDA3 covers only the last 12 hours of the delivery day (periods 49-96, or 53-100 on the 25 h day)
+        window_h = SESSION_WINDOW_HOURS.get(int(sess)) if sess is not None else None
+        want = window_h * 60 // resolution if window_h else full
+        first = full - want + 1
+        wanted_idx = list(range(first, full + 1))
         if len(g) != want:
             err("calendar", f"{len(g)} periods{tag}, expected {want} at {resolution} min on {day}")
             continue
-        if list(g["period_index"]) != list(range(1, want + 1)):
-            err("calendar", f"period_index{tag} is not 1..{want}")
+        if list(g["period_index"]) != wanted_idx:
+            err("calendar", f"period_index{tag} is not {first}..{full}")
             continue
         expect = [cal.period_start_utc(day, i, resolution).strftime("%Y-%m-%dT%H:%M:%SZ")
-                  for i in range(1, want + 1)]
+                  for i in wanted_idx]
         if list(g["start_utc"]) != expect:
             err("time", f"start_utc{tag} does not follow the calendar")
 

@@ -32,6 +32,10 @@ class ParseError(ValueError):
     """The raw content does not have the expected structure."""
 
 
+class EmptyPublication(ParseError):
+    """A well-formed file that says there is no data (e.g. an auction with no result that day)."""
+
+
 # ------------------------------------------------------------------ helpers
 def _num_comma(s: str) -> float:
     """Spanish number format: '1.234,56' -> 1234.56; '' -> NaN."""
@@ -149,6 +153,8 @@ def parse_omie_ida(raw: bytes, day: dt.date, session: int) -> pd.DataFrame:
             raise ParseError(f"line for {p[0]}-{p[1]}-{p[2]} in a file for {day}")
         rows[int(p[3])] = (_num_dot(p[4]), _num_dot(p[5]))
     if not rows:
+        if _decode(raw).strip().upper().startswith("MARGINALPIBCPT") and len(raw) < 200:
+            raise EmptyPublication("intraday file has a header and no price lines")
         raise ParseError("no intraday price lines")
     res = _resolution_for(day, max(rows))
     idx = sorted(rows)

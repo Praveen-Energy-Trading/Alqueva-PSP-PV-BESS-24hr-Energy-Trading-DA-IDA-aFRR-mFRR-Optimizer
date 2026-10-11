@@ -123,6 +123,8 @@ def ingest_day(source: str, day: dt.date, *, raw: RawStore, clean: CleanStore, f
 
     try:                                   # must parse as the expected file before it is kept
         spec.parse(got.content, day)
+    except parsers.EmptyPublication as exc:    # source says "no data"; not stored, so a later run re-checks
+        return done({"status": "empty_publication", "reason": str(exc), "bytes": len(got.content)})
     except Exception as exc:
         import hashlib
         return done({"status": "rejected", "reason": f"unparseable response: {exc}",
