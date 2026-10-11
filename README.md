@@ -234,6 +234,31 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── report.py                             #   Markdown quality report
 │   │   └── runner.py                             #   run all, store results, require_green()
 │   │
+│   ├── market_analysis/                          #   forecasting programme, Phase 4: exploratory analysis
+│   │   ├── panel.py                              #   all price series on one hourly UTC grid
+│   │   ├── seasonality.py, dependence.py         #   variance decomposition, ACF, stationarity, ARCH
+│   │   ├── breaks.py                             #   event tests with placebo years, data-driven changepoints
+│   │   ├── extremes.py, relationships.py         #   spikes, negative prices, spreads, correlations
+│   │   └── sample_size.py, figures.py, run.py    #   effective sample size, representativeness, figures
+│   │
+│   ├── forecast_formulation/                     #   Phase 5: how each target is posed
+│   │   ├── transforms.py                         #   asinh transform for negative prices, mean re-transform
+│   │   ├── targets.py, coherence.py              #   level/spread targets; hourly and 15-minute agree
+│   │   └── evidence.py                           #   the measurements behind each choice
+│   │
+│   ├── forecast_evaluation/                      #   Phase 6: one contract to score any forecaster
+│   │   ├── asof.py, folds.py                     #   as-of view (no leakage by construction), rolling-origin folds
+│   │   ├── metrics.py, dm.py                     #   SSE / MAE / RMSE, Diebold-Mariano test
+│   │   ├── forecasters.py, tree_models.py        #   interface; decision tree, random forest, GBM, XGBoost, LightGBM
+│   │   ├── tuning.py                             #   Phase 9: nested, time-aware hyper-parameter search per fold
+│   │   ├── ensemble.py                           #   Phase 9: mean, median, trimmed mean, error-weighted combinations
+│   │   └── guards.py, backtest.py, runner.py     #   locked test period, leakage check, run and report
+│   │
+│   ├── feature_engineering/                      #   Phase 7: features with written availability
+│   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
+│   │   ├── catalogue.py, builder.py              #   catalogue, derived availability, one builder for train/serve
+│   │   └── store.py, selection.py                #   versioned feature store, stability-checked selection
+│   │
 │   ├── gate_scheduler/
 │   │   ├── gate_scheduler.py                     #   GateScheduler — CET gate-time resolver
 │   │   └── gate_trigger_spec.py                  #   trigger definitions from market.yaml
@@ -449,6 +474,11 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 ├── tools/                                        # ── Data maintenance ──────────────────
 │   ├── ingest_market_data.py                     #   backfill / rebuild the raw and clean zones for a date range
 │   ├── run_data_quality.py                       #   quality checks + gate on the clean zone (exit 1 = red)
+│   ├── run_market_analysis.py                    #   Phase 4 tables and figures
+│   ├── run_formulation_evidence.py               #   Phase 5 measurements
+│   ├── evaluate_forecaster.py                    #   Phase 6: score the tree models (or any forecaster) the same way
+│   ├── run_feature_selection.py                  #   Phase 7: stability-checked feature selection
+│   ├── run_schedule_comparison.py                #   Phase 9: calibration-window length and retraining frequency
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
