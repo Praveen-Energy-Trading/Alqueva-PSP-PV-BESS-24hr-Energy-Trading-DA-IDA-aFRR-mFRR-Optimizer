@@ -1,0 +1,36 @@
+# =============================================================================
+# Phase 0 — daily data pipeline (phase_0_data_pipeline/run_data_pipeline.py)
+#
+# Each run: download what is new (raw zone) -> validate and build tables (clean zone)
+#           -> quality checks, daily score and report -> gate decision.
+# Safe to run as often as you like: days already stored are skipped, identical re-downloads add
+# nothing, and the last `recheck_days` days are re-checked because OMIE re-issues files.
+# =============================================================================
+version: 1
+
+# Window: from (today - lookback_days). Days already in the raw zone are skipped.
+lookback_days: 7
+recheck_days: 2                 # re-download these latest days to catch source revisions
+request_interval_s: 1.0         # pause between requests to the sources (politeness)
+
+# Newest delivery day to ask each source for, relative to today (market date).
+# Published times are approximate: day-ahead results for tomorrow appear around 13:00 CET.
+sources:
+  omie_da:        {last_day_offset: 1}     # tomorrow's day-ahead prices
+  omie_ida1:      {last_day_offset: 0}     # auctions for today have run by today
+  omie_ida2:      {last_day_offset: 0}
+  omie_ida3:      {last_day_offset: 0}
+  omie_xbid:      {last_day_offset: -1}    # continuous-market summary is final the next day
+  ren_afrr:       {last_day_offset: -1}
+  ren_mfrr:       {last_day_offset: -1}
+  ren_imbalance:  {last_day_offset: -1}
+
+# What a red quality gate does inside run_production.py:
+#   warn   the data phase reports DATA_WARN and the trading phases still run (current default,
+#          because the optimiser and the old forecasters still read their own loaders)
+#   block  the data phase FAILS and the run aborts before any trading phase
+# Switch to "block" once the first full-history quality report has been reviewed (docs/forecasting/Phase3_Data_Quality.md).
+gate_mode: warn
+
+# Quality window for the daily report: null = the whole history, or a date "YYYY-MM-DD".
+quality_since: null

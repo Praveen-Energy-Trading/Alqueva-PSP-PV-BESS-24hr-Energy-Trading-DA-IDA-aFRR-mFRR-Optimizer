@@ -56,6 +56,7 @@ export_excel: true
 #
 #  Phase   Gate                       Dependency
 #  ------  -------------------------  ---------------------------------
+#  0       Data pipeline              —   (config/data_pipeline.yaml; gate_mode warn|block)
 #  1       DA                         —
 #  2A      IDA1                       DA
 #  2B      IDA2                       IDA1
@@ -73,6 +74,7 @@ export_excel: true
 #  5D      Analytics + report         All settlements
 
 phases:
+  data:                  true    # Phase 0    — Daily data pipeline (ingest, validate, quality gate)
   da:                    true    # Phase 1    — Day-Ahead bidding (OMIE DA auction)
   ida1:                  true    # Phase 2A   — IDA1 intraday re-optimisation
   ida2:                  true    # Phase 2B   — IDA2 intraday re-optimisation

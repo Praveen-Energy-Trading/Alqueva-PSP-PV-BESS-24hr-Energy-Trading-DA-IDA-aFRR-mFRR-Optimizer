@@ -3,7 +3,7 @@ run_production.py
 =================
 Alqueva PSP-PV-BESS  24-Hour Energy Trading Pipeline Orchestrator.
 
-Runs all 20 pipeline phases in delivery order for a single date
+Runs all 21 pipeline phases in delivery order for a single date
 (XBID counted as 6 separate check-window phases, W1-W6), then 6E keeps the
 rolling 1-year real-price backtest current.
 Reads config/run.yaml for settings; every option is overridable via CLI.
@@ -36,6 +36,7 @@ COMMON CLI OVERRIDES  (no YAML edit needed)
 
 PHASE KEYS (--from-phase / --only)
 ------------------------------------
+  data  (phase 0: daily data pipeline, ingest + quality gate)
   da  ida1  ida2  ida3
   xbid_w1  xbid_w2  xbid_w3  xbid_w4  xbid_w5  xbid_w6
   afrr  mfrr  realtime
@@ -239,7 +240,7 @@ FAIL = "FAIL"
 
 # Status codes from individual run_*() functions.
 _OK_CODES   = {"SUBMITTED", "OK", "NO_CHANGE"}
-_WARN_CODES = {"NO_OFFER", "REJECTED", "BACKTEST_INCOMPLETE"}
+_WARN_CODES = {"NO_OFFER", "REJECTED", "BACKTEST_INCOMPLETE", "DATA_WARN"}
 
 # ---------------------------------------------------------------------------
 # Pipeline registry
@@ -262,6 +263,10 @@ _PHASES: List[tuple] = [
     # but NOT what REN's own document specifies for Portugal) — reverted
     # here once the real REN sequence was found and confirmed (Article 81
     # for PDVD's DA-dependency, Article 82-83 for aFRR/mFRR band markets).
+    # Phase 0 runs first: download new market data, validate it, run the quality checks and decide
+    # the gate. Whether a red gate blocks trading is set in config/data_pipeline.yaml (gate_mode);
+    # in the default "warn" mode it reports DATA_WARN and the trading phases still run.
+    ("data",                "0      Data pipeline  (ingest + quality gate)", True),
     ("da",                  "1      Day-Ahead bidding  (OMIE DA)",        True),
     ("afrr",                "2      aFRR capacity offer  (PICASSO/REN)", True),
     ("mfrr",                "3      mFRR capacity offer  (MARI)",        False),
@@ -313,6 +318,10 @@ def _dispatch(key: str, date: str, cfg, syn: bool, auto: bool) -> tuple[str, str
         if isinstance(r, dict):
             reason = r.get("reason", r.get("violations", ""))
         return FAIL, f"{st}: {reason}"
+
+    if key == "data":
+        from phase_0_data_pipeline.run_data_pipeline import run_data_phase
+        return _run(run_data_phase, date, cfg, use_synthetic=syn)
 
     if key == "da":
         from phase_1_da_day_ahead_bidding.run_da import run_da

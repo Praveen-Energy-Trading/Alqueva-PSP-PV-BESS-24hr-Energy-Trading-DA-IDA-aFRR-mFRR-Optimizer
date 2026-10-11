@@ -2,7 +2,9 @@
 
 Production-grade 24-hour MILP trading optimizer for the Alqueva hybrid energy plant (Portugal / MIBEL) — pumped-storage hydro, floating PV, and battery storage, bidding across DA, IDA, XBID, aFRR, and mFRR with full settlement and analytics.
 
-**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 20 pipeline phases · 1 shared MILP model**
+[![tests](https://github.com/Praveen-Energy-Trading/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/actions/workflows/tests.yml/badge.svg)](https://github.com/Praveen-Energy-Trading/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/actions/workflows/tests.yml) [![data-pipeline](https://github.com/Praveen-Energy-Trading/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/actions/workflows/data-pipeline.yml/badge.svg)](https://github.com/Praveen-Energy-Trading/Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/actions/workflows/data-pipeline.yml)
+
+**Python 3.10+ · IBM CPLEX (HiGHS / CBC fallback) · 21 pipeline phases (daily data pipeline + 20 trading phases) · 1 shared MILP model**
 
 **Contents:** [Pipeline Architecture](#pipeline-architecture) · [Plant](#plant) · [Market Coverage](#market-coverage) · [Quick Start](#quick-start) · [Example Run](#example-run) · [Phase Reference](#phase-reference) · [Project Structure](#project-structure) · [Outputs](#outputs) · [Design Principles](#design-principles)
 
@@ -72,7 +74,12 @@ python run_production.py --date <YYYY-MM-DD> --only da,afrr,mfrr
 
 # 7. Validate config and imports without executing anything
 python run_production.py --dry-run
+
+# 8. Daily data pipeline on its own — offline demo on a real 25-hour day, no network, no licence needed
+python phase_0_data_pipeline/run_data_pipeline.py --demo
 ```
+
+Phase 0 (the daily data pipeline) runs first inside `run_production.py`; see [`phase_0_data_pipeline/README.md`](phase_0_data_pipeline/README.md).
 
 > [!TIP]
 > **No CPLEX licence?** The pipeline auto-selects **HiGHS** (free, bundled via `highspy`) or CBC. Set solver preference in `config/solver.yaml`. Everything works out of the box.
@@ -143,6 +150,7 @@ VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day),
 
 | Phase | Entry Point | What It Does |
 |-------|------------|--------------|
+| **Phase 0, Data** | `run_data_pipeline.py` | Daily: download new OMIE / REN files into an immutable raw zone, validate against data contracts into a clean zone, quality checks + daily score + report, pass/fail gate ([details](phase_0_data_pipeline/README.md)) |
 | **Phase 1, DA** | `run_da.py` | MILP solve → physical check → risk check → trader approval → position save |
 | **Phase 2A, IDA1** | `run_ida1.py` | Re-optimise H1–H24, no-churn threshold, SIDC delta bids |
 | **Phase 2B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
@@ -175,7 +183,7 @@ VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day),
 ```
 Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │
-├── run_production.py                             # ◄ Master orchestrator — all 20 phases
+├── run_production.py                             # ◄ Master orchestrator — all 21 phases (phase 0 = data pipeline)
 │
 ├── common_layer/                                 # Shared foundation — imported by every phase
 │   ├── configuration/
@@ -208,6 +216,24 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── audit_store.py                        #   AuditStore (read-only) → audit_<date>.jsonl
 │   │   └── schema_validator.py                   #   input schema validation
 │   │
+│   ├── data_layer/                               #   Phase 0 library: market data in three zones
+│   │   ├── calendar.py                           #   true market time: UTC starts, 23/25 h and 92/100-period days
+│   │   ├── regimes.py                            #   dated market-rule changes (config/market_regimes.yaml)
+│   │   ├── raw_store.py                          #   immutable raw zone: SHA-256, versions, as-of reads
+│   │   ├── parsers.py                            #   OMIE / REN files → tidy tables (true periods)
+│   │   ├── contracts.py                          #   data contracts: structure, calendar, ranges, freshness
+│   │   ├── clean_store.py                        #   clean zone (SQLite) with lineage per row
+│   │   ├── fetchers.py                           #   polite HTTP: pacing, retries, 404 = not published
+│   │   └── ingest.py                             #   idempotent load, load log, rebuild from raw
+│   │
+│   ├── data_quality/                             #   Phase 0 library: checks, score, gate
+│   │   ├── checks.py                             #   gaps, stale/duplicate days, DST copies, cross-source, spikes (info)
+│   │   ├── scoring.py                            #   daily 0–100 score and the pass/fail gate
+│   │   ├── imputation.py                         #   per-variable fill rules that never look forward
+│   │   ├── provenance.py                         #   live / synthetic labels
+│   │   ├── report.py                             #   Markdown quality report
+│   │   └── runner.py                             #   run all, store results, require_green()
+│   │
 │   ├── gate_scheduler/
 │   │   ├── gate_scheduler.py                     #   GateScheduler — CET gate-time resolver
 │   │   └── gate_trigger_spec.py                  #   trigger definitions from market.yaml
@@ -217,6 +243,12 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │       ├── timezone_utils.py                     #   CET (OMIE) ↔ WET/CET (plant) conversions
 │       ├── date_utils.py                         #   delivery date parsing, D-1 calculations
 │       └── logging_utils.py                      #   phase-prefixed logger setup
+│
+├── phase_0_data_pipeline/                        # ── Phase 0, daily data pipeline ──────────
+│   ├── run_data_pipeline.py                      #   ingest → clean → quality → gate (CLI, --demo, run_production hook)
+│   ├── demo.py                                   #   offline stand-in for the 8 sources (real saved 25-hour day)
+│   ├── README.md                                 #   flow diagram, zones, how to read the report
+│   └── schedule/                                 #   Windows Task Scheduler script, crontab example
 │
 ├── phase_1_da_day_ahead_bidding/                 # ── Phase 1, Day-Ahead ─────────────────────
 │   ├── run_da.py                                 #   entry point
@@ -414,6 +446,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   └── pipeline_architecture.svg                 #   same diagram as scalable SVG
 │
 ├── tools/                                        # ── Data maintenance ──────────────────
+│   ├── ingest_market_data.py                     #   backfill / rebuild the raw and clean zones for a date range
+│   ├── run_data_quality.py                       #   quality checks + gate on the clean zone (exit 1 = red)
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │
 └── requirements.txt                              # pip install -r requirements.txt
