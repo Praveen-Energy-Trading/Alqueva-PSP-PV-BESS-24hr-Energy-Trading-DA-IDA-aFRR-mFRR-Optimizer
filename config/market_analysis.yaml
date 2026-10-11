@@ -1,0 +1,47 @@
+# =============================================================================
+# Market analysis settings (Phase 4 of docs/ML_Forecasting_Plan.pdf)
+#
+# Read by common_layer/market_analysis. Nothing here changes data or models; it defines which periods
+# are compared and which dates are tested for structural breaks.
+# =============================================================================
+version: 1
+
+# Named analysis periods (inclusive, delivery days). The split follows documented market events; the
+# breaks tests below check whether the data supports them.
+periods:
+  - {id: pre_crisis,        start: "2020-01-01", end: "2022-02-23", label: "2020 to Feb 2022 (before the gas crisis)"}
+  - {id: crisis_pre_cap,    start: "2022-02-24", end: "2022-06-14", label: "Gas crisis before the Iberian cap"}
+  - {id: iberian_exception, start: "2022-06-15", end: "2023-12-31", label: "Iberian gas-price cap in force"}
+  - {id: post_exception,    start: "2024-01-01", end: "2025-04-27", label: "After the cap, before the blackout"}
+  - {id: post_blackout,     start: "2025-04-28", end: "2025-09-30", label: "After the April 2025 blackout, hourly day-ahead"}
+  - {id: da_15min,          start: "2025-10-01", end: "2099-12-31", label: "15-minute day-ahead products"}
+
+# Dates tested for a shift in level and in variance, in addition to the rule changes and context events in
+# config/market_regimes.yaml (deadlines are not tested). status: to_verify = date from general knowledge.
+extra_events:
+  - {id: gas_crisis_start, date: "2022-02-24", status: to_verify, description: "Start of the 2022 gas-price crisis (Russian invasion of Ukraine)"}
+
+break_tests:
+  window_days: 60               # compare this many days before and after each event
+  min_days_each_side: 30
+  max_data_breaks: 6            # binary segmentation on the daily mean
+  min_segment_days: 45
+  match_tolerance_days: 30      # a data-driven break within this many days of an event counts as matching it
+
+dependence:
+  hourly_lags: 168              # one week
+  daily_lags: 60
+  ljung_box_lags: [24, 168]
+
+extremes:
+  negative_threshold: 0.0
+  tail_quantiles: [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]
+  hill_tail_fraction: 0.05      # upper tail share used for the Hill estimator
+  midday_local_hours: [11, 12, 13, 14, 15]    # solar-peak hours (market time)
+
+relationships:
+  min_overlap_hours: 500        # a correlation is only reported with at least this many aligned hours
+
+sample_size:
+  reference_months: 12          # the "current" regime that older years are compared with
+  ks_threshold: 0.20            # KS distance below which a past year is called similar to the reference

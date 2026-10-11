@@ -24,6 +24,11 @@ lightgbm>=4.3
 # Test suite (tests/, pytest.ini-style discovery via conftest.py).
 pytest>=8.0
 
+# Market analysis (common_layer/market_analysis, Phase 4): statistical tests, tables and figures.
+statsmodels>=0.14     # ADF / KPSS / ARCH / Ljung-Box tests, HAC regressions
+scipy>=1.11          # distributions, KS and Levene tests (also pulled in by scikit-learn)
+matplotlib>=3.8      # figures of the findings note
+
 # Dashboard (dashboard/app.py) — reads runtime/reports + runtime/logs + figures/output,
 # does not run the pipeline itself.
 streamlit>=1.51
