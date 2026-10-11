@@ -1,22 +1,30 @@
 # =============================================================================
-# Hyper-parameter tuning, ensembling and schedule comparison (Phase 9 of docs/ML_Forecasting_Plan.pdf)
+# Hyper-parameter tuning, ensembling and schedule comparison (Phase 9, and stage 2 of docs/Model_Development_Plan.pdf)
 #
 # Tuning is NESTED and TIME-AWARE: for each outer fold of the rolling backtest (config/evaluation.yaml) only that
-# fold's training window is used. Its latest `validation_days` form the inner validation set, separated from the inner
-# training days by the same gap as the outer folds; `n_iter` settings are drawn at random from the search space below,
-# fitted on the inner training days and scored on the inner validation days in price units; the best is refitted on the
-# whole training window. The search is repeated once `retune_every_days` of history have passed, so every choice uses
-# only data known when it was made, and the test period is never touched.
+# fold's training window is used. Its latest `n_blocks` blocks of `validation_days` days are inner validation sets; each
+# block is predicted by a model fitted only on the days before it (separated by `gap_days`), and the score of a setting
+# is the mean over the blocks, in price units. The best setting is refitted on the whole training window. The search is
+# repeated once `retune_every_days` of history have passed, so every choice uses only data known when it was made, and
+# the test period is never touched.
+#
+# FAIRNESS: every algorithm gets the same number of trials (`n_trials`), the first being its default settings (never
+# pruned), so a tuned model is never worse than its default on the inner validation. Equal trials are not equal
+# coverage (the grids differ in size); a grid not larger than n_trials - 1 is searched exhaustively.
 # =============================================================================
-version: 1
+version: 2
 
 search:
-  n_iter: 12
-  validation_days: 90
-  gap_days: 1                 # between the inner training days and the inner validation days
+  method: tpe                 # tpe (Optuna, seeded) or random (the control); small grids are searched exhaustively
+  n_trials: 40                # per algorithm and tuning round, the defaults included
+  validation_days: 30         # length of one inner validation block
+  n_blocks: 3                 # consecutive blocks at the end of the training window (here 3 x 30 = the last 90 days)
+  gap_days: 1                 # between the inner training days and a validation block
   retune_every_days: 180
-  metric: mae                 # mae or rmse (price units) used to pick the best setting on the inner validation set
+  metric: mae                 # mae or rmse (price units) used to score a setting
   seed: 0
+  block_jobs: 2               # the blocks after the first are fitted in parallel threads (does not change results)
+  pruning: {enabled: true, startup_trials: 5}   # median pruner after the latest block; ignored when n_blocks is 1
 
 # Search spaces. Loss functions are searched as settings: squared error follows spikes and negative-price hours,
 # absolute error and Huber follow the typical day. Trees and forests keep squared error (the absolute-error

@@ -128,8 +128,18 @@ def evaluate(target_id: str, panel: pd.DataFrame, formulation: dict, eval_cfg: d
     if out_dir:
         paths = report.write_outputs(out_dir, md, overall, {n: r.predictions for n, r in results.items()},
                                      {**meta, "written_at_utc": dt.datetime.now(dt.timezone.utc).isoformat()})
-    log_rows = [{"model": k[2], **{kk: v for kk, v in e.items() if kk != "params"}, "params": str(e["params"])}
-                for k, entries in cache.items() if isinstance(k, tuple) and k[0] == "tuning_log" for e in entries]
+    entries = [(k[2], e) for k, es in cache.items() if isinstance(k, tuple) and k[0] == "tuning_log" for e in es]
+    log_rows = [{"model": m, **{kk: v for kk, v in e.items() if kk not in ("params", "trials")}, "params": str(e["params"])}
+                for m, e in entries]
+    trial_rows = []
+    for m, e in entries:
+        for t in e.get("trials", []):
+            bs = list(t["block_scores"]) + [None] * (int(e.get("n_blocks", 1)) - len(t["block_scores"]))
+            trial_rows.append({"model": m, "tuned_at": e["tuned_at"], "trial": t["trial"], "params": str(t["params"]),
+                               "score": t["score"], "pruned": t["pruned"], "is_default": t["default"],
+                               "duplicate": t.get("duplicate", False), "selected": t.get("selected", False),
+                               **{f"block{i + 1}": v for i, v in enumerate(bs)}})
     return {"results": results, "overall": overall, "common": common_scores, "comparisons": comparisons,
             "report": md, "meta": meta, "paths": paths,
-            "tuning_log": pd.DataFrame(log_rows) if log_rows else None}
+            "tuning_log": pd.DataFrame(log_rows) if log_rows else None,
+            "tuning_trials": pd.DataFrame(trial_rows) if trial_rows else None}

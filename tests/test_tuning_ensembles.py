@@ -32,10 +32,12 @@ TCFG = load_tuning_config()
 FORM = load_forecast_formulation()
 
 
-def small_tcfg(space: dict, n_iter: int = 3, val: int = 30, retune: int = 180) -> dict:
+def small_tcfg(space: dict, n_iter: int = 3, val: int = 30, retune: int = 180, blocks: int = 1, method: str = "random",
+               model: str = "decision_tree") -> dict:
     c = copy.deepcopy(TCFG)
-    c["search"].update(n_iter=n_iter, validation_days=val, retune_every_days=retune)
-    c["space"]["decision_tree"] = space
+    c["search"].update(n_trials=n_iter, validation_days=val, n_blocks=blocks, retune_every_days=retune, method=method,
+                       block_jobs=1)
+    c["space"][model] = space
     return c
 
 
@@ -75,11 +77,12 @@ def _fit_context(view: AsOfView, train_end: dt.date, n_days: int) -> FitContext:
     return FitContext(view, days, train_end)
 
 
-def _tuned(view, space, **kw):
+def _tuned(view, space, model="decision_tree", cache=None, **kw):
     cat = load_feature_catalogue()
     iface = view.interface()
     ids = resolve_feature_set("baseline_v1", load_feature_sets(), cat, iface.spec, iface.offsets, "da_price")
-    return TunedForecaster(iface, "decision_tree", FeatureBuilder(iface, cat, ids), "v", small_tcfg(space, **kw), cache={})
+    return TunedForecaster(iface, model, FeatureBuilder(iface, cat, ids), "v", small_tcfg(space, model=model, **kw),
+                           cache={} if cache is None else cache)
 
 
 def test_tuning_uses_only_the_training_window_and_is_never_worse_than_the_defaults_on_validation():
@@ -136,6 +139,116 @@ def test_tuned_candidates_are_named_and_logged_in_a_run():
     assert list(out["overall"]["forecaster"]) == ["decision_tree_tuned"]
     log = out["tuning_log"]
     assert log is not None and (log["score"] <= log["default_score"] + 1e-12).all()
+
+
+# ------------------------------------------------------------------- stage 2: blocks, Optuna, pruning, fairness
+BIG = {"max_depth": [2, 3, 4, 5, 6, 8], "min_samples_leaf": [1, 2, 5, 10, 20, 50]}        # grid 36 > the budgets below
+
+
+def _state(m):
+    return m.cache[("tuned", "da_price", m.base_name, "v")]
+
+
+def test_several_inner_blocks_each_predicted_by_earlier_days_only():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    m = _tuned(view, BIG, n_iter=5, val=20, blocks=3, method="random")
+    m.fit(_fit_context(view, dt.date(2022, 6, 1), 140))
+    st = _state(m)
+    assert st["n_blocks"] == 3 and st["validation_days"] == 20
+    assert st["inner_train_days"] == 140 - 20 - 1                      # the latest block: the 20 days before it are held out + 1 gap
+    assert all(len(t["block_scores"]) == 3 and np.isfinite(t["block_scores"]).all() for t in st["trials"])
+    assert st["score"] == pytest.approx(min(t["score"] for t in st["trials"]))
+    for t in st["trials"]:
+        assert t["score"] == pytest.approx(np.mean(t["block_scores"]))  # the score of a setting is the mean over the blocks
+
+
+def test_blocks_that_would_leave_too_little_training_are_dropped():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    m = _tuned(view, BIG, n_iter=3, val=30, blocks=3, method="random")
+    m.fit(_fit_context(view, dt.date(2022, 6, 1), 130))                # blocks leave 99, 69 and 39 days: the third is below 60
+    assert _state(m)["n_blocks"] == 2
+
+
+def test_optuna_search_respects_the_budget_keeps_every_trial_and_never_loses_to_the_defaults():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    m = _tuned(view, BIG, n_iter=9, val=20, blocks=2, method="tpe")
+    m.fit(_fit_context(view, dt.date(2022, 6, 1), 140))
+    st = _state(m)
+    assert st["method"] == "tpe" and st["n_trials"] == 9 and len(st["trials"]) == 9
+    assert st["trials"][0]["default"] and st["trials"][0]["params"] == {} and not st["trials"][0]["pruned"]
+    assert st["score"] <= st["default_score"] + 1e-12
+    assert sum(t["selected"] for t in st["trials"]) == 1
+    for t in st["trials"]:
+        if t["pruned"]:                                                 # a pruned trial was scored on the latest block only
+            assert t["score"] is None and t["block_scores"][1] is None and not t["selected"]
+        elif not t["duplicate"] and not t["default"]:
+            assert set(t["params"]) == set(BIG)
+    assert st["n_pruned"] == sum(t["pruned"] for t in st["trials"])
+
+
+def test_a_seeded_search_is_reproducible_and_the_seed_matters():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    ctx = _fit_context(view, dt.date(2022, 6, 1), 140)
+    runs = []
+    for _ in range(2):
+        m = _tuned(view, BIG, n_iter=8, val=20, blocks=2, method="tpe")
+        m.fit(ctx)
+        runs.append([(str(t["params"]), t["score"]) for t in _state(m)["trials"]])
+    assert runs[0] == runs[1]
+    m = _tuned(view, BIG, n_iter=8, val=20, blocks=2, method="tpe")
+    m.tcfg["search"]["seed"] = 7
+    m.fit(ctx)
+    assert [str(t["params"]) for t in _state(m)["trials"]] != [r[0] for r in runs[0]]
+
+
+def test_parallel_blocks_give_the_same_result_as_sequential_blocks():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    ctx = _fit_context(view, dt.date(2022, 6, 1), 140)
+    out = []
+    for jobs in (1, 2):
+        m = _tuned(view, BIG, n_iter=6, val=20, blocks=3, method="random")
+        m.tcfg["search"]["block_jobs"] = jobs
+        m.fit(ctx)
+        out.append([(str(t["params"]), t["score"]) for t in _state(m)["trials"]])
+    assert out[0] == out[1]
+
+
+def test_a_small_grid_is_searched_exhaustively():
+    view = AsOfView(synthetic_panel(200), FORM, "da_price")
+    m = _tuned(view, {"max_depth": [2, 3, 4]}, n_iter=40, val=30, blocks=1, method="tpe")
+    m.fit(_fit_context(view, dt.date(2022, 6, 1), 120))
+    st = _state(m)
+    assert st["method"] == "exhaustive" and st["n_trials"] == 4 and st["n_unique"] == 4          # defaults + the 3 depths
+
+
+def test_every_algorithm_gets_the_same_number_of_trials():
+    view = AsOfView(synthetic_panel(240), FORM, "da_price")
+    ctx = _fit_context(view, dt.date(2022, 6, 1), 140)
+    cache: dict = {}
+    for model, space in (("decision_tree", BIG), ("random_forest", {"n_estimators": [10, 20, 30], "max_depth": [3, 4, 5, 6]})):
+        m = _tuned(view, space, model=model, cache=cache, n_iter=6, val=20, blocks=2, method="tpe")
+        m.fit(ctx)
+    n = {k[2]: v[0]["n_trials"] for k, v in cache.items() if k[0] == "tuning_log"}
+    assert n == {"decision_tree": 6, "random_forest": 6}
+
+
+def test_a_tuned_model_with_blocks_and_optuna_passes_the_leakage_check():
+    tc = small_tcfg({"max_depth": [2, 3, 4, 5, 6, 8], "min_samples_leaf": [1, 5, 20]}, n_iter=6, val=20, blocks=2, method="tpe")
+    cands = tree_candidates(["decision_tree"], tuned=True, tuning_cfg=tc)
+    diff = guards.perturbation_check(lambda v: cands["decision_tree_tuned"](v, {}), synthetic_panel(200), FORM, "da_price",
+                                     dt.date(2022, 5, 10), SCHED)
+    assert diff == pytest.approx(0.0, abs=1e-9)
+
+
+def test_the_runner_returns_every_trial():
+    tc = small_tcfg(BIG, n_iter=5, val=20, blocks=2, method="tpe")
+    cands = tree_candidates(["decision_tree"], tuned=True, tuning_cfg=tc)
+    out = evaluate("da_price", synthetic_panel(220), FORM, cfg_small(), PERIODS, "dev", cands,
+                   test_window=(dt.date(2022, 5, 1), dt.date(2022, 5, 30)))
+    tt, log = out["tuning_trials"], out["tuning_log"]
+    assert len(tt) == int(log["n_trials"].sum()) and tt["selected"].sum() == len(log)
+    assert {"block1", "pruned", "is_default", "duplicate", "selected"} <= set(tt.columns)
+    assert tt.groupby("tuned_at")["is_default"].sum().eq(1).all()
 
 
 # ----------------------------------------------------------------------------- ensembles

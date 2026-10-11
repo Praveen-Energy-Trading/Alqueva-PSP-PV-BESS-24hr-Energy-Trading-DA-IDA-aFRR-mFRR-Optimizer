@@ -93,6 +93,18 @@ def test_a_real_evaluation_run_is_registered_and_a_repeat_reproduces_it(db):
     assert len(registry.comparisons_of(r1["run_key"], db_path=db)) == len(res["comparisons"])
 
 
+def test_every_tuning_trial_of_a_run_is_stored(db):
+    import copy as _copy
+    from tests.test_tuning_ensembles import BIG, small_tcfg
+    tc = small_tcfg(BIG, n_iter=5, val=20, blocks=2, method="tpe")
+    res = evaluate("da_price", synthetic_panel(220), FORM, cfg_small(), PERIODS, "dev",
+                   tree_candidates(["decision_tree"], tuned=True, tuning_cfg=tc), test_window=(dt.date(2022, 5, 1), dt.date(2022, 5, 30)))
+    r = registry.register_evaluation(res, tuning_cfg=tc, db_path=db)
+    t = registry.tuning_trials_of(r["run_key"], db_path=db)
+    assert len(t) == len(res["tuning_trials"]) and t["selected"].sum() == len(res["tuning_log"])
+    assert json.loads(t.iloc[0]["block_scores"]) and t.iloc[0]["is_default"] == 1
+
+
 def test_an_earlier_run_folder_can_be_backfilled(db, tmp_path):
     d = tmp_path / "old_run"
     d.mkdir()

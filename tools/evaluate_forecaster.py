@@ -44,6 +44,8 @@ def main() -> int:
     ap.add_argument("--feature-set", help="feature set from config/feature_sets.yaml (default: models.feature_set)")
     ap.add_argument("--no-register", action="store_true", help="do not record the run in the experiment registry")
     ap.add_argument("--tuned", action="store_true", help="tune each model inside every fold (config/tuning.yaml; nested, time-aware)")
+    ap.add_argument("--search-method", choices=["tpe", "random"], help="override search.method of config/tuning.yaml")
+    ap.add_argument("--n-trials", type=int, help="override search.n_trials (the same for every algorithm)")
     ap.add_argument("--ensembles", nargs="*", help="forecast combinations to add (default none; no names = all in config/tuning.yaml)")
     ap.add_argument("--candidate", help="module:function returning a forecaster factory(interface, cache)")
     ap.add_argument("--name", default="candidate")
@@ -73,6 +75,10 @@ def main() -> int:
     from common_layer.forecast_evaluation.tree_models import tree_candidates
     from common_layer.forecast_evaluation.tuning import load_tuning_config
     tcfg = load_tuning_config()
+    if a.search_method:
+        tcfg["search"]["method"] = a.search_method
+    if a.n_trials:
+        tcfg["search"]["n_trials"] = a.n_trials
     if cands is None and (a.models or a.tuned):
         cands = tree_candidates(a.models or eval_cfg["models"]["candidates"], eval_cfg["models"]["feature_set"], a.tuned, tcfg)
     ens = None
@@ -85,6 +91,8 @@ def main() -> int:
     if res.get("tuning_log") is not None:
         res["tuning_log"].to_csv(os.path.join(out, "tuning_log.csv"), index=False, float_format="%.4f")
         print(res["tuning_log"].round(3).to_string(index=False))
+    if res.get("tuning_trials") is not None:
+        res["tuning_trials"].to_csv(os.path.join(out, "tuning_trials.csv"), index=False, float_format="%.4f")
     if not a.no_register:
         from common_layer.model_development import registry
         r = registry.register_evaluation(res, tuning_cfg=tcfg, artifacts_dir=out)

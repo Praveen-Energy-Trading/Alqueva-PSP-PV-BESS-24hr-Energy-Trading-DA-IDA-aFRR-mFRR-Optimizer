@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS tuning_choices (
     run_key TEXT NOT NULL, attempt INTEGER NOT NULL, model TEXT NOT NULL, tuned_at TEXT NOT NULL, score REAL,
     default_score REAL, n_trials INTEGER, inner_train_days INTEGER, validation_days INTEGER, params_json TEXT,
     PRIMARY KEY (run_key, attempt, model, tuned_at));
+CREATE TABLE IF NOT EXISTS tuning_trials (
+    run_key TEXT NOT NULL, attempt INTEGER NOT NULL, model TEXT NOT NULL, tuned_at TEXT NOT NULL, trial INTEGER NOT NULL,
+    params_json TEXT, score REAL, pruned INTEGER, is_default INTEGER, duplicate INTEGER, selected INTEGER,
+    block_scores TEXT, PRIMARY KEY (run_key, attempt, model, tuned_at, trial));
 """
 
 
@@ -91,8 +95,8 @@ def _result_digest(models: Iterable[dict]) -> str:
 def register(kind: str, target: str, models: List[dict], *, stage: str = "dev", window: tuple = (None, None),
              feature_set: str = "", schedule: Optional[dict] = None, config_digest: str = "", data_digest: str = "",
              tuning_digest: str = "", code_revision: str = "", comparisons: Optional[List[dict]] = None,
-             tuning_choices: Optional[List[dict]] = None, source: str = "", artifacts_dir: str = "", notes: str = "",
-             db_path: Optional[str] = None) -> Dict[str, Any]:
+             tuning_choices: Optional[List[dict]] = None, tuning_trials: Optional[List[dict]] = None, source: str = "",
+             artifacts_dir: str = "", notes: str = "", db_path: Optional[str] = None) -> Dict[str, Any]:
     """Record one run. `models` rows need forecaster, sse, mae, rmse (and may carry n, coverage, role).
 
     Returns {"run_key", "attempt", "reproduced"}: `reproduced` is None for the first attempt, True when every attempt
@@ -133,6 +137,12 @@ def register(kind: str, target: str, models: List[dict], *, stage: str = "dev", 
                          int(t["inner_train_days"]) if _num(t.get("inner_train_days")) is not None else None,
                          int(t["validation_days"]) if _num(t.get("validation_days")) is not None else None,
                          str(t.get("params", ""))))
+        for t in tuning_trials or []:
+            blocks = [t[c] for c in sorted(c for c in t if c.startswith("block")) if _num(t[c]) is not None]
+            con.execute("INSERT OR REPLACE INTO tuning_trials VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (key, attempt, t["model"], str(t["tuned_at"]), int(t["trial"]), str(t.get("params", "")), _num(t.get("score")),
+                         int(bool(t.get("pruned"))), int(bool(t.get("is_default"))), int(bool(t.get("duplicate"))),
+                         int(bool(t.get("selected"))), json.dumps([round(float(b), 6) for b in blocks])))
         digests = [r[0] for r in con.execute("SELECT result_digest FROM runs WHERE run_key=?", (key,))]
     return {"run_key": key, "attempt": attempt, "reproduced": None if attempt == 1 else len(set(digests)) == 1}
 
@@ -156,13 +166,15 @@ def register_evaluation(res: dict, *, tuning_cfg: Optional[dict] = None, source:
     comps = res["comparisons"].to_dict("records") if res.get("comparisons") is not None and len(res["comparisons"]) else []
     log = res.get("tuning_log")
     choices = log.to_dict("records") if log is not None else []
+    tt = res.get("tuning_trials")
+    trials = tt.to_dict("records") if tt is not None else []
     uses_tuning = bool(choices) or any(m["forecaster"].startswith("ensemble_") for m in models)
     return register("evaluation", meta["target"], models, stage=meta["stage"], window=(meta["test_start"], meta["test_end"]),
                     feature_set=str(meta.get("feature_set", "")),
                     schedule={k: meta.get(k) for k in ("retrain_every_days", "gap_days", "train_window_days")},
                     config_digest=meta["config_digest"], data_digest=meta["data_digest"],
                     tuning_digest=digest_of(tuning_cfg) if (tuning_cfg is not None and uses_tuning) else "",
-                    code_revision=code_state(meta.get("code", "")), comparisons=comps, tuning_choices=choices, source=source,
+                    code_revision=code_state(meta.get("code", "")), comparisons=comps, tuning_choices=choices, tuning_trials=trials, source=source,
                     artifacts_dir=artifacts_dir or res.get("paths", {}).get("report", ""), notes=notes, db_path=db_path)
 
 
@@ -176,13 +188,15 @@ def register_run_dir(path: str, *, tuning_cfg: Optional[dict] = None, notes: str
     models = pd.read_csv(os.path.join(path, "metrics_overall.csv")).to_dict("records")
     tl = os.path.join(path, "tuning_log.csv")
     choices = pd.read_csv(tl).to_dict("records") if os.path.exists(tl) else []
+    tt = os.path.join(path, "tuning_trials.csv")
+    trials = pd.read_csv(tt).to_dict("records") if os.path.exists(tt) else []
     uses_tuning = bool(choices) or any(m["forecaster"].endswith("_tuned") or m["forecaster"].startswith("ensemble_") for m in models)
     return register("evaluation", meta["target"], models, stage=meta["stage"], window=(meta["test_start"], meta["test_end"]),
                     feature_set=str(meta.get("feature_set", "")),
                     schedule={k: meta.get(k) for k in ("retrain_every_days", "gap_days", "train_window_days")},
                     config_digest=meta["config_digest"], data_digest=meta["data_digest"],
                     tuning_digest=digest_of(tuning_cfg) if (tuning_cfg is not None and uses_tuning) else "",
-                    code_revision=meta.get("code", ""), tuning_choices=choices, source="backfill", artifacts_dir=path,
+                    code_revision=meta.get("code", ""), tuning_choices=choices, tuning_trials=trials, source="backfill", artifacts_dir=path,
                     notes=notes, db_path=db_path)
 
 
@@ -228,6 +242,15 @@ def tuning_choices_of(run_key: str, attempt: Optional[int] = None, db_path: Opti
         a = attempt or con.execute("SELECT MAX(attempt) FROM runs WHERE run_key=?", (run_key,)).fetchone()[0]
         return pd.read_sql_query("SELECT model, tuned_at, score, default_score, n_trials, params_json FROM tuning_choices "
                                  "WHERE run_key=? AND attempt=? ORDER BY model, tuned_at", con, params=(run_key, a))
+
+
+def tuning_trials_of(run_key: str, attempt: Optional[int] = None, db_path: Optional[str] = None) -> pd.DataFrame:
+    """Every trial of every tuning round of a run (settings, score, pruned, selected)."""
+    with session(db_path) as con:
+        a = attempt or con.execute("SELECT MAX(attempt) FROM runs WHERE run_key=?", (run_key,)).fetchone()[0]
+        return pd.read_sql_query("SELECT model, tuned_at, trial, params_json, score, pruned, is_default, duplicate, selected, "
+                                 "block_scores FROM tuning_trials WHERE run_key=? AND attempt=? ORDER BY model, tuned_at, trial",
+                                 con, params=(run_key, a))
 
 
 def reproducibility(db_path: Optional[str] = None) -> pd.DataFrame:
