@@ -1,0 +1,220 @@
+# =============================================================================
+# Forecast catalogue (Phase 0 of docs/ML_Forecasting_Plan.pdf)
+#
+# One entry per forecast the trading pipeline needs. Each entry fixes:
+#   * the decision that consumes it,
+#   * the AS-OF time: the moment the decision is taken, i.e. which information
+#     may be used. Anything published after that moment is forbidden as an input,
+#   * horizon, resolution, output type, fallback.
+# Later phases read this file (evaluation framework, leakage tests), so an as-of
+# rule is written down once. Gate clock times live in config/market.yaml; here we
+# refer to gates by name. All times are CET (Europe/Madrid). D = delivery day.
+#
+# status: draft (Phase 0, 2026-10-11). Open points are listed in
+# docs/forecasting/Phase0_Forecast_Catalogue.md.
+# =============================================================================
+version: 1
+status: draft
+
+# Information-publication times used to decide what is "known" at an as-of time.
+# (OMIE/SIDC results and REN data publication times; confirm in Phase 1.)
+publication_times_cet:
+  da_result_for_D:        "D-1 ~12:45"     # SDAC/OMIE day-ahead result for day D
+  ida1_result_for_D:      "D-1 ~15:30"
+  ida2_result_for_D:      "D-1 ~22:30"
+  ida3_result_for_D:      "D ~10:30"
+  reserve_band_result:    "unpublished"    # set by REN 'Aviso do GGS', not in the rulebook
+
+targets:
+
+  - id: da_price
+    description: "Day-ahead clearing price, Portugal (EUR/MWh)"
+    decision: "Day-ahead bid (phase 1 of the pipeline); also the energy-price reference for reserve sizing"
+    consumers: [run_da, ida_reoptimiser, backtest_runner]
+    resolution: [hourly, "15min"]
+    horizon: "delivery day D: 24 hours or 96 quarter-hours"
+    as_of:
+      gate: DA
+      rule: "D-1 11:00 CET (pipeline trigger); gate closes D-1 12:00"
+      allowed: ["DA prices for days <= D-1", "weather forecasts issued before 11:00 D-1"]
+      forbidden: ["any price of day D", "intraday results of day D"]
+    output: point            # target: quantiles / scenarios (Phase 10)
+    current:
+      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/da_price_forecaster.py
+      features: "calendar, price lags (24/48/168/336 h or 1d/2d/1w/2w), rolling mean/std ending yesterday"
+      fundamentals: none
+      history: "hourly 2020-2026 (real); 15-min only since 2025-10-01"
+    fallback: "deterministic synthetic Iberian curve"
+    priority: 1
+    findings: [F10]
+
+  - id: pv_weather
+    description: "Global horizontal irradiance (W/m2) and ambient temperature (C), converted to PV power by the physics model"
+    decision: "PV availability in the day-ahead and intraday optimisation"
+    consumers: [run_da, ida_reoptimiser]
+    resolution: [hourly, "15min (cloud correction)"]
+    horizon: "delivery day D"
+    as_of:
+      gate: DA
+      rule: "D-1 11:00 CET"
+      allowed: ["observations up to D-1 ~10:00", "numerical weather forecasts issued before 11:00 D-1"]
+      forbidden: ["observations of day D"]
+    output: point
+    current:
+      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py
+      features: "lags 24/48/168 h, rolling means ending yesterday, clearness index; no numerical weather forecast"
+    fallback: "Bird clear-sky model with cloud factor"
+    priority: 3
+    findings: [F7, F8]
+
+  - id: reservoir_inflow
+    description: "Natural inflow into the Alqueva reservoir (m3/h)"
+    decision: "Water balance in the day-ahead and intraday optimisation"
+    consumers: [run_da, ida_reoptimiser]
+    resolution: [daily]
+    horizon: "delivery day D"
+    as_of:
+      gate: DA
+      rule: "D-1 11:00 CET"
+      allowed: ["inflow observations published before 11:00 D-1"]
+      forbidden: ["inflow of day D", "inflow of D-1 unless already published"]
+    output: point
+    current:
+      module: phase_1_da_day_ahead_bidding/da_price_pv_inflow_forecasting/reservoir_inflow_forecaster.py
+      features: "lags 1/7/30 days, calendar"
+      history: "research dataset 2015-; monthly climatology fills gaps"
+    fallback: "monthly mean inflow (plant.yaml)"
+    priority: 3
+    findings: [F7, F11]
+
+  - id: ida1_price
+    description: "IDA1 clearing price, modelled as DA price + spread"
+    decision: "IDA1 re-optimisation (gate closes D-1 15:00)"
+    consumers: [ida_reoptimiser, backtest_runner]
+    resolution: [hourly]
+    horizon: "H1-H24 of day D"
+    as_of:
+      gate: IDA1
+      rule: "D-1 14:10 CET (pipeline trigger); gate closes D-1 15:00"
+      allowed: ["actual DA result for D (published ~12:45)", "all prices of days <= D-1"]
+      forbidden: ["IDA1 result for D"]
+    output: point
+    current:
+      module: phase_2a_ida1_intraday_auction_1/ida1_price_forecasting/ida1_price_forecaster.py
+      features: "calendar, DA price, within-day DA mean/std, spread 7 days ago, previous-hour spread"
+    fallback: "DA price (zero spread)"
+    priority: 2
+    findings: [F2, F3, F4, F1b]
+
+  - id: ida2_price
+    description: "IDA2 clearing price, modelled as DA price + spread"
+    decision: "IDA2 re-optimisation (gate closes D-1 22:00)"
+    consumers: [ida_reoptimiser, backtest_runner]
+    resolution: [hourly]
+    horizon: "H1-H24 of day D"
+    as_of:
+      gate: IDA2
+      rule: "D-1 21:10 CET; gate closes D-1 22:00"
+      allowed: ["actual DA result for D", "IDA1 result for D (published ~15:30)", "prices of days <= D-1"]
+      forbidden: ["IDA2 result for D"]
+    output: point
+    current:
+      module: phase_2b_ida2_intraday_auction_2/ida2_price_forecasting/ida2_price_forecaster.py
+      features: "same as IDA1 (does not use the IDA1 result)"
+    fallback: "DA price"
+    priority: 2
+    findings: [F2, F3, F4, F1b]
+
+  - id: ida3_price
+    description: "IDA3 clearing price (H12-H24 only), modelled as DA price + spread"
+    decision: "IDA3 re-optimisation (gate closes D 10:00)"
+    consumers: [ida_reoptimiser, backtest_runner]
+    resolution: [hourly]
+    horizon: "H12-H24 of day D"
+    as_of:
+      gate: IDA3
+      rule: "D 09:10 CET; gate closes D 10:00"
+      allowed: ["actual DA, IDA1 and IDA2 results for D", "continuous-market (XBID) trades up to 09:10", "prices of days <= D-1"]
+      forbidden: ["IDA3 result for D"]
+    output: point
+    current:
+      module: phase_2c_ida3_intraday_auction_3/ida3_price_forecasting/ida3_price_forecaster.py
+      features: "same as IDA1 (uses neither IDA1/IDA2 results nor early XBID trades)"
+    fallback: "DA price"
+    priority: 2
+    findings: [F2, F3, F4, F1b]
+
+  - id: xbid_price
+    description: "Continuous intraday volume-weighted price (OMIE MedioPT), modelled as DA price + spread"
+    decision: "XBID check windows W1-W6 (D-1 18:30 ... D 12:00)"
+    consumers: [xbid_optimiser, backtest_runner]
+    resolution: [hourly]
+    horizon: "remaining hours of day D at each window"
+    as_of:
+      gate: XBID
+      rule: "per window: W1 D-1 18:30, W2 D-1 22:30, W3 D 03:00, W4 D 06:00, W5 D 09:30, W6 D 12:00"
+      allowed: ["DA and every IDA result published before the window", "XBID trades before the window"]
+      forbidden: ["trades after the window"]
+    output: point
+    current:
+      module: phase_2d_xbid_continuous_intraday/xbid_price_forecasting/xbid_price_forecaster.py
+      features: "same as IDA1; one model for all windows"
+    fallback: "DA price"
+    priority: 2
+    findings: [F2, F3, F4, F1b]
+
+  - id: afrr_cap_price
+    description: "aFRR capacity (band) price, up and down (EUR/MW per hour)"
+    decision: "aFRR capacity offer (price taken for expected revenue and offer sizing)"
+    consumers: [run_afrr, backtest_runner]
+    resolution: [hourly]
+    horizon: "delivery day D"
+    as_of:
+      gate: AFRR
+      rule: "after the DA result is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
+      allowed: ["actual DA result for D", "band prices of days <= D-1 (cleared D-2)"]
+      forbidden: ["band prices of day D"]
+    output: point
+    current:
+      module: phase_3a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py
+      features: "calendar, DA price, DA rolling mean/std, band price 7 days ago; no 1-day lag"
+    fallback: "flat 25 / 12 EUR/MW"
+    priority: 2
+    findings: [F1, F5]
+
+  - id: mfrr_price
+    description: "mFRR price series from REN (the data are the activation energy price, not a capacity price)"
+    decision: "mFRR offer; in the future-band scenario capacity is paid at the aFRR band price, so this forecast has no revenue consumer today (to verify)"
+    consumers: [run_mfrr]
+    resolution: [hourly]
+    horizon: "delivery day D"
+    as_of:
+      gate: MFRR
+      rule: "right after the aFRR band market, before IDA1 15:00; exact hour set by REN notice (not public)"
+      allowed: ["actual DA result for D", "prices of days <= D-1"]
+      forbidden: ["prices of day D"]
+    output: point
+    current:
+      module: phase_3b_mfrr_manual_frequency_reserve/mfrr_price_forecasting/mfrr_price_forecaster.py
+      features: "same pattern as aFRR"
+    fallback: "synthetic fraction of aFRR price"
+    priority: 3
+    findings: [F1, F5, F12]
+
+# -----------------------------------------------------------------------------
+# Findings from the Phase 0 audit of the code (evidence in the Phase 0 document)
+# -----------------------------------------------------------------------------
+findings:
+  F1:  {severity: high,   fix_in_phase: 7,  summary: "aFRR/mFRR forecasters: at prediction time the DA price is set to the price 7 days earlier, the rolling mean to the same value and the rolling std to 0, while training used real values (train/serve skew)"}
+  F1b: {severity: medium, fix_in_phase: 7,  summary: "Intraday forecasters: training uses an expanding within-day DA mean/std, prediction uses the full-day mean/std for every hour (train/serve skew)"}
+  F2:  {severity: high,   fix_in_phase: 0,  summary: "Intraday gates feed a FORECAST of the DA price although the actual DA result is published (D-1 ~12:45) before every intraday gate"}
+  F3:  {severity: medium, fix_in_phase: 7,  summary: "IDA2, IDA3 and XBID use the IDA1 feature set; earlier gates' results and early XBID trades, available at their as-of times, are unused"}
+  F4:  {severity: medium, fix_in_phase: 5,  summary: "spread_lag_h1 is the previous hour of the same auction: not observable at the as-of time, trained with actuals but served with predicted values"}
+  F5:  {severity: medium, fix_in_phase: 7,  summary: "Reserve forecasters have a 7-day lag only; the band price of D-1, known at the as-of time, is unused"}
+  F6:  {severity: medium, fix_in_phase: 6,  summary: "Model comparison uses a Wilcoxon test on at most 4 fold MAEs; no Diebold-Mariano test on daily errors"}
+  F7:  {severity: medium, fix_in_phase: 3,  summary: "Training files contain SYNTHETIC rows (IDA1 7.8%, IDA2 2.1%, IDA3 1.7%, XBID 0.7%, mFRR 2.2%, aFRR 0.1%; PV weather file runs to 2027-03 with 6,168 synthetic rows); check they never enter training"}
+  F8:  {severity: medium, fix_in_phase: 1,  summary: "PV weather rows are labelled PLANT_SENSOR for 2015 onward; provenance unverified"}
+  F9:  {severity: low,    fix_in_phase: 17, summary: "Stale docstrings (IDA2 'H3-H24', data ranges 2020-2025) after the data rebuild"}
+  F10: {severity: info,   fix_in_phase: 7,  summary: "Day-ahead forecaster has no fundamentals (load, wind, solar, gas, carbon) and only 12 months of 15-minute history"}
+  F11: {severity: medium, fix_in_phase: 1,  summary: "Inflow lag_1d treats yesterday's daily value as known at 11:00; publication delay of the research dataset is unknown"}
+  F12: {severity: info,   fix_in_phase: 11, summary: "mFRR price forecast has no revenue consumer today; candidate to become an activation-price forecaster"}
