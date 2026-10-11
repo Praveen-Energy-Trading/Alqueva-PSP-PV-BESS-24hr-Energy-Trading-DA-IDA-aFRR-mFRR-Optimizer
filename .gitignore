@@ -13,3 +13,7 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# CPLEX scratch logs written to the working directory during solves and tests
+clone*.log
+cplex.log
