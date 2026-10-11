@@ -70,7 +70,7 @@ def truth_digest(view: AsOfView, cfg: dict) -> tuple:
 
 def preflight(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, *, policy_path: Optional[str] = None,
               log_root: Optional[str] = None, lock_root: Optional[str] = None, allow_dirty: bool = False,
-              code_revision: Optional[str] = None) -> dict:
+              code_revision: Optional[str] = None, policy: Optional[dict] = None, min_truth_share: float = MIN_TRUTH_SHARE) -> dict:
     """The checks before the one look at the locked period. `ok` is True only if every check passes."""
     target = decision["target"]
     checks: List[dict] = []
@@ -79,15 +79,15 @@ def preflight(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, *, pol
     if not chosen:
         return {"ok": False, "checks": checks}
     try:
-        current = selection.policy_digest(selection.load_policy(policy_path))
+        current = selection.policy_digest(policy or selection.load_policy(policy_path))
     except Exception as e:                                                      # pragma: no cover - a broken policy file
         current = f"unreadable: {e}"
     checks.append(_check("policy_unchanged", current == decision["policy_digest"],
                          f"decision made with policy {decision['policy_digest'][:12]}, current policy {str(current)[:12]}"))
     view = AsOfView(panel, form, target)
     digest, expected, present = truth_digest(view, cfg)
-    checks.append(_check("outcomes_present", expected > 0 and present / expected >= MIN_TRUTH_SHARE,
-                         f"{present} of {expected} locked days have outcomes (need {MIN_TRUTH_SHARE:.0%})"))
+    checks.append(_check("outcomes_present", expected > 0 and present / expected >= min_truth_share,
+                         f"{present} of {expected} locked days have outcomes (need {min_truth_share:.1%})"))
     try:
         status = guards.verify_lock(target, digest, lock_root)
         checks.append(_check("outcomes_frozen", status == "verified", f"lock status: {status} (freeze with "

@@ -17,6 +17,15 @@ feature_sets:
     features: [cal_hour, cal_dow, cal_month, cal_is_weekend,
                y_lag_1d, y_lag_2d, y_lag_7d, y_roll_mean_7d_hour, y_yday_mean,
                base_value, base_dev]
+  baseline_e2_v1:
+    description: "baseline for targets whose own price is usable only up to D-2 (XBID): lags and windows end two days back"
+    features: [cal_hour, cal_dow, cal_month, cal_is_weekend,
+               y_lag_2d, y_lag_7d, y_roll_mean_7d_hour_e2, y_day_mean_lag2d,
+               base_value, base_dev]
+  baseline_e3_v1:
+    description: "baseline for targets whose own price is usable only up to D-3 (mFRR): lags and windows end three days back"
+    features: [cal_hour, cal_dow, cal_month, cal_is_weekend,
+               y_lag_7d, y_roll_mean_7d_hour_e3, y_day_mean_lag3d]
   full_v1:
     description: "every active catalogue feature available for the target"
     features: all_available

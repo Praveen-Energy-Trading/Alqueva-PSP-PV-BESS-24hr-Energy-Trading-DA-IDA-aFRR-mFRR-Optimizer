@@ -66,11 +66,16 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(_REPO, "model_development", "selection"))
     ap.add_argument("--no-register", action="store_true")
     a = ap.parse_args()
-    policy = selection.load_policy(a.policy)
+    from common_layer.model_development import rollout
+    eff = rollout.effective(a.target, base_policy=selection.load_policy(a.policy))
+    if eff["deferred"]:
+        raise SystemExit(f"{a.target} is deferred: " + "; ".join(eff["reasons"]))
+    policy = eff["policy"]
     preds = ev.read_predictions(a.run, a.suffix)
     d = selection.select(preds, policy, load_evaluation_config()["comparison"], a.target)
     meta_path = os.path.join(a.run, "run.json")
     meta = json.load(open(meta_path, encoding="utf-8")) if os.path.exists(meta_path) else {}
+    d["treatment"] = {"name": eff["treatment"], "label": eff["label"]}
     d["source"] = {"run": _rel(a.run), "suffix": a.suffix, "tuned": a.suffix == "_tuned",
                    "schedule": {k: meta.get(k) for k in ("retrain_every_days", "gap_days", "train_window_days")},
                    "window": [meta.get("test_start"), meta.get("test_end")]}

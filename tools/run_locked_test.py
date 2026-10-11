@@ -40,9 +40,13 @@ def main() -> int:
     a = ap.parse_args()
     path = a.decision or os.path.join(_REPO, "model_development", "selection", f"{a.target}.json")
     decision = json.load(open(path, encoding="utf-8"))
-    cfg, form = load_evaluation_config(), load_forecast_formulation()
+    form = load_forecast_formulation()
     panel = pnl.build_panel(CleanStore())
-    pre = lt.preflight(decision, panel, form, cfg, allow_dirty=a.allow_dirty)
+    from common_layer.forecast_evaluation.asof import AsOfView
+    from common_layer.model_development import rollout
+    eff = rollout.effective(a.target, view=AsOfView(panel, form, a.target))
+    cfg = eff["eval_cfg"]
+    pre = lt.preflight(decision, panel, form, cfg, allow_dirty=a.allow_dirty, policy=eff["policy"], min_truth_share=eff["min_truth_share"])
     print(f"preflight for {a.target} (champion {decision.get('champion')}):")
     for c in pre["checks"]:
         print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['check']}: {c['detail']}")

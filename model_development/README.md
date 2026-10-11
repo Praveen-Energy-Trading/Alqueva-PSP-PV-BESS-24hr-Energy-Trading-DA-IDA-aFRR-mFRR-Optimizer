@@ -14,7 +14,7 @@ evidence for it (tuning logs, figures, the comparison of the tuned algorithms an
 | 6 | Locked test of the champion (preflight checks, one logged look, report) | built and tested; not run: needs the final champion and the frozen outcomes |
 | 7 | Champion registry and promotion rule (`config/champion_policy.yaml`) | built and tested; no champion registered yet (waits for the final decision) |
 | 8 | Monitoring and retraining (`config/monitoring.yaml`) | built and tested; waits for a registered champion to monitor |
-| 9 | Roll-out to all price targets | not started |
+| 9 | Roll-out to all price targets (`config/rollout.yaml`: standard for day-ahead and aFRR capacity, limited evidence for IDA1-3 and XBID, mFRR deferred) | tooling built and tested; runs wait for the stage 2 experiments |
 | 10 | Replace the old fixed-settings selection | not started |
 
 ## Stage 1: the experiment registry

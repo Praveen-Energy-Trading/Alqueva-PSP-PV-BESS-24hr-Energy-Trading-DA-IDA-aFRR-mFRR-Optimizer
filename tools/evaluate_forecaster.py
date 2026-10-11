@@ -53,11 +53,19 @@ def main() -> int:
     ap.add_argument("--lock", action="store_true", help="freeze the locked-window outcomes of this target and exit")
     a = ap.parse_args()
 
-    eval_cfg, form = load_evaluation_config(), load_forecast_formulation()
-    if a.feature_set:
-        eval_cfg["models"]["feature_set"] = a.feature_set
+    form = load_forecast_formulation()
     periods = load_analysis_config()["periods"]
     panel = pnl.build_panel(CleanStore())
+    from common_layer.model_development import rollout
+    eff = rollout.effective(a.target, view=AsOfView(panel, form, a.target))
+    if eff["deferred"] or eff["blocked"]:
+        print(f"{a.target} cannot be evaluated ({eff['treatment']}): " + "; ".join(eff["reasons"]))
+        return 2
+    eval_cfg = eff["eval_cfg"]
+    if eff["treatment"] != "standard":
+        print(f"{a.target}: {eff['treatment']} ({eff['label']}); first test day {eff['dev_start']}")
+    if a.feature_set:
+        eval_cfg["models"]["feature_set"] = a.feature_set
     if a.lock:
         view = AsOfView(panel, form, a.target)
         lk = eval_cfg["locked_test"]

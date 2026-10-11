@@ -61,11 +61,13 @@ def main() -> int:
     p.add_argument("--to", required=True, type=int)
     p.add_argument("--reason", required=True)
     a = ap.parse_args()
+    from common_layer.model_development import rollout
     cfg = load_evaluation_config()
+    cfg_for = lambda target: rollout.effective(target)["eval_cfg"]          # noqa: E731  (feature set and schedule of the target)
 
     if a.cmd == "init":
         d = json.load(open(a.decision, encoding="utf-8"))
-        r = champions.promote_initial(d, cfg["models"]["feature_set"], source=os.path.basename(a.decision))
+        r = champions.promote_initial(d, cfg_for(d["target"])["models"]["feature_set"], source=os.path.basename(a.decision))
         print(f"{r['target']}: version {r['version']} is the active champion: {r['spec']['type']} of {', '.join(r['spec']['members'])}")
     elif a.cmd == "show":
         c = champions.active(a.target)
@@ -80,7 +82,7 @@ def main() -> int:
         from common_layer.forecast_evaluation.tuning import load_tuning_config
         from common_layer.market_analysis import panel as pnl
         from common_layer.model_development import serving
-        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore()), load_forecast_formulation(), cfg, load_tuning_config(), a.first_day,
+        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore()), load_forecast_formulation(), cfg_for(a.target), load_tuning_config(), a.first_day,
                                  role=a.role, force_retune=a.force_retune)
         print(f"fitted {r['role']} of version {r['version']} ({', '.join(r['members'])}), training ends {r['train_end']}, "
               f"settings tuned {r['tuned_at']}: {r['path']}")
@@ -90,7 +92,7 @@ def main() -> int:
         ev = champions.evaluate_challenge(read(a.champion_preds), read(a.challenger_preds), pol, cfg["comparison"], a.as_of,
                                           champions.days_since_last_promotion(a.target, a.as_of))
         d = json.load(open(a.challenger_decision, encoding="utf-8"))
-        r = champions.apply_challenge(a.target, d, cfg["models"]["feature_set"], ev, source=os.path.basename(a.challenger_decision))
+        r = champions.apply_challenge(a.target, d, cfg_for(a.target)["models"]["feature_set"], ev, source=os.path.basename(a.challenger_decision))
         print(("PROMOTED to version %d" % r["version"]) if r["promoted"] else "REJECTED; champion unchanged")
         for x in r["reasons"]:
             print(" -", x)
