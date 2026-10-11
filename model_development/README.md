@@ -12,7 +12,7 @@ evidence for it (tuning logs, figures, the comparison of the tuned algorithms an
 | 4 | Algorithm comparison (pairwise Diebold-Mariano with Holm correction, win rates) | tool built and tested; to be run on the stage 2 predictions |
 | 5 | Written selection policy (`config/model_selection.yaml`, fixed before the stage 2 results) | built and tested; to be applied to the stage 2 predictions |
 | 6 | Locked test of the champion (preflight checks, one logged look, report) | built and tested; not run: needs the final champion and the frozen outcomes |
-| 7 | Champion registry and promotion rule | not started |
+| 7 | Champion registry and promotion rule (`config/champion_policy.yaml`) | built and tested; no champion registered yet (waits for the final decision) |
 | 8 | Monitoring and retraining | not started |
 | 9 | Roll-out to all price targets | not started |
 | 10 | Replace the old fixed-settings selection | not started |

@@ -1,0 +1,22 @@
+# =============================================================================
+# Champion / challenger promotion rule (stage 7 of docs/Model_Development_Plan.pdf)
+#
+# The champion of a target is the model the live pipeline uses (common_layer/model_development/champions.py keeps the
+# registry). A challenger, for example a newly selected algorithm or a re-tuned model, replaces it only if ALL of these hold
+# over the last `window_days` delivery days on which both forecast out of sample:
+#   1. the challenger has the smaller mean loss and the Diebold-Mariano test (daily losses, HAC variance, the same settings
+#      as the evaluation framework) says the difference is real at `alpha`;
+#   2. the mean loss is lower by at least `min_improvement` (a share of the champion's loss), so a significant but tiny
+#      difference does not cause churn;
+#   3. at least `min_days_between_promotions` days have passed since the last promotion.
+# Fewer than `window_days` common days is "not enough evidence": no promotion. Every challenge, accepted or rejected, is
+# written to the event log with its numbers and the digest of this file. The rule is fixed here before any challenge is made.
+# =============================================================================
+version: 1
+
+promotion:
+  window_days: 90
+  alpha: 0.05
+  min_improvement: 0.02
+  min_days_between_promotions: 60
+  loss: absolute                  # absolute (MAE) or squared
