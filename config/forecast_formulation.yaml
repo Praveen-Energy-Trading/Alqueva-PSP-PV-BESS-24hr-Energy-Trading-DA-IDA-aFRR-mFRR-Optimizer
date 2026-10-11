@@ -1,0 +1,248 @@
+# =============================================================================
+# Forecast formulation (Phase 5 of docs/ML_Forecasting_Plan.pdf)
+#
+# For every target of config/forecast_catalogue.yaml: what exactly is modelled (level or spread, transform),
+# how the output is structured, and the INFORMATION SET: every input with the latest delivery day it may use
+# and the time it is published. common_layer/configuration/forecast_formulation.py checks each input against
+# the as-of time of its gate, so "the information set is written down and tested".
+#
+# Times are local market time (Europe/Madrid). "D" is the delivery day of the forecast, "d" the delivery day
+# an input refers to. status: draft until the project owner confirms; `provisional: true` marks a choice that
+# waits for data still being loaded (see docs/forecasting/Phase5_Problem_Formulation.md).
+# =============================================================================
+version: 1
+status: draft
+
+# ---- when each forecast is made (as-of times). Energy gates are checked against config/market.yaml.
+as_of_times:
+  DA:   "D-1 11:00"
+  IDA1: "D-1 14:10"
+  IDA2: "D-1 21:10"
+  IDA3: "D 09:10"
+  XBID: {W1: "D-1 18:30", W2: "D-1 22:30", W3: "D 03:00", W4: "D 06:00", W5: "D 09:30", W6: "D 12:00"}
+  AFRR: "D-1 14:00"       # ASSUMED: after the day-ahead file (typically 13:29) and before the IDA1 close; REN's hour is not public
+  MFRR: "D-1 14:00"       # ASSUMED, as for aFRR
+
+# ---- when data for delivery day d is published. `published` = typical time (used by the strict check);
+# `late` = the time by which 95 % of days are out (informational; an input later than its as-of time needs a late_policy).
+series_availability:
+  da_result:
+    published: "d-1 13:30"
+    late: "d-1 14:40"
+    evidence: empirical
+    note: "OMIE day-ahead file, 1,682 originals 2021-2026: issued median 13:29, 90 % by 14:01, 95 % by 14:37, 99 % by 18:28 (market result itself ~12:45)"
+  ida1_result:
+    published: "d-1 15:30"
+    evidence: rulebook
+    note: "SIDC result ~30 min after the 15:00 gate close; file issue time not recorded by the parser"
+  ida2_result:
+    published: "d-1 22:30"
+    evidence: rulebook
+  ida3_result:
+    published: "d 10:30"
+    evidence: rulebook
+    note: "covers hours 12-24 only"
+  xbid_summary:
+    published: "d+1 04:30"
+    evidence: empirical
+    note: "continuous-market summary file for day d: 210 originals, issued median 02:21, 95 % by 04:22 on d+1"
+  xbid_live:
+    published: "live"
+    evidence: none
+    note: "trades during the day; not collected (the summary file is the only source in use; order-book depth needs a paid feed)"
+  afrr_band_result:
+    published: "d-1 16:00"
+    evidence: assumed
+    note: "band market for day d is cleared on d-1 after the day-ahead program (MPGGS Art. 80(3)); REN publication hour not public, set after the IDA1 close to be safe"
+  mfrr_series:
+    published: "d+1 12:00"
+    evidence: assumed
+    note: "REN MFRRPreco holds activation prices (known after delivery); next-day publication assumed"
+  imbalance_price:
+    published: "d+1 12:00"
+    evidence: assumed
+    note: "REN DesvioPreco settlement prices; next-day publication assumed"
+  weather_forecast:
+    published: "d-1 09:00"
+    evidence: assumed
+    note: "NWP run of 06 UTC available about 09:00 local; no weather-forecast archive exists yet (Phase 1 gap)"
+  fundamentals_forecast:
+    published: "d-1 10:00"
+    evidence: assumed
+    note: "TSO day-ahead load, wind and solar forecasts for day d (ENTSO-E / REE); times to confirm when the tokens exist (Phase 1)"
+  inflow_obs:
+    published: "d+1 12:00"
+    evidence: assumed
+    note: "no live feed; research dataset ends 2026-06-30 (Phase 1 finding D1)"
+  weather_obs:
+    published: "d+1 06:00"
+    evidence: assumed
+    note: "no live feed; file ends 2026-06-30"
+  calendar:
+    published: "d-30 00:00"
+    evidence: rulebook
+    note: "holidays, daylight-saving days and market regime are known well in advance"
+
+# ---- units: a spread is only allowed between series in the same unit
+series_units:
+  da_pt: "EUR/MWh"
+  ida1_pt: "EUR/MWh"
+  ida2_pt: "EUR/MWh"
+  ida3_pt: "EUR/MWh"
+  xbid_pt: "EUR/MWh"
+  afrr_up: "EUR/MW/h"
+  afrr_dn: "EUR/MW/h"
+  mfrr_ap: "EUR/MWh"
+
+# ---- shared decisions
+transform_defaults:
+  asinh_price:
+    name: asinh
+    scale: 20.0
+    evidence: "elasticity of the day-over-day change vs price level: 0.58 raw, 0.00 at scale 20 (docs/forecasting/Phase5_Problem_Formulation.md, table 1)"
+
+targets:
+
+  - id: da_price
+    modelled_quantity: {kind: level, series: da_pt, transform: {name: asinh, scale: 20.0}, challenger: {name: none}}
+    structure:
+      multi_step: direct            # the origin is fixed (D-1 11:00): hours 13-36 ahead are forecast in one pass
+      layout: pooled_with_hour_feature
+      joint_output: "level plus two day-shape factors (see output)"
+    output:
+      now: point
+      target: scenarios             # the stochastic MILP needs joint 24h (96-period) scenarios, not marginals
+      scenario_structure: "common whole-day shift plus two shape factors (3 factors explain about 90 % of the day's residual variance; one shift explains 68-79 %)"
+    resolution:
+      native: "hourly to 2025-09-30, 15-minute from 2025-10-01"
+      plan: "hourly model plus learned within-hour shape, reconciled so the four quarters average to the hourly forecast"
+    inputs:
+      - {series: da_result,             latest_day_offset: -1, status: available}
+      - {series: ida1_result,           latest_day_offset: -1, status: available}
+      - {series: ida2_result,           latest_day_offset: -1, status: available}
+      - {series: ida3_result,           latest_day_offset: -2, status: available, note: "D-1 would leave 30 minutes of slack; D-2 is robust"}
+      - {series: xbid_summary,          latest_day_offset: -2, status: available}
+      - {series: afrr_band_result,      latest_day_offset: -1, status: available}
+      - {series: imbalance_price,       latest_day_offset: -3, status: available}
+      - {series: mfrr_series,           latest_day_offset: -3, status: available}
+      - {series: calendar,              latest_day_offset: 0,  status: available}
+      - {series: weather_forecast,      latest_day_offset: 0,  status: not_collected}
+      - {series: fundamentals_forecast, latest_day_offset: 0,  status: not_collected}
+    forbidden: ["any price of day D", "day-ahead or intraday results of day D", "imbalance or mFRR prices of D-1 and D-2"]
+
+  - id: pv_weather
+    modelled_quantity: {kind: level, series: null, transform: {name: none}, challenger: {name: none}}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "irradiance and temperature, clear-sky index as the modelled quantity"}
+    output: {now: point, target: quantile, scenario_structure: "clear-sky index quantiles per hour; scenarios later"}
+    resolution: {native: hourly, plan: "hourly; 15-minute only through the clear-sky curve"}
+    inputs:
+      - {series: weather_obs,      latest_day_offset: -2, status: not_collected}
+      - {series: weather_forecast, latest_day_offset: 0,  status: not_collected}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+    forbidden: ["observations of day D", "observations of D-1 until the live feed exists"]
+    note: "no live data today (Phase 1 D1); formulation fixed, inputs wait for the weather source decision"
+
+  - id: reservoir_inflow
+    modelled_quantity: {kind: level, series: null, transform: {name: none}, challenger: {name: none}}
+    structure: {multi_step: direct, layout: single_daily_value, joint_output: "one value per day"}
+    output: {now: point, target: quantile, scenario_structure: "low / central / high inflow"}
+    resolution: {native: daily, plan: daily}
+    inputs:
+      - {series: inflow_obs, latest_day_offset: -3, status: not_collected}
+      - {series: calendar,   latest_day_offset: 0,  status: available}
+    forbidden: ["inflow of day D", "inflow of D-1 until its publication delay is known (finding F11)"]
+
+  - id: ida1_price
+    modelled_quantity: {kind: spread, series: ida1_pt, base: da_pt, transform: {name: none}, challenger: {name: asinh, scale: 5.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "spread vector for the 24 hours, correlated across hours"}
+    output: {now: point, target: scenarios, scenario_structure: "spread factors; the stochastic IDA1 mode already exists"}
+    resolution: {native: hourly, plan: "hourly; quarters by reconciliation once IDA products are 15-minute"}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available}
+      - {series: ida1_result,      latest_day_offset: -1, status: available}
+      - {series: ida2_result,      latest_day_offset: -1, status: available}
+      - {series: ida3_result,      latest_day_offset: -1, status: available}
+      - {series: xbid_summary,     latest_day_offset: -2, status: available}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+      - {series: fundamentals_forecast, latest_day_offset: 0, status: not_collected}
+    late_policy: {da_result: "wait for the file until 14:50 (gate closes 15:00); if still missing, forecast the day-ahead price too and flag the run"}
+    forbidden: ["the IDA1 result of day D", "the previous hour of the same auction on day D (finding F4: the auction clears all hours at once)"]
+
+  - id: ida2_price
+    modelled_quantity: {kind: spread, series: ida2_pt, base: da_pt, transform: {name: none}, challenger: {name: asinh, scale: 5.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "spread vector for the 24 hours"}
+    output: {now: point, target: scenarios, scenario_structure: "spread factors"}
+    resolution: {native: hourly, plan: hourly}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available}
+      - {series: ida1_result,      latest_day_offset: 0,  status: available, note: "IDA1 result of day D: first intraday information, finding F3"}
+      - {series: ida2_result,      latest_day_offset: -1, status: available}
+      - {series: ida3_result,      latest_day_offset: -1, status: available}
+      - {series: xbid_summary,     latest_day_offset: -2, status: available}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+      - {series: xbid_live,        latest_day_offset: 0,  status: not_collected}
+    forbidden: ["the IDA2 result of day D", "the previous hour of the same auction on day D (finding F4)"]
+
+  - id: ida3_price
+    modelled_quantity: {kind: spread, series: ida3_pt, base: da_pt, transform: {name: none}, challenger: {name: asinh, scale: 5.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "spread vector for hours 12-24"}
+    output: {now: point, target: scenarios, scenario_structure: "spread factors"}
+    resolution: {native: hourly, plan: hourly}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available}
+      - {series: ida1_result,      latest_day_offset: 0,  status: available}
+      - {series: ida2_result,      latest_day_offset: 0,  status: available}
+      - {series: ida3_result,      latest_day_offset: -1, status: available}
+      - {series: xbid_summary,     latest_day_offset: -1, status: available, note: "summary of D-1 is out at D 04:30"}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+      - {series: xbid_live,        latest_day_offset: 0,  status: not_collected}
+    forbidden: ["the IDA3 result of day D", "the previous hour of the same auction on day D (finding F4)"]
+
+  - id: xbid_price
+    modelled_quantity: {kind: spread, series: xbid_pt, base: da_pt, transform: {name: none}, challenger: {name: asinh, scale: 5.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_and_window_feature, joint_output: "spread for the remaining hours at each window"}
+    output: {now: point, target: quantile, scenario_structure: "interval; the check windows use per-order caps, not scenarios"}
+    resolution: {native: hourly, plan: hourly}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available, from_window: W1}
+      - {series: ida1_result,      latest_day_offset: 0,  status: available, from_window: W1}
+      - {series: ida2_result,      latest_day_offset: 0,  status: available, from_window: W3, note: "published 22:30; W2 is at 22:30 with no margin"}
+      - {series: ida3_result,      latest_day_offset: 0,  status: available, from_window: W6}
+      - {series: xbid_summary,     latest_day_offset: -2, status: available, from_window: W1}
+      - {series: xbid_summary,     latest_day_offset: -1, status: available, from_window: W4, note: "D-1 summary out at D 04:30"}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available, from_window: W1}
+      - {series: calendar,         latest_day_offset: 0,  status: available, from_window: W1}
+      - {series: xbid_live,        latest_day_offset: 0,  status: not_collected, from_window: W2}
+    late_policy: {da_result: "wait for the file (gate W1 is at 18:30, 99 % of files are out by 18:28)"}
+    forbidden: ["trades after the window time", "the previous trading period of the same window"]
+
+  - id: afrr_cap_price
+    modelled_quantity: {kind: level, series: afrr_up, transform: {name: none}, challenger: {name: asinh, scale: 5.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "one symmetric band price (up equals down in the loaded history; re-check on the full history)"}
+    output: {now: point, target: quantile, scenario_structure: "quantiles; revenue risk"}
+    resolution: {native: "hourly to 2025-03-18, 15-minute from 2025-03-19", plan: "hourly price; the band is constant within blocks"}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available, note: "finding F5: yesterday's band price, known at the as-of time, was unused"}
+      - {series: ida1_result,      latest_day_offset: -1, status: available}
+      - {series: imbalance_price,  latest_day_offset: -3, status: available}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+    late_policy: {da_result: "use the day-ahead forecast and flag the run if the file is not out when the band is offered"}
+    forbidden: ["the band price of day D", "the day-ahead price of D replaced by the price 7 days earlier (finding F1)"]
+
+  - id: mfrr_price
+    modelled_quantity: {kind: level, series: mfrr_ap, transform: {name: none}, challenger: {name: asinh, scale: 20.0}, provisional: true}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "activation energy price, one value per period"}
+    output: {now: point, target: quantile, scenario_structure: "quantiles"}
+    resolution: {native: 15-minute, plan: "hourly mean"}
+    inputs:
+      - {series: da_result,       latest_day_offset: 0,  status: available}
+      - {series: mfrr_series,     latest_day_offset: -3, status: available}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available}
+      - {series: calendar,        latest_day_offset: 0,  status: available}
+    late_policy: {da_result: "use the day-ahead forecast and flag the run"}
+    forbidden: ["the activation price of D, D-1 and D-2"]
+    note: "no revenue consumer today (finding F12): the price here is an activation energy price, not a capacity price"
