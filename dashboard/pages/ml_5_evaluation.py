@@ -111,12 +111,3 @@ st.markdown("""
 - Everything else (tuning, comparing, choosing the champion) uses the development window only.
 """)
 
-ml_ui.talk_track(
-    "I fixed the scoring contract first: a rolling origin that refits as the live system would, a gap so training never touches the day before the "
-    "first forecast, and a final year that is locked and scored once. Differences between models are tested on daily losses with a variance that "
-    "allows for autocorrelation, not read off a single number.",
-    "Why not cross-validation with random folds?",
-    "Prices are a time series: a random fold would let the model train on days after the ones it forecasts, which is leakage and inflates accuracy. "
-    "A rolling origin trains only on the past, like production. The locked year then gives one clean estimate that nothing was tuned on.")
-ml_ui.limits("The test assumes daily loss differences have a stable variance; with about 300 days (the intraday targets) only larger differences can "
-             "be established. Tests are not adjusted across targets.")

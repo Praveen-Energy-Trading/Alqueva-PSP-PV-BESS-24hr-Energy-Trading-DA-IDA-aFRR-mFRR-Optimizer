@@ -83,13 +83,3 @@ st.markdown("Delivery days are local days, so a day has **23 hours** when the cl
             "parses every day against the calendar and rejects a file whose number of periods does not match. Three of these days are saved "
             "as real test files.")
 
-ml_ui.talk_track(
-    "I treat data work as the first model risk. The raw zone is immutable and checksummed, the clean zone is rebuilt from it, a daily "
-    "quality score is computed per dataset and a gate can stop a run. I also handle time properly: 23 and 25 hour days, a change of "
-    "resolution in the market in October 2025, and sources that publish late.",
-    "Your gate is failing: is the data bad?",
-    "No. The gate failing is the system working: IDA1 has 62 days without data out of 850, above the 6% limit. Most are days on which the "
-    "source published an empty file, so the auction cleared nothing. I found that the empty days have become more frequent, and the rule "
-    "that separates confirmed-empty days from ingestion gaps is a design question I list as open.")
-ml_ui.limits("Quality is measured on what the sources publish; it cannot tell whether a published value is correct. The pack holds a "
-             "snapshot of the quality database, not live data.")

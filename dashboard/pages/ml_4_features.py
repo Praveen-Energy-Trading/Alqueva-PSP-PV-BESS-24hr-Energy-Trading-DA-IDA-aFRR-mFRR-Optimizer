@@ -100,13 +100,3 @@ should not be known replaced by noise. The two results must be identical. If a f
 the test fails. The same single builder serves training, evaluation and live prediction, so a feature cannot differ between them.
 """)
 
-ml_ui.talk_track(
-    "Features are a catalogue, not code scattered over scripts. Each one says what it reads, and the system derives from that whether a target "
-    "may use it at its forecast time. A single builder produces the features for training, evaluation and live use, and a test proves that "
-    "replacing unknowable data with noise changes nothing.",
-    "How do you know you have no data leakage?",
-    "Three independent protections: the information set is written per target and enforced by the as-of view, the feature builder reads only "
-    "through that view, and an automated perturbation test randomises everything that must not be known and checks that the forecast does not "
-    "move. I also tried to cheat on purpose, and the check caught it.")
-ml_ui.limits("The catalogue holds 77 features, of which 9 (load, wind, solar, gas, carbon, hydro, weather forecasts) are defined but not collected. "
-             "Stability selection is run on development data only and gives small sets; the champions use the baseline sets.")

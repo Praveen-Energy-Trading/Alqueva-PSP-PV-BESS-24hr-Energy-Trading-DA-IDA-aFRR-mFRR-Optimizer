@@ -105,13 +105,3 @@ with r:
     fig.add_trace(go.Scatter(x=x, y=x / max(abs(x).max(), 1), mode="lines", name="linear (rescaled)", line=dict(color=theme.INK_MUTED, dash="dot")))
     st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="transformed value", xaxis_title="price"), width="stretch")
 
-ml_ui.talk_track(
-    "I wrote down for every target what it forecasts, at what time the forecast is needed and which series exist by then, in one file. The "
-    "evaluation code reads that file, so a model physically cannot see data it would not have had at the time. Intraday prices are modelled as "
-    "a spread to the day-ahead price, and prices are transformed with asinh so that spikes and negative prices are handled.",
-    "Why not a logarithm or a plain model on raw prices?",
-    "Prices go negative, so a logarithm is not defined, and raw prices let the largest spikes dominate the loss. The inverse hyperbolic sine "
-    "behaves like a logarithm for large values and like a straight line near zero, and I chose its scale by measuring the dependence of the daily "
-    "change on the price level, not by hand.")
-ml_ui.limits("Publication times are rulebook times or measured from the data (day-ahead files: median 13:29, 95% by 14:37); the late-publication "
-             "policy is in the formulation file. Fundamentals (load, wind, solar) are defined but not collected, so no model uses them yet.")

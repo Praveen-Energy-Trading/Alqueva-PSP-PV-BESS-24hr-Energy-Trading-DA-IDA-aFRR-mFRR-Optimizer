@@ -134,17 +134,3 @@ else:
     st.caption("Reading it: a gain of 15% means the champion's mean absolute error is 15% lower. The naive forecasts are not tuned and not chosen, "
                "so they cannot be flattered by the selection; they cannot change the champion either.")
 
-ml_ui.talk_track(
-    "The choice of champion is not a judgement call: a written rule, fixed before the results, is applied by code, and the decision file lists every "
-    "test and reason. Then the champion is scored once on a locked year. I report the gain over the reference on the same hours, because the raw "
-    "error depends on the price level of the year.",
-    "What if the locked-year result had been bad?",
-    "I would have reported it as it is. The test cannot change the decision, and every algorithm can be scored on the locked year once, so there is "
-    "no repeating until it looks good. For day-ahead the gain over the reference was 11% in development and 6% on the locked year: smaller, as "
-    "expected after choosing the best of many, and still highly significant. That gap is exactly why the locked year exists. I also compare "
-    "with naive forecasts that need no model. The strongest for day-ahead is yesterday's price: the champion is 5.7% better on the locked year "
-    "(p = 0.01). For the intraday auctions the champions are only 0.4% to 1.9% better than simply assuming the day-ahead price, which I report "
-    "as it is: with these inputs the intraday spread is largely unpredictable.")
-ml_ui.limits("The intraday targets use limited evidence (about 300 development days). IDA1's locked window includes 44 artificial days (a demonstration choice), "
-             "flagged above with the scores on real days only. The reference of the selection rule is a decision tree; the naive forecasts are reported "
-             "next to it and do not take part in the choice.")

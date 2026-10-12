@@ -518,9 +518,9 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 
 The dashboard has a group of ten pages, **ML Lifecycle**, that walks through every stage of the forecasting work in the order a real
 machine-learning project runs: data and quality, market analysis, problem formulation, features, evaluation design, the tuning lab,
-the model arena, the decision and locked test, and the registry, monitoring and live switch. Each page has a collapsed "What to say"
-panel (a talk track and a likely follow-up question) and a "Limits" strip, and **Interview mode** (sidebar) expands the talk tracks and adds a
-tour bar. Every number comes from committed files, so the group works on any checkout:
+the model arena, the decision and locked test, and the registry, monitoring and live switch. The pages show the project only;
+the talk tracks and likely questions are kept apart in `docs/ML_Dashboard_Presenter_Notes.md`. **Interview mode** (sidebar) adds a tour
+bar to step through the pages. Every number comes from committed files, so the group works on any checkout:
 
 ```
 streamlit run dashboard/app.py                 # the ML Lifecycle group is in the sidebar

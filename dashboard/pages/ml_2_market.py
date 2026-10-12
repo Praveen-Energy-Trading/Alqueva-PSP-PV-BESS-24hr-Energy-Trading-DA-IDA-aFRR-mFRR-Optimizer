@@ -98,12 +98,3 @@ for name, cap in [("phase4_structural_breaks.png", "Structural breaks: the docum
         with st.expander(cap):
             st.image(str(p), width="stretch")
 
-ml_ui.talk_track(
-    "Before choosing a model I looked at the data: the level moves slowly and drives most of the variance, the daily shape has changed because "
-    "of solar, and the intraday prices are the day-ahead price plus a small spread. Each of those findings became a modelling decision: "
-    "recent-level features, hour and month features, a rolling training window, and a spread target for the intraday markets.",
-    "How do you know the rule changes did not break your series?",
-    "I tested for structural breaks around each documented event. The level moved mostly with fuel and hydrology, not with the rules, so the "
-    "training window is rolling and recent rather than the whole history. The regime shading above is what I use to report results by period.")
-ml_ui.limits("Daily means hide intra-day detail; the full hourly analysis (distribution, spikes, negative hours) is in the report figures. "
-             "The pack holds a snapshot of the clean zone.")

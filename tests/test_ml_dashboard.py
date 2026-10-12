@@ -124,7 +124,7 @@ def test_the_test_counter_finds_test_functions():
 def test_every_ml_page_opens_without_an_exception(page):
     at = AppTest.from_file(str(REPO / "dashboard" / "pages" / page), default_timeout=60).run()
     assert not at.exception, [e.value for e in at.exception]
-    assert len(at.title) == 1 and len(at.expander) >= 1                    # a title and the "What to say" panel
+    assert len(at.title) == 1 and not [e for e in at.expander if e.label == "What to say"]          # a title, and no presenter panel
 
 
 @pytest.mark.parametrize("page", PAGES)
@@ -204,10 +204,11 @@ def test_the_navigation_lists_every_ml_page_and_each_file_exists():
     assert sorted(f"{s}.py" for s, _ in ml_ui.PAGES) == PAGES
 
 
-def test_every_ml_page_has_a_talk_track_and_a_limits_strip():
+def test_the_pages_show_the_project_only_no_presenter_notes():
     for page in PAGES:
         src = (REPO / "dashboard" / "pages" / page).read_text(encoding="utf-8")
-        assert "ml_ui.talk_track(" in src and "ml_ui.limits(" in src and "ml_ui.header(" in src, page
+        assert "ml_ui.header(" in src, page
+        assert "talk_track" not in src and "What to say" not in src and "Likely question" not in src, page    # these live in docs/ML_Dashboard_Presenter_Notes.md
 
 
 def test_the_pages_still_open_when_the_pack_and_runtime_are_missing(tmp_path, monkeypatch):

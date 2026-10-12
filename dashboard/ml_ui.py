@@ -1,6 +1,5 @@
 """
-ml_ui.py — the shared components of the ML Lifecycle pages: header, "what to say" panel, limits strip, target picker, status badges
-and the interview-mode tour. Streamlit only; the data comes from ml_data.py.
+ml_ui.py — the shared components of the ML Lifecycle pages: header, target picker, status badges and the interview-mode tour. Streamlit only; the data comes from ml_data.py.
 """
 from __future__ import annotations
 
@@ -34,7 +33,7 @@ def interview_mode() -> bool:
 
 def sidebar_controls() -> None:
     st.sidebar.toggle("Interview mode", key="ml_interview_mode",
-                      help="Shows the talk track of every page expanded and a tour bar to step through the ten pages.")
+                      help="Shows a tour bar to step through the ten pages.")
 
 
 def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
@@ -46,21 +45,6 @@ def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
                 unsafe_allow_html=True)
     if step is not None:
         st.progress((step + 1) / len(PAGES), text=f"Step {step + 1} of {len(PAGES)}: {PAGES[step][1]}")
-
-
-def talk_track(say: str, question: str, answer: str) -> None:
-    """A collapsed panel with what to say and the likely follow-up question with its answer (expanded in interview mode)."""
-    with st.expander("What to say", expanded=interview_mode()):
-        st.markdown(say)
-        st.markdown(f"**Likely question:** {question}")
-        st.markdown(f"**Answer:** {answer}")
-
-
-def limits(text: str) -> None:
-    """What this page does not prove."""
-    st.markdown(f'<div style="border-left:4px solid {theme.STATUS_WARNING}; background:{theme.SURFACE}; padding:0.55rem 0.9rem; '
-                f'border-radius:6px; color:{theme.INK_SECONDARY}; font-size:0.92rem; margin:0.4rem 0 1rem 0;"><b>Limits.</b> {text}</div>',
-                unsafe_allow_html=True)
 
 
 def not_yet_run(what: str) -> None:

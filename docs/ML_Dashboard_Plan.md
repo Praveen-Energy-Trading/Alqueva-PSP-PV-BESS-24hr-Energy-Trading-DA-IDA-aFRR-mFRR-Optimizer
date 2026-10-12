@@ -32,12 +32,11 @@ grouped navigation), above the current "ML Forecasting" page, which is replaced 
 | 8 | **Decision and locked test** | The selection rule as a flow, with the reasons for each target; the locked-year result, champion against the reference, development against locked loss; the artificial IDA1 days flagged, with real-day scores | A written rule, one honest test |
 | 9 | **Run it: registry, monitoring, live** | Experiments and the reproducibility check; champion versions and the event log; monitoring replayed over the locked year against thresholds; the refit and re-tuning schedule; champion against the legacy forecaster; the live switch status | ML as operations |
 
-Two extra elements on every page:
-- **"What to say" panel** (collapsed): two or three sentences of talk track and the likely follow-up question with its answer.
-- **"Limits" strip**: what this page does not prove (for example, "limited evidence: about 300 days").
+Update: the talk tracks, likely questions and limits strips were first planned as panels on every page. They were moved out of the
+dashboard into `docs/ML_Dashboard_Presenter_Notes.md`, so that the dashboard shows only the project when it is presented.
 
-Plus one **Interview mode** switch in the sidebar: a guided tour (next and previous buttons through pages 0 to 9 with the talk
-track visible), and a **Model card** per target (intended use, data, performance, limits), the format hiring teams know.
+Plus one **Interview mode** switch in the sidebar: a guided tour (next and previous buttons through pages 0 to 9), and a
+**Model card** per target (intended use, data, performance, limits), the format hiring teams know.
 
 ## How it is built
 

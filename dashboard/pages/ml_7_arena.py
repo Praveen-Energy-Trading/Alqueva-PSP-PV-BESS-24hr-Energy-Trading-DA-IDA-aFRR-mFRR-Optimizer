@@ -111,13 +111,3 @@ else:
     st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="daily MAE, smoothed"), width="stretch")
     st.caption("The errors of all algorithms rise and fall together over time, which is why the tests compare them on paired daily losses.")
 
-ml_ui.talk_track(
-    "I compare algorithms by their out-of-sample errors on the same days, never by their settings: each is tuned with the same budget and then scored the "
-    "same way. For every pair I test whether the difference is real, and I correct for the number of pairs, because with ten pairs one will look "
-    "significant by chance.",
-    "How do you compare a decision tree and LightGBM when they have different hyperparameters?",
-    "The hyperparameters are internal to each algorithm. What I compare is the forecast error on days the model has not seen, after each algorithm "
-    "has been tuned fairly. The Diebold-Mariano test then says whether the gap is larger than day-to-day luck, and the Holm correction keeps the "
-    "many pairwise tests honest.")
-ml_ui.limits("For the intraday targets (about 300 days) most pairs cannot be separated, so the comparison mostly shows ties; ties are resolved by the "
-             "selection rule on the next page, not by picking the lowest number.")

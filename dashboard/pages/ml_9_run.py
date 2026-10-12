@@ -133,13 +133,3 @@ st.subheader("Engineering")
 theme.metric_cards([("Automated tests", f"{facts.get('test_functions', '-')} in {facts.get('test_files', '-')} files"), ("Framework modules", facts.get("framework_modules", "-")),
                     ("Command-line tools", facts.get("tools", "-")), ("Configuration files", facts.get("config_files", "-"))], ncols=4, pre_formatted=True)
 
-ml_ui.talk_track(
-    "A model is not finished when it is accurate. Every run is recorded and reproducible; a champion is a versioned, checksummed artifact; a "
-    "challenger replaces it only under a written rule; the champion's error is watched against what was normal in development; and the live "
-    "switch is a one-line change that falls back safely.",
-    "How would you know the model has stopped working?",
-    "The rolling error is compared with a threshold taken from its own development history. In the real locked year the day-ahead champion's "
-    "rolling error crosses its threshold at the end of September 2026, and the monitor flags it. I can also simulate a market change here to show the "
-    "flag firing on demand. The response is a review and a re-tune, never an automatic switch.")
-ml_ui.limits("No champion is registered yet and no live forecast is switched: those are deliberate steps. The monitoring page replays the locked year; "
-             "it is not live monitoring. The registry snapshot is committed with the pack, the registry itself is a local database.")

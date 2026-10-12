@@ -142,13 +142,3 @@ champion. Rerun with the guard, the Optuna experiment is **bit-identical** to th
 forecasts of the control are exactly that incident.
 """)
 
-ml_ui.talk_track(
-    "Tuning is nested and time-aware: inside each refit the search only sees that refit's past, scored on three later blocks, with the same trial "
-    "budget for every algorithm and the defaults always included. I keep every trial so I can show the search, not just the winner.",
-    "Is tuning worth it, and did Optuna beat a random search?",
-    "Tuning helped the boosted models clearly (LightGBM 4.9% lower error, XGBoost 3.0%, both significant), gradient boosting a little (1.8%, borderline) "
-    "and the random forest not significantly (0.5%). Optuna matched random search "
-    "in quality while skipping about a third of the fits. And the gain I saw while choosing was larger than the gain afterwards, which is why "
-    "the final number comes from the locked year.")
-ml_ui.limits("Day-ahead has the full comparison with the random control; the other targets show their Optuna runs only. The control's XGBoost row is "
-             "unreliable (the unstable setting), so it is used for the search behaviour, not for outer scores.")
