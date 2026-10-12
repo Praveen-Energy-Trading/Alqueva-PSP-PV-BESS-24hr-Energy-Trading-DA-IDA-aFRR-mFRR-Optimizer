@@ -26,7 +26,7 @@ from common_layer.model_development import selection
 
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
 DEFAULT_PATH = os.path.join(_REPO, "config", "rollout.yaml")
-PRICE_TARGETS = ("da_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "afrr_cap_price", "mfrr_price")
+PRICE_TARGETS = ("da_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "afrr_cap_price", "afrr_dn_price", "mfrr_price")
 
 
 def load_rollout(path: Optional[str] = None) -> dict:

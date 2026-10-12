@@ -181,7 +181,7 @@ def test_building_an_unavailable_feature_is_refused():
 
 
 # ------------------------------------------------------------- point-in-time correctness
-@pytest.mark.parametrize("target", ["da_price", "ida1_price", "ida3_price", "xbid_price", "afrr_cap_price", "mfrr_price"])
+@pytest.mark.parametrize("target", ["da_price", "ida1_price", "ida3_price", "xbid_price", "afrr_cap_price", "afrr_dn_price", "mfrr_price"])
 def test_every_available_feature_is_point_in_time_correct(target):
     panel = synthetic_panel(150)
     view = AsOfView(panel, FORM, target)

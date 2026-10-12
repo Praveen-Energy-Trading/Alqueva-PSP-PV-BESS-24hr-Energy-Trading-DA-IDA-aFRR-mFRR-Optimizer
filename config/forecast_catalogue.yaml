@@ -181,6 +181,25 @@ targets:
     priority: 2
     findings: [F1, F5]
 
+  - id: afrr_dn_price
+    description: "aFRR capacity (band) down price (EUR/MW per hour): the same market as afrr_cap_price, forecast as its own target"
+    decision: "aFRR capacity offer (down price taken for expected revenue and offer sizing)"
+    consumers: [run_afrr, backtest_runner]
+    resolution: [hourly]
+    horizon: "delivery day D"
+    as_of:
+      gate: AFRR
+      rule: "after the DA result is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
+      allowed: ["actual DA result for D", "band prices of days <= D-1 (cleared D-2)"]
+      forbidden: ["band prices of day D"]
+    output: point
+    current:
+      module: phase_4a_afrr_automatic_frequency_reserve/afrr_price_forecasting/afrr_price_forecaster.py
+      features: "calendar, DA price, DA rolling mean/std, band price 7 days ago; no 1-day lag (down model of the same file)"
+    fallback: "flat 25 / 12 EUR/MW"
+    priority: 2
+    findings: [F1, F5]
+
   - id: mfrr_price
     description: "mFRR price series from REN (the data are the activation energy price, not a capacity price)"
     decision: "mFRR offer; in the future-band scenario capacity is paid at the aFRR band price, so this forecast has no revenue consumer today (to verify)"

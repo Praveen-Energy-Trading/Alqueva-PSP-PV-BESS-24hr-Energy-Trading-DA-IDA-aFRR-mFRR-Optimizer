@@ -139,7 +139,7 @@ def test_the_overview_numbers_equal_the_decision_files():
     at = AppTest.from_file(str(REPO / "dashboard" / "pages" / "ml_0_overview.py"), default_timeout=60).run()
     text = " ".join(m.value for m in at.markdown)
     dec = ml_data.decisions()
-    assert f"{len(dec)} of 6" in text                                          # targets with a champion
+    assert f"{len(dec)} of {len(ml_data.TARGETS) - 1}" in text                                          # targets with a champion
     assert any("lifecycle" in s.value.lower() for s in at.subheader)
 
 

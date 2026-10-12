@@ -38,6 +38,7 @@ availability:
 targets:
   da_price:       {treatment: standard,         feature_set: baseline_v1}
   afrr_cap_price: {treatment: standard,         feature_set: baseline_v1}
+  afrr_dn_price:  {treatment: standard,         feature_set: baseline_v1}
   ida1_price:     {treatment: limited_evidence, feature_set: baseline_v1}
   ida2_price:     {treatment: limited_evidence, feature_set: baseline_v1}
   ida3_price:     {treatment: limited_evidence, feature_set: baseline_v1}

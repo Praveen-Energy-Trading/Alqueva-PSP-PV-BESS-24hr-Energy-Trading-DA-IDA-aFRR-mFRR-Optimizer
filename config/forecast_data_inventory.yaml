@@ -34,7 +34,7 @@ sources:
     cost: free
     rate_limits: "none documented; the loader fetches one file per day"
     vintage: partial   # results are final at publication; no revisions seen, but old files are overwritten only by OMIE
-    used_by: [da_price, ida1_price, ida2_price, ida3_price, xbid_price, afrr_cap_price, mfrr_price]
+    used_by: [da_price, ida1_price, ida2_price, ida3_price, xbid_price, afrr_cap_price, afrr_dn_price, mfrr_price]
     owner: "project owner (Praveen)"
     quality_note: "all rows OMIE_LIVE; PT equals ES price in 93.4% of hours (market coupling); file stores exactly 24 (96) slots per day, so the 23- and 25-hour daylight-saving days are not represented as such (Phase 2)"
     findings: [D5]
@@ -94,7 +94,7 @@ sources:
     cost: free
     rate_limits: "unknown"
     vintage: no
-    used_by: [afrr_cap_price, mfrr_price]
+    used_by: [afrr_cap_price, afrr_dn_price, mfrr_price]
     owner: "project owner (Praveen)"
     quality_note: "aFRR 0.1% and mFRR 2.2% SYNTHETIC rows; the aFRR product changes: national aFRR platform rules apply from 2026-04-01 and PICASSO integration is due by 2026-10-31, so the series has a regime change; REN's 'Ajustado' price is preferred over 'Inicial'"
     findings: [D3, D5]

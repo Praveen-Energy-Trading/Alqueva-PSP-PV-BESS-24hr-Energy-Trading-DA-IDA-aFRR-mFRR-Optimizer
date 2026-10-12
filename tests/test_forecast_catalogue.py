@@ -28,7 +28,7 @@ def test_catalogue_is_valid_against_the_market_gates():
 def test_every_forecaster_of_the_pipeline_is_in_the_catalogue():
     ids = {t["id"] for t in load_forecast_catalogue()["targets"]}
     assert {"da_price", "pv_weather", "reservoir_inflow", "ida1_price", "ida2_price", "ida3_price",
-            "xbid_price", "afrr_cap_price", "mfrr_price"} <= ids
+            "xbid_price", "afrr_cap_price", "afrr_dn_price", "mfrr_price"} <= ids
 
 
 def test_intraday_gates_name_the_results_that_are_known_at_their_as_of_time():

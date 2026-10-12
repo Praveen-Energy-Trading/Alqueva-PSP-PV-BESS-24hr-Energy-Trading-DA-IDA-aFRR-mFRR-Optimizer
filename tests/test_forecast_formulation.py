@@ -54,6 +54,7 @@ def test_day_ahead_and_intraday_outputs_follow_what_the_optimiser_consumes():
     assert by["da_price"]["output"]["target"] == "scenarios"                # the stochastic MILP needs joint scenarios
     assert by["ida1_price"]["modelled_quantity"]["kind"] == "spread"
     assert by["afrr_cap_price"]["modelled_quantity"]["kind"] == "level"    # EUR/MW/h: no spread to a EUR/MWh price
+    assert by["afrr_dn_price"]["modelled_quantity"]["series"] == "afrr_dn" and by["afrr_dn_price"]["modelled_quantity"]["kind"] == "level"
 
 
 # --------------------------------------------------- the information set is tested

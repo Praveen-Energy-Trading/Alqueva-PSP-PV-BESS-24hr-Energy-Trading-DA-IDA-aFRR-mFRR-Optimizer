@@ -41,7 +41,7 @@ def base_for(panel_days: int = 300) -> dict:
 def test_every_price_target_has_a_treatment_and_a_feature_set_that_exists():
     assert set(rollout.PRICE_TARGETS) <= set(R["targets"])
     assert {t: v["treatment"] for t, v in R["targets"].items()} == {
-        "da_price": "standard", "afrr_cap_price": "standard", "ida1_price": "limited_evidence", "ida2_price": "limited_evidence",
+        "da_price": "standard", "afrr_cap_price": "standard", "afrr_dn_price": "standard", "ida1_price": "limited_evidence", "ida2_price": "limited_evidence",
         "ida3_price": "limited_evidence", "xbid_price": "limited_evidence", "mfrr_price": "deferred"}
     sets = load_feature_sets()
     assert all(v["feature_set"] in sets for v in R["targets"].values())

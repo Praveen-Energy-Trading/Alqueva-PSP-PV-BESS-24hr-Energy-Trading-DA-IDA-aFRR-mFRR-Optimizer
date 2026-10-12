@@ -11,4 +11,5 @@ Treatments are in `config/rollout.yaml`: `limited_evidence` targets have shorter
 | ida3_price | limited_evidence | 300 | mean of decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 10.166 | 0.015 | decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 12.675 | 1.25 | - |
 | xbid_price | limited_evidence | 303 | mean of decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 12.092 | 0.037 | decision_tree, random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
 | afrr_cap_price | standard | 1014 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 13.488 | 7.9e-08 | random_forest, gradient_boosting, xgboost, lightgbm | 4.142 | 0.31 | - |
+| afrr_dn_price | standard | 1014 | mean of random_forest, xgboost, lightgbm | 13.433 | 2.9e-09 | random_forest, xgboost, lightgbm |  |  | - |
 | mfrr_price | deferred |  | - |  |  | - |  |  | - |

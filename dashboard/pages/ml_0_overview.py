@@ -14,7 +14,7 @@ import ml_ui
 import theme
 
 ml_ui.header("ML Lifecycle: from data to a monitored model",
-             "Seven electricity-price forecasting targets of the Portuguese market, taken through every stage of a machine-learning "
+             "Eight electricity-price forecasting targets of the Portuguese market, taken through every stage of a machine-learning "
              "project, with the evidence of each stage one click away.", step=0)
 ml_ui.tour_bar(0)
 
@@ -102,12 +102,12 @@ st.markdown("""
 """)
 
 ml_ui.talk_track(
-    "This is a price-forecasting system for the Portuguese electricity market, built end to end: seven forecasting targets from day-ahead "
+    "This is a price-forecasting system for the Portuguese electricity market, built end to end: eight forecasting targets from day-ahead "
     "to the reserve markets. I treated it as a real machine-learning project, not a notebook: each box above is a stage with its own "
     "code, tests and evidence, and I can show you any of them.",
     "Which result matters most?",
     "The day-ahead champion, tuned LightGBM, is 11% better than the decision-tree reference, and the difference is significant against "
     "every other algorithm. The intraday targets show smaller, mostly tied differences, and I say so: with about 300 days only larger "
     "differences can be established.")
-ml_ui.limits("Seven targets, six with a champion: mFRR is deferred because its history is too short. The intraday targets are labelled "
+ml_ui.limits(f"Eight targets, {decided} with a champion: mFRR is deferred because its history is too short. The intraday targets are labelled "
              "limited evidence. Gains are measured against a decision tree and against the strongest of several naive forecasts; the intraday gains over a naive forecast are small.")

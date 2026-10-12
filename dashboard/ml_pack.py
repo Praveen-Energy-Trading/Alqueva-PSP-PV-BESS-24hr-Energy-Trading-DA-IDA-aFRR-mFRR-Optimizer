@@ -42,7 +42,7 @@ _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 sys.path.insert(0, _REPO)
 
 PACK = os.path.join(_REPO, "model_development", "data")
-TARGETS = ("da_price", "afrr_cap_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price")
+TARGETS = ("da_price", "afrr_cap_price", "afrr_dn_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price")
 
 
 # ------------------------------------------------------------------------------------------------------ pure transforms

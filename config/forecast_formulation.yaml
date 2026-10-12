@@ -233,6 +233,20 @@ targets:
     late_policy: {da_result: "use the day-ahead forecast and flag the run if the file is not out when the band is offered"}
     forbidden: ["the band price of day D", "the day-ahead price of D replaced by the price 7 days earlier (finding F1)"]
 
+  - id: afrr_dn_price
+    modelled_quantity: {kind: level, series: afrr_dn, transform: {name: asinh, scale: 5.0}, challenger: {name: none}}
+    structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "the down band price, forecast on its own (it is a separate market price; the two correlate 0.998 over the full history)"}
+    output: {now: point, target: quantile, scenario_structure: "quantiles; revenue risk"}
+    resolution: {native: "hourly to 2025-03-18, 15-minute from 2025-03-19", plan: "hourly price; the band is constant within blocks"}
+    inputs:
+      - {series: da_result,        latest_day_offset: 0,  status: available}
+      - {series: afrr_band_result, latest_day_offset: -1, status: available, note: "yesterday's band price (up and down), known at the as-of time"}
+      - {series: ida1_result,      latest_day_offset: -1, status: available}
+      - {series: imbalance_price,  latest_day_offset: -6, status: available}
+      - {series: calendar,         latest_day_offset: 0,  status: available}
+    late_policy: {da_result: "use the day-ahead forecast and flag the run if the file is not out when the band is offered"}
+    forbidden: ["the band price of day D", "the day-ahead price of D replaced by the price 7 days earlier (finding F1)"]
+
   - id: mfrr_price
     modelled_quantity: {kind: level, series: mfrr_ap, transform: {name: asinh, scale: 20.0}, challenger: {name: none}}
     structure: {multi_step: direct, layout: pooled_with_hour_feature, joint_output: "activation energy price, one value per period"}

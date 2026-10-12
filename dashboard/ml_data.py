@@ -19,10 +19,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-TARGETS = ("da_price", "afrr_cap_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "mfrr_price")
-LABELS = {"da_price": "Day-ahead price", "afrr_cap_price": "aFRR capacity price (up)", "ida1_price": "IDA1 price", "ida2_price": "IDA2 price",
+TARGETS = ("da_price", "afrr_cap_price", "afrr_dn_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "mfrr_price")
+LABELS = {"da_price": "Day-ahead price", "afrr_cap_price": "aFRR capacity price (up)", "afrr_dn_price": "aFRR capacity price (down)", "ida1_price": "IDA1 price", "ida2_price": "IDA2 price",
           "ida3_price": "IDA3 price", "xbid_price": "XBID price", "mfrr_price": "mFRR price"}
-UNITS = {t: "EUR/MWh" for t in TARGETS} | {"afrr_cap_price": "EUR/MW/h"}
+UNITS = {t: "EUR/MWh" for t in TARGETS} | {"afrr_cap_price": "EUR/MW/h", "afrr_dn_price": "EUR/MW/h"}
 MODEL_LABELS = {"decision_tree": "Decision tree", "random_forest": "Random forest", "gradient_boosting": "Gradient boosting",
                 "xgboost": "XGBoost", "lightgbm": "LightGBM", "champion": "Champion", "reference": "Reference (decision tree)"}
 STAGES = ["Experiment registry", "Tuning", "Tuning evidence", "Algorithm comparison", "Selection policy", "Locked test",
