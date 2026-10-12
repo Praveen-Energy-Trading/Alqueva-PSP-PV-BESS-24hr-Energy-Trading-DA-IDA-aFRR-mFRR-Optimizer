@@ -23,7 +23,7 @@ gate = ml_ui.cached(lambda: ml_data.pack_json("quality_gate"))()
 qd = ml_ui.cached(lambda: ml_data.pack("quality_daily"))()
 status = ml_ui.cached(lambda: ml_data.pack("load_status_monthly"))()
 
-st.subheader("Sources and the raw zone")
+st.subheader("Data sources")
 if manifest.empty:
     ml_ui.not_yet_run("the data pack")
 else:
