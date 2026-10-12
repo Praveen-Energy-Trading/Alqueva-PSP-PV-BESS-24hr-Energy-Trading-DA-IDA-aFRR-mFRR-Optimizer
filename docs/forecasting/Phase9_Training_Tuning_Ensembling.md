@@ -105,3 +105,14 @@ Calibration window and refit frequency (LightGBM, defaults; DM against 730 days 
   LightGBM took the absolute-error objective in 4 of 6 rounds, XGBoost in 3 of 6, gradient boosting chose each of
   squared, absolute and Huber twice. The log is not committed (it is in `runtime/`).
 * The expanding window grows the training time with the history; at the current size (about three years) it is acceptable.
+
+## 6. Follow-up (2026-10-12): the stronger tuning and the other targets
+
+The tuning of this phase was extended in `docs/Model_Development_Plan.pdf` (stages 1 to 10): 40 trials per algorithm with a seeded
+Optuna search, three inner validation blocks, a random-search control and a numerical guard. The results are in
+`model_development/README.md` and `docs/Model_Development_Results.pdf`. In short, for the day-ahead price, tuned LightGBM is the
+champion (MAE 17.38 against 19.57 for the decision tree; nine of ten pairs of algorithms differ significantly); Optuna matches
+random search with about a third fewer fits; and the gain seen on the validation blocks (2.5% to 8.4%) is larger than the gain on
+the days that followed (0.4% to 5.1%). The 12-trial run of Section 3 is superseded by that experiment; its conclusions on
+combinations and on the calibration window stand, but the combinations were measured against tuned LightGBM with 12 trials, not
+against the 40-trial champion.

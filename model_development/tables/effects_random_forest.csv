@@ -1,0 +1,13 @@
+model,setting,value,n,mean_rel,best_rel
+random_forest,max_depth,12.0000,84,1.0084,0.9487
+random_forest,max_depth,20.0000,76,1.0047,0.9498
+random_forest,max_features,0.3000,59,0.9926,0.9487
+random_forest,max_features,0.5000,52,0.9989,0.9667
+random_forest,max_features,0.8000,70,1.0152,0.9748
+random_forest,max_features,1.0000,53,1.0208,0.9777
+random_forest,min_samples_leaf,10.0000,53,1.0017,0.9553
+random_forest,min_samples_leaf,20.0000,60,0.9951,0.9487
+random_forest,min_samples_leaf,3.0000,62,1.0190,0.9518
+random_forest,min_samples_leaf,5.0000,59,1.0119,0.9603
+random_forest,n_estimators,100.0000,123,1.0085,0.9498
+random_forest,n_estimators,200.0000,111,1.0057,0.9487

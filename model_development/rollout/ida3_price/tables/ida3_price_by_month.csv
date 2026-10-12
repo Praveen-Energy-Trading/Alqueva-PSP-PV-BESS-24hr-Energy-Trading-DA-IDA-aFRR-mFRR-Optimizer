@@ -1,0 +1,12 @@
+group,units,decision_tree,random_forest,gradient_boosting,xgboost,lightgbm,lowest_mae,winner,winner_share
+1,30,11.1098,10.6655,10.7323,10.8384,10.7731,random_forest,lightgbm,0.2667
+2,28,9.4595,9.1420,8.9922,9.2112,9.3474,gradient_boosting,random_forest,0.3571
+3,30,8.8668,8.6887,8.6778,8.6945,8.9160,gradient_boosting,decision_tree,0.3000
+4,29,10.4609,10.1554,10.2299,10.2008,10.2571,random_forest,gradient_boosting,0.2759
+5,31,13.3049,12.7021,12.1689,12.2103,12.3697,gradient_boosting,gradient_boosting,0.2903
+6,30,10.4968,10.7126,10.7119,10.7415,10.7071,decision_tree,decision_tree,0.4333
+7,31,10.8489,10.8540,10.9096,10.9511,10.8570,decision_tree,decision_tree,0.3548
+8,31,9.5817,9.3140,9.3889,9.3308,9.4190,random_forest,decision_tree,0.3226
+9,30,11.1693,10.9492,10.7456,10.7294,10.7984,xgboost,xgboost,0.2333
+10,11,8.1181,8.3069,8.3892,8.4335,8.3245,decision_tree,decision_tree,0.3636
+12,19,8.6709,8.9125,8.9312,8.9102,8.9559,decision_tree,decision_tree,0.6842

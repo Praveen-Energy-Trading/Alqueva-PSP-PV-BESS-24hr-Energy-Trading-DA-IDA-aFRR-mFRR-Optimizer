@@ -1,0 +1,6 @@
+model,trials,pruned,duplicates,share_pruned
+decision_tree,156,0,0,0.0000
+gradient_boosting,240,95,56,0.3958
+lightgbm,240,87,30,0.3625
+random_forest,240,81,60,0.3375
+xgboost,240,94,19,0.3917

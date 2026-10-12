@@ -1,0 +1,139 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=accent,urlcolor=accent,citecolor=accent]{hyperref}
+
+\definecolor{accent}{RGB}{20,70,120}
+\definecolor{soft}{RGB}{240,244,248}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.25}
+
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{16pt}{6pt}
+\titlespacing*{\subsection}{0pt}{12pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Model Development Results}
+\fancyhead[R]{\small Alqueva PSP--PV--BESS Trading Optimizer}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\notebox}[2]{\par\smallskip\noindent\colorbox{soft}{\parbox{\dimexpr\linewidth-2\fboxsep}{\textbf{#1} #2}}\par}
+
+\begin{document}
+
+{\LARGE\bfseries\color{accent} Model development: results}\\[4pt]
+{\large Training, tuning and selection of the price forecasters, all price targets}\\[2pt]
+{\small Written 2026-10-12. Follows the plan in \texttt{Model\_Development\_Plan.pdf}. Evidence and generated tables:
+\texttt{model\_development/}.}
+
+\medskip
+\hrule
+
+\section{Where it stands}
+
+All ten stages of the plan are built and tested on the PC (the full suite: 600 passed). The process has been run for six of the
+seven price targets and produced a champion decision for each. Four things are \textbf{not} done, because each is a one-time or
+outward-facing step that needs a decision (Section~5): freezing the locked outcomes, the one locked test per target,
+registering the champions, and switching any live forecast. Nothing in the live pipeline has changed: every target is still on
+the legacy forecaster, and nothing has been deleted.
+
+\section{Champions}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{2.6cm}p{2.5cm}rp{4.4cm}rr@{}}
+\toprule
+Target & Treatment & Days & Champion & MAE & vs tree \\
+\midrule
+Day-ahead price & standard & 1\,015 & LightGBM & 17.38 & 11.2\% \\
+aFRR capacity (up) & standard & 1\,014 & mean of random forest, gradient boosting, XGBoost, LightGBM & 13.49 & 4.1\% \\
+IDA1 & limited evidence & 293 & mean of the same four & 5.01 & 4.7\% \\
+IDA2 & limited evidence & 298 & mean of the same four & 8.48 & 1.8\% \\
+IDA3 & limited evidence & 300 & mean of all five & 10.17 & 2.4\% \\
+XBID & limited evidence & 303 & mean of all five & 12.09 & 0.8\% \\
+mFRR & deferred & --- & none & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+MAE is the mean daily absolute error on the development window, in EUR/MWh (EUR/MW/h for aFRR capacity). ``vs tree'' is the
+reduction against the decision tree, the reference of the framework (the best single model for aFRR capacity). No naive
+benchmark is involved, as decided earlier. The gains are largest where the target is most predictable and small for the intraday
+spreads.
+
+\textbf{Treatments.} \emph{Standard} follows the evidence rules unchanged. \emph{Limited evidence} (IDA1--3 and XBID, which
+start on 2024-06-13) uses 180 training days before the first test day, an expanding window and at least 250 scored development
+days (about 300 are available); with fewer days only larger differences can be established, and this is labelled in every
+decision. \emph{Deferred} (mFRR, from 2024-11-27) has about 135 usable development days, and the development window ends on
+2025-10-11 and does not grow, so mFRR waits until the windows are rolled forward.
+
+\section{What the experiments showed}
+
+\begin{enumerate}
+\item \textbf{Day-ahead: LightGBM is clearly the best.} Nine of the ten pairs of algorithms differ significantly after the
+      Holm correction (MAE: decision tree 19.57, random forest 18.02, XGBoost 17.68, gradient boosting 17.64, LightGBM 17.38).
+\item \textbf{Averaging helps where the models are genuinely tied, and clearly once.} For aFRR capacity the average of four
+      algorithms beats the best single model (13.49 against 13.56, $p=0.015$). For the intraday targets the algorithms cannot be
+      told apart, so the policy averages them; for IDA3 and XBID that includes the decision tree. With about 300 days the data
+      cannot separate them, which is the cost of the limited-evidence treatment.
+\item \textbf{Optuna matches random search with about a third fewer fits.} After 40 trials the best setting reaches 0.916 of
+      the default error for LightGBM with TPE and 0.919 with random search (XGBoost 0.921 and 0.923, gradient boosting 0.933
+      and 0.931). The pruner stopped 34\% to 40\% of the trials after one validation block.
+\item \textbf{The gain seen when choosing is larger than the gain afterwards.} On the validation blocks tuning improved the
+      error by 2.5\% (random forest) to 8.4\% (LightGBM); on the days that followed, by 0.4\% to 5.1\%. The chosen settings also
+      change from round to round (the most frequent value of a setting was chosen in 33\% to 83\% of the rounds).
+\item \textbf{No single setting dominates.} In the random-search trials one setting explains at most 36\% of the variance
+      (tree depth for the decision tree) and 10\% to 22\% for the most important setting of the boosted models and the forest.
+\item \textbf{Repeats reproduce.} The Optuna day-ahead experiment, run twice, gave identical predictions.
+\end{enumerate}
+
+\section{A numerical failure, found and guarded}
+
+One tuned XGBoost in the random-search control used the pseudo-Huber objective and predicted prices up to $5\times10^{21}$ for
+the 30 days of April 2023: a boosted model can leave the range of its training outcomes, and the asinh target transform is
+inverted by sinh. Forecasts are now limited to the range of the training outcomes plus a margin of one unit (in the transformed
+space) in training, in the tuning validation and in the served champion. The Optuna runs never triggered the guard: rerun
+with it, the day-ahead experiment is bit-identical to the first. The random-search control still shows a poor XGBoost row
+(MAE 67) because the setting itself is unstable, so that row is not used. The registry reports the control as ``not
+reproduced'' on purpose.
+
+\section{Decisions that are yours}
+
+\begin{enumerate}
+\item \textbf{Freeze the locked outcomes} of each target (\texttt{tools/\allowbreak evaluate\_\allowbreak forecaster.py -{}-target T -{}-lock}). The window
+      ends on 2026-10-11, so the last days may still be revised. Every other preflight check passes except that the code has
+      uncommitted changes.
+\item \textbf{IDA1's locked window has too many missing days:} 321 of 365 have outcomes against 96\% during development, mostly
+      scattered (1 to 4 per month, one run of 6 days in August 2026). Empty auctions would justify a lower floor; data that was
+      not ingested should be filled first. The preflight refuses IDA1 until this is settled.
+\item \textbf{The one locked test per target} (\texttt{tools/\allowbreak run\_\allowbreak locked\_\allowbreak test.py -{}-target T -{}-\allowbreak confirm-locked}); each algorithm
+      can be scored once.
+\item \textbf{Register the champions} (\texttt{tools/champion.py init}), fit them and calibrate their monitoring.
+\item \textbf{Switch live forecasts} in \texttt{config/live\_models.yaml} after \texttt{tools/compare\_old\_new.py} has recorded
+      the champion against the legacy forecaster; delete the legacy code only after that. aFRR capacity and mFRR cannot be
+      switched yet (the legacy aFRR forecaster returns up and down prices; the framework models up only; the legacy mFRR forecast
+      is the capacity price while the framework's target is the activation price).
+\end{enumerate}
+
+\notebox{Limits.}{The limited-evidence results rest on about 300 days; the decisions use the development window only, and the
+locked period has not been touched. The significance tests are not adjusted across targets. The untuned day-ahead
+comparison used for the ``gain afterwards'' figures was run before the guard, which cannot change a well-behaved model.}
+
+\end{document}

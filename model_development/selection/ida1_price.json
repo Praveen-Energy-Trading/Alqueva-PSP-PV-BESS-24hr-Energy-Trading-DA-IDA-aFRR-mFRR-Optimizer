@@ -1,0 +1,177 @@
+{
+  "best": "random_forest",
+  "champion": {
+    "members": [
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "method": "mean",
+    "type": "ensemble"
+  },
+  "champion_dev_loss": 5.006951366371741,
+  "combination": {
+    "accepted": true,
+    "mean_diff": 0.009182961866869493,
+    "members": [
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "method": "mean",
+    "p_value": 0.7171562250016732,
+    "statistic": 0.36261312392499623
+  },
+  "coverage": 1.0,
+  "n_days": 293,
+  "n_hours": 7031,
+  "parsimony": {
+    "mean_diff": -0.24699221091160917,
+    "p_value": 4.545135467657926e-07,
+    "passed": true,
+    "reference": "decision_tree",
+    "statistic": -5.161091476318773,
+    "tested": true
+  },
+  "policy": {
+    "alpha": 0.05,
+    "average_method": "mean",
+    "candidates": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "complexity_order": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "metric": "mae",
+    "min_coverage": 0.99,
+    "min_days": 250,
+    "reference": "decision_tree",
+    "tie_break": "average"
+  },
+  "policy_digest": "bc1767a5cde1ecb70ee80817ea8aae8632485ee542e3492f12d55afd82bfd48e",
+  "ranking": [
+    {
+      "mae": 4.9979614302375195,
+      "mean_loss": 4.997768404504872,
+      "model": "random_forest",
+      "rmse": 8.092308375745986,
+      "sse": 460428.23303747375
+    },
+    {
+      "mae": 5.03767885620822,
+      "mean_loss": 5.037419390958105,
+      "model": "xgboost",
+      "rmse": 8.231951821051435,
+      "sse": 476455.9314430917
+    },
+    {
+      "mae": 5.045054370502062,
+      "mean_loss": 5.044764604676757,
+      "model": "gradient_boosting",
+      "rmse": 8.21032115437945,
+      "sse": 473955.3047835544
+    },
+    {
+      "mae": 5.048812990755227,
+      "mean_loss": 5.048545217706633,
+      "model": "lightgbm",
+      "rmse": 8.255436332496393,
+      "sse": 479178.32237954735
+    },
+    {
+      "mae": 5.244931652254302,
+      "mean_loss": 5.244760615416481,
+      "model": "decision_tree",
+      "rmse": 8.395852634462317,
+      "sse": 495617.5908025025
+    }
+  ],
+  "reasons": [
+    "ranked by mean absolute loss on 293 days: random_forest, xgboost, gradient_boosting, lightgbm, decision_tree; best is random_forest",
+    "random_forest beats the reference decision_tree (DM statistic -5.16, p = 4.55e-07)",
+    "random_forest, gradient_boosting, xgboost, lightgbm cannot be told apart from random_forest (Holm over the comparisons with the best, alpha 0.05)",
+    "tie_break average: the mean of random_forest, gradient_boosting, xgboost, lightgbm is not worse than random_forest (mean loss difference +0.009, p = 0.717); it is the champion"
+  ],
+  "source": {
+    "run": "runtime/analysis/rollout/ida1_price/tuned",
+    "schedule": {
+      "gap_days": 1,
+      "retrain_every_days": 30,
+      "train_window_days": null
+    },
+    "suffix": "_tuned",
+    "tuned": true,
+    "window": [
+      "2024-12-12",
+      "2025-10-11"
+    ]
+  },
+  "status": "chosen",
+  "target": "ida1_price",
+  "tied": [
+    "random_forest",
+    "gradient_boosting",
+    "xgboost",
+    "lightgbm"
+  ],
+  "treatment": {
+    "label": "short history: 180 training days before the first test day, expanding window, at least 250 scored development days",
+    "name": "limited_evidence"
+  },
+  "versus_best": [
+    {
+      "best": "random_forest",
+      "best_loss": 4.997768404504872,
+      "distinguishable_from_best": true,
+      "mean_diff": 0.24699221091160917,
+      "mean_loss": 5.244760615416481,
+      "model": "decision_tree",
+      "p_holm": 1.8180541870631704e-06,
+      "p_value": 4.545135467657926e-07,
+      "statistic": 5.161091476318773
+    },
+    {
+      "best": "random_forest",
+      "best_loss": 4.997768404504872,
+      "distinguishable_from_best": false,
+      "mean_diff": 0.04699620017188511,
+      "mean_loss": 5.044764604676757,
+      "model": "gradient_boosting",
+      "p_holm": 0.39879228312092885,
+      "p_value": 0.13293076104030963,
+      "statistic": 1.5068476864164646
+    },
+    {
+      "best": "random_forest",
+      "best_loss": 4.997768404504872,
+      "distinguishable_from_best": false,
+      "mean_diff": 0.0396509864532325,
+      "mean_loss": 5.037419390958105,
+      "model": "xgboost",
+      "p_holm": 0.5259946198806039,
+      "p_value": 0.26299730994030196,
+      "statistic": 1.1214981305121317
+    },
+    {
+      "best": "random_forest",
+      "best_loss": 4.997768404504872,
+      "distinguishable_from_best": false,
+      "mean_diff": 0.05077681320176093,
+      "mean_loss": 5.048545217706633,
+      "model": "lightgbm",
+      "p_holm": 0.5259946198806039,
+      "p_value": 0.2664175762704514,
+      "statistic": 1.1134811711286776
+    }
+  ]
+}

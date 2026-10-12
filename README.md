@@ -263,7 +263,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── champions.py, serving.py              #   stage 7: champion registry, promotion rule, fitted champion for live use
 │   │   ├── monitoring.py                         #   stage 8: forecast log, degradation flags, refit and re-tuning schedule
 │   │   ├── rollout.py                            #   stage 9: what each price target's data allows (config/rollout.yaml)
-│   │   └── live.py, old_new.py                   #   stage 10: live adapter (config/live_models.yaml), champion against legacy
+│   │   ├── live.py, old_new.py                   #   stage 10: live adapter (config/live_models.yaml), champion against legacy
+│   │   └── summary.py                            #   stage 9: one table of where every price target stands
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
 │   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
@@ -499,6 +500,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── monitor_champion.py                       #   stage 8: calibrate / log / plan / report
 │   ├── run_rollout.py                            #   stage 9: status of every price target; tune, compare, decide
 │   ├── compare_old_new.py                        #   stage 10: champion against the legacy forecaster on the same days
+│   ├── make_results_summary.py                   #   stage 9: model_development/RESULTS.md from the decisions
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
 │

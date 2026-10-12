@@ -1,0 +1,5 @@
+model,best,mean_loss,best_loss,mean_diff,statistic,p_value,p_holm,distinguishable_from_best
+decision_tree,random_forest,5.24476,4.99777,0.246992,5.16109,4.54514e-07,1.81805e-06,True
+gradient_boosting,random_forest,5.04476,4.99777,0.0469962,1.50685,0.132931,0.398792,False
+xgboost,random_forest,5.03742,4.99777,0.039651,1.1215,0.262997,0.525995,False
+lightgbm,random_forest,5.04855,4.99777,0.0507768,1.11348,0.266418,0.525995,False

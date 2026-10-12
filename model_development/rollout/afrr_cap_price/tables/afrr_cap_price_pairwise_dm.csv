@@ -1,0 +1,11 @@
+a,b,n_days,mean_loss_a,mean_loss_b,mean_diff,statistic,p_value,p_holm,better,significant
+decision_tree,random_forest,1014,14.1377,13.5745,0.563207,5.63658,2.24804e-08,2.24804e-07,random_forest,True
+decision_tree,gradient_boosting,1014,14.1377,13.6294,0.508294,4.80854,1.75075e-06,1.4006e-05,gradient_boosting,True
+decision_tree,xgboost,1014,14.1377,13.6061,0.531652,4.51645,7.02756e-06,4.9193e-05,xgboost,True
+decision_tree,lightgbm,1014,14.1377,13.564,0.573699,5.40826,7.93972e-08,7.14575e-07,lightgbm,True
+random_forest,gradient_boosting,1014,13.5745,13.6294,-0.0549128,-0.749249,0.453881,1,random_forest,False
+random_forest,xgboost,1014,13.5745,13.6061,-0.0315549,-0.455314,0.648981,1,random_forest,False
+random_forest,lightgbm,1014,13.5745,13.564,0.0104919,0.20309,0.839106,1,lightgbm,False
+gradient_boosting,xgboost,1014,13.6294,13.6061,0.0233579,0.326521,0.744098,1,xgboost,False
+gradient_boosting,lightgbm,1014,13.6294,13.564,0.0654048,0.946693,0.344021,1,lightgbm,False
+xgboost,lightgbm,1014,13.6061,13.564,0.0420468,0.767829,0.442768,1,lightgbm,False

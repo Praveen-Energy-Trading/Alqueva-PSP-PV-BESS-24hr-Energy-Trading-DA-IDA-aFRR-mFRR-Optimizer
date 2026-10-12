@@ -1,0 +1,154 @@
+{
+  "best": "lightgbm",
+  "champion": {
+    "model": "lightgbm",
+    "type": "single"
+  },
+  "champion_dev_loss": 17.38346678205547,
+  "coverage": 1.0,
+  "n_days": 1015,
+  "n_hours": 24359,
+  "parsimony": {
+    "mean_diff": -2.185074727752481,
+    "p_value": 9.586094174658531e-25,
+    "passed": true,
+    "reference": "decision_tree",
+    "statistic": -10.546028253980117,
+    "tested": true
+  },
+  "policy": {
+    "alpha": 0.05,
+    "average_method": "mean",
+    "candidates": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "complexity_order": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "metric": "mae",
+    "min_coverage": 0.99,
+    "min_days": 365,
+    "reference": "decision_tree",
+    "tie_break": "average"
+  },
+  "policy_digest": "2cf944fac2299bda0ae7d7988cb69fabaec54b3e05e74a56a395ae3d07acd0ea",
+  "ranking": [
+    {
+      "mae": 17.38495313781354,
+      "mean_loss": 17.38346678205547,
+      "model": "lightgbm",
+      "rmse": 24.300531287456156,
+      "sse": 14384374.88014935
+    },
+    {
+      "mae": 17.64211691502114,
+      "mean_loss": 17.64049234255137,
+      "model": "gradient_boosting",
+      "rmse": 24.56499094851421,
+      "sse": 14699165.249341952
+    },
+    {
+      "mae": 17.683924568044667,
+      "mean_loss": 17.682268578930106,
+      "model": "xgboost",
+      "rmse": 24.51084672646858,
+      "sse": 14634439.17096464
+    },
+    {
+      "mae": 18.017953135432492,
+      "mean_loss": 18.01630651303455,
+      "model": "random_forest",
+      "rmse": 24.72872086314406,
+      "sse": 14895763.21180941
+    },
+    {
+      "mae": 19.57013481994335,
+      "mean_loss": 19.568541509807954,
+      "model": "decision_tree",
+      "rmse": 27.19148088142616,
+      "sse": 18010475.391675606
+    }
+  ],
+  "reasons": [
+    "ranked by mean absolute loss on 1015 days: lightgbm, gradient_boosting, xgboost, random_forest, decision_tree; best is lightgbm",
+    "lightgbm beats the reference decision_tree (DM statistic -10.55, p = 9.59e-25)",
+    "every other algorithm is significantly worse than lightgbm after the Holm correction; lightgbm is the champion"
+  ],
+  "source": {
+    "run": "runtime/analysis/phase9/da_stage2_tpe_v2",
+    "schedule": {
+      "gap_days": 1,
+      "retrain_every_days": 30,
+      "train_window_days": 730
+    },
+    "suffix": "_tuned",
+    "tuned": true,
+    "window": [
+      "2023-01-01",
+      "2025-10-11"
+    ]
+  },
+  "status": "chosen",
+  "target": "da_price",
+  "tied": [
+    "lightgbm"
+  ],
+  "treatment": {
+    "label": "evidence rules unchanged",
+    "name": "standard"
+  },
+  "versus_best": [
+    {
+      "best": "lightgbm",
+      "best_loss": 17.38346678205547,
+      "distinguishable_from_best": true,
+      "mean_diff": 2.185074727752481,
+      "mean_loss": 19.568541509807954,
+      "model": "decision_tree",
+      "p_holm": 3.8344376698634124e-24,
+      "p_value": 9.586094174658531e-25,
+      "statistic": 10.546028253980117
+    },
+    {
+      "best": "lightgbm",
+      "best_loss": 17.38346678205547,
+      "distinguishable_from_best": true,
+      "mean_diff": 0.632839730979082,
+      "mean_loss": 18.01630651303455,
+      "model": "random_forest",
+      "p_holm": 0.00010461606416435433,
+      "p_value": 3.487202138811811e-05,
+      "statistic": 4.157644185524658
+    },
+    {
+      "best": "lightgbm",
+      "best_loss": 17.38346678205547,
+      "distinguishable_from_best": true,
+      "mean_diff": 0.2570255604958948,
+      "mean_loss": 17.64049234255137,
+      "model": "gradient_boosting",
+      "p_holm": 0.013269855178265507,
+      "p_value": 0.0066349275891327535,
+      "statistic": 2.7202451198932187
+    },
+    {
+      "best": "lightgbm",
+      "best_loss": 17.38346678205547,
+      "distinguishable_from_best": true,
+      "mean_diff": 0.298801796874634,
+      "mean_loss": 17.682268578930106,
+      "model": "xgboost",
+      "p_holm": 0.013269855178265507,
+      "p_value": 0.008386633877854195,
+      "statistic": 2.641270391966159
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+model,setting,value,n,mean_rel,best_rel
+decision_tree,max_depth,12,30,1.0524,0.9309
+decision_tree,max_depth,16,30,1.0679,0.9309
+decision_tree,max_depth,4,30,0.9790,0.9476
+decision_tree,max_depth,6,30,0.9601,0.9193
+decision_tree,max_depth,8,30,0.9981,0.9271
+decision_tree,min_samples_leaf,10,30,1.0403,0.9305
+decision_tree,min_samples_leaf,100,30,0.9674,0.9193
+decision_tree,min_samples_leaf,20,30,1.0148,0.9327
+decision_tree,min_samples_leaf,5,30,1.0576,0.9319
+decision_tree,min_samples_leaf,50,30,0.9775,0.9260

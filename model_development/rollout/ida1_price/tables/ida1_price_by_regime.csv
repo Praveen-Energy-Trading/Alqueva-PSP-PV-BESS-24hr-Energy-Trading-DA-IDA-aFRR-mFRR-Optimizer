@@ -1,0 +1,4 @@
+group,units,decision_tree,random_forest,gradient_boosting,xgboost,lightgbm,lowest_mae,winner,winner_share
+da_15min,10,5.9257,5.7229,5.6289,5.4854,5.6189,xgboost,xgboost,0.6000
+post_blackout,148,6.3221,6.0943,6.1992,6.2042,6.2103,random_forest,decision_tree,0.2905
+post_exception,135,4.0133,3.7419,3.7359,3.7251,3.7326,xgboost,random_forest,0.3111
