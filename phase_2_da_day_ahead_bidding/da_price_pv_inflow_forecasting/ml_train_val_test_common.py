@@ -62,6 +62,42 @@ def fit_lgbm(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
     return model
 
 
+class _FillMissing:
+    """A scikit-learn tree model that fills missing feature values with the training medians first.
+
+    XGBoost, LightGBM and the random forest take missing values as they are; a single decision tree and scikit-learn's gradient boosting do not,
+    and one gap in a forecast day's features would otherwise make the whole forecaster fall back to its synthetic curve. Exposes the feature
+    importances like the other models."""
+
+    def __init__(self, model):
+        self.model = model
+        self.fill_ = None
+
+    def fit(self, X: pd.DataFrame, y: np.ndarray):
+        self.fill_ = pd.DataFrame(X).median()
+        self.model.fit(pd.DataFrame(X).fillna(self.fill_), y)
+        return self
+
+    def predict(self, X):
+        return self.model.predict(pd.DataFrame(X).fillna(self.fill_))
+
+    @property
+    def feature_importances_(self):
+        return self.model.feature_importances_
+
+
+def fit_dt(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
+    """Decision tree -- the simplest of the five competing models; the reference the others must beat."""
+    from sklearn.tree import DecisionTreeRegressor
+    return _FillMissing(DecisionTreeRegressor(max_depth=8, min_samples_leaf=20, random_state=0)).fit(X, y)
+
+
+def fit_gb(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
+    """Gradient boosting (scikit-learn) -- boosted shallow trees, the classic variant."""
+    from sklearn.ensemble import GradientBoostingRegressor
+    return _FillMissing(GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=4, subsample=0.8, random_state=0)).fit(X, y)
+
+
 def fit_rf(X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
     """Random Forest regressor — bagging ensemble, different family than boosting."""
     from sklearn.ensemble import RandomForestRegressor
@@ -134,17 +170,21 @@ def metrics(y_true: np.ndarray, y_pred: np.ndarray,
 # Walk-forward cross-validation (model selection / validation role)
 # ---------------------------------------------------------------------------
 
-MODEL_NAMES = ["LightGBM", "XGBoost", "RandomForest"]
+# The five competing models, from the simplest to the most complex (the model family of the whole project; the same five
+# are compared by the evaluation framework in common_layer/forecast_evaluation).
+MODEL_NAMES = ["DecisionTree", "RandomForest", "GradientBoosting", "XGBoost", "LightGBM"]
 
 _FITTERS = {
-    "LightGBM"    : fit_lgbm,
-    "XGBoost"     : fit_xgb,
-    "RandomForest": fit_rf,
+    "DecisionTree"    : fit_dt,
+    "RandomForest"    : fit_rf,
+    "GradientBoosting": fit_gb,
+    "XGBoost"         : fit_xgb,
+    "LightGBM"        : fit_lgbm,
 }
 
 
 def fit_selected(name: str, X: pd.DataFrame, y: np.ndarray, feature_names: List[str]):
-    """Fit whichever of the 3 competing models `name` refers to."""
+    """Fit whichever of the 5 competing models `name` refers to."""
     return _FITTERS[name](X, y, feature_names)
 
 
@@ -189,9 +229,10 @@ def walk_forward_cv(feat_df: pd.DataFrame, y: np.ndarray, lag: np.ndarray,
     Each fold trains on all prior data, validates on the next block —
     no future leakage. Returns mean MAE per model across folds.
 
-    model_names: which models to compare. Defaults to MODEL_NAMES (the 3
-        boosting/ensemble models) -- every caller keeps that behavior
-        unchanged unless it passes its own subset in.
+    model_names: which models to compare. Defaults to MODEL_NAMES (the 5
+        tree models: decision tree, random forest, gradient boosting,
+        XGBoost, LightGBM) -- every caller keeps that behavior unchanged
+        unless it passes its own subset in.
     """
     names = model_names if model_names is not None else MODEL_NAMES
     fold_mae: Dict[str, list] = {name: [] for name in names}

@@ -5,7 +5,7 @@ Mirrors the DA / PV / inflow evaluation pattern:
     - Walk-forward CV (4 folds) on all real data before the test window
     - Hold-out TEST on the latest 12 months of real data, predicted hour by
       hour with the model's own previous-hour spread (as the live forecaster does)
-    - Per-session breakdown: Naive vs LightGBM/XGBoost/RandomForest
+    - Per-session breakdown: Naive vs DecisionTree/RandomForest/GradientBoosting/XGBoost/LightGBM
 
 Naive baseline for spread forecasting: spread = 0  (IDA1 price = DA price).
 This is the natural no-model baseline: without any ML, the best guess for the
@@ -185,7 +185,7 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"- Source: `ida1_training_data_2024_2025.xlsx` (OMIE/ENTSO-E SIDC intraday results)",
         f"- Range : 2024-06-13 to {excel_last}",
         f"- Gate   : IDA1 (H1-H24, closes D-1 15:00 CET)",
-        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)",
+        f"- Model : gate-specific spread model (DecisionTree/RandomForest/GradientBoosting/XGBoost/LightGBM, auto-selected by walk-forward CV)",
         f"- Target: spread = price_IDA - price_DA [EUR/MWh]",
         f"",
         f"## Walk-forward CV ({cv_window}, {_N_FOLDS} folds, real rows only)",

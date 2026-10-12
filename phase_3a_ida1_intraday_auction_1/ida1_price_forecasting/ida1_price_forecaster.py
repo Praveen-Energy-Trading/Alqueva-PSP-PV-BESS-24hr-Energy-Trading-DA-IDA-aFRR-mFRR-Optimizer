@@ -20,7 +20,7 @@ Features (no future leakage):
     spread_lag_h1         — previous-hour spread within the same day
 
 Auto-select model:
-    Walk-forward CV (4 folds) compares LightGBM / XGBoost.
+    Walk-forward CV (4 folds) compares decision tree / random forest / gradient boosting / XGBoost / LightGBM.
     Selection cached in ida1_selected_model.json; CV skipped when Excel data
     end date matches json (same pattern as DA / PV / inflow forecasters).
 

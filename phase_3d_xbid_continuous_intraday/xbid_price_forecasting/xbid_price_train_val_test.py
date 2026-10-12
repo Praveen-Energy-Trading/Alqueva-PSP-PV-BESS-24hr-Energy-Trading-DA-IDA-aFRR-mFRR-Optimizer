@@ -179,7 +179,7 @@ def _write_report(selected: str, cv_mae: dict, test_mae: float, naive_mae: float
         f"- Range : 2024-06-13 to {excel_last}",
         f"- Gate  : XBID continuous (H1-H24; closes 1h before each delivery period)",
         f"- Note  : XBID price = OMIE's volume-weighted Portuguese continuous-market mean (MedioPT).",
-        f"- Model : gate-specific spread model (LightGBM/XGBoost/RandomForest, auto-selected by walk-forward CV)",
+        f"- Model : gate-specific spread model (DecisionTree/RandomForest/GradientBoosting/XGBoost/LightGBM, auto-selected by walk-forward CV)",
         f"- Target: spread = price_XBID - price_DA [EUR/MWh]",
         f"",
         f"## Walk-forward CV ({cv_window}, {_N_FOLDS} folds, real rows only)",

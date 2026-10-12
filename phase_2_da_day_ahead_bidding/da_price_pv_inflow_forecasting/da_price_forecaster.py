@@ -6,7 +6,7 @@ Methodology:
     2. Build lag + calendar features
     3. Auto-select best model via da_selected_model.json:
          - On first run OR when Excel has new data since last evaluation:
-             walk-forward CV (4 folds) compares LightGBM / XGBoost / RandomForest
+             walk-forward CV (4 folds) compares decision tree / random forest / gradient boosting / XGBoost / LightGBM
              → updates da_selected_model.json automatically
          - Otherwise: reads selected model from json (no CV overhead)
     4. Train selected model on ALL history
