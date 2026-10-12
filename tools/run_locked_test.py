@@ -46,7 +46,12 @@ def main() -> int:
     from common_layer.model_development import rollout
     eff = rollout.effective(a.target, view=AsOfView(panel, form, a.target))
     cfg = eff["eval_cfg"]
-    pre = lt.preflight(decision, panel, form, cfg, allow_dirty=a.allow_dirty, policy=eff["policy"], min_truth_share=eff["min_truth_share"])
+    from common_layer.model_development import synthetic
+    panel, fill = synthetic.fill_locked(panel, form, a.target, cfg)                  # artificial outcomes where configured (labelled)
+    if fill["method"]:
+        print(f"{a.target}: {len(fill['days'])} locked day(s) have ARTIFICIAL outcomes ({fill['method']}); they are labelled in the report")
+    pre = lt.preflight(decision, panel, form, cfg, allow_dirty=a.allow_dirty, policy=eff["policy"], min_truth_share=eff["min_truth_share"],
+                       synthetic=fill)
     print(f"preflight for {a.target} (champion {decision.get('champion')}):")
     for c in pre["checks"]:
         print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['check']}: {c['detail']}")
@@ -59,7 +64,7 @@ def main() -> int:
         return 0
     tcfg = load_tuning_config()
     rep = lt.run_final(decision, panel, form, cfg, load_analysis_config()["periods"], tcfg,
-                       os.path.join(_REPO, "runtime", "evaluation", a.target, "final"), with_reference=not a.no_reference)
+                       os.path.join(_REPO, "runtime", "evaluation", a.target, "final"), with_reference=not a.no_reference, synthetic=fill)
     for r in rep["_results"]:
         registry.register_evaluation(r, tuning_cfg=tcfg, source="run_locked_test")
     os.makedirs(a.out, exist_ok=True)

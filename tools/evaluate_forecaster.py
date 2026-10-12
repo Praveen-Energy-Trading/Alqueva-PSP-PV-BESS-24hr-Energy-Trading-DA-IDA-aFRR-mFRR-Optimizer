@@ -67,6 +67,10 @@ def main() -> int:
     if a.feature_set:
         eval_cfg["models"]["feature_set"] = a.feature_set
     if a.lock:
+        from common_layer.model_development import synthetic
+        panel, fill = synthetic.fill_locked(panel, form, a.target, eval_cfg)         # the freeze must see what the locked test sees
+        if fill["method"]:
+            print(f"{a.target}: the frozen outcomes include {len(fill['days'])} ARTIFICIAL day(s) ({fill['method']}): {', '.join(fill['days'])}")
         view = AsOfView(panel, form, a.target)
         lk = eval_cfg["locked_test"]
         digest = report.sha256_text(view.truth_matrix(lk["start"], lk["end"]).round(6).to_csv())

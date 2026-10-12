@@ -23,12 +23,13 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from common_layer.forecast_evaluation import guards, report as eval_report
+from common_layer.forecast_evaluation import guards, metrics, report as eval_report
 from common_layer.forecast_evaluation.asof import AsOfView
 from common_layer.forecast_evaluation.dm import daily_losses, diebold_mariano
 from common_layer.forecast_evaluation.runner import evaluate
 from common_layer.forecast_evaluation.tree_models import tree_candidates
 from common_layer.model_development import registry, selection
+from common_layer.model_development.synthetic import real_only
 
 MIN_TRUTH_SHARE = 0.99                 # share of locked days whose outcomes must be present
 
@@ -70,7 +71,8 @@ def truth_digest(view: AsOfView, cfg: dict) -> tuple:
 
 def preflight(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, *, policy_path: Optional[str] = None,
               log_root: Optional[str] = None, lock_root: Optional[str] = None, allow_dirty: bool = False,
-              code_revision: Optional[str] = None, policy: Optional[dict] = None, min_truth_share: float = MIN_TRUTH_SHARE) -> dict:
+              code_revision: Optional[str] = None, policy: Optional[dict] = None, min_truth_share: float = MIN_TRUTH_SHARE,
+              synthetic: Optional[dict] = None) -> dict:
     """The checks before the one look at the locked period. `ok` is True only if every check passes."""
     target = decision["target"]
     checks: List[dict] = []
@@ -88,6 +90,10 @@ def preflight(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, *, pol
     digest, expected, present = truth_digest(view, cfg)
     checks.append(_check("outcomes_present", expected > 0 and present / expected >= min_truth_share,
                          f"{present} of {expected} locked days have outcomes (need {min_truth_share:.1%})"))
+    if synthetic and synthetic.get("method"):
+        n = len(synthetic["days"])
+        checks.append(_check("synthetic_fill_declared", True, f"{n} locked day(s) have artificial outcomes ({synthetic['method']}, "
+                             "config/synthetic_fill.yaml): not real prices; the report marks them and gives scores on real days only"))
     try:
         status = guards.verify_lock(target, digest, lock_root)
         checks.append(_check("outcomes_frozen", status == "verified", f"lock status: {status} (freeze with "
@@ -108,7 +114,8 @@ def preflight(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, *, pol
 
 
 def run_final(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, periods: List[dict], tuning_cfg: dict,
-              out_dir: Optional[str] = None, log_root: Optional[str] = None, with_reference: bool = True) -> dict:
+              out_dir: Optional[str] = None, log_root: Optional[str] = None, with_reference: bool = True,
+              synthetic: Optional[dict] = None) -> dict:
     """Score the champion (and the reference) on the locked window: this is the one look. Returns the report dictionary."""
     target = decision["target"]
     tuned = bool(decision["source"]["tuned"])
@@ -143,6 +150,13 @@ def run_final(decision: dict, panel: pd.DataFrame, form: dict, cfg: dict, period
         if champ != ref_name:
             d = diebold_mariano(cp, ref_pred, loss, comp["hac_lags"], comp["small_sample"])
             out["dm_vs_reference"] = {k: float(v) for k, v in d.items()}
+    if synthetic and synthetic.get("method"):                                       # artificial outcomes: say so, and score real days alone
+        out["synthetic_fill"] = synthetic
+        ro = {"champion": {k: float(v) for k, v in metrics.score(real_only(cp, synthetic)).items() if k in ("n", "sse", "mae", "rmse")}}
+        if with_reference:
+            ro["reference"] = {k: float(v) for k, v in metrics.score(real_only(ref_pred, synthetic)).items() if k in ("n", "sse", "mae", "rmse")}
+        ro["loss"] = float(daily_losses(real_only(cp, synthetic), loss).mean())
+        out["real_only"] = ro
     out["members"] = {n: {k: float(v) for k, v in res["overall"].set_index("forecaster").loc[n, ["sse", "mae", "rmse"]].items()}
                       for n in res["overall"]["forecaster"] if n != champ}
     out["_results"] = [res] + ([ref_res] if ref_res else [])
@@ -169,6 +183,15 @@ def render(rep: dict, decision: dict) -> str:
         d = rep["dm_vs_reference"]
         out += ["", f"Champion against the reference, Diebold-Mariano on daily {rep['loss']} loss over {d['n_days']:.0f} days: statistic "
                 f"{d['statistic']:.2f}, p = {d['p_value']:.3g} (negative = the champion has the smaller loss)."]
+    if rep.get("synthetic_fill"):
+        sf, ro = rep["synthetic_fill"], rep["real_only"]
+        out += ["", f"**{len(sf['days'])} of the locked days have artificial outcomes, not real prices** (method `{sf['method']}`, "
+                "config/synthetic_fill.yaml; a demonstration choice). The scores above include them. On real days only:", "",
+                "| | n hours | SSE | MAE | RMSE |", "|---|---|---|---|---|",
+                f"| champion | {ro['champion']['n']:,.0f} | {ro['champion']['sse']:,.0f} | {ro['champion']['mae']:.3f} | {ro['champion']['rmse']:.3f} |"]
+        if "reference" in ro:
+            out.append(f"| reference | {ro['reference']['n']:,.0f} | {ro['reference']['sse']:,.0f} | {ro['reference']['mae']:.3f} | {ro['reference']['rmse']:.3f} |")
+        out += ["", "Filled days: " + ", ".join(sf["days"]) + "."]
     out += ["", f"Mean daily {rep['loss']} loss: development window {rep['dev_loss']:.3f}, locked period {rep['locked_loss']:.3f} "
             f"(ratio {rep['loss_ratio_locked_over_dev']:.2f}; above 1 = worse on the locked period than in development).", ""]
     if rep.get("members"):

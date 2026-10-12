@@ -1,0 +1,22 @@
+# =============================================================================
+# Artificial outcomes for locked-window days with no real outcome (a demonstration choice, not market data)
+#
+# This is a demonstration project, and the owner decided that locked-window days on which a target has NO real outcome may be
+# filled artificially so that the locked test can be run. The values are made up and are never real prices:
+#
+#   method base_price   the target's price on the day is set equal to its base price (for the intraday spread targets: the
+#                       day-ahead price), i.e. a spread of zero, which is what an auction that cleared nothing amounts to
+#
+# Safeguards (common_layer/model_development/synthetic.py):
+#   - only the locked-test window is touched; development data is never filled
+#   - only days on which the series has no value at all are filled; a real value is never overwritten
+#   - only targets listed here are filled; every other target uses real outcomes only
+#   - the filled days are listed in the locked-test report, which states that they are not real prices and also gives the
+#     scores on real days only
+#   - the frozen digest of the locked outcomes (config/evaluation_lock.json) includes the filled values, so the freeze and the
+#     test see the same data
+# =============================================================================
+version: 1
+
+targets:
+  ida1_price: {method: base_price}
