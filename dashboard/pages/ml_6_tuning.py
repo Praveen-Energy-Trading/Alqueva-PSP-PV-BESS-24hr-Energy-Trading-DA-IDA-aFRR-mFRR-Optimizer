@@ -38,7 +38,7 @@ never looked at. A median **pruner** stops a trial that is worse than the median
 
 target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
-models = sorted(tt["model"].unique())
+models = ml_data.ordered_models(tt["model"].unique())
 
 st.subheader("Search space")
 model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
@@ -87,7 +87,7 @@ if da["search"].nunique() < 2:
     ml_ui.not_yet_run("the random-search control")
 else:
     curves = {s_: ml_data.best_so_far(da[da["search"] == s_]) for s_ in ("tpe", "random")}
-    ms = sorted(da["model"].unique())
+    ms = ml_data.ordered_models(da["model"].unique())
     cols = st.columns(len(ms))
     for col, mm in zip(cols, ms):
         with col:
@@ -127,9 +127,9 @@ if target == "da_price":
         if not imp.empty:
             top = imp.sort_values("eta2", ascending=False).groupby("model").head(3)
             fig = go.Figure()
-            for i, mm in enumerate(sorted(top["model"].unique())):
+            for mm in ml_data.ordered_models(top["model"].unique()):
                 x = top[top["model"] == mm]
-                fig.add_trace(go.Bar(x=[f"{ml_data.model_label(mm)}: {s_}" for s_ in x["setting"]], y=x["eta2"], marker_color=theme.CATEGORICAL[i % 8], showlegend=False))
+                fig.add_trace(go.Bar(x=[f"{ml_data.model_label(mm)}: {s_}" for s_ in x["setting"]], y=x["eta2"], marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
             st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="share of variance", legend=False), width="stretch")
             st.caption("No single setting dominates: at most 36% (tree depth) and typically 10% to 22%.")
 

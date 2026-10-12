@@ -79,6 +79,13 @@ def test_the_stage_states_follow_what_exists(tmp_path):
     assert s["Selection policy"]["state"] == "partial" and s["Champion registry"]["state"] == "not run"
 
 
+def test_algorithms_are_listed_in_the_order_of_the_project():
+    alphabetical = ["decision_tree", "gradient_boosting", "lightgbm", "random_forest", "xgboost"]
+    assert ml_data.ordered_models(alphabetical) == ["decision_tree", "random_forest", "gradient_boosting", "xgboost", "lightgbm"]
+    assert ml_data.ordered_models(["lightgbm_tuned", "decision_tree_tuned", "champion", "xgboost"]) == ["decision_tree_tuned", "xgboost", "lightgbm_tuned", "champion"]
+    assert [ml_data.model_index(m) for m in ml_data.MODEL_ORDER] == [0, 1, 2, 3, 4]
+
+
 def test_champion_text_and_labels():
     assert ml_data.champion_text({"type": "ensemble", "method": "mean", "members": ["xgboost", "lightgbm"]}) == "mean of XGBoost, LightGBM"
     assert ml_data.champion_text(None) == "none" and ml_data.model_label("lightgbm_tuned") == "LightGBM"

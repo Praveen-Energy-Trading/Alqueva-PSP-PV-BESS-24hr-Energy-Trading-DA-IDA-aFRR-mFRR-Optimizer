@@ -80,13 +80,14 @@ t = tabs[f"by_{by}"]
 if t.empty:
     ml_ui.not_yet_run("the breakdown")
 else:
-    mcols = [c for c in t.columns if c in set(board["model"])]
+    mcols = ml_data.ordered_models(c for c in t.columns if c in set(board["model"]))
     fig = go.Figure()
-    for i, m in enumerate(mcols):
+    for m in mcols:
+        color = theme.CATEGORICAL[ml_data.model_index(m) % 8]
         if by == "hour":
-            fig.add_trace(go.Scatter(x=t["group"], y=t[m], mode="lines", name=ml_data.model_label(m), line=dict(color=theme.CATEGORICAL[i % 8], width=1.8)))
+            fig.add_trace(go.Scatter(x=t["group"], y=t[m], mode="lines", name=ml_data.model_label(m), line=dict(color=color, width=1.8)))
         else:
-            fig.add_trace(go.Bar(x=t["group"].astype(str), y=t[m], name=ml_data.model_label(m), marker_color=theme.CATEGORICAL[i % 8]))
+            fig.add_trace(go.Bar(x=t["group"].astype(str), y=t[m], name=ml_data.model_label(m), marker_color=color))
     st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE", barmode="group"), width="stretch")
     win = t[["group", "units", "lowest_mae", "winner", "winner_share"]].copy()
     win["lowest_mae"] = win["lowest_mae"].map(ml_data.model_label)
@@ -100,14 +101,14 @@ if daily.empty:
     ml_ui.not_yet_run("the daily losses (data pack)")
 else:
     d = daily[daily["target"] == target]
-    opts = [m for m in d["model"].unique() if m not in ("champion", "reference")]
+    opts = ml_data.ordered_models(m for m in d["model"].unique() if m not in ("champion", "reference"))
     pick = st.multiselect("Algorithms", opts, default=[o for o in ["lightgbm", "decision_tree"] if o in opts] or opts[:2], format_func=ml_data.model_label, key="ml7_pick")
     win_d = st.slider("Smoothing (days)", 1, 60, 28, key="ml7_smooth")
     fig = go.Figure()
-    for i, m in enumerate(pick):
+    for m in ml_data.ordered_models(pick):
         x = d[d["model"] == m].sort_values("date")
         fig.add_trace(go.Scatter(x=x["date"], y=x["mae"].rolling(win_d, min_periods=1).mean(), mode="lines", name=ml_data.model_label(m),
-                                 line=dict(color=theme.CATEGORICAL[i % 8], width=1.6)))
+                                 line=dict(color=theme.CATEGORICAL[ml_data.model_index(m) % 8], width=1.6)))
     st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="daily MAE, smoothed"), width="stretch")
     st.caption("The errors of all algorithms rise and fall together over time, which is why the tests compare them on paired daily losses.")
 

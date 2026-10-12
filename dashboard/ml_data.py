@@ -45,6 +45,21 @@ def model_label(m: str) -> str:
     return MODEL_LABELS.get(m.replace("_tuned", ""), m.replace("_", " "))
 
 
+# The five algorithms in the order of the project: from the simplest to the most complex. Lists, menus and colours follow it.
+MODEL_ORDER = ("decision_tree", "random_forest", "gradient_boosting", "xgboost", "lightgbm")
+
+
+def model_index(m: str) -> int:
+    """Position of an algorithm in MODEL_ORDER (anything else, such as the champion, comes after the five)."""
+    base = str(m).replace("_tuned", "")
+    return MODEL_ORDER.index(base) if base in MODEL_ORDER else len(MODEL_ORDER)
+
+
+def ordered_models(models) -> list:
+    """The algorithms in the order of the project: decision tree, random forest, gradient boosting, XGBoost, LightGBM."""
+    return sorted(set(models), key=lambda m: (model_index(m), str(m)))
+
+
 # --------------------------------------------------------------------------------------------------------------- files
 def read_json(path: Path) -> Optional[dict]:
     try:
