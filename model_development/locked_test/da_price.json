@@ -1,0 +1,44 @@
+{
+  "champion": {
+    "model": "lightgbm",
+    "type": "single"
+  },
+  "champion_forecaster": "lightgbm_tuned",
+  "code": "534bbd1",
+  "data_digest": "228a507b655330fe4ad66c1963555209eb6974ad973fb3da0f8f2e6393ed0a68",
+  "dev_loss": 17.38346678205547,
+  "dm_vs_reference": {
+    "mean_diff": -1.1994681440662487,
+    "mean_loss_a": 17.986913178074175,
+    "mean_loss_b": 19.186381322140427,
+    "n_days": 365.0,
+    "p_value": 4.315472575302405e-06,
+    "statistic": -4.666333574677022
+  },
+  "lock_status": "verified",
+  "locked_loss": 17.986913178074175,
+  "locked_scores": {
+    "coverage": 1.0,
+    "mae": 17.988542660452808,
+    "n": 8760.0,
+    "rmse": 25.026359500800393,
+    "sse": 5486551.548002526
+  },
+  "loss": "absolute",
+  "loss_ratio_locked_over_dev": 1.03471381189865,
+  "members": {},
+  "reference": "decision_tree_tuned",
+  "reference_scores": {
+    "coverage": 1.0,
+    "mae": 19.1876819533899,
+    "n": 8760.0,
+    "rmse": 26.814870319155535,
+    "sse": 6298766.487242206
+  },
+  "target": "da_price",
+  "variant": "tuned",
+  "window": [
+    "2025-10-12",
+    "2026-10-11"
+  ]
+}
