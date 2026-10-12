@@ -1,0 +1,26 @@
+{
+  "afrr_cap_price": {
+    "data_digest": "a24f2667515d5fa458e9d1d091f595fd80cb2b6b9cc31e5bf680b38de30aebf5",
+    "window": "2025-10-12..2026-10-11"
+  },
+  "da_price": {
+    "data_digest": "228a507b655330fe4ad66c1963555209eb6974ad973fb3da0f8f2e6393ed0a68",
+    "window": "2025-10-12..2026-10-11"
+  },
+  "ida1_price": {
+    "data_digest": "c2f998f33cac9968986dd7287ae9046296b70b63f0495f905aa82e36bf7f6955",
+    "window": "2025-10-12..2026-10-11"
+  },
+  "ida2_price": {
+    "data_digest": "a2e91e5e872f05a183d5f7c0837b8202f98074443d3fe246a8e8746f4d50eb8e",
+    "window": "2025-10-12..2026-10-11"
+  },
+  "ida3_price": {
+    "data_digest": "0821e618800bb9fcc847c3c56404dee9f0d79b42a2b44b126f6419913f1f8c7c",
+    "window": "2025-10-12..2026-10-11"
+  },
+  "xbid_price": {
+    "data_digest": "797c50f1d8c7fce442e36483a75be83ebb3fd535ca50ad325f6eaf1459721564",
+    "window": "2025-10-12..2026-10-11"
+  }
+}
