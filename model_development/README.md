@@ -23,16 +23,41 @@ logs and figures, the comparison of the tuned algorithms, the champion decisions
 | target | treatment | development days | champion | MAE of the champion | better than the decision tree by |
 |---|---|---|---|---|---|
 | day-ahead price | standard | 1,015 | LightGBM | 17.38 | 11.2% |
-| aFRR capacity (up) | standard | 1,014 | mean of random forest, gradient boosting, XGBoost, LightGBM | 13.49 | 4.1% (best single model) |
-| IDA1 | limited evidence | 293 | mean of the same four | 5.01 | 4.7% |
-| IDA2 | limited evidence | 298 | mean of the same four | 8.48 | 1.8% |
-| IDA3 | limited evidence | 300 | mean of all five | 10.17 | 2.4% |
-| XBID | limited evidence | 303 | mean of all five | 12.09 | 0.8% |
+| aFRR capacity (up) | standard | 1,014 | mean of random forest, gradient boosting, XGBoost, LightGBM | 13.49 | 4.6% |
+| IDA1 | limited evidence | 293 | mean of the same four | 5.01 | 4.5% |
+| IDA2 | limited evidence | 298 | mean of the same four | 8.48 | 2.0% |
+| IDA3 | limited evidence | 300 | mean of all five | 10.17 | 2.2% |
+| XBID | limited evidence | 303 | mean of all five | 12.09 | 0.9% |
 | mFRR | deferred | none | none | | |
 
-MAE is in EUR/MWh (EUR/MW/h for aFRR capacity). All gains are measured against the decision tree, the reference of the
-framework, not against a naive benchmark. They are the largest where the target is most predictable (day-ahead) and small
-for the intraday spreads.
+MAE is in EUR/MWh (EUR/MW/h for aFRR capacity). The gain of each champion in this table is measured against the decision tree, the
+reference of the selection rule. They are the largest where the target is most predictable (day-ahead) and small for the intraday
+spreads. The champions are also scored against naive forecasts that need no model (`tools/benchmark_naive.py`, files in
+`model_development/benchmark/`): the seasonal naive (yesterday's price Tuesday to Friday, last week's Saturday to Monday),
+yesterday, last week and, for the intraday spreads, the day-ahead price with no spread. The naive forecasts are not tuned or chosen,
+use only prices known at forecast time, are scored on the champion's exact hours, and take no part in any decision. The table
+below shows the gain over the strongest of them:
+
+| target | window | champion MAE | decision tree | strongest naive (which) | gain over tree | gain over strongest naive | test vs it (p) |
+|---|---|---|---|---|---|---|---|
+| day-ahead price | development | 17.38 | 19.57 | 19.03 (day) | 11.2% | 8.6% | 3.1e-07 |
+| day-ahead price | locked | 17.99 | 19.19 | 19.08 (day) | 6.3% | 5.7% | 0.0116 |
+| IDA1 | development | 4.78 | 5.02 | 5.26 (base price) | 4.8% | 9.2% | 0.000856 |
+| IDA1 | locked | 6.25 | 6.35 | 6.38 (base price) | 1.5% | 1.9% | 0.0529 |
+| IDA2 | development | 8.35 | 8.52 | 8.63 (base price) | 2.0% | 3.2% | 0.000884 |
+| IDA2 | locked | 9.84 | 10.00 | 9.95 (base price) | 1.6% | 1.1% | 0.0286 |
+| IDA3 | development | 9.96 | 10.16 | 10.29 (base price) | 2.0% | 3.2% | 0.00375 |
+| IDA3 | locked | 12.69 | 13.11 | 12.74 (base price) | 3.2% | 0.4% | 0.455 |
+| XBID | development | 11.77 | 11.86 | 12.23 (base price) | 0.8% | 3.8% | 4.34e-11 |
+| aFRR capacity (up) | development | 13.51 | 14.16 | 15.69 (day) | 4.6% | 13.9% | 1.66e-13 |
+| aFRR capacity (up) | locked | 4.14 | 4.33 | 4.28 (day) | 4.4% | 3.2% | 0.274 |
+
+Reading it: only the day-ahead champion clearly beats a naive forecast in both windows (5.7% on the locked year, p = 0.01), and its
+edge over the best naive forecast is smaller than its edge over the decision tree would suggest. For the intraday auctions the
+day-ahead price with no spread is almost as good as the champion (gains of 0.4% to 1.9% on the locked year, only IDA2 and, marginally,
+IDA1 distinguishable): the intraday spread is largely unpredictable with these inputs. For aFRR capacity the gain over the best
+naive forecast is 3.2% on the locked year and not significant (p = 0.27). IDA1's locked year is scored on real days only (44
+artificial days left out for every forecast). XBID has no locked year yet. The naive forecasts do not change any champion.
 
 What the experiments showed:
 

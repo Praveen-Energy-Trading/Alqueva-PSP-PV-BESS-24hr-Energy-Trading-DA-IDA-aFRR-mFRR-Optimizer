@@ -5,10 +5,10 @@ Treatments are in `config/rollout.yaml`: `limited_evidence` targets have shorter
 
 | target | treatment | dev days | champion | dev MAE | p vs reference | tied with best | locked MAE | locked / dev | registered |
 |---|---|---|---|---|---|---|---|---|---|
-| da_price | standard | 1015 | lightgbm | 17.383 | 9.6e-25 | lightgbm |  |  | - |
-| ida1_price | limited_evidence | 293 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 5.007 | 4.5e-07 | random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
-| ida2_price | limited_evidence | 298 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 8.483 | 0.0025 | random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
-| ida3_price | limited_evidence | 300 | mean of decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 10.166 | 0.015 | decision_tree, random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
+| da_price | standard | 1015 | lightgbm | 17.383 | 9.6e-25 | lightgbm | 17.989 | 1.03 | - |
+| ida1_price | limited_evidence | 293 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 5.007 | 4.5e-07 | random_forest, gradient_boosting, xgboost, lightgbm | 5.652 | 1.13 | - |
+| ida2_price | limited_evidence | 298 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 8.483 | 0.0025 | random_forest, gradient_boosting, xgboost, lightgbm | 9.859 | 1.16 | - |
+| ida3_price | limited_evidence | 300 | mean of decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 10.166 | 0.015 | decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 12.675 | 1.25 | - |
 | xbid_price | limited_evidence | 303 | mean of decision_tree, random_forest, gradient_boosting, xgboost, lightgbm | 12.092 | 0.037 | decision_tree, random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
-| afrr_cap_price | standard | 1014 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 13.488 | 7.9e-08 | random_forest, gradient_boosting, xgboost, lightgbm |  |  | - |
+| afrr_cap_price | standard | 1014 | mean of random_forest, gradient_boosting, xgboost, lightgbm | 13.488 | 7.9e-08 | random_forest, gradient_boosting, xgboost, lightgbm | 4.142 | 0.31 | - |
 | mfrr_price | deferred |  | - |  |  | - |  |  | - |

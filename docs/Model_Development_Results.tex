@@ -63,18 +63,18 @@ the legacy forecaster, and nothing has been deleted.
 Target & Treatment & Days & Champion & MAE & vs tree \\
 \midrule
 Day-ahead price & standard & 1\,015 & LightGBM & 17.38 & 11.2\% \\
-aFRR capacity (up) & standard & 1\,014 & mean of random forest, gradient boosting, XGBoost, LightGBM & 13.49 & 4.1\% \\
-IDA1 & limited evidence & 293 & mean of the same four & 5.01 & 4.7\% \\
-IDA2 & limited evidence & 298 & mean of the same four & 8.48 & 1.8\% \\
-IDA3 & limited evidence & 300 & mean of all five & 10.17 & 2.4\% \\
-XBID & limited evidence & 303 & mean of all five & 12.09 & 0.8\% \\
+aFRR capacity (up) & standard & 1\,014 & mean of random forest, gradient boosting, XGBoost, LightGBM & 13.49 & 4.6\% \\
+IDA1 & limited evidence & 293 & mean of the same four & 5.01 & 4.5\% \\
+IDA2 & limited evidence & 298 & mean of the same four & 8.48 & 2.0\% \\
+IDA3 & limited evidence & 300 & mean of all five & 10.17 & 2.2\% \\
+XBID & limited evidence & 303 & mean of all five & 12.09 & 0.9\% \\
 mFRR & deferred & --- & none & & \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 MAE is the mean daily absolute error on the development window, in EUR/MWh (EUR/MW/h for aFRR capacity). ``vs tree'' is the
-reduction against the decision tree, the reference of the framework (the best single model for aFRR capacity). No naive
+reduction against the decision tree, the reference of the framework. No naive
 benchmark is involved, as decided earlier. The gains are largest where the target is most predictable and small for the intraday
 spreads.
 
