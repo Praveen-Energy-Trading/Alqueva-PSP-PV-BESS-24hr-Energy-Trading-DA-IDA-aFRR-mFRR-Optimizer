@@ -257,6 +257,42 @@
    "target": "ida1_price",
    "window_end": "2026-10-11",
    "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "b5f9b4d84e6a",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "afrr_dn_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "09f3adedb22a",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "afrr_dn_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "042553bbb222",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "afrr_dn_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
   }
  ]
 }
