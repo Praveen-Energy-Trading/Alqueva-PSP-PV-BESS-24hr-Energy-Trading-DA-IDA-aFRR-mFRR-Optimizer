@@ -1,6 +1,170 @@
 {
- "champions": {},
- "events": [],
+ "champions": {
+  "afrr_cap_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:36.565134+00:00",
+    "retired_utc": null,
+    "source": "afrr_cap_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
+  "afrr_dn_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:38.913463+00:00",
+    "retired_utc": null,
+    "source": "afrr_dn_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
+  "da_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:34.197687+00:00",
+    "retired_utc": null,
+    "source": "da_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
+  "ida1_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:41.269567+00:00",
+    "retired_utc": null,
+    "source": "ida1_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
+  "ida2_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:43.699424+00:00",
+    "retired_utc": null,
+    "source": "ida2_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
+  "ida3_price": [
+   {
+    "promoted_utc": "2026-10-12T16:59:46.109240+00:00",
+    "retired_utc": null,
+    "source": "ida3_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ]
+ },
+ "events": [
+  {
+   "event": "initial_promotion",
+   "id": 1,
+   "target": "da_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 2,
+   "target": "afrr_cap_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 3,
+   "target": "afrr_dn_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 4,
+   "target": "ida1_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 5,
+   "target": "ida2_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 6,
+   "target": "ida3_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 7,
+   "target": "da_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 8,
+   "target": "da_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 9,
+   "target": "afrr_cap_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 10,
+   "target": "afrr_cap_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 11,
+   "target": "afrr_dn_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 12,
+   "target": "afrr_dn_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 13,
+   "target": "ida1_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 14,
+   "target": "ida1_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 15,
+   "target": "ida2_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 16,
+   "target": "ida2_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 17,
+   "target": "ida3_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 18,
+   "target": "ida3_price",
+   "version": 1
+  }
+ ],
  "reproducibility": [
   {
    "attempts": 2,
@@ -291,6 +455,18 @@
    "source": "run_locked_test",
    "stage": "final",
    "target": "afrr_dn_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "a21302fd63eb",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "xbid_price",
    "window_end": "2026-10-11",
    "window_start": "2025-10-12"
   }
