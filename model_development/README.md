@@ -68,9 +68,13 @@ None of these was taken overnight; each is a one-time or outward-facing step.
 1. **Freeze the locked outcomes** per target: `python tools/evaluate_forecaster.py --target <t> --lock`. The window ends on
    2026-10-11, so the last days may still be revised. Every other preflight check passes except that the code has
    uncommitted changes.
-2. **IDA1's locked window has too many missing days:** 321 of 365 have outcomes, against 96% during development. They are
-   scattered (1 to 4 per month, one run of 6 days in August 2026). If they are empty auctions the floor should be relaxed;
-   if they are data that was not ingested they should be filled first. The preflight refuses IDA1 until this is settled.
+2. **IDA1's locked window has 44 days with no outcome** (321 of 365 have one, against 96% during development). The load log
+   shows 41 are days on which OMIE published an empty file (the auction cleared nothing) and 3 returned HTTP 404 (2026-08-12,
+   2026-08-13, 2026-10-11). Empty IDA1 days have become more frequent (0 to 2 a month in 2024-25, 2 to 8 a month since
+   October 2025). **Decided (demonstration project): the 44 days are filled artificially**, only in the locked window and
+   only for IDA1, with the IDA1 price set equal to the day-ahead price (`config/synthetic_fill.yaml`). Real values are never
+   overwritten, the frozen digest includes the filled values, and the locked-test report states that the days are not real
+   prices and also gives the scores on real days only. The preflight now passes the outcome check for IDA1.
 3. **The one locked test per target:** `python tools/run_locked_test.py --target <t> --confirm-locked`. Each algorithm can
    be scored once.
 4. **Register the champions:** `python tools/champion.py init --decision model_development/selection/<t>.json`, then fit

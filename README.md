@@ -264,7 +264,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── monitoring.py                         #   stage 8: forecast log, degradation flags, refit and re-tuning schedule
 │   │   ├── rollout.py                            #   stage 9: what each price target's data allows (config/rollout.yaml)
 │   │   ├── live.py, old_new.py                   #   stage 10: live adapter (config/live_models.yaml), champion against legacy
-│   │   └── summary.py                            #   stage 9: one table of where every price target stands
+│   │   ├── summary.py                            #   stage 9: one table of where every price target stands
+│   │   └── synthetic.py                          #   artificial locked-window outcomes where configured (config/synthetic_fill.yaml)
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
 │   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules

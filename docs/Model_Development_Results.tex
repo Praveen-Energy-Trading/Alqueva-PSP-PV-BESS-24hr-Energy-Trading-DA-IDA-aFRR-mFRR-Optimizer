@@ -120,9 +120,7 @@ reproduced'' on purpose.
 \item \textbf{Freeze the locked outcomes} of each target (\texttt{tools/\allowbreak evaluate\_\allowbreak forecaster.py -{}-target T -{}-lock}). The window
       ends on 2026-10-11, so the last days may still be revised. Every other preflight check passes except that the code has
       uncommitted changes.
-\item \textbf{IDA1's locked window has too many missing days:} 321 of 365 have outcomes against 96\% during development, mostly
-      scattered (1 to 4 per month, one run of 6 days in August 2026). Empty auctions would justify a lower floor; data that was
-      not ingested should be filled first. The preflight refuses IDA1 until this is settled.
+\item \textbf{IDA1's locked window has 44 days with no outcome} (321 of 365 have one, against 96\% during development). The load log shows 41 are days on which OMIE published an empty file and 3 returned HTTP 404. Empty IDA1 days have become more frequent (0 to 2 a month in 2024--25, 2 to 8 a month since October 2025). \textbf{Decided (demonstration project): the 44 days are filled artificially}, only in the locked window and only for IDA1, with the IDA1 price set equal to the day-ahead price. Real values are never overwritten, the frozen digest includes the filled values, and the locked-test report states that these days are not real prices and also gives the scores on real days only.
 \item \textbf{The one locked test per target} (\texttt{tools/\allowbreak run\_\allowbreak locked\_\allowbreak test.py -{}-target T -{}-\allowbreak confirm-locked}); each algorithm
       can be scored once.
 \item \textbf{Register the champions} (\texttt{tools/champion.py init}), fit them and calibrate their monitoring.
