@@ -3,6 +3,10 @@
     "data_digest": "a24f2667515d5fa458e9d1d091f595fd80cb2b6b9cc31e5bf680b38de30aebf5",
     "window": "2025-10-12..2026-10-11"
   },
+  "afrr_dn_price": {
+    "data_digest": "f7b1a272786fa16437a654dd186e56f7223118a31ef9358c7f6407dfc4d38759",
+    "window": "2025-10-12..2026-10-11"
+  },
   "da_price": {
     "data_digest": "228a507b655330fe4ad66c1963555209eb6974ad973fb3da0f8f2e6393ed0a68",
     "window": "2025-10-12..2026-10-11"
