@@ -31,7 +31,7 @@ def d(x):
 
 
 dev, lk, sch = ev["development"], ev["locked_test"], ev["schedule"]
-theme.metric_cards([("Development scoring", f"{dev['test_start']} to {dev['test_end']}"), ("Locked test year", f"{lk['start']} to {lk['end']}"),
+ml_ui.cards([("Development scoring", f"{dev['test_start']} to {dev['test_end']}"), ("Locked test year", f"{lk['start']} to {lk['end']}"),
                     ("Refit every", f"{sch['retrain_every_days']} days"), ("Training window", f"{sch['train_window_days']} days"),
                     ("Gap before the first test day", f"{sch['gap_days']} day")], ncols=5, pre_formatted=True)
 
@@ -74,10 +74,10 @@ if folds is not None and len(folds):
                "Red: locked test year. Change the sliders to see how the schedule changes the folds.")
 
 st.subheader("What is measured")
-st.dataframe(__import__("pandas").DataFrame([
+ml_ui.table(__import__("pandas").DataFrame([
     {"Metric": "SSE", "Meaning": "sum of squared errors", "Reads as": "dominated by the largest misses (spikes)"},
     {"Metric": "MAE", "Meaning": "mean absolute error", "Reads as": "the typical miss in EUR/MWh"},
-    {"Metric": "RMSE", "Meaning": "root mean squared error", "Reads as": "typical miss, weighting big misses more"}]), hide_index=True, width="stretch")
+    {"Metric": "RMSE", "Meaning": "root mean squared error", "Reads as": "typical miss, weighting big misses more"}]))
 st.caption("Always in price units, never on the transformed scale: a model trained on a transformed price is judged in euros.")
 
 st.subheader("Is a difference real? The Diebold-Mariano test, worked")
@@ -98,7 +98,7 @@ else:
         fig.add_trace(go.Scatter(x=diff["date"], y=diff["difference"].expanding().mean(), mode="lines", line=dict(color=theme.INK_PRIMARY, width=2), name="running mean"))
         fig.add_hline(y=0, line_color=theme.INK_MUTED)
         st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="champion MAE - reference MAE (EUR)"), width="stretch")
-        theme.metric_cards([("Days compared", res["n_days"]), ("Mean daily difference", f"{res['mean_diff']:+.3f}"),
+        ml_ui.cards([("Days compared", res["n_days"]), ("Mean daily difference", f"{res['mean_diff']:+.3f}"),
                             ("DM statistic", f"{res['statistic']:.2f}"), ("p-value", f"{res['p_value']:.2g}")], ncols=4, pre_formatted=True)
         st.caption("Negative differences (blue) mean the champion was better that day. A statistic far from zero with a small p-value means the "
                    "difference is unlikely to be luck; many pairwise comparisons are corrected with the Holm method on the next pages.")

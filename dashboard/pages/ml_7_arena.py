@@ -31,7 +31,7 @@ if board.empty:
 board = board.sort_values("mae").reset_index(drop=True)
 best = board.iloc[0]
 pw = tabs["pairwise_dm"]
-theme.metric_cards([("Best algorithm", ml_data.model_label(best["model"])), ("Its MAE", f"{best['mae']:.3f} {ml_data.UNITS[target]}"),
+ml_ui.cards([("Best algorithm", ml_data.model_label(best["model"])), ("Its MAE", f"{best['mae']:.3f} {ml_data.UNITS[target]}"),
                     ("Hours compared", f"{int(best['n']):,}"), ("Pairs that differ (Holm, 5%)", f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "-")],
                    ncols=4, pre_formatted=True)
 
@@ -42,9 +42,10 @@ with l:
                            text=[f"{v:.2f}" for v in board["mae"]], textposition="outside"))
     st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title=f"MAE ({ml_data.UNITS[target]})", legend=False), width="stretch")
 with r:
-    st.dataframe(board.assign(model=board["model"].map(ml_data.model_label))[["model", "mae", "rmse", "sse", "days_best"]].rename(columns={
-        "model": "Algorithm", "mae": "MAE", "rmse": "RMSE", "sse": "SSE", "days_best": "Share of days best"}).round(3), hide_index=True, width="stretch")
-st.caption("Tuned algorithms on the development window. 'Share of days best' is how often an algorithm had the smallest error of the day: "
+    sb = board.assign(model=board["model"].map(ml_data.model_label), days_best=(100 * board["days_best"]).round(0))
+    ml_ui.table(sb[["model", "mae", "rmse", "days_best"]].rename(columns={"model": "Algorithm", "mae": "MAE", "rmse": "RMSE", "days_best": "Best on (% of days)"}),
+                formats={"mae": "%.2f", "rmse": "%.2f", "days_best": "%d"})
+st.caption("Tuned algorithms on the development window. 'Best on' is the share of days on which an algorithm had the smallest error of the day: "
            "the average error and the winning share can disagree.")
 
 st.subheader("Is the difference real? Every pair, with the Holm correction")
@@ -74,9 +75,8 @@ else:
         with st.expander("Each algorithm against the best (Holm over these comparisons)"):
             t2 = vb[["model", "mean_loss", "best_loss", "mean_diff", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].copy()
             t2["model"] = t2["model"].map(ml_data.model_label)
-            st.dataframe(t2.rename(columns={"model": "Algorithm", "mean_loss": "Mean loss", "best_loss": "Loss of the best", "mean_diff": "Difference", "statistic": "Statistic",
-                                            "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4),
-                         hide_index=True, width="stretch")
+            ml_ui.table(t2.rename(columns={"model": "Algorithm", "mean_loss": "Mean loss", "best_loss": "Loss of the best", "mean_diff": "Difference", "statistic": "Statistic",
+                                            "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4))
 
 st.subheader("Where each algorithm wins")
 by = st.radio("Group by", ["hour", "month", "regime"], horizontal=True, key="ml7_by", format_func=lambda x: {"hour": "Hour of day", "month": "Month of the year", "regime": "Market regime"}[x])
@@ -97,8 +97,7 @@ else:
     win["lowest_mae"] = win["lowest_mae"].map(ml_data.model_label)
     win["winner"] = win["winner"].map(ml_data.model_label)
     with st.expander("Lowest average error and most frequent winner per group"):
-        st.dataframe(win.rename(columns={"group": by.capitalize(), "units": "Units", "lowest_mae": "Lowest MAE", "winner": "Wins most units", "winner_share": "Share of units won"}).round(3),
-                     hide_index=True, width="stretch")
+        ml_ui.table(win.rename(columns={"group": by.capitalize(), "units": "Units", "lowest_mae": "Lowest MAE", "winner": "Wins most units", "winner_share": "Share of units won"}).round(3))
 
 st.subheader("Error through time")
 if daily.empty:

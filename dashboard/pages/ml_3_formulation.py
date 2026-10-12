@@ -43,12 +43,14 @@ def hours_after_midnight(rule: str, data_day_offset: int = 0) -> float | None:
     return (int(m.group(1) or 0) + data_day_offset) * 24 + int(m.group(2)) + int(m.group(3)) / 60.0
 
 
-c1, c2, c3, c4 = st.columns(4)
-theme.metric_cards([("Forecast", f"{'spread to ' + ml_data.series_label(q['base']) if q['kind'] == 'spread' else 'price level'}"), ("Series", ml_data.series_label(q["series"])),
-                    ("Transform", f"{q['transform']['name']}, scale {q['transform'].get('scale', '-')}"),
-                    ("Resolution", ", ".join(map(str, tdef.get("resolution", []))) if isinstance(tdef.get("resolution"), list) else str(tdef.get("resolution", "-")))],
-                   ncols=4, pre_formatted=True)
-st.markdown(f"**Used for:** {cdef.get('decision', '-')}  \n**Needed by:** {cdef.get('as_of', {}).get('rule', '-')}")
+ml_ui.cards([("Forecast", f"{'spread to ' + ml_data.series_label(q['base']) if q['kind'] == 'spread' else 'price level'}"), ("Series", ml_data.series_label(q["series"])),
+                    ("Transform", f"{q['transform']['name']}, scale {q['transform'].get('scale', '-')}")], ncols=3, pre_formatted=True)
+_res = tdef.get("resolution", "-")
+if isinstance(_res, dict):
+    _res = "; ".join(f"{str(k).capitalize()}: {v}" for k, v in _res.items())
+elif isinstance(_res, list):
+    _res = ", ".join(map(str, _res))
+st.markdown(f"**Used for:** {cdef.get('decision', '-')}  \n**Needed by:** {cdef.get('as_of', {}).get('rule', '-')}  \n**Resolution:** {_res}")
 
 st.subheader("What is known when")
 gate = cdef.get("as_of", {}).get("gate", "")
@@ -84,11 +86,10 @@ if len(plot) and gate_h is not None:
                     width="stretch")
     st.caption("Each dot is the latest data of an input series that exists when the forecast is made. A dot after the dashed line would be a "
                "leak, and the framework refuses it: the as-of view gives a model only what the information set allows.")
-st.dataframe(tl[["series", "latest_day_offset", "status", "published", "evidence"]].rename(columns={
-    "series": "Input series", "latest_day_offset": "Latest day (D+k)", "status": "Status", "published": "Published", "evidence": "How known"}),
-    hide_index=True, width="stretch")
+ml_ui.table(tl[["series", "latest_day_offset", "status", "published", "evidence"]].rename(columns={
+    "series": "Input series", "latest_day_offset": "Latest day (D+k)", "status": "Status", "published": "Published", "evidence": "How known"}))
 if tdef.get("forbidden"):
-    st.markdown("**Forbidden for this target:** " + ", ".join(f"`{x}`" if isinstance(x, str) else f"`{x.get('series', x)}`" for x in tdef["forbidden"]))
+    st.markdown("**Forbidden for this target:**\n" + "\n".join(f"- {x[:1].upper() + x[1:]}" if isinstance(x, str) else f"- {ml_data.series_label(x.get('series', x))}" for x in tdef["forbidden"]))
 
 st.subheader("Why a spread, and why the asinh transform")
 l, r = st.columns(2)

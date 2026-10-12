@@ -29,7 +29,7 @@ if manifest.empty:
 else:
     m = manifest[["source", "days", "first_key", "last_key"]].copy()
     m["source"] = m["source"].map(ml_data.source_label)
-    st.dataframe(m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}), hide_index=True, width="stretch")
+    ml_ui.table(m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}), compact=True)
 
 st.subheader("The quality gate")
 if gate is None:
@@ -39,7 +39,7 @@ else:
     st.markdown(f"Latest decision: {ml_ui.badge('PASS' if passed else 'FAIL', 'done' if passed else 'not run')} "
                 f"&nbsp; window {gate['window'][0]} to {gate['window'][1]}", unsafe_allow_html=True)
     for r in gate.get("reasons", []):
-        st.markdown(f"- {r}")
+        st.markdown(f"- {ml_data.plain_text(r)}")
     st.caption("The gate stops a model run when the data is not good enough. It currently fails on purpose: IDA1 has more empty auctions than "
                "its 6% limit allows, and one feed is older than allowed. Whether a day on which the source published an empty file should count as "
                "missing is an open design question, and the right fix is a rule that tells confirmed-empty days from ingestion gaps.")
@@ -69,7 +69,7 @@ else:
     for c in s.columns:
         fig.add_trace(go.Bar(x=s.index, y=s[c], name=c.replace("_", " "), marker_color=palette.get(c, theme.INK_MUTED)))
     st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="days", barmode="stack"), width="stretch")
-    st.caption("`empty publication`: the source published a file with no data (the auction cleared nothing). `not published`: no file at all "
+    st.caption("**empty publication**: the source published a file with no data (the auction cleared nothing). **not published**: no file at all "
                "(HTTP 404). Empty IDA1 auctions have become more frequent since October 2025, which is why the IDA1 gate threshold trips.")
 
 st.subheader("Time is part of the data")

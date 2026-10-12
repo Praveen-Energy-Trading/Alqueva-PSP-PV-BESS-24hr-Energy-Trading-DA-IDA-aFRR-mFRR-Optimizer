@@ -34,14 +34,14 @@ runs = pd.DataFrame(snap.get("runs", []))
 if runs.empty:
     ml_ui.not_yet_run("the registry snapshot")
 else:
-    theme.metric_cards([("Experiments", len(runs)), ("Repeated", int((runs["attempts"] > 1).sum())),
+    ml_ui.cards([("Experiments", len(runs)), ("Repeated", int((runs["attempts"] > 1).sum())),
                         ("Reproduced exactly", int((runs["reproduced"] == True).sum())), ("Not reproduced", int((runs["reproduced"] == False).sum()))], ncols=4)  # noqa: E712
     show = runs[["kind", "target", "stage", "window_start", "window_end", "attempts", "reproduced", "source"]].copy()
     show["target"] = show["target"].map(ml_data.label)
     for c in ("kind", "stage", "source"):
         show[c] = show[c].map(ml_data.run_label)
-    st.dataframe(show.rename(columns={"kind": "Kind", "target": "Target", "stage": "Stage", "window_start": "From", "window_end": "To",
-                                      "attempts": "Attempts", "reproduced": "Reproduced", "source": "Recorded by"}), hide_index=True, width="stretch")
+    ml_ui.table(show.rename(columns={"kind": "Kind", "target": "Target", "stage": "Stage", "window_start": "From", "window_end": "To",
+                                      "attempts": "Attempts", "reproduced": "Reproduced", "source": "Recorded by"}))
     st.caption("The Optuna day-ahead experiment, run twice, gave identical predictions. The random-search control is shown as not reproduced on "
                "purpose: its second attempt ran with the numerical guard, which changed one unstable row.")
 
@@ -49,7 +49,7 @@ st.subheader("Champions and the promotion rule")
 champs = snap.get("champions", {})
 if champs:
     rows = [{"Target": ml_data.label(t), "Version": v["version"], "Status": v["status"], "Promoted": v["promoted_utc"]} for t, vs in champs.items() for v in vs]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    ml_ui.table(pd.DataFrame(rows))
 else:
     st.info("No champion is registered yet: the decisions exist, and registering a champion is a deliberate step. The registry holds the versions, "
             "the fitted models with their checksums and an append-only event log.")
@@ -93,7 +93,7 @@ else:
             fig.add_annotation(x=pd.Timestamp(shock), y=1, yref="paper", text="simulated change", showarrow=False, yanchor="bottom", font=dict(color=theme.ORANGE))
         st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title=ml_data.UNITS[tgt]), width="stretch")
         status = "level flag raised" if rep["flagged_days"] else "no flag"
-        theme.metric_cards([("Development level", f"{rep['level']:.2f}"), ("Threshold", f"{rep['threshold']:.2f}"), ("Days flagged", rep["flagged_days"]),
+        ml_ui.cards([("Development level", f"{rep['level']:.2f}"), ("Threshold", f"{rep['threshold']:.2f}"), ("Days flagged", rep["flagged_days"]),
                             ("First flag", str(rep["first_flag"].date()) if rep["first_flag"] is not None else "none")], ncols=4, pre_formatted=True)
         if sim:
             st.warning("SIMULATION: the errors after the chosen day were multiplied. This shows how the flag reacts; it is not a result.")
@@ -107,7 +107,7 @@ else:
 st.subheader("Retraining schedule")
 sch = mon.get("schedule", {})
 if sch:
-    theme.metric_cards([("Refit every", f"{sch['refit_every_days']} days (settings reused)"), ("Re-tune every", f"{sch['retune_every_days']} days"),
+    ml_ui.cards([("Refit every", f"{sch['refit_every_days']} days (settings reused)"), ("Re-tune every", f"{sch['retune_every_days']} days"),
                         ("Checked against", "the evaluation and tuning settings")], ncols=3, pre_formatted=True)
     start = dt.date(2025, 10, 12)
     refits = [start + dt.timedelta(days=i * sch["refit_every_days"]) for i in range(13)]
@@ -121,16 +121,17 @@ if sch:
 
 st.subheader("Switching a forecast on, safely")
 if live:
-    rows = [{"Forecast": ml_data.label(t), "Mode": v["mode"]} for t, v in live.items()]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    mode_names = {"legacy": "Original forecaster", "auto": "Champion, original as fallback", "registry": "Champion only"}
+    rows = [{"Forecast": ml_data.label(t), "Currently uses": mode_names.get(v["mode"], v["mode"])} for t, v in live.items()]
+    ml_ui.table(pd.DataFrame(rows))
     st.markdown("""
-- `legacy`: the original forecaster; `auto`: the champion if it is registered and verified, otherwise the legacy forecaster with a warning; `registry`: the champion or an error.
+- **Original forecaster:** the model the pipeline used before; **champion, original as fallback:** the champion if it is registered and verified, otherwise the original with a warning; **champion only:** the champion, or an error.
 - The champion is loaded only if the file matches its registered checksum, belongs to the active version and the feature definitions have not changed.
 - A target is switched by editing one setting, after the champion has been scored against the legacy forecaster on the same days.
 - aFRR is switched one side at a time: the up and the down price are separate targets, and a side without a champion keeps the original forecaster. mFRR cannot be switched: the original mFRR forecast is the capacity price, while the framework's target is the activation price.
 """)
 
 st.subheader("Engineering")
-theme.metric_cards([("Automated tests", f"{facts.get('test_functions', '-')} in {facts.get('test_files', '-')} files"), ("Framework modules", facts.get("framework_modules", "-")),
+ml_ui.cards([("Automated tests", f"{facts.get('test_functions', '-')} in {facts.get('test_files', '-')} files"), ("Framework modules", facts.get("framework_modules", "-")),
                     ("Command-line tools", facts.get("tools", "-")), ("Configuration files", facts.get("config_files", "-"))], ncols=4, pre_formatted=True)
 

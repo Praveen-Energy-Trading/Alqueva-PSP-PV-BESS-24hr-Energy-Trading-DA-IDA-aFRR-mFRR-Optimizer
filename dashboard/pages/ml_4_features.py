@@ -39,7 +39,7 @@ def fname(fid: str) -> str:
 
 n_target = int(avail[(avail["target"] == target) & (avail["available"])].shape[0]) if not avail.empty else None
 blocked = int(feats[feats.get("status", pd.Series(dtype=object)).eq("not_collected")].shape[0]) if "status" in feats else 0
-theme.metric_cards([("Features in the catalogue", len(feats)), ("Feature kinds", feats["kind"].nunique()),
+ml_ui.cards([("Features in the catalogue", len(feats)), ("Feature kinds", feats["kind"].nunique()),
                     (f"Available for {ml_data.label(target)}", n_target if n_target is not None else "-"), ("Defined, data not collected", blocked)], ncols=4)
 
 st.subheader("The catalogue")
@@ -53,7 +53,7 @@ with c2:
     grp = st.multiselect("Groups", list(g.index), default=list(g.index), key="ml4_groups", format_func=ml_data.pretty)
     show = feats[feats["group"].isin(grp)]
     show = show.assign(feature=show["id"].map(fname), group=show["group"].map(ml_data.pretty), kind=show["kind"].map(ml_data.pretty))
-    st.dataframe(show[["feature", "group", "kind"]].rename(columns={"feature": "Feature", "group": "Group", "kind": "Kind"}), hide_index=True, width="stretch", height=250)
+    ml_ui.table(show[["feature", "group", "kind"]].rename(columns={"feature": "Feature", "group": "Group", "kind": "Kind"}), height=250)
 st.caption("A feature is a *kind* (a lag, a rolling statistic, a calendar field, the day-ahead price...) with parameters and a version. "
            "What it reads and when that is known follows from the kind and the parameters.")
 
@@ -62,20 +62,23 @@ if avail.empty:
     ml_ui.not_yet_run("the availability matrix")
 else:
     a = avail[avail["group"].isin(grp)]
-    pv = a.pivot(index="feature", columns="target", values="available").astype(float)
-    why = a.pivot(index="feature", columns="target", values="reason").fillna("").map(ml_data.plain_text)
-    order = [t for t in ml_data.TARGETS if t in pv.columns]
-    pv, why = pv[order], why[order]
-    fig = go.Figure(go.Heatmap(z=pv.values, x=[ml_data.label(t) for t in order], y=[fname(i) for i in pv.index], colorscale=[[0, theme.STATUS_CRITICAL], [1, theme.STATUS_GOOD]],
-                               showscale=False, text=why.values, hovertemplate="%{y}<br>%{x}: %{text}<extra></extra>", zmin=0, zmax=1))
-    fig.update_yaxes(autorange="reversed", tickfont=dict(size=9))
-    st.plotly_chart(theme.style_fig(fig, height=max(320, 14 * len(pv)), legend=False), width="stretch")
-    st.caption("Green: available at the target's forecast time. Red: not available (hover for why). A feature that reads yesterday's "
-               "price is unavailable for XBID, which may use its own price only up to two days back, and for mFRR, three days back.")
+    order = [t for t in ml_data.TARGETS if t in set(a["target"])]
+    cnt = a.groupby(["group", "target"])["available"].agg(["sum", "count"]).reset_index()
+    ok = cnt.pivot(index="group", columns="target", values="sum")[order]
+    tot = cnt.pivot(index="group", columns="target", values="count")[order]
+    text = ok.astype(int).astype(str) + " of " + tot.astype(int).astype(str)
+    fig = go.Figure(go.Heatmap(z=(ok / tot).values, x=[ml_data.short(t) for t in order], y=[ml_data.pretty(g) for g in ok.index], text=text.values,
+                               texttemplate="%{text}", colorscale=[[0, theme.STATUS_CRITICAL], [0.5, "#f2e6a0"], [1, theme.STATUS_GOOD]], showscale=False, zmin=0, zmax=1,
+                               hovertemplate="%{y}<br>%{x}: %{text}<extra></extra>"))
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(side="top")
+    st.plotly_chart(theme.style_fig(fig, height=60 + 42 * len(ok), legend=False), width="stretch")
+    st.caption("Each cell counts the features of a group that the target may use at its forecast time, out of all features of the group. A feature that "
+               "reads yesterday's price is unavailable for XBID, which may use its own price only up to two days back, and for mFRR, three days back.")
     bad = avail[(avail["target"] == target) & (~avail["available"])][["feature", "reason"]].assign(
         reason=lambda x: x["reason"].map(ml_data.plain_text))
     with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
-        st.dataframe(bad.assign(feature=bad["feature"].map(fname)).rename(columns={"feature": "Feature", "reason": "Reason"}), hide_index=True, width="stretch")
+        ml_ui.table(bad.assign(feature=bad["feature"].map(fname)).rename(columns={"feature": "Feature", "reason": "Reason"}))
 
 st.subheader("Feature sets")
 rows = []
@@ -87,7 +90,7 @@ for name, spec in sets.items():
     else:
         size = n_target and f"{n_target} available for this target" or ids
     rows.append({"Set": ml_data.pretty(name), "What it is": ml_data.plain_text(spec["description"]), "Size": size})
-st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+ml_ui.table(pd.DataFrame(rows), wrap=True)
 st.caption("A set's version is a hash of its features' definitions, so a changed definition is a new version, never a silent edit. "
            "The champions use the baseline set, or its variants for the targets that cannot use yesterday's price.")
 
@@ -96,7 +99,7 @@ r = sel.get(target)
 if not r:
     ml_ui.not_yet_run(f"stability selection for {ml_data.label(target)}")
 else:
-    theme.metric_cards([("Candidates", r["candidates"]), ("Kept", len(r["selected"])), ("Periods", len(r["periods"])),
+    ml_ui.cards([("Candidates", r["candidates"]), ("Kept", len(r["selected"])), ("Periods", len(r["periods"])),
                         ("Mean rank correlation across periods", r["mean_rank_correlation"])], ncols=4)
     st.markdown("Kept: " + "; ".join(fname(x).lower() for x in r["selected"]))
     st.caption(f"Rule: a feature is kept if it carries at least {100 * r['rule']['min_share']:.0f}% of the permutation importance in at least "

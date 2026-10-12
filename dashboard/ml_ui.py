@@ -45,6 +45,54 @@ def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
                 unsafe_allow_html=True)
 
 
+def fmt_p(p) -> str:
+    """A p-value for display: '<0.001' for tiny ones, three decimals otherwise, a dash if missing."""
+    import math
+    if p is None or (isinstance(p, float) and math.isnan(p)):
+        return "–"
+    return "<0.001" if p < 0.001 else f"{p:.3f}"
+
+
+def cards(items, ncols: int = 4, pre_formatted: bool = False) -> None:
+    """Metric cards with whole numbers shown without decimals (see theme.metric_cards)."""
+    if not pre_formatted:
+        items = [(k, f"{v:,}" if isinstance(v, int) and not isinstance(v, bool) else (f"{v:,.2f}" if isinstance(v, float) else v)) for k, v in items]
+    theme.metric_cards(items, ncols=ncols, pre_formatted=True)
+
+
+def table(df, compact: bool = False, height=None, formats: Optional[dict] = None, wrap: bool = False) -> None:
+    """A table that fits: numbers right-aligned with a sensible number of decimals, missing text as a dash, columns sized to their
+    content (compact) or sharing the page width, and no scrolling inside the table unless a height is given."""
+    import pandas as pd
+    df = df.copy()
+    cfg = {}
+    for c in df.columns:
+        col = df[c]
+        if pd.api.types.is_bool_dtype(col):
+            df[c] = col.map({True: "yes", False: "no"}).fillna("–")
+            cfg[c] = st.column_config.TextColumn(str(c))
+        elif pd.api.types.is_numeric_dtype(col):
+            fmt = (formats or {}).get(c)
+            if fmt is None:
+                vals = col.dropna()
+                fmt = "%d" if len(vals) and (vals % 1 == 0).all() and vals.abs().max() < 1e9 else ("%.3g" if len(vals) and vals.abs().max() < 1e-2 else "%.2f")
+            if col.isna().any():                              # a gap would show as 'None': write the numbers out and use a dash
+                df[c] = [("–" if pd.isna(v) else (f"{v:,.0f}" if fmt == "%d" else fmt % v)) for v in col]
+                cfg[c] = st.column_config.TextColumn(str(c))
+            else:
+                cfg[c] = st.column_config.NumberColumn(str(c), format=fmt)
+        else:
+            df[c] = col.astype(object).where(col.notna(), "–")
+            cfg[c] = st.column_config.TextColumn(str(c))
+    if height is None and len(df) <= 20:                      # show every row of a short table; longer ones scroll
+        height = 38 + 35 * len(df)
+    if wrap:                                                  # text-heavy tables: wrapped text, every row shown
+        st.table(df.set_index(df.columns[0]))                 # the first column labels the rows
+        return
+    kw = {"height": height} if height else {}
+    st.dataframe(df, hide_index=True, width="content" if compact else "stretch", column_config=cfg, **kw)
+
+
 def not_yet_run(what: str) -> None:
     st.info(f"Not yet run: {what}. This page fills in as soon as the stage has produced its files.")
 

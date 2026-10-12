@@ -26,7 +26,7 @@ if trials.empty or not cfg:
     st.stop()
 
 s = cfg["search"]
-theme.metric_cards([("Trials per algorithm and round", s["n_trials"]), ("Inner validation", f"{s['n_blocks']} blocks of {s['validation_days']} days"),
+ml_ui.cards([("Trials per algorithm and round", s["n_trials"]), ("Inner validation", f"{s['n_blocks']} blocks of {s['validation_days']} days"),
                     ("Re-tuned every", f"{s['retune_every_days']} days"), ("Search method", f"{s['method'].upper()} + random control"),
                     ("Trials logged", f"{len(trials):,}")], ncols=5, pre_formatted=True)
 st.markdown("""
@@ -43,7 +43,7 @@ models = ml_data.ordered_models(tt["model"].unique())
 st.subheader("Search space")
 model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
 space = cfg["space"].get(model, {})
-st.dataframe(pd.DataFrame([{"Setting": k, "Values": ", ".join(map(str, v)), "Choices": len(v)} for k, v in space.items()]), hide_index=True, width="stretch")
+ml_ui.table(pd.DataFrame([{"Setting": k.replace("_", " "), "Values": ", ".join(map(str, v)), "Choices": len(v)} for k, v in space.items()]))
 import math
 st.caption(f"{math.prod(len(v) for v in space.values()):,} combinations. With 40 trials the large spaces are searched thinly (Optuna steers toward good "
            "regions); the decision tree's 25 combinations are searched exhaustively.")
@@ -71,7 +71,7 @@ st.subheader("What moves the score")
 exp = tt[(tt["model"] == model) & ~tt["is_default"].astype(bool) & tt["rel"].notna()]
 if len(exp):
     keys = sorted({k for p in exp["params_d"] for k in p})
-    k = st.selectbox("Setting", keys, key="ml6_setting")
+    k = st.selectbox("Setting", keys, key="ml6_setting", format_func=lambda x: x.replace("_", " "))
     vals = exp["params_d"].map(lambda p: str(p.get(k, "")))
     fig = go.Figure()
     for i, v in enumerate(sorted(vals.unique())):
@@ -104,9 +104,10 @@ st.subheader("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
     lg["gain_%"] = (100 * (1 - lg["score"] / lg["default_score"])).round(1)
-    st.dataframe(lg[["tuned_at", "score", "default_score", "gain_%", "n_trials", "n_pruned", "params"]].rename(columns={
+    lg["params"] = lg["params"].map(ml_data.plain_params)
+    ml_ui.table(lg[["tuned_at", "score", "default_score", "gain_%", "n_trials", "n_pruned", "params"]].rename(columns={
         "tuned_at": "Round", "score": "Chosen (inner MAE)", "default_score": "Defaults (inner MAE)", "gain_%": "Inner gain (%)", "n_trials": "Trials",
-        "n_pruned": "Pruned", "params": "Chosen setting"}).round(3), hide_index=True, width="stretch")
+        "n_pruned": "Pruned", "params": "Chosen setting"}).round(3))
     st.caption("The chosen setting changes from round to round: do not read one tuned setting as 'the' best one.")
 
 if target == "da_price":
@@ -116,11 +117,13 @@ if target == "da_price":
     with l:
         st.markdown("**The gain seen when choosing against the gain afterwards**")
         if not io.empty:
-            g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reset_index()
+            g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
             fig = go.Figure()
             fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the validation blocks", marker_color=theme.BLUE))
             fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
-            st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
+            fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
+            fig.update_xaxes(tickangle=-25)
+            st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
             st.caption("Choosing the best of 40 settings on the same blocks flatters it: the gain afterwards is smaller. This is selection optimism, measured.")
     with r_:
         st.markdown("**How much of the score variance each setting explains (random-search trials)**")
@@ -129,8 +132,10 @@ if target == "da_price":
             fig = go.Figure()
             for mm in ml_data.ordered_models(top["model"].unique()):
                 x = top[top["model"] == mm]
-                fig.add_trace(go.Bar(x=[f"{ml_data.model_label(mm)}: {s_}" for s_ in x["setting"]], y=x["eta2"], marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
-            st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="share of variance", legend=False), width="stretch")
+                fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {str(s_).replace('_', ' ')}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
+                                     marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
+            fig.update_yaxes(autorange="reversed")
+            st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
             st.caption("No single setting dominates: at most 36% (tree depth) and typically 10% to 22%.")
 
 st.subheader("A numerical failure, found and guarded")

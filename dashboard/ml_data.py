@@ -41,6 +41,15 @@ def label(target: str) -> str:
     return LABELS.get(target, target)
 
 
+SHORT = {"da_price": "Day-ahead", "afrr_cap_price": "aFRR up", "afrr_dn_price": "aFRR down", "ida1_price": "IDA1", "ida2_price": "IDA2",
+         "ida3_price": "IDA3", "xbid_price": "XBID", "mfrr_price": "mFRR"}
+
+
+def short(target: str) -> str:
+    """A short name of a target for chart axes."""
+    return SHORT.get(target, label(target))
+
+
 def model_label(m: str) -> str:
     return MODEL_LABELS.get(m.replace("_tuned", ""), m.replace("_", " "))
 
@@ -83,7 +92,8 @@ def run_label(s: str) -> str:
     return RUN_LABELS.get(s, pretty(s))
 
 
-PHRASES = {"da_vol_total": "the day-ahead traded volume", "da_flow_pt_to_es": "the flow from Portugal to Spain", "da_flow_es_to_pt": "the flow from Spain to Portugal",
+PHRASES = {"da_price": "day-ahead prices", "ida_price": "intraday auction prices", "xbid_price": "XBID prices", "afrr_price": "aFRR prices",
+           "mfrr_price": "mFRR prices", "imbalance_price": "imbalance prices", "da_vol_total": "the day-ahead traded volume", "da_flow_pt_to_es": "the flow from Portugal to Spain", "da_flow_es_to_pt": "the flow from Spain to Portugal",
            "da_vol_pt_buy": "the Portuguese day-ahead purchases", "da_vol_pt_sell": "the Portuguese day-ahead sales", "da_es": "the Spanish day-ahead price",
            "da_pt": "the Portuguese day-ahead price", "ida1_pt": "the IDA1 price", "ida2_pt": "the IDA2 price", "ida3_pt": "the IDA3 price",
            "xbid_pt": "the XBID price", "afrr_up": "the aFRR up price", "afrr_dn": "the aFRR down price", "mfrr_ap": "the mFRR activation price",
@@ -98,6 +108,16 @@ def plain_text(text) -> str:
     for k in sorted(PHRASES, key=len, reverse=True):
         s = re.sub(r"\b" + re.escape(k) + r"\b", PHRASES[k], s)
     return re.sub(r"\b[a-z]+(?:_[a-z0-9]+)+\b", lambda m: m.group(0).replace("_", " "), s)
+
+
+def plain_params(p) -> str:
+    """A setting dictionary (or its text) as plain words: 'max depth 6, min samples leaf 50'."""
+    import ast
+    try:
+        d = ast.literal_eval(p) if isinstance(p, str) else dict(p)
+    except (ValueError, SyntaxError):
+        return str(p)
+    return ", ".join(f"{str(k).replace('_', ' ')} {v}" for k, v in d.items())
 
 
 def humanize(text: str) -> str:
@@ -206,6 +226,13 @@ def champion_text(c: Optional[dict]) -> str:
     return f"{c['method']} of {', '.join(model_label(m) for m in c['members'])}" if c["type"] == "ensemble" else model_label(c["model"])
 
 
+def champion_short(c: Optional[dict]) -> str:
+    """The champion for a table cell: the algorithm, or 'Average of n algorithms'."""
+    if not c:
+        return "–"
+    return f"Average of {len(c['members'])} algorithms" if c["type"] == "ensemble" else model_label(c["model"])
+
+
 def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
     """One row per target: treatment, development days, champion, development MAE, locked MAE (from the decision and locked files)."""
     rollout = config("rollout", root)
@@ -219,6 +246,7 @@ def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
             ref = next((r["mean_loss"] for r in dec["ranking"] if r["model"] == dec["policy"]["reference"]), None)
         rows.append({"target": t, "label": label(t), "treatment": spec.get("treatment", "standard"),
                      "dev_days": dec.get("n_days") if dec else None, "champion": champion_text(dec.get("champion")) if dec and dec.get("champion") else None,
+                     "champion_short": champion_short(dec.get("champion")) if dec and dec.get("champion") else "–",
                      "dev_mae": dec.get("champion_dev_loss") if dec else None, "reference_dev_mae": ref,
                      "locked_mae": loc["locked_scores"]["mae"] if loc else None,
                      "locked_reference_mae": (loc.get("reference_scores") or {}).get("mae") if loc else None,

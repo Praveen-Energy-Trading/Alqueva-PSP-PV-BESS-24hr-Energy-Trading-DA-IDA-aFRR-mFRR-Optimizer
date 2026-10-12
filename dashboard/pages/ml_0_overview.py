@@ -27,7 +27,7 @@ decided = results["champion"].notna().sum()
 gains = results["gain_vs_reference"].dropna()
 naive_gains = results["gain_vs_naive"].dropna()
 locked_done = results["locked_mae"].notna().sum()
-theme.metric_cards([
+ml_ui.cards([
     ("Targets with a champion", f"{decided} of {len(results) - 1}"),
     ("Mean gain over the decision tree", f"{100 * gains.mean():.1f}%" if len(gains) else "-"),
     ("Mean gain over the strongest naive forecast", f"{100 * naive_gains.mean():.1f}%" if len(naive_gains) else "-"),
@@ -54,37 +54,35 @@ for row in (stages[:5], stages[5:]):
 
 st.subheader("Where every target stands")
 view = results.copy()
-view["dev_mae"] = view["dev_mae"].round(3)
-view["locked_mae"] = view["locked_mae"].round(3)
-view["gain_vs_reference"] = (100 * view["gain_vs_reference"]).round(1)
-view["locked_gain_vs_reference"] = (100 * view["locked_gain_vs_reference"]).round(1)
-view["gain_vs_naive"] = (100 * view["gain_vs_naive"]).round(1)
-view["locked_gain_vs_naive"] = (100 * view["locked_gain_vs_naive"]).round(1)
+for c in ("gain_vs_reference", "gain_vs_naive", "locked_gain_vs_reference", "locked_gain_vs_naive"):
+    view[c] = (100 * view[c]).round(1)
 view["treatment"] = view["treatment"].map(ml_data.pretty)
-st.dataframe(
-    view[["label", "treatment", "dev_days", "champion", "dev_mae", "gain_vs_reference", "gain_vs_naive", "locked_mae", "locked_gain_vs_reference",
-          "locked_gain_vs_naive", "unit"]].rename(columns={
-        "label": "Target", "treatment": "Treatment", "dev_days": "Development days", "champion": "Champion", "dev_mae": "Development MAE",
-        "gain_vs_reference": "Development gain over decision tree (%)", "gain_vs_naive": "Development gain over strongest naive (%)", "locked_mae": "Locked-year MAE",
-        "locked_gain_vs_reference": "Locked-year gain over decision tree (%)", "locked_gain_vs_naive": "Locked-year gain over strongest naive (%)", "unit": "Unit"}),
-    hide_index=True, width="stretch")
+st.markdown("**Development window**")
+ml_ui.table(view[["label", "treatment", "dev_days", "champion_short", "dev_mae", "unit", "gain_vs_reference", "gain_vs_naive"]].rename(columns={
+    "label": "Target", "treatment": "Treatment", "dev_days": "Days", "champion_short": "Champion", "dev_mae": "MAE", "unit": "Unit",
+    "gain_vs_reference": "Gain over decision tree (%)", "gain_vs_naive": "Gain over strongest naive (%)"}), formats={"dev_mae": "%.2f"})
+st.markdown("**Locked year**")
+ml_ui.table(view[["label", "locked_mae", "unit", "locked_gain_vs_reference", "locked_gain_vs_naive"]].rename(columns={
+    "label": "Target", "locked_mae": "MAE", "unit": "Unit", "locked_gain_vs_reference": "Gain over decision tree (%)",
+    "locked_gain_vs_naive": "Gain over strongest naive (%)"}))
 
 st.markdown("**Gain of the champion over the decision tree and over the strongest naive forecast: development window and locked year**")
 g = results.dropna(subset=["gain_vs_reference"])
 if len(g):
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=g["label"], y=100 * g["gain_vs_reference"], name="over decision tree, development", marker_color=theme.BLUE))
+    fig.add_trace(go.Bar(x=g["target"].map(ml_data.short), y=100 * g["gain_vs_reference"], name="Over decision tree, development", marker_color=theme.BLUE))
     k = g.dropna(subset=["locked_gain_vs_reference"])
     if len(k):
-        fig.add_trace(go.Bar(x=k["label"], y=100 * k["locked_gain_vs_reference"], name="over decision tree, locked year", marker_color=theme.ORANGE))
+        fig.add_trace(go.Bar(x=k["target"].map(ml_data.short), y=100 * k["locked_gain_vs_reference"], name="Over decision tree, locked year", marker_color=theme.ORANGE))
     gn = results.dropna(subset=["gain_vs_naive"])
     if len(gn):
-        fig.add_trace(go.Bar(x=gn["label"], y=100 * gn["gain_vs_naive"], name="over strongest naive, development", marker_color=theme.CATEGORICAL[2]))
+        fig.add_trace(go.Bar(x=gn["target"].map(ml_data.short), y=100 * gn["gain_vs_naive"], name="Over strongest naive, development", marker_color=theme.CATEGORICAL[2]))
     kn = results.dropna(subset=["locked_gain_vs_naive"])
     if len(kn):
-        fig.add_trace(go.Bar(x=kn["label"], y=100 * kn["locked_gain_vs_naive"], name="over strongest naive, locked year", marker_color=theme.CATEGORICAL[3]))
+        fig.add_trace(go.Bar(x=kn["target"].map(ml_data.short), y=100 * kn["locked_gain_vs_naive"], name="Over strongest naive, locked year", marker_color=theme.CATEGORICAL[3]))
     fig.add_hline(y=0, line_color=theme.INK_MUTED)
-    st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="% lower MAE than the reference", barmode="group"), width="stretch")
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
+    st.plotly_chart(theme.style_fig(fig, height=380, yaxis_title="% lower MAE than the reference", barmode="group"), width="stretch")
     st.caption("The gain over the reference is measured on the same hours, so it does not depend on the price level. The raw locked-year MAE "
                "does: for aFRR capacity the price level fell by about 80% in 2025, so its locked-year MAE is lower for that reason, not "
                "because the model improved.")

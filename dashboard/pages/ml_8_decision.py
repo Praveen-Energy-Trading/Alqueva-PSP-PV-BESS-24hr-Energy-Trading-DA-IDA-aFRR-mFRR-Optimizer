@@ -54,14 +54,13 @@ with l:
     rk = pd.DataFrame(d["ranking"])
     rk["model"] = rk["model"].map(ml_data.model_label)
     st.markdown("**Ranking on the development window**")
-    st.dataframe(rk[["model", "mean_loss", "mae", "rmse", "sse"]].rename(columns={"model": "Algorithm", "mean_loss": "Mean daily loss"}).round(3), hide_index=True, width="stretch")
+    ml_ui.table(rk[["model", "mean_loss", "mae", "rmse", "sse"]].rename(columns={"model": "Algorithm", "mean_loss": "Mean daily loss"}).round(3))
 with r:
     if d.get("versus_best"):
         vb = pd.DataFrame(d["versus_best"])
         vb["model"] = vb["model"].map(ml_data.model_label)
         st.markdown(f"**Each algorithm against the best ({ml_data.model_label(d['best'])})**")
-        st.dataframe(vb[["model", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].rename(columns={"model": "Algorithm", "statistic": "Statistic", "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4),
-                     hide_index=True, width="stretch")
+        ml_ui.table(vb[["model", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].rename(columns={"model": "Algorithm", "statistic": "Statistic", "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4))
 if d.get("combination"):
     c = d["combination"]
     st.caption(f"Average of the tied algorithms against the best single one: mean loss difference {c['mean_diff']:+.3f}, p = {c['p_value']:.3g}: "
@@ -73,11 +72,11 @@ if lk is None:
 else:
     s, ref = lk["locked_scores"], lk.get("reference_scores")
     gain = 1 - s["mae"] / ref["mae"] if ref else None
-    theme.metric_cards([("Locked-year MAE", f"{s['mae']:.3f}"), ("Reference MAE", f"{ref['mae']:.3f}" if ref else "-"),
+    ml_ui.cards([("Locked-year MAE", f"{s['mae']:.3f}"), ("Reference MAE", f"{ref['mae']:.3f}" if ref else "-"),
                         ("Gain over the reference", f"{100 * gain:.1f}%" if gain is not None else "-"),
                         ("Test against the reference (p)", f"{lk['dm_vs_reference']['p_value']:.2g}" if lk.get("dm_vs_reference") else "-")], ncols=4, pre_formatted=True)
     st.markdown(f"Window {lk['window'][0]} to {lk['window'][1]}; outcomes frozen by digest (lock status: {lk.get('lock_status')}); "
-                f"scored once with code `{lk['code']}`.")
+                f"scored once, with code revision {lk['code']}.")
     if lk["loss_ratio_locked_over_dev"] < 0.8 or lk["loss_ratio_locked_over_dev"] > 1.25:
         st.info(f"The locked-year loss is {lk['loss_ratio_locked_over_dev']:.2f} times the development loss. That compares two different price regimes, "
                 "so it is not a measure of skill: the gain over the reference on the same hours is.")
@@ -90,7 +89,7 @@ else:
     if lk.get("members"):
         mm = pd.DataFrame([{"Forecaster": k, **v} for k, v in lk["members"].items()])
         with st.expander("The other algorithms scored in the same locked run (reported, not used for any choice)"):
-            st.dataframe(mm.round(3), hide_index=True, width="stretch")
+            ml_ui.table(mm.round(3))
 
     if not lf.empty and target in set(lf["target"]):
         x = lf[lf["target"] == target].copy()
@@ -126,9 +125,9 @@ else:
             gain = b["gain_of_champion_over"].get(n)
             p = b["dm_champion_vs"].get(n, {}).get("p_value")
             rows.append({"Forecast": names.get(n, n), "MAE": sc["mae"], "RMSE": sc["rmse"],
-                         "Champion's gain (%)": None if gain is None else round(100 * gain, 1), "Champion better? (p)": None if p is None else round(p, 4)})
+                         "Champion's gain (%)": None if gain is None else round(100 * gain, 1), "p-value": ml_ui.fmt_p(p)})
         st.markdown(f"**{title}** ({b['window'][0]} to {b['window'][1]}, {b['hours']:,} hours)")
-        st.dataframe(pd.DataFrame(rows).round(3), hide_index=True, width="stretch")
+        ml_ui.table(pd.DataFrame(rows), formats={"MAE": "%.2f", "RMSE": "%.2f", "Champion's gain (%)": "%.1f"})
     if bm.get("locked") and bm["locked"].get("synthetic_days"):
         st.caption(f"The locked year includes {bm['locked']['synthetic_days']} artificial days; they are left out here for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
     st.caption("Reading it: a gain of 15% means the champion's mean absolute error is 15% lower. The naive forecasts are not tuned and not chosen, "
