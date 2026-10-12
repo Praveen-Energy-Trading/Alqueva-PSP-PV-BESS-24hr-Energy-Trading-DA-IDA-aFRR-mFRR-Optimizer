@@ -44,7 +44,7 @@ def hours_after_midnight(rule: str, data_day_offset: int = 0) -> float | None:
 
 
 c1, c2, c3, c4 = st.columns(4)
-theme.metric_cards([("Forecast", f"{'spread to ' + q['base'] if q['kind'] == 'spread' else 'price level'}"), ("Series", q["series"]),
+theme.metric_cards([("Forecast", f"{'spread to ' + ml_data.series_label(q['base']) if q['kind'] == 'spread' else 'price level'}"), ("Series", ml_data.series_label(q["series"])),
                     ("Transform", f"{q['transform']['name']}, scale {q['transform'].get('scale', '-')}"),
                     ("Resolution", ", ".join(map(str, tdef.get("resolution", []))) if isinstance(tdef.get("resolution"), list) else str(tdef.get("resolution", "-")))],
                    ncols=4, pre_formatted=True)
@@ -67,7 +67,8 @@ for inp in tdef["inputs"]:
     later = window is not None and order.get(inp.get("from_window", "W1"), 0) > order.get(window, 0)
     ok = inp["status"] == "available" and not later
     h = hours_after_midnight(pub, inp["latest_day_offset"]) if (pub and ok) else None
-    rows.append({"series": inp["series"], "latest_day_offset": inp["latest_day_offset"], "status": "from window " + inp["from_window"] if later else inp["status"],
+    rows.append({"series": ml_data.series_label(inp["series"]), "latest_day_offset": inp["latest_day_offset"],
+                 "status": "from window " + inp["from_window"] if later else ml_data.pretty(inp["status"]).lower(),
                  "published": pub or "-", "hours": h, "evidence": avail.get("evidence", "-")})
 tl = pd.DataFrame(rows)
 plot = tl.dropna(subset=["hours"])

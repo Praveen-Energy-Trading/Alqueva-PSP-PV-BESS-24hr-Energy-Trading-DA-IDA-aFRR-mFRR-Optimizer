@@ -71,7 +71,7 @@ if folds is not None and len(folds):
     fig.update_yaxes(autorange="reversed", title_text="fold")
     st.plotly_chart(theme.style_fig(fig, height=420, legend=False), width="stretch")
     st.caption(f"{len(folds)} folds, first test day {folds['test_start'].min()}, last {folds['test_end'].max()}. Blue: training window. Orange: test days. "
-               "Red: locked test year. Change the sliders to see how the schedule changes the folds; the code is the framework's own `make_folds`.")
+               "Red: locked test year. Change the sliders to see how the schedule changes the folds.")
 
 st.subheader("What is measured")
 st.dataframe(__import__("pandas").DataFrame([

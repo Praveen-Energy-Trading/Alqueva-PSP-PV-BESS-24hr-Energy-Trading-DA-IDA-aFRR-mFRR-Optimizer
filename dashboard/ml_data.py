@@ -45,6 +45,68 @@ def model_label(m: str) -> str:
     return MODEL_LABELS.get(m.replace("_tuned", ""), m.replace("_", " "))
 
 
+# Readable names for what the pages show: sources, datasets, input series, run kinds. Anything not listed gets pretty().
+SOURCE_LABELS = {"omie_da": "OMIE day-ahead market", "omie_ida1": "OMIE intraday auction 1 (IDA1)", "omie_ida2": "OMIE intraday auction 2 (IDA2)",
+                 "omie_ida3": "OMIE intraday auction 3 (IDA3)", "omie_xbid": "OMIE continuous intraday (XBID)",
+                 "ren_afrr": "REN aFRR reserve prices", "ren_imbalance": "REN imbalance prices", "ren_mfrr": "REN mFRR reserve prices"}
+DATASET_LABELS = {"da_price": "Day-ahead prices", "ida_price": "Intraday auction prices", "xbid_price": "XBID prices", "afrr_price": "aFRR prices",
+                  "mfrr_price": "mFRR prices", "imbalance_price": "Imbalance prices"}
+SERIES_LABELS = {"da_result": "Day-ahead result", "da_pt": "Day-ahead price (Portugal)", "da_es": "Day-ahead price (Spain)",
+                 "ida1_result": "IDA1 result", "ida2_result": "IDA2 result", "ida3_result": "IDA3 result", "ida1_pt": "IDA1 price", "ida2_pt": "IDA2 price",
+                 "ida3_pt": "IDA3 price", "xbid_summary": "XBID summary", "xbid_pt": "XBID price", "afrr_band_result": "aFRR band result",
+                 "afrr_up": "aFRR up price", "afrr_dn": "aFRR down price", "imbalance_price": "Imbalance price", "mfrr_series": "mFRR prices",
+                 "mfrr_ap": "mFRR activation price", "weather_forecast": "Weather forecast", "fundamentals_forecast": "Fundamentals forecast",
+                 "calendar": "Calendar", "xbid_live": "XBID live trades"}
+RUN_LABELS = {"evaluation": "Model evaluation", "schedule_comparison": "Schedule comparison", "dev": "Development", "final": "Locked test",
+              "backfill": "Backfilled from files", "evaluate_forecaster": "Evaluation run", "run_locked_test": "Locked-test run"}
+
+
+def pretty(name) -> str:
+    """A code-style name as plain words: underscores become spaces and the first letter is a capital."""
+    s = str(name).replace("_", " ").strip()
+    return s[:1].upper() + s[1:]
+
+
+def source_label(s: str) -> str:
+    return SOURCE_LABELS.get(s, pretty(s))
+
+
+def dataset_label(s: str) -> str:
+    return DATASET_LABELS.get(s, pretty(s))
+
+
+def series_label(s: str) -> str:
+    return SERIES_LABELS.get(s, pretty(s))
+
+
+def run_label(s: str) -> str:
+    return RUN_LABELS.get(s, pretty(s))
+
+
+PHRASES = {"da_vol_total": "the day-ahead traded volume", "da_flow_pt_to_es": "the flow from Portugal to Spain", "da_flow_es_to_pt": "the flow from Spain to Portugal",
+           "da_vol_pt_buy": "the Portuguese day-ahead purchases", "da_vol_pt_sell": "the Portuguese day-ahead sales", "da_es": "the Spanish day-ahead price",
+           "da_pt": "the Portuguese day-ahead price", "ida1_pt": "the IDA1 price", "ida2_pt": "the IDA2 price", "ida3_pt": "the IDA3 price",
+           "xbid_pt": "the XBID price", "afrr_up": "the aFRR up price", "afrr_dn": "the aFRR down price", "mfrr_ap": "the mFRR activation price",
+           "entsoe_transparency": "ENTSO-E transparency data", "fuel_carbon": "fuel and carbon prices", "reservoir_levels": "reservoir levels",
+           "weather_forecast": "weather forecasts", "fundamentals_forecast": "fundamentals forecasts"}
+
+
+def plain_text(text) -> str:
+    """A sentence from the data pack with column and source identifiers replaced by plain words."""
+    import re
+    s = re.sub(r",? ?read from config/\S+", "", str(text))
+    for k in sorted(PHRASES, key=len, reverse=True):
+        s = re.sub(r"\b" + re.escape(k) + r"\b", PHRASES[k], s)
+    return re.sub(r"\b[a-z]+(?:_[a-z0-9]+)+\b", lambda m: m.group(0).replace("_", " "), s)
+
+
+def humanize(text: str) -> str:
+    """Replaces algorithm ids inside a sentence (for example in a decision reason) by their names."""
+    import re
+    out = re.sub(r"\b(decision_tree|random_forest|gradient_boosting|xgboost|lightgbm)\b", lambda m: MODEL_LABELS[m.group(1)] if m.group(1) in ("xgboost", "lightgbm") else MODEL_LABELS[m.group(1)].lower(), str(text))
+    return out[:1].upper() + out[1:]
+
+
 # The five algorithms in the order of the project: from the simplest to the most complex. Lists, menus and colours follow it.
 MODEL_ORDER = ("decision_tree", "random_forest", "gradient_boosting", "xgboost", "lightgbm")
 

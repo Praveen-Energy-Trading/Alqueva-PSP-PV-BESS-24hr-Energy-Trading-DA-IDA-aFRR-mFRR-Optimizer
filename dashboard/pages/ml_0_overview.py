@@ -60,6 +60,7 @@ view["gain_vs_reference"] = (100 * view["gain_vs_reference"]).round(1)
 view["locked_gain_vs_reference"] = (100 * view["locked_gain_vs_reference"]).round(1)
 view["gain_vs_naive"] = (100 * view["gain_vs_naive"]).round(1)
 view["locked_gain_vs_naive"] = (100 * view["locked_gain_vs_naive"]).round(1)
+view["treatment"] = view["treatment"].map(ml_data.pretty)
 st.dataframe(
     view[["label", "treatment", "dev_days", "champion", "dev_mae", "gain_vs_reference", "gain_vs_naive", "locked_mae", "locked_gain_vs_reference",
           "locked_gain_vs_naive", "unit"]].rename(columns={

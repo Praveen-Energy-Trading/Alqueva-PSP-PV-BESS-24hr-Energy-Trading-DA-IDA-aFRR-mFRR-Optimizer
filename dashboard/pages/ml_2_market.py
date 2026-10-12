@@ -37,7 +37,7 @@ st.markdown("""
 """)
 
 if prices.empty:
-    ml_ui.not_yet_run("the data pack (python dashboard/ml_pack.py)")
+    ml_ui.not_yet_run("the data pack")
 else:
     prices["date"] = pd.to_datetime(prices["date"])
     avail = [s for s in SERIES if s in prices.columns]
@@ -58,7 +58,7 @@ else:
             fig.add_vrect(x0=max(a, pd.Timestamp(rng[0])), x1=min(b, pd.Timestamp(rng[1])), fillcolor=theme.CATEGORICAL[j % 8], opacity=0.06,
                           line_width=0, annotation_text=p["id"].replace("_", " "), annotation_position="top left", annotation_font_size=9)
     st.plotly_chart(theme.style_fig(fig, height=380, yaxis_title="EUR/MWh (EUR/MW/h for aFRR)"), width="stretch")
-    st.caption("Shaded bands are the market regimes of config/market_analysis.yaml (the gas crisis, the Iberian gas-price cap, the April 2025 "
+    st.caption("Shaded bands are the market regimes (the gas crisis, the Iberian gas-price cap, the April 2025 "
                "blackout, the move to 15-minute day-ahead products). They are used to test for structural breaks and to describe results by regime.")
 
     st.subheader("The intraday spread against day-ahead")

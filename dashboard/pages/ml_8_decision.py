@@ -24,14 +24,14 @@ locked = ml_ui.cached(ml_data.locked_results)()
 lf = ml_ui.cached(lambda: ml_data.pack("locked_forecasts"))()
 bench = ml_ui.cached(ml_data.benchmarks)()
 
-st.subheader("The rule (config/model_selection.yaml, fixed before the results)")
+st.subheader("The rule (fixed before the results)")
 if policy:
     st.markdown(f"""
 0. **Evidence:** refuse to choose with fewer than the required development days ({policy['min_days']} as standard) or poor coverage.
 1. **Rank** the algorithms by mean absolute error on the same hours.
 2. **Parsimony:** the best must beat the simplest ({ml_data.model_label(policy['reference'])}) significantly at {policy['alpha']:.0%}; otherwise the simplest wins.
 3. **Ties:** every algorithm that cannot be told apart from the best (Holm correction) is tied. With one left, it wins; with several, the champion is their
-   **{policy['average_method']}** (`tie_break: {policy['tie_break']}`), unless that average is significantly worse than the best single algorithm.
+   **{policy['average_method']}** (ties are broken by the {policy['tie_break'].replace('_', ' ')}), unless that average is significantly worse than the best single algorithm.
 """)
 else:
     ml_ui.not_yet_run("the selection policy")
@@ -48,7 +48,7 @@ st.markdown(f"**Champion: {ml_data.champion_text(d['champion'])}**  &nbsp; ({d['
 if d.get("treatment", {}).get("name") == "limited_evidence":
     st.warning("Limited evidence: " + d["treatment"]["label"] + ". With about 300 days only larger differences can be established, so ties are common.")
 for i, reason in enumerate(d["reasons"], 1):
-    st.markdown(f"{i}. {reason}")
+    st.markdown(f"{i}. {ml_data.humanize(reason)}")
 l, r = st.columns(2)
 with l:
     rk = pd.DataFrame(d["ranking"])
@@ -60,7 +60,7 @@ with r:
         vb = pd.DataFrame(d["versus_best"])
         vb["model"] = vb["model"].map(ml_data.model_label)
         st.markdown(f"**Each algorithm against the best ({ml_data.model_label(d['best'])})**")
-        st.dataframe(vb[["model", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].rename(columns={"model": "Algorithm", "distinguishable_from_best": "Significantly worse"}).round(4),
+        st.dataframe(vb[["model", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].rename(columns={"model": "Algorithm", "statistic": "Statistic", "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4),
                      hide_index=True, width="stretch")
 if d.get("combination"):
     c = d["combination"]
@@ -109,7 +109,7 @@ else:
 bm = bench.get(target)
 st.subheader("Against a naive forecast")
 if not bm:
-    ml_ui.not_yet_run(f"the naive benchmark of {ml_data.label(target)} (tools/benchmark_naive.py)")
+    ml_ui.not_yet_run(f"the naive benchmark of {ml_data.label(target)}")
 else:
     st.markdown("A decision tree shows what the extra algorithms buy. A **naive forecast** shows whether machine learning is worth having at all: "
                 "it needs no model. *Seasonal naive* is yesterday's price for delivery days Tuesday to Friday and last week's for Saturday to Monday; "

@@ -32,13 +32,15 @@ st.markdown("Every run is recorded with its scores, the digests of its configura
             "identified by what defines it; running it again is a new attempt, and the registry checks that all attempts give the same scores.")
 runs = pd.DataFrame(snap.get("runs", []))
 if runs.empty:
-    ml_ui.not_yet_run("the registry snapshot (data pack)")
+    ml_ui.not_yet_run("the registry snapshot")
 else:
     theme.metric_cards([("Experiments", len(runs)), ("Repeated", int((runs["attempts"] > 1).sum())),
                         ("Reproduced exactly", int((runs["reproduced"] == True).sum())), ("Not reproduced", int((runs["reproduced"] == False).sum()))], ncols=4)  # noqa: E712
-    show = runs[["run_key", "kind", "target", "stage", "window_start", "window_end", "attempts", "reproduced", "source"]].copy()
+    show = runs[["kind", "target", "stage", "window_start", "window_end", "attempts", "reproduced", "source"]].copy()
     show["target"] = show["target"].map(ml_data.label)
-    st.dataframe(show.rename(columns={"run_key": "Experiment", "kind": "Kind", "target": "Target", "stage": "Stage", "window_start": "From", "window_end": "To",
+    for c in ("kind", "stage", "source"):
+        show[c] = show[c].map(ml_data.run_label)
+    st.dataframe(show.rename(columns={"kind": "Kind", "target": "Target", "stage": "Stage", "window_start": "From", "window_end": "To",
                                       "attempts": "Attempts", "reproduced": "Reproduced", "source": "Recorded by"}), hide_index=True, width="stretch")
     st.caption("The Optuna day-ahead experiment, run twice, gave identical predictions. The random-search control is shown as not reproduced on "
                "purpose: its second attempt ran with the numerical guard, which changed one unstable row.")
@@ -49,11 +51,10 @@ if champs:
     rows = [{"Target": ml_data.label(t), "Version": v["version"], "Status": v["status"], "Promoted": v["promoted_utc"]} for t, vs in champs.items() for v in vs]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 else:
-    st.info("No champion is registered yet: the decisions exist, the registration is a deliberate step "
-            "(`tools/champion.py init`, then `fit`). The registry is built and tested; it holds the versions, the fitted artifacts "
-            "with their checksums and an append-only event log.")
+    st.info("No champion is registered yet: the decisions exist, and registering a champion is a deliberate step. The registry holds the versions, "
+            "the fitted models with their checksums and an append-only event log.")
 if pol:
-    st.markdown(f"**A challenger replaces the champion only if all of these hold** (config/champion_policy.yaml, fixed before any challenge): "
+    st.markdown(f"**A challenger replaces the champion only if all of these hold** (fixed before any challenge): "
                 f"over the last **{pol['window_days']} days** the Diebold-Mariano test says it is better at **{pol['alpha']:.0%}**; its loss is at least "
                 f"**{pol['min_improvement']:.0%}** lower (no churn for tiny gains); and at least **{pol['min_days_between_promotions']} days** have passed "
                 "since the last promotion. Every challenge, accepted or rejected, is logged with its numbers.")
@@ -61,7 +62,7 @@ if pol:
 st.subheader("Monitoring: replay over the locked year")
 targets = sorted(set(locked["target"]), key=lambda t: ml_data.TARGETS.index(t)) if not locked.empty else []
 if not targets:
-    ml_ui.not_yet_run("the locked-year forecasts (data pack)")
+    ml_ui.not_yet_run("the locked-year forecasts")
 else:
     tgt = ml_ui.target_picker(targets=targets)
     window = int(mon.get("tracking", {}).get("window_days", 28))
@@ -107,7 +108,7 @@ st.subheader("Retraining schedule")
 sch = mon.get("schedule", {})
 if sch:
     theme.metric_cards([("Refit every", f"{sch['refit_every_days']} days (settings reused)"), ("Re-tune every", f"{sch['retune_every_days']} days"),
-                        ("Checked against", "evaluation.yaml and tuning.yaml")], ncols=3, pre_formatted=True)
+                        ("Checked against", "the evaluation and tuning settings")], ncols=3, pre_formatted=True)
     start = dt.date(2025, 10, 12)
     refits = [start + dt.timedelta(days=i * sch["refit_every_days"]) for i in range(13)]
     tunes = [start + dt.timedelta(days=i * sch["retune_every_days"]) for i in range(3)]
@@ -125,7 +126,7 @@ if live:
     st.markdown("""
 - `legacy`: the original forecaster; `auto`: the champion if it is registered and verified, otherwise the legacy forecaster with a warning; `registry`: the champion or an error.
 - The champion is loaded only if the file matches its registered checksum, belongs to the active version and the feature definitions have not changed.
-- A target is switched by editing one file, after `compare_old_new` has recorded the champion against the legacy forecaster on the same days.
+- A target is switched by editing one setting, after the champion has been scored against the legacy forecaster on the same days.
 - aFRR is switched one side at a time: the up and the down price are separate targets, and a side without a champion keeps the original forecaster. mFRR cannot be switched: the original mFRR forecast is the capacity price, while the framework's target is the activation price.
 """)
 

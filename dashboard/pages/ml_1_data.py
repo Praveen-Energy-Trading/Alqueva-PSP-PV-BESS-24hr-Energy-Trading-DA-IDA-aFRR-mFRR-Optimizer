@@ -24,17 +24,12 @@ qd = ml_ui.cached(lambda: ml_data.pack("quality_daily"))()
 status = ml_ui.cached(lambda: ml_data.pack("load_status_monthly"))()
 
 st.subheader("Sources and the raw zone")
-st.markdown("Eight sources (OMIE and REN) are downloaded into an **immutable raw zone**: every file is stored once with its SHA-256 checksum "
-            "and a version number; a changed file is a new version, never an overwrite. The clean zone is rebuilt from the raw zone, so any "
-            "number can be traced back to a file.")
 if manifest.empty:
-    ml_ui.not_yet_run("the data pack (python dashboard/ml_pack.py)")
+    ml_ui.not_yet_run("the data pack")
 else:
-    m = manifest.copy()
-    m["size_mb"] = (m["bytes"] / 1048576).round(2)
-    st.dataframe(m[["source", "files", "days", "versions_above_1", "size_mb", "first_key", "last_key"]].rename(columns={
-        "source": "Source", "files": "Files stored", "days": "Days", "versions_above_1": "Files with a later version", "size_mb": "Size (MB)",
-        "first_key": "First day", "last_key": "Last day"}), hide_index=True, width="stretch")
+    m = manifest[["source", "days", "first_key", "last_key"]].copy()
+    m["source"] = m["source"].map(ml_data.source_label)
+    st.dataframe(m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}), hide_index=True, width="stretch")
 
 st.subheader("The quality gate")
 if gate is None:
@@ -54,11 +49,11 @@ if qd.empty:
     ml_ui.not_yet_run("the quality database")
 else:
     ds = sorted(qd["dataset"].unique())
-    pick = st.multiselect("Datasets", ds, default=ds[:4], key="ml1_ds")
+    pick = st.multiselect("Datasets", ds, default=ds[:4], key="ml1_ds", format_func=ml_data.dataset_label)
     fig = go.Figure()
     for i, d in enumerate(pick):
         x = qd[qd["dataset"] == d].groupby("delivery_date")["score"].mean().sort_index()
-        fig.add_trace(go.Scatter(x=x.index, y=x.rolling(14, min_periods=3).mean(), mode="lines", name=d,
+        fig.add_trace(go.Scatter(x=x.index, y=x.rolling(14, min_periods=3).mean(), mode="lines", name=ml_data.dataset_label(d),
                                  line=dict(color=theme.CATEGORICAL[i % len(theme.CATEGORICAL)], width=1.6)))
     st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="score (14-day mean)"), width="stretch")
 
@@ -67,7 +62,7 @@ if status.empty:
     ml_ui.not_yet_run("the load log summary")
 else:
     src = st.selectbox("Source", sorted(status["source"].unique()), index=sorted(status["source"].unique()).index("omie_ida1")
-                       if "omie_ida1" in set(status["source"]) else 0, key="ml1_src")
+                       if "omie_ida1" in set(status["source"]) else 0, key="ml1_src", format_func=ml_data.source_label)
     s = status[status["source"] == src].pivot_table(index="month", columns="status", values="days", aggfunc="sum").fillna(0)
     palette = {"loaded": theme.BLUE, "empty_publication": theme.ORANGE, "not_published": theme.RED, "rejected": theme.VIOLET}
     fig = go.Figure()

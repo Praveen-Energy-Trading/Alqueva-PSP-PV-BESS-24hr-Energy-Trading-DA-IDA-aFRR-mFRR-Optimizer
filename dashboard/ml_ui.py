@@ -37,14 +37,12 @@ def sidebar_controls() -> None:
 
 
 def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
-    """Page title, one-sentence purpose and (optionally) its place in the lifecycle."""
+    """Page title and one-sentence purpose (`step` is the page number, used by the interview-mode tour only)."""
     theme.inject_css()
     sidebar_controls()
     st.title(title)
     st.markdown(f'<div style="color:{theme.INK_SECONDARY}; font-size:1.02rem; margin-top:-0.4rem; margin-bottom:0.6rem;">{subtitle}</div>',
                 unsafe_allow_html=True)
-    if step is not None:
-        st.progress((step + 1) / len(PAGES), text=f"Step {step + 1} of {len(PAGES)}: {PAGES[step][1]}")
 
 
 def not_yet_run(what: str) -> None:

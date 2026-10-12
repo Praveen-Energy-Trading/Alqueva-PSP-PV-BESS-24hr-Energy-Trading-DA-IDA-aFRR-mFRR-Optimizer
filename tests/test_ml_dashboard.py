@@ -86,6 +86,16 @@ def test_algorithms_are_listed_in_the_order_of_the_project():
     assert [ml_data.model_index(m) for m in ml_data.MODEL_ORDER] == [0, 1, 2, 3, 4]
 
 
+def test_the_pages_show_readable_names_not_code_names():
+    assert ml_data.source_label("omie_ida1") == "OMIE intraday auction 1 (IDA1)" and ml_data.source_label("ren_afrr") == "REN aFRR reserve prices"
+    assert ml_data.source_label("something_new") == "Something new" and ml_data.dataset_label("ida_price") == "Intraday auction prices"
+    assert ml_data.series_label("afrr_band_result") == "aFRR band result" and ml_data.pretty("limited_evidence") == "Limited evidence"
+    assert ml_data.plain_text("reads da_vol_total up to D+0 but the target may use it only up to D-1").startswith("reads the day-ahead traded volume")
+    assert ml_data.plain_text("data not collected (needs entsoe_transparency)") == "data not collected (needs ENTSO-E transparency data)"
+    assert ml_data.humanize("random_forest beats the reference decision_tree") == "Random forest beats the reference decision tree"
+    assert ml_data.plain_text("baseline, read from config/feature_selection_results.yaml") == "baseline"
+
+
 def test_champion_text_and_labels():
     assert ml_data.champion_text({"type": "ensemble", "method": "mean", "members": ["xgboost", "lightgbm"]}) == "mean of XGBoost, LightGBM"
     assert ml_data.champion_text(None) == "none" and ml_data.model_label("lightgbm_tuned") == "LightGBM"

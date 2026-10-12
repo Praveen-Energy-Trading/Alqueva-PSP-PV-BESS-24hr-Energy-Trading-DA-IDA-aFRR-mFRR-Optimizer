@@ -72,7 +72,11 @@ else:
         st.markdown(f"**Best by mean loss:** {ml_data.model_label(vb['best'].iloc[0])}. **Cannot be told apart from it:** "
                     + (", ".join(ml_data.model_label(m) for m in tied) if tied else "none, every other algorithm is significantly worse."))
         with st.expander("Each algorithm against the best (Holm over these comparisons)"):
-            st.dataframe(vb[["model", "mean_loss", "best_loss", "mean_diff", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].round(4), hide_index=True, width="stretch")
+            t2 = vb[["model", "mean_loss", "best_loss", "mean_diff", "statistic", "p_value", "p_holm", "distinguishable_from_best"]].copy()
+            t2["model"] = t2["model"].map(ml_data.model_label)
+            st.dataframe(t2.rename(columns={"model": "Algorithm", "mean_loss": "Mean loss", "best_loss": "Loss of the best", "mean_diff": "Difference", "statistic": "Statistic",
+                                            "p_value": "p-value", "p_holm": "p-value (Holm)", "distinguishable_from_best": "Significantly worse"}).round(4),
+                         hide_index=True, width="stretch")
 
 st.subheader("Where each algorithm wins")
 by = st.radio("Group by", ["hour", "month", "regime"], horizontal=True, key="ml7_by", format_func=lambda x: {"hour": "Hour of day", "month": "Month of the year", "regime": "Market regime"}[x])
