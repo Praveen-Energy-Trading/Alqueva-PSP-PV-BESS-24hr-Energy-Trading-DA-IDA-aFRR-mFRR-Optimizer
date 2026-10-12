@@ -31,7 +31,7 @@ from common_layer.market_analysis import panel as pnl  # noqa: E402
 from common_layer.model_development import champions, monitoring, rollout  # noqa: E402
 
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-PHASE9_DA = os.path.join(_REPO, "runtime", "analysis", "phase9", "da_stage2_tpe")
+PHASE9_DA = os.path.join(_REPO, "runtime", "analysis", "phase9", "da_stage2_tpe_v2")
 
 
 def run_dir(target: str) -> str:
