@@ -25,6 +25,19 @@ from common_layer.feature_engineering.builder import FeatureBuilder
 from common_layer.forecast_formulation.transforms import make_transform
 
 
+CLIP_MARGIN = 1.0      # how far (in units of the transformed target) a forecast may leave the range of the training outcomes
+
+
+def clip_to_training_range(z: np.ndarray, z_range: tuple) -> tuple:
+    """Limit forecasts in the transformed space to [min - CLIP_MARGIN, max + CLIP_MARGIN] of the training outcomes and count the
+    values changed. Boosted models can leave the range of their training outcomes (a pseudo-Huber boosted model once predicted
+    5e21), trees cannot; a forecast beyond a margin of one unit (a factor of about e in price) is a failure, not a forecast."""
+    lo, hi = z_range[0] - CLIP_MARGIN, z_range[1] + CLIP_MARGIN
+    z = np.asarray(z, dtype=float)
+    clipped = np.clip(z, lo, hi)
+    return clipped, int(np.count_nonzero(clipped != z))
+
+
 @dataclass
 class FitContext:
     _view: AsOfView
@@ -74,6 +87,8 @@ class FeatureModel(Forecaster):
         self.model = None
         self.fill: Optional[np.ndarray] = None
         self.cols: List[str] = []
+        self.z_range: Optional[tuple] = None          # range of the training outcomes in the transformed space
+        self.n_clipped = 0                            # forecasts limited to that range (a failure signal, normally 0)
 
     def _day_features(self, ctx: FitContext, D: dt.date) -> pd.DataFrame:
         key = (self.view.target_id, self.set_version, D)
@@ -101,9 +116,13 @@ class FeatureModel(Forecaster):
         self.cols = list(Xd.columns)
         self.fill = np.nanmean(Xd.to_numpy(), axis=0)
         A = np.where(np.isnan(Xd.to_numpy()), self.fill, Xd.to_numpy())
-        self.model = self._make_learner().fit(A, self.tr.forward(T["y_raw"].to_numpy()))
+        z = self.tr.forward(T["y_raw"].to_numpy())
+        self.z_range = (float(np.nanmin(z)), float(np.nanmax(z)))
+        self.model = self._make_learner().fit(A, z)
 
     def predict(self, view: pd.DataFrame, D: dt.date) -> np.ndarray:
         f = self.builder.build(view, D)[self.cols]
         A = np.where(np.isnan(f.to_numpy()), self.fill, f.to_numpy())
-        return self.tr.inverse(self.model.predict(A))
+        z, n = clip_to_training_range(self.model.predict(A), self.z_range)
+        self.n_clipped += n
+        return self.tr.inverse(z)

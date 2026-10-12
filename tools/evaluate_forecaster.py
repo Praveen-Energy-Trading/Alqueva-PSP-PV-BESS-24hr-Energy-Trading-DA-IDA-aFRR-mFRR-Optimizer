@@ -96,6 +96,9 @@ def main() -> int:
     print(f"evaluated {a.target} ({res['meta']['kind']}, {a.stage}) in {time.time() - t0:.0f} s -> {res['paths'].get('report')}")
     print(res["overall"].round(3).to_string(index=False))
     print(res["comparisons"].round(4).to_string(index=False))
+    clipped = {n: r.meta.get("clipped", 0) for n, r in res["results"].items() if r.meta.get("clipped", 0)}
+    if clipped:
+        print(f"WARNING: forecasts limited to the training range (a numerical failure of the model): {clipped}")
     if res.get("tuning_log") is not None:
         res["tuning_log"].to_csv(os.path.join(out, "tuning_log.csv"), index=False, float_format="%.4f")
         print(res["tuning_log"].round(3).to_string(index=False))

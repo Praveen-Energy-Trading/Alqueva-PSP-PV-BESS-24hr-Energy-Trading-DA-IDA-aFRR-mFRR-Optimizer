@@ -30,7 +30,7 @@ import pandas as pd
 import yaml
 
 from common_layer.forecast_evaluation.config import TREE_MODELS
-from common_layer.forecast_evaluation.forecasters import FeatureModel, FitContext
+from common_layer.forecast_evaluation.forecasters import FeatureModel, FitContext, clip_to_training_range
 from common_layer.forecast_evaluation.tree_models import build_learner
 
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
@@ -130,7 +130,8 @@ class TunedForecaster(FeatureModel):
 
     def _score_block(self, params: dict, blk: dict) -> float:
         model = build_learner(self.base_name, params).fit(blk["A_tr"], blk["y_tr"])
-        err = self.tr.inverse(model.predict(blk["A_va"])) - blk["y_va"]
+        z, _ = clip_to_training_range(model.predict(blk["A_va"]), (float(np.min(blk["y_tr"])), float(np.max(blk["y_tr"]))))
+        err = self.tr.inverse(z) - blk["y_va"]
         return float(np.mean(np.abs(err))) if self.tcfg["search"]["metric"] == "mae" else float(np.sqrt(np.mean(err ** 2)))
 
     def _search(self, T: pd.DataFrame, ctx: FitContext) -> dict:

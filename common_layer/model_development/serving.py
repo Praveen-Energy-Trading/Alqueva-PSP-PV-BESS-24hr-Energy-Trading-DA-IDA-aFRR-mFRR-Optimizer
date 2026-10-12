@@ -27,7 +27,7 @@ from common_layer.feature_engineering.catalogue import (feature_set_version, loa
                                                          resolve_feature_set)
 from common_layer.forecast_evaluation.asof import AsOfView, ModelInterface
 from common_layer.forecast_evaluation.folds import make_folds
-from common_layer.forecast_evaluation.forecasters import FitContext
+from common_layer.forecast_evaluation.forecasters import FitContext, clip_to_training_range
 from common_layer.forecast_evaluation.tree_models import tree_candidates
 from common_layer.forecast_formulation.transforms import make_transform
 from common_layer.model_development import champions, registry
@@ -100,7 +100,7 @@ def fit_artifact(target: str, panel: pd.DataFrame, form: dict, cfg: dict, tuning
         fc = factory(iface, cache)
         fc.fit(ctx)
         state = cache.get(("tuned", target, base, fc.set_version))
-        members[base] = {"model": fc.model, "cols": list(fc.cols), "fill": np.asarray(fc.fill, dtype=float),
+        members[base] = {"model": fc.model, "cols": list(fc.cols), "fill": np.asarray(fc.fill, dtype=float), "z_range": fc.z_range,
                          "params": dict(getattr(fc, "params", {}) or {}), "set_version": fc.set_version,
                          "tuned_at": str(state["tuned_at"]) if state else None}
     versions = {m["set_version"] for m in members.values()}
@@ -129,12 +129,15 @@ class ChampionForecaster:
         self.tr = make_transform(artifact["transform"]["name"], artifact["transform"].get("scale"))
         self.builder, _ = _builder(iface, self.spec["feature_set"])
         self.name = f"champion_v{artifact['version']}"
+        self.n_clipped = 0                                       # forecasts limited to the training range (a failure signal)
 
     def _member(self, name: str, view: pd.DataFrame, D: dt.date) -> np.ndarray:
         m = self.artifact["members"][name]
         f = self.builder.build(view, D)[m["cols"]]
         A = np.where(np.isnan(f.to_numpy()), m["fill"], f.to_numpy())
-        return self.tr.inverse(m["model"].predict(A))
+        z, n = clip_to_training_range(m["model"].predict(A), m["z_range"])      # the same guard as in training and evaluation
+        self.n_clipped += n
+        return self.tr.inverse(z)
 
     def predict(self, view: pd.DataFrame, D: dt.date) -> np.ndarray:
         preds = np.vstack([self._member(n, view, D) for n in self.artifact["members"]])

@@ -48,6 +48,7 @@ def run_backtest(factory: Callable[[], Forecaster], view: AsOfView, test_start: 
     series = view.spec["series"]
     base = view.spec.get("base")
     frames, fold_rows = [], []
+    clipped = 0
     fname = name
     for fold in folds:
         f = factory()
@@ -70,9 +71,10 @@ def run_backtest(factory: Callable[[], Forecaster], view: AsOfView, test_start: 
                 "y_true": truth[series].to_numpy(), "y_pred": price_pred, "fold": fold.fold_id,
                 "local_date": rows["local_date"].to_numpy(), "local_hour": rows["local_hour"].to_numpy(),
                 "month": D.month, "period": period_of(D, periods)}, index=rows.index))
+        clipped += int(getattr(f, "n_clipped", 0))
     pred = metrics.add_error_columns(pd.concat(frames)) if frames else pd.DataFrame()
     have = pred.dropna(subset=["y_true"])
     coverage = float(have["y_pred"].notna().mean()) if len(have) else np.nan
     return BacktestResult(view.target_id, fname or "forecaster", pred, pd.DataFrame(fold_rows),
                           {"coverage": coverage, "n_folds": len(folds), "test_start": str(test_start),
-                           "test_end": str(test_end)})
+                           "test_end": str(test_end), "clipped": clipped})
