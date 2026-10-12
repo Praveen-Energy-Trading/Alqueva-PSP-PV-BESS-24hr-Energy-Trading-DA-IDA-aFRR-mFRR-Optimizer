@@ -29,7 +29,7 @@ Returns (cap_up, cap_dn) each {hour: EUR/MW} plus the platform label.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -57,7 +57,8 @@ _REN_API_KEY_B64 = "bWVyY2Fkb19tTDI3M0J0aUxlUmNxZnFCcUltV0JmNXV2UFRtZFc0Vkh4YjRF
 
 
 def fetch_afrr_cap_prices(hours: List[int], delivery_date: str, cfg: AppConfig,
-                          use_synthetic: bool = True
+                          use_synthetic: bool = True,
+                          da_prices: Optional[Dict[int, float]] = None
                           ) -> Tuple[Dict[int, float], Dict[int, float], str]:
     platform = cfg.market.afrr.platform
     cap_max  = cfg.market.afrr.cap_price_max_eur_mw
@@ -67,7 +68,7 @@ def fetch_afrr_cap_prices(hours: List[int], delivery_date: str, cfg: AppConfig,
         except Exception as exc:
             log.warning(f"aFRR training-data live update failed ({exc}); "
                         f"using existing/cached history.")
-    cap_up, cap_dn = forecast_afrr_cap_prices(hours, delivery_date, cap_max)
+    cap_up, cap_dn = forecast_afrr_cap_prices(hours, delivery_date, cap_max, da_prices)
     return cap_up, cap_dn, f"{platform}_ML_FORECAST"
 
 

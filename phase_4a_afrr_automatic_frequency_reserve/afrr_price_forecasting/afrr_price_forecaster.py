@@ -20,7 +20,7 @@ import datetime
 import json
 import os
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -46,18 +46,45 @@ _cache: dict = {}
 
 
 def forecast_afrr_cap_prices(hours: List[int], delivery_date: str,
-                             cap_price_max: float
+                             cap_price_max: float,
+                             da_prices: Optional[Dict[int, float]] = None
                              ) -> Tuple[Dict[int, float], Dict[int, float]]:
-    """Return (cap_up, cap_dn) each {hour: EUR/MW} for delivery_date."""
+    """Return (cap_up, cap_dn) each {hour: EUR/MW} for delivery_date.
+
+    Each side comes from its registry champion when config/live_models.yaml switches it on (`da_prices` = the day-ahead price of
+    the delivery day per hour, an input of the champion); a side without a champion keeps the legacy model below."""
+    cap_up = _champion_side("afrr_cap_price", hours, delivery_date, cap_price_max, da_prices)
+    cap_dn = _champion_side("afrr_dn_price", hours, delivery_date, cap_price_max, da_prices)
+    if cap_up is not None and cap_dn is not None:
+        return cap_up, cap_dn
     try:
-        return _model_forecast(hours, delivery_date, cap_price_max)
+        leg_up, leg_dn = _model_forecast(hours, delivery_date, cap_price_max)
     except Exception as exc:
         import warnings
         warnings.warn(
             f"[aFRR Forecaster] Model failed ({exc}); using flat fallback.",
             RuntimeWarning, stacklevel=2
         )
-        return {h: 25.0 for h in hours}, {h: 12.0 for h in hours}
+        leg_up, leg_dn = {h: 25.0 for h in hours}, {h: 12.0 for h in hours}
+    return (cap_up if cap_up is not None else leg_up), (cap_dn if cap_dn is not None else leg_dn)
+
+
+def _champion_side(target: str, hours: List[int], delivery_date: str, cap_price_max: float,
+                   da_prices: Optional[Dict[int, float]]) -> Optional[Dict[int, float]]:
+    """One side's registry champion forecast, limited to [0, cap_price_max], or None to use the legacy model (stage 10; default
+    mode is legacy). A champion that misses a requested hour is not used."""
+    try:
+        from common_layer.model_development import live
+    except ImportError:                                   # the repository root is not importable: legacy only
+        return None
+    out = live.champion_prices(target, hours, delivery_date, da_prices)
+    if out is None:
+        return None
+    if any(h not in out for h in hours):
+        import warnings
+        warnings.warn(f"[champion {target}] returned no price for some hours; using the legacy model", RuntimeWarning, stacklevel=2)
+        return None
+    return {h: round(float(np.clip(out[h], 0.0, cap_price_max)), 2) for h in hours}
 
 
 def _model_forecast(hours: List[int], delivery_date: str,

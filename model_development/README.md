@@ -15,8 +15,8 @@ logs and figures, the comparison of the tuned algorithms, the champion decisions
 | 6 | Locked test of the champion (preflight checks, one logged look, report) | **not run**: waits for you (see below) |
 | 7 | Champion registry and promotion rule (`config/champion_policy.yaml`) | built; **no champion registered**: waits for you |
 | 8 | Monitoring and retraining (`config/monitoring.yaml`) | built; needs a registered champion |
-| 9 | Roll-out to all price targets (`config/rollout.yaml`) | done for six of seven targets; mFRR deferred |
-| 10 | Replace the old fixed-settings selection (`config/live_models.yaml`) | adapter and wiring done, every target still `legacy`; nothing deleted |
+| 9 | Roll-out to all price targets (`config/rollout.yaml`) | done for seven of eight targets; mFRR deferred |
+| 10 | Replace the old fixed-settings selection (`config/live_models.yaml`) | adapter and wiring done for seven targets (aFRR up and down switch separately), every target still `legacy`; nothing deleted |
 
 ## Results
 
@@ -24,6 +24,7 @@ logs and figures, the comparison of the tuned algorithms, the champion decisions
 |---|---|---|---|---|---|
 | day-ahead price | standard | 1,015 | LightGBM | 17.38 | 11.2% |
 | aFRR capacity (up) | standard | 1,014 | mean of random forest, gradient boosting, XGBoost, LightGBM | 13.49 | 4.6% |
+| aFRR capacity (down) | standard | 1,014 | mean of random forest, XGBoost, LightGBM | 13.43 | 5.0% |
 | IDA1 | limited evidence | 293 | mean of the same four | 5.01 | 4.5% |
 | IDA2 | limited evidence | 298 | mean of the same four | 8.48 | 2.0% |
 | IDA3 | limited evidence | 300 | mean of all five | 10.17 | 2.2% |
@@ -51,12 +52,14 @@ below shows the gain over the strongest of them:
 | XBID | development | 11.77 | 11.86 | 12.23 (base price) | 0.8% | 3.8% | 4.34e-11 |
 | aFRR capacity (up) | development | 13.51 | 14.16 | 15.69 (day) | 4.6% | 13.9% | 1.66e-13 |
 | aFRR capacity (up) | locked | 4.14 | 4.33 | 4.28 (day) | 4.4% | 3.2% | 0.274 |
+| aFRR capacity (down) | development | 13.45 | 14.16 | 15.69 (day) | 5.0% | 14.3% | 4.25e-14 |
+| aFRR capacity (down) | locked | 3.90 | 4.03 | 4.25 (day) | 3.1% | 8.2% | 0.00201 |
 
 Reading it: only the day-ahead champion clearly beats a naive forecast in both windows (5.7% on the locked year, p = 0.01), and its
 edge over the best naive forecast is smaller than its edge over the decision tree would suggest. For the intraday auctions the
 day-ahead price with no spread is almost as good as the champion (gains of 0.4% to 1.9% on the locked year, only IDA2 and, marginally,
 IDA1 distinguishable): the intraday spread is largely unpredictable with these inputs. For aFRR capacity the gain over the best
-naive forecast is 3.2% on the locked year and not significant (p = 0.27). IDA1's locked year is scored on real days only (44
+naive forecast is 3.2% on the locked year and not significant (p = 0.27); for the down price it is 8.2% and significant (p = 0.002). IDA1's locked year is scored on real days only (44
 artificial days left out for every forecast). XBID has no locked year yet. The naive forecasts do not change any champion.
 
 What the experiments showed:

@@ -34,11 +34,14 @@ LEGACY = {"da_price": ("phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecast
           "ida2_price": ("phase_3b_ida2_intraday_auction_2.ida2_price_forecasting.ida2_price_forecaster", "forecast_ida2_prices"),
           "ida3_price": ("phase_3c_ida3_intraday_auction_3.ida3_price_forecasting.ida3_price_forecaster", "forecast_ida3_prices"),
           "xbid_price": ("phase_3d_xbid_continuous_intraday.xbid_price_forecasting.xbid_price_forecaster", "forecast_xbid_prices")}
+AFRR = ("phase_4a_afrr_automatic_frequency_reserve.afrr_price_forecasting.afrr_price_forecaster", "forecast_afrr_cap_prices")
+AFRR_SIDE = {"afrr_cap_price": 0, "afrr_dn_price": 1}                         # the legacy forecaster returns (up, down)
+CAP_MAX = 250.0                                                               # the legacy forecaster limit (afrr_price_forecaster._CAP_MAX)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--target", required=True, choices=sorted(LEGACY))
+    ap.add_argument("--target", required=True, choices=sorted(set(LEGACY) | set(AFRR_SIDE)))
     ap.add_argument("--run", required=True, help="run folder with the champion's development predictions")
     ap.add_argument("--suffix", default="")
     ap.add_argument("--decision", help="champion decision file (default: the active champion of the registry)")
@@ -59,8 +62,13 @@ def main() -> int:
     new = new[new["local_date"].isin(days)]
     form = load_forecast_formulation()
     view = AsOfView(pnl.build_panel(CleanStore()), form, a.target)
-    mod, fn = LEGACY[a.target]
-    legacy = getattr(importlib.import_module(mod), fn)
+    if a.target in AFRR_SIDE:
+        mod, fn = AFRR
+        both = getattr(importlib.import_module(mod), fn)
+        legacy = lambda hours, day: both(hours, day, CAP_MAX)[AFRR_SIDE[a.target]]      # noqa: E731
+    else:
+        mod, fn = LEGACY[a.target]
+        legacy = getattr(importlib.import_module(mod), fn)
     spread = view.spec["kind"] == "spread"
     old = {}
     for day in days:

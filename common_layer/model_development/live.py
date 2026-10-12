@@ -29,7 +29,7 @@ from common_layer.model_development import champions, serving
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
 DEFAULT_PATH = os.path.join(_REPO, "config", "live_models.yaml")
 MODES = ("legacy", "auto", "registry")
-SWITCHABLE = ("da_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price")
+SWITCHABLE = ("da_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "afrr_cap_price", "afrr_dn_price")
 PRICE_FLOOR = -600.0
 PANEL_TTL_SECONDS = 600
 _panel_cache: dict = {}
@@ -79,7 +79,11 @@ def champion_prices(target: str, hours: List[int], delivery_date: str, base_pric
                     db_path: Optional[str] = None, mode: Optional[str] = None,
                     panel_provider: Callable[[], pd.DataFrame] = default_panel, form: Optional[dict] = None,
                     history_days: int = 400) -> Optional[Dict[int, float]]:
-    """{hour: price} from the registry champion, or None if the legacy forecaster should be used (see the module header)."""
+    """{hour: price} from the registry champion, or None if the legacy forecaster should be used (see the module header).
+
+    `base_prices` ({hour: price}) is the day-ahead price of the delivery day: required for a spread target (the spread is added to it),
+    and for a level target whose information set includes the day-ahead result of the day itself (the aFRR prices) it fills that input
+    when the clean store does not have it yet. Without it such an input is missing and is filled with its training mean."""
     try:
         mode = mode or load_modes()[target]
     except Exception as exc:                                  # a broken config must never stop the pipeline
@@ -100,6 +104,8 @@ def champion_prices(target: str, hours: List[int], delivery_date: str, base_pric
             base_col = probe.spec["base"]
             if not base_prices:
                 raise ValueError(f"{target} is a spread target: the base price of the delivery day is required")
+        elif base_prices and probe.offsets.get("da_pt") == 0:        # a level target that uses the day-ahead price of the delivery day (aFRR)
+            base_col = "da_pt"
         view = AsOfView(with_delivery_day(panel_provider(), D, base_col, base_prices), form, target)
         fc = serving.load_champion(target, view.interface(), db_path)
         v = view.at(D, history_days)

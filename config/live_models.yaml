@@ -11,10 +11,10 @@
 # happen has happened and its tests pass. The environment variable LIVE_MODELS_MODE (legacy, auto or registry) overrides this
 # file for every target (used by the comparison tool, which must see the legacy model).
 #
-# Only the forecasts the new framework models one-to-one are listed. Not switchable yet: aFRR capacity (the legacy forecaster
-# returns an up AND a down price; the framework models only the up price) and mFRR (the legacy forecast is the capacity price;
-# the framework's target is the activation price, and it is deferred). The 15-minute day-ahead forecast (forecast_da_prices_isp)
-# also stays legacy: the framework models hourly products.
+# The aFRR forecaster returns an up AND a down price; the framework models each as its own target (afrr_cap_price is the up price,
+# afrr_dn_price the down price) and each side is switched on its own: a side with a champion uses it, the other side keeps the
+# legacy model. Not switchable: mFRR (the legacy forecast is the capacity price; the framework's target is the activation price,
+# and it is deferred) and the 15-minute day-ahead forecast (forecast_da_prices_isp): the framework models hourly products.
 # =============================================================================
 version: 1
 
@@ -24,3 +24,5 @@ targets:
   ida2_price: {mode: legacy}
   ida3_price: {mode: legacy}
   xbid_price: {mode: legacy}
+  afrr_cap_price: {mode: legacy}
+  afrr_dn_price: {mode: legacy}

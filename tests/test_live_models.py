@@ -177,6 +177,64 @@ def test_the_legacy_forecasters_are_unchanged_while_every_target_is_legacy(monke
     assert m.forecast_da_prices([1], "2022-08-20") == {1: 42.0}
 
 
+# ------------------------------------------------------------------------------------------ the aFRR sides
+AFRR_MOD = "phase_4a_afrr_automatic_frequency_reserve.afrr_price_forecasting.afrr_price_forecaster"
+
+
+def test_a_level_target_that_uses_the_day_ahead_price_of_the_day_gets_it_from_the_caller(db, monkeypatch):
+    register(db, "afrr_cap_price", "decision_tree")
+    D = dt.date(2022, 8, 20)
+    hours = list(range(1, 25))
+    da = {h: 40.0 + 2 * h for h in hours}
+    got = live.champion_prices("afrr_cap_price", hours, str(D), da, db, "auto", PROVIDER, FORM)
+    view = AsOfView(live.with_delivery_day(PANEL, D, "da_pt", da), FORM, "afrr_cap_price")
+    fc = serving.load_champion("afrr_cap_price", view.interface(), db)
+    np.testing.assert_allclose([got[h] for h in hours], np.round(fc.predict(view.at(D, 400), D), 2), atol=0)
+    assert live.champion_prices("afrr_cap_price", hours, str(D), None, db, "auto", PROVIDER, FORM) is not None      # without it: missing input, still a forecast
+    seen = {}
+
+    class Stub:
+        def forecast_prices(self, v, day):
+            rows = v[v["local_date"] == day.toordinal()]
+            seen["da_pt"] = rows["da_pt"].to_numpy()
+            return pd.Series(np.full(len(rows), 1.0), index=rows.index)
+    monkeypatch.setattr(serving, "load_champion", lambda *a, **k: Stub())
+    live.champion_prices("afrr_cap_price", hours, str(D), da, db, "auto", PROVIDER, FORM)
+    np.testing.assert_allclose(seen["da_pt"], [da[h] for h in hours])           # the day-ahead price of the day reaches the champion's input
+    live.champion_prices("afrr_cap_price", hours, str(D), None, db, "auto", PROVIDER, FORM)
+    assert np.isnan(seen["da_pt"]).all()                                        # and without it the input is missing
+
+
+def test_each_aFRR_side_uses_its_own_champion_and_the_other_side_keeps_the_legacy_model(monkeypatch):
+    m = importlib.import_module(AFRR_MOD)
+    seen = []
+
+    def fake(tgt, hours, date, base_prices=None, *a, **k):
+        seen.append((tgt, base_prices))
+        return {1: 11.0, 2: 999.0} if tgt == "afrr_cap_price" else None            # up: champion (one value above the cap); down: legacy
+    monkeypatch.setattr(live, "champion_prices", fake)
+    monkeypatch.setattr(m, "_model_forecast", lambda *a, **k: ({1: 1.0, 2: 2.0}, {1: 3.0, 2: 4.0}))
+    up, dn = m.forecast_afrr_cap_prices([1, 2], "2022-08-20", 250.0, {1: 50.0, 2: 60.0})
+    assert up == {1: 11.0, 2: 250.0} and dn == {1: 3.0, 2: 4.0}                  # the champion value is limited to the cap; down is legacy
+    assert seen == [("afrr_cap_price", {1: 50.0, 2: 60.0}), ("afrr_dn_price", {1: 50.0, 2: 60.0})]
+
+
+def test_both_aFRR_sides_from_champions_do_not_run_the_legacy_model(monkeypatch):
+    m = importlib.import_module(AFRR_MOD)
+    monkeypatch.setattr(live, "champion_prices", lambda tgt, hours, *a, **k: {h: (10.0 if tgt == "afrr_cap_price" else -5.0) for h in hours})
+    monkeypatch.setattr(m, "_model_forecast", lambda *a, **k: (_ for _ in ()).throw(AssertionError("legacy model must not run")))
+    assert m.forecast_afrr_cap_prices([1, 2], "2022-08-20", 250.0) == ({1: 10.0, 2: 10.0}, {1: 0.0, 2: 0.0})        # prices cannot be negative
+
+
+def test_the_legacy_aFRR_forecaster_is_unchanged_when_nothing_is_switched_and_a_short_champion_is_not_used(monkeypatch):
+    m = importlib.import_module(AFRR_MOD)
+    monkeypatch.setattr(m, "_model_forecast", lambda h, d, cap: ({1: 7.0}, {1: 8.0}))
+    assert m.forecast_afrr_cap_prices([1], "2022-08-20", 250.0) == ({1: 7.0}, {1: 8.0})                    # default: both legacy
+    monkeypatch.setattr(live, "champion_prices", lambda tgt, hours, *a, **k: {1: 5.0})                      # misses hour 2
+    with pytest.warns(RuntimeWarning, match="some hours"):
+        assert m.forecast_afrr_cap_prices([1, 2], "2022-08-20", 250.0) == ({1: 7.0}, {1: 8.0})
+
+
 # ----------------------------------------------------------------------------------- old against new
 def test_old_against_new_scores_both_on_the_same_hours_and_tests_the_difference():
     days = 90

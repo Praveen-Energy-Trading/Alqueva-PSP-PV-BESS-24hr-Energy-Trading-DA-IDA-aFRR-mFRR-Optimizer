@@ -126,7 +126,7 @@ if live:
 - `legacy`: the original forecaster; `auto`: the champion if it is registered and verified, otherwise the legacy forecaster with a warning; `registry`: the champion or an error.
 - The champion is loaded only if the file matches its registered checksum, belongs to the active version and the feature definitions have not changed.
 - A target is switched by editing one file, after `compare_old_new` has recorded the champion against the legacy forecaster on the same days.
-- aFRR capacity and mFRR cannot be switched yet: the original aFRR forecaster returns an up and a down price (the framework models up only), and the original mFRR forecast is the capacity price (the framework's target is the activation price).
+- aFRR is switched one side at a time: the up and the down price are separate targets, and a side without a champion keeps the original forecaster. mFRR cannot be switched: the original mFRR forecast is the capacity price, while the framework's target is the activation price.
 """)
 
 st.subheader("Engineering")
