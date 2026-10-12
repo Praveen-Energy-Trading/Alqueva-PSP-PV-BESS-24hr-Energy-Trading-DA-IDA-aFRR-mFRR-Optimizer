@@ -1,0 +1,262 @@
+{
+ "champions": {},
+ "events": [],
+ "reproducibility": [
+  {
+   "attempts": 2,
+   "kind": "evaluation",
+   "reproduced": true,
+   "run_key": "b6f3386381b5",
+   "target": "da_price"
+  },
+  {
+   "attempts": 2,
+   "kind": "evaluation",
+   "reproduced": false,
+   "run_key": "b2dd6c234048",
+   "target": "da_price"
+  }
+ ],
+ "runs": [
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "backfilled from files",
+   "reproduced": null,
+   "run_key": "43d0d6069799",
+   "source": "backfill",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "backfilled from files",
+   "reproduced": null,
+   "run_key": "c43f1225c4a0",
+   "source": "backfill",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "backfilled from files",
+   "reproduced": null,
+   "run_key": "7503159a0096",
+   "source": "backfill",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "schedule_comparison",
+   "notes": "backfilled from schedule csv; config digest not recorded",
+   "reproduced": null,
+   "run_key": "093239e32d75",
+   "source": "backfill",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "5e56e9904578",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "ida1_price",
+   "window_end": "2025-10-11",
+   "window_start": "2024-12-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "493a760a1953",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "ida2_price",
+   "window_end": "2025-10-11",
+   "window_start": "2024-12-13"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "cadfa98bb3b8",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "ida3_price",
+   "window_end": "2025-10-11",
+   "window_start": "2024-12-13"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "252612ec37a2",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "xbid_price",
+   "window_end": "2025-10-11",
+   "window_start": "2024-12-12"
+  },
+  {
+   "attempts": 2,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": true,
+   "run_key": "b6f3386381b5",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 2,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": false,
+   "run_key": "b2dd6c234048",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "da_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "1476a971c128",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "afrr_cap_price",
+   "window_end": "2025-10-11",
+   "window_start": "2023-01-01"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "aef029a24a2d",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "da_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "857d752da5d9",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "da_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "3a94c0c9f664",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "afrr_cap_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "8d3825a2942c",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "afrr_cap_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "720b9ba27dd5",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "ida2_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "98c31f227842",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "ida2_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "f2f783d78f77",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "ida3_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "0e5bc460264a",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "ida1_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "921186b04c6c",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "ida1_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  }
+ ]
+}

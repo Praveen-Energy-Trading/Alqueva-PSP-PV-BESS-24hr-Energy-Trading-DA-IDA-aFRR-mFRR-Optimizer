@@ -1,0 +1,694 @@
+feature,group,target,available,reason,latest_input_published,margin_min
+cal_hour,calendar,da_price,True,,,
+cal_hour_sin,calendar,da_price,True,,,
+cal_hour_cos,calendar,da_price,True,,,
+cal_dow,calendar,da_price,True,,,
+cal_month,calendar,da_price,True,,,
+cal_is_weekend,calendar,da_price,True,,,
+cal_doy_sin,calendar,da_price,True,,,
+cal_doy_cos,calendar,da_price,True,,,
+cal_is_holiday_pt,calendar,da_price,True,,,
+cal_is_holiday_es,calendar,da_price,True,,,
+cal_is_bridge_pt,calendar,da_price,True,,,
+cal_is_bridge_es,calendar,da_price,True,,,
+cal_days_to_holiday_pt,calendar,da_price,True,,,
+cal_days_since_holiday_pt,calendar,da_price,True,,,
+cal_dst_day_type,calendar,da_price,True,,,
+rule_da_resolution_min,market_rule,da_price,True,,,
+rule_price_floor,market_rule,da_price,True,,,
+y_lag_1d,lag,da_price,True,,2026-03-08 13:30,1290.0
+y_lag_2d,lag,da_price,True,,2026-03-07 13:30,2730.0
+y_lag_7d,lag,da_price,True,,2026-03-02 13:30,9930.0
+y_lag_14d,lag,da_price,True,,2026-02-23 13:30,20010.0
+y_roll_mean_7d_hour,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_std_7d_hour,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_min_7d_hour,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_max_7d_hour,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_mean_28d_hour,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_mean_7d_all,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_std_7d_all,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_roll_mean_7d_hour_e2,rolling,da_price,True,,2026-03-07 13:30,2730.0
+y_roll_mean_7d_all_e2,rolling,da_price,True,,2026-03-07 13:30,2730.0
+y_roll_std_7d_all_e2,rolling,da_price,True,,2026-03-07 13:30,2730.0
+y_roll_mean_7d_hour_e3,rolling,da_price,True,,2026-03-06 13:30,4170.0
+y_roll_mean_7d_all_e3,rolling,da_price,True,,2026-03-06 13:30,4170.0
+y_roll_std_7d_all_e3,rolling,da_price,True,,2026-03-06 13:30,4170.0
+y_day_mean_lag2d,rolling,da_price,True,,2026-03-07 13:30,2730.0
+y_day_mean_lag3d,rolling,da_price,True,,2026-03-06 13:30,4170.0
+y_yday_mean,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_yday_max,rolling,da_price,True,,2026-03-08 13:30,1290.0
+y_yday_min,rolling,da_price,True,,2026-03-08 13:30,1290.0
+base_value,base,da_price,False,does not apply to this target,,
+base_dev,base,da_price,False,does not apply to this target,,
+base_day_mean,base,da_price,False,does not apply to this target,,
+base_day_max,base,da_price,False,does not apply to this target,,
+base_day_min,base,da_price,False,does not apply to this target,,
+base_rank,base,da_price,False,does not apply to this target,,
+base_shape,base,da_price,False,does not apply to this target,,
+base_lag_1d,base,da_price,False,does not apply to this target,,
+base_change_1d,base,da_price,False,does not apply to this target,,
+dar_vol_total_d0,market_result,da_price,False,reads da_vol_total up to D+0 but the target may use it only up to D-1,,
+dar_flow_pt_to_es_d0,market_result,da_price,False,reads da_flow_pt_to_es up to D+0 but the target may use it only up to D-1,,
+dar_flow_es_to_pt_d0,market_result,da_price,False,reads da_flow_es_to_pt up to D+0 but the target may use it only up to D-1,,
+dar_vol_pt_buy_d0,market_result,da_price,False,reads da_vol_pt_buy up to D+0 but the target may use it only up to D-1,,
+dar_vol_pt_sell_d0,market_result,da_price,False,reads da_vol_pt_sell up to D+0 but the target may use it only up to D-1,,
+dar_es_minus_pt_d0,market_result,da_price,False,reads da_es up to D+0 but the target may use it only up to D-1,,
+dar_vol_total_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
+dar_flow_pt_to_es_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
+dar_flow_es_to_pt_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
+dar_es_minus_pt_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
+ida1_spread_d0,cross_market,da_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
+ida2_spread_d0,cross_market,da_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
+ida1_spread_lag1d,cross_market,da_price,True,,2026-03-08 15:30,1170.0
+ida2_spread_lag1d,cross_market,da_price,True,,2026-03-08 22:30,750.0
+ida3_spread_lag2d,cross_market,da_price,True,,2026-03-08 10:30,1470.0
+xbid_spread_lag2d,cross_market,da_price,True,,2026-03-09 04:30,390.0
+afrr_lag_1d,cross_market,da_price,True,,2026-03-08 16:00,1140.0
+imb_short_lag_6d,cross_market,da_price,True,,2026-03-08 12:00,1380.0
+imb_long_lag_6d,cross_market,da_price,True,,2026-03-08 12:00,1380.0
+mfrr_lag_3d,cross_market,da_price,True,,2026-03-08 12:00,1380.0
+fund_load_forecast,fundamental,da_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,da_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,da_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,da_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,da_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,da_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,da_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,da_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,da_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,pv_weather,True,,,
+cal_hour_sin,calendar,pv_weather,True,,,
+cal_hour_cos,calendar,pv_weather,True,,,
+cal_dow,calendar,pv_weather,True,,,
+cal_month,calendar,pv_weather,True,,,
+cal_is_weekend,calendar,pv_weather,True,,,
+cal_doy_sin,calendar,pv_weather,True,,,
+cal_doy_cos,calendar,pv_weather,True,,,
+cal_is_holiday_pt,calendar,pv_weather,True,,,
+cal_is_holiday_es,calendar,pv_weather,True,,,
+cal_is_bridge_pt,calendar,pv_weather,True,,,
+cal_is_bridge_es,calendar,pv_weather,True,,,
+cal_days_to_holiday_pt,calendar,pv_weather,True,,,
+cal_days_since_holiday_pt,calendar,pv_weather,True,,,
+cal_dst_day_type,calendar,pv_weather,True,,,
+rule_da_resolution_min,market_rule,pv_weather,True,,,
+rule_price_floor,market_rule,pv_weather,True,,,
+y_lag_1d,lag,pv_weather,False,does not apply to this target,,
+y_lag_2d,lag,pv_weather,False,does not apply to this target,,
+y_lag_7d,lag,pv_weather,False,does not apply to this target,,
+y_lag_14d,lag,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_hour,rolling,pv_weather,False,does not apply to this target,,
+y_roll_std_7d_hour,rolling,pv_weather,False,does not apply to this target,,
+y_roll_min_7d_hour,rolling,pv_weather,False,does not apply to this target,,
+y_roll_max_7d_hour,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_28d_hour,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_all,rolling,pv_weather,False,does not apply to this target,,
+y_roll_std_7d_all,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_hour_e2,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_all_e2,rolling,pv_weather,False,does not apply to this target,,
+y_roll_std_7d_all_e2,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_hour_e3,rolling,pv_weather,False,does not apply to this target,,
+y_roll_mean_7d_all_e3,rolling,pv_weather,False,does not apply to this target,,
+y_roll_std_7d_all_e3,rolling,pv_weather,False,does not apply to this target,,
+y_day_mean_lag2d,rolling,pv_weather,False,does not apply to this target,,
+y_day_mean_lag3d,rolling,pv_weather,False,does not apply to this target,,
+y_yday_mean,rolling,pv_weather,False,does not apply to this target,,
+y_yday_max,rolling,pv_weather,False,does not apply to this target,,
+y_yday_min,rolling,pv_weather,False,does not apply to this target,,
+base_value,base,pv_weather,False,does not apply to this target,,
+base_dev,base,pv_weather,False,does not apply to this target,,
+base_day_mean,base,pv_weather,False,does not apply to this target,,
+base_day_max,base,pv_weather,False,does not apply to this target,,
+base_day_min,base,pv_weather,False,does not apply to this target,,
+base_rank,base,pv_weather,False,does not apply to this target,,
+base_shape,base,pv_weather,False,does not apply to this target,,
+base_lag_1d,base,pv_weather,False,does not apply to this target,,
+base_change_1d,base,pv_weather,False,does not apply to this target,,
+dar_vol_total_d0,market_result,pv_weather,False,da_vol_total is not in the target's information set,,
+dar_flow_pt_to_es_d0,market_result,pv_weather,False,da_flow_pt_to_es is not in the target's information set,,
+dar_flow_es_to_pt_d0,market_result,pv_weather,False,da_flow_es_to_pt is not in the target's information set,,
+dar_vol_pt_buy_d0,market_result,pv_weather,False,da_vol_pt_buy is not in the target's information set,,
+dar_vol_pt_sell_d0,market_result,pv_weather,False,da_vol_pt_sell is not in the target's information set,,
+dar_es_minus_pt_d0,market_result,pv_weather,False,da_es is not in the target's information set,,
+dar_vol_total_lag1d,market_result,pv_weather,False,da_vol_total is not in the target's information set,,
+dar_flow_pt_to_es_lag1d,market_result,pv_weather,False,da_flow_pt_to_es is not in the target's information set,,
+dar_flow_es_to_pt_lag1d,market_result,pv_weather,False,da_flow_es_to_pt is not in the target's information set,,
+dar_es_minus_pt_lag1d,market_result,pv_weather,False,da_es is not in the target's information set,,
+ida1_spread_d0,cross_market,pv_weather,False,ida1_pt is not in the target's information set,,
+ida2_spread_d0,cross_market,pv_weather,False,ida2_pt is not in the target's information set,,
+ida1_spread_lag1d,cross_market,pv_weather,False,ida1_pt is not in the target's information set,,
+ida2_spread_lag1d,cross_market,pv_weather,False,ida2_pt is not in the target's information set,,
+ida3_spread_lag2d,cross_market,pv_weather,False,ida3_pt is not in the target's information set,,
+xbid_spread_lag2d,cross_market,pv_weather,False,xbid_pt is not in the target's information set,,
+afrr_lag_1d,cross_market,pv_weather,False,afrr_up is not in the target's information set,,
+imb_short_lag_6d,cross_market,pv_weather,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,pv_weather,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,pv_weather,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,pv_weather,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,pv_weather,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,pv_weather,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,pv_weather,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,pv_weather,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,pv_weather,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,pv_weather,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,pv_weather,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,pv_weather,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,reservoir_inflow,True,,,
+cal_hour_sin,calendar,reservoir_inflow,True,,,
+cal_hour_cos,calendar,reservoir_inflow,True,,,
+cal_dow,calendar,reservoir_inflow,True,,,
+cal_month,calendar,reservoir_inflow,True,,,
+cal_is_weekend,calendar,reservoir_inflow,True,,,
+cal_doy_sin,calendar,reservoir_inflow,True,,,
+cal_doy_cos,calendar,reservoir_inflow,True,,,
+cal_is_holiday_pt,calendar,reservoir_inflow,True,,,
+cal_is_holiday_es,calendar,reservoir_inflow,True,,,
+cal_is_bridge_pt,calendar,reservoir_inflow,True,,,
+cal_is_bridge_es,calendar,reservoir_inflow,True,,,
+cal_days_to_holiday_pt,calendar,reservoir_inflow,True,,,
+cal_days_since_holiday_pt,calendar,reservoir_inflow,True,,,
+cal_dst_day_type,calendar,reservoir_inflow,True,,,
+rule_da_resolution_min,market_rule,reservoir_inflow,True,,,
+rule_price_floor,market_rule,reservoir_inflow,True,,,
+y_lag_1d,lag,reservoir_inflow,False,does not apply to this target,,
+y_lag_2d,lag,reservoir_inflow,False,does not apply to this target,,
+y_lag_7d,lag,reservoir_inflow,False,does not apply to this target,,
+y_lag_14d,lag,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_hour,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_std_7d_hour,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_min_7d_hour,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_max_7d_hour,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_28d_hour,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_all,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_std_7d_all,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_hour_e2,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_all_e2,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_std_7d_all_e2,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_hour_e3,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_mean_7d_all_e3,rolling,reservoir_inflow,False,does not apply to this target,,
+y_roll_std_7d_all_e3,rolling,reservoir_inflow,False,does not apply to this target,,
+y_day_mean_lag2d,rolling,reservoir_inflow,False,does not apply to this target,,
+y_day_mean_lag3d,rolling,reservoir_inflow,False,does not apply to this target,,
+y_yday_mean,rolling,reservoir_inflow,False,does not apply to this target,,
+y_yday_max,rolling,reservoir_inflow,False,does not apply to this target,,
+y_yday_min,rolling,reservoir_inflow,False,does not apply to this target,,
+base_value,base,reservoir_inflow,False,does not apply to this target,,
+base_dev,base,reservoir_inflow,False,does not apply to this target,,
+base_day_mean,base,reservoir_inflow,False,does not apply to this target,,
+base_day_max,base,reservoir_inflow,False,does not apply to this target,,
+base_day_min,base,reservoir_inflow,False,does not apply to this target,,
+base_rank,base,reservoir_inflow,False,does not apply to this target,,
+base_shape,base,reservoir_inflow,False,does not apply to this target,,
+base_lag_1d,base,reservoir_inflow,False,does not apply to this target,,
+base_change_1d,base,reservoir_inflow,False,does not apply to this target,,
+dar_vol_total_d0,market_result,reservoir_inflow,False,da_vol_total is not in the target's information set,,
+dar_flow_pt_to_es_d0,market_result,reservoir_inflow,False,da_flow_pt_to_es is not in the target's information set,,
+dar_flow_es_to_pt_d0,market_result,reservoir_inflow,False,da_flow_es_to_pt is not in the target's information set,,
+dar_vol_pt_buy_d0,market_result,reservoir_inflow,False,da_vol_pt_buy is not in the target's information set,,
+dar_vol_pt_sell_d0,market_result,reservoir_inflow,False,da_vol_pt_sell is not in the target's information set,,
+dar_es_minus_pt_d0,market_result,reservoir_inflow,False,da_es is not in the target's information set,,
+dar_vol_total_lag1d,market_result,reservoir_inflow,False,da_vol_total is not in the target's information set,,
+dar_flow_pt_to_es_lag1d,market_result,reservoir_inflow,False,da_flow_pt_to_es is not in the target's information set,,
+dar_flow_es_to_pt_lag1d,market_result,reservoir_inflow,False,da_flow_es_to_pt is not in the target's information set,,
+dar_es_minus_pt_lag1d,market_result,reservoir_inflow,False,da_es is not in the target's information set,,
+ida1_spread_d0,cross_market,reservoir_inflow,False,ida1_pt is not in the target's information set,,
+ida2_spread_d0,cross_market,reservoir_inflow,False,ida2_pt is not in the target's information set,,
+ida1_spread_lag1d,cross_market,reservoir_inflow,False,ida1_pt is not in the target's information set,,
+ida2_spread_lag1d,cross_market,reservoir_inflow,False,ida2_pt is not in the target's information set,,
+ida3_spread_lag2d,cross_market,reservoir_inflow,False,ida3_pt is not in the target's information set,,
+xbid_spread_lag2d,cross_market,reservoir_inflow,False,xbid_pt is not in the target's information set,,
+afrr_lag_1d,cross_market,reservoir_inflow,False,afrr_up is not in the target's information set,,
+imb_short_lag_6d,cross_market,reservoir_inflow,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,reservoir_inflow,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,reservoir_inflow,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,reservoir_inflow,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,reservoir_inflow,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,reservoir_inflow,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,reservoir_inflow,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,reservoir_inflow,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,reservoir_inflow,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,reservoir_inflow,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,reservoir_inflow,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,reservoir_inflow,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,ida1_price,True,,,
+cal_hour_sin,calendar,ida1_price,True,,,
+cal_hour_cos,calendar,ida1_price,True,,,
+cal_dow,calendar,ida1_price,True,,,
+cal_month,calendar,ida1_price,True,,,
+cal_is_weekend,calendar,ida1_price,True,,,
+cal_doy_sin,calendar,ida1_price,True,,,
+cal_doy_cos,calendar,ida1_price,True,,,
+cal_is_holiday_pt,calendar,ida1_price,True,,,
+cal_is_holiday_es,calendar,ida1_price,True,,,
+cal_is_bridge_pt,calendar,ida1_price,True,,,
+cal_is_bridge_es,calendar,ida1_price,True,,,
+cal_days_to_holiday_pt,calendar,ida1_price,True,,,
+cal_days_since_holiday_pt,calendar,ida1_price,True,,,
+cal_dst_day_type,calendar,ida1_price,True,,,
+rule_da_resolution_min,market_rule,ida1_price,True,,,
+rule_price_floor,market_rule,ida1_price,True,,,
+y_lag_1d,lag,ida1_price,True,,2026-03-08 15:30,1360.0
+y_lag_2d,lag,ida1_price,True,,2026-03-07 15:30,2800.0
+y_lag_7d,lag,ida1_price,True,,2026-03-02 15:30,10000.0
+y_lag_14d,lag,ida1_price,True,,2026-02-23 15:30,20080.0
+y_roll_mean_7d_hour,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_std_7d_hour,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_min_7d_hour,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_max_7d_hour,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_mean_28d_hour,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_mean_7d_all,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_std_7d_all,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_roll_mean_7d_hour_e2,rolling,ida1_price,True,,2026-03-07 15:30,2800.0
+y_roll_mean_7d_all_e2,rolling,ida1_price,True,,2026-03-07 15:30,2800.0
+y_roll_std_7d_all_e2,rolling,ida1_price,True,,2026-03-07 15:30,2800.0
+y_roll_mean_7d_hour_e3,rolling,ida1_price,True,,2026-03-06 15:30,4240.0
+y_roll_mean_7d_all_e3,rolling,ida1_price,True,,2026-03-06 15:30,4240.0
+y_roll_std_7d_all_e3,rolling,ida1_price,True,,2026-03-06 15:30,4240.0
+y_day_mean_lag2d,rolling,ida1_price,True,,2026-03-07 15:30,2800.0
+y_day_mean_lag3d,rolling,ida1_price,True,,2026-03-06 15:30,4240.0
+y_yday_mean,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_yday_max,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+y_yday_min,rolling,ida1_price,True,,2026-03-08 15:30,1360.0
+base_value,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_dev,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_day_mean,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_day_max,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_day_min,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_rank,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_shape,base,ida1_price,True,,2026-03-09 13:30,40.0
+base_lag_1d,base,ida1_price,True,,2026-03-08 13:30,1480.0
+base_change_1d,base,ida1_price,True,,2026-03-09 13:30,40.0
+dar_vol_total_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_flow_pt_to_es_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_flow_es_to_pt_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_vol_pt_buy_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_vol_pt_sell_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_es_minus_pt_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
+dar_vol_total_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
+dar_flow_pt_to_es_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
+dar_flow_es_to_pt_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
+dar_es_minus_pt_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
+ida1_spread_d0,cross_market,ida1_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
+ida2_spread_d0,cross_market,ida1_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
+ida1_spread_lag1d,cross_market,ida1_price,True,,2026-03-08 15:30,1360.0
+ida2_spread_lag1d,cross_market,ida1_price,True,,2026-03-08 22:30,940.0
+ida3_spread_lag2d,cross_market,ida1_price,True,,2026-03-08 10:30,1660.0
+xbid_spread_lag2d,cross_market,ida1_price,True,,2026-03-09 04:30,580.0
+afrr_lag_1d,cross_market,ida1_price,True,,2026-03-08 16:00,1330.0
+imb_short_lag_6d,cross_market,ida1_price,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,ida1_price,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,ida1_price,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,ida1_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,ida1_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,ida1_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,ida1_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,ida1_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,ida1_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,ida1_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,ida1_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,ida1_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,ida2_price,True,,,
+cal_hour_sin,calendar,ida2_price,True,,,
+cal_hour_cos,calendar,ida2_price,True,,,
+cal_dow,calendar,ida2_price,True,,,
+cal_month,calendar,ida2_price,True,,,
+cal_is_weekend,calendar,ida2_price,True,,,
+cal_doy_sin,calendar,ida2_price,True,,,
+cal_doy_cos,calendar,ida2_price,True,,,
+cal_is_holiday_pt,calendar,ida2_price,True,,,
+cal_is_holiday_es,calendar,ida2_price,True,,,
+cal_is_bridge_pt,calendar,ida2_price,True,,,
+cal_is_bridge_es,calendar,ida2_price,True,,,
+cal_days_to_holiday_pt,calendar,ida2_price,True,,,
+cal_days_since_holiday_pt,calendar,ida2_price,True,,,
+cal_dst_day_type,calendar,ida2_price,True,,,
+rule_da_resolution_min,market_rule,ida2_price,True,,,
+rule_price_floor,market_rule,ida2_price,True,,,
+y_lag_1d,lag,ida2_price,True,,2026-03-08 22:30,1360.0
+y_lag_2d,lag,ida2_price,True,,2026-03-07 22:30,2800.0
+y_lag_7d,lag,ida2_price,True,,2026-03-02 22:30,10000.0
+y_lag_14d,lag,ida2_price,True,,2026-02-23 22:30,20080.0
+y_roll_mean_7d_hour,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_std_7d_hour,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_min_7d_hour,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_max_7d_hour,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_mean_28d_hour,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_mean_7d_all,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_std_7d_all,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_roll_mean_7d_hour_e2,rolling,ida2_price,True,,2026-03-07 22:30,2800.0
+y_roll_mean_7d_all_e2,rolling,ida2_price,True,,2026-03-07 22:30,2800.0
+y_roll_std_7d_all_e2,rolling,ida2_price,True,,2026-03-07 22:30,2800.0
+y_roll_mean_7d_hour_e3,rolling,ida2_price,True,,2026-03-06 22:30,4240.0
+y_roll_mean_7d_all_e3,rolling,ida2_price,True,,2026-03-06 22:30,4240.0
+y_roll_std_7d_all_e3,rolling,ida2_price,True,,2026-03-06 22:30,4240.0
+y_day_mean_lag2d,rolling,ida2_price,True,,2026-03-07 22:30,2800.0
+y_day_mean_lag3d,rolling,ida2_price,True,,2026-03-06 22:30,4240.0
+y_yday_mean,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_yday_max,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+y_yday_min,rolling,ida2_price,True,,2026-03-08 22:30,1360.0
+base_value,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_dev,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_day_mean,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_day_max,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_day_min,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_rank,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_shape,base,ida2_price,True,,2026-03-09 13:30,460.0
+base_lag_1d,base,ida2_price,True,,2026-03-08 13:30,1900.0
+base_change_1d,base,ida2_price,True,,2026-03-09 13:30,460.0
+dar_vol_total_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_flow_pt_to_es_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_flow_es_to_pt_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_vol_pt_buy_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_vol_pt_sell_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_es_minus_pt_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
+dar_vol_total_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
+dar_flow_pt_to_es_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
+dar_flow_es_to_pt_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
+dar_es_minus_pt_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
+ida1_spread_d0,cross_market,ida2_price,True,,2026-03-09 15:30,340.0
+ida2_spread_d0,cross_market,ida2_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
+ida1_spread_lag1d,cross_market,ida2_price,True,,2026-03-08 15:30,1780.0
+ida2_spread_lag1d,cross_market,ida2_price,True,,2026-03-08 22:30,1360.0
+ida3_spread_lag2d,cross_market,ida2_price,True,,2026-03-08 10:30,2080.0
+xbid_spread_lag2d,cross_market,ida2_price,True,,2026-03-09 04:30,1000.0
+afrr_lag_1d,cross_market,ida2_price,True,,2026-03-08 16:00,1750.0
+imb_short_lag_6d,cross_market,ida2_price,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,ida2_price,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,ida2_price,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,ida2_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,ida2_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,ida2_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,ida2_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,ida2_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,ida2_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,ida2_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,ida2_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,ida2_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,ida3_price,True,,,
+cal_hour_sin,calendar,ida3_price,True,,,
+cal_hour_cos,calendar,ida3_price,True,,,
+cal_dow,calendar,ida3_price,True,,,
+cal_month,calendar,ida3_price,True,,,
+cal_is_weekend,calendar,ida3_price,True,,,
+cal_doy_sin,calendar,ida3_price,True,,,
+cal_doy_cos,calendar,ida3_price,True,,,
+cal_is_holiday_pt,calendar,ida3_price,True,,,
+cal_is_holiday_es,calendar,ida3_price,True,,,
+cal_is_bridge_pt,calendar,ida3_price,True,,,
+cal_is_bridge_es,calendar,ida3_price,True,,,
+cal_days_to_holiday_pt,calendar,ida3_price,True,,,
+cal_days_since_holiday_pt,calendar,ida3_price,True,,,
+cal_dst_day_type,calendar,ida3_price,True,,,
+rule_da_resolution_min,market_rule,ida3_price,True,,,
+rule_price_floor,market_rule,ida3_price,True,,,
+y_lag_1d,lag,ida3_price,True,,2026-03-09 10:30,1360.0
+y_lag_2d,lag,ida3_price,True,,2026-03-08 10:30,2800.0
+y_lag_7d,lag,ida3_price,True,,2026-03-03 10:30,10000.0
+y_lag_14d,lag,ida3_price,True,,2026-02-24 10:30,20080.0
+y_roll_mean_7d_hour,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_std_7d_hour,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_min_7d_hour,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_max_7d_hour,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_mean_28d_hour,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_mean_7d_all,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_std_7d_all,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_roll_mean_7d_hour_e2,rolling,ida3_price,True,,2026-03-08 10:30,2800.0
+y_roll_mean_7d_all_e2,rolling,ida3_price,True,,2026-03-08 10:30,2800.0
+y_roll_std_7d_all_e2,rolling,ida3_price,True,,2026-03-08 10:30,2800.0
+y_roll_mean_7d_hour_e3,rolling,ida3_price,True,,2026-03-07 10:30,4240.0
+y_roll_mean_7d_all_e3,rolling,ida3_price,True,,2026-03-07 10:30,4240.0
+y_roll_std_7d_all_e3,rolling,ida3_price,True,,2026-03-07 10:30,4240.0
+y_day_mean_lag2d,rolling,ida3_price,True,,2026-03-08 10:30,2800.0
+y_day_mean_lag3d,rolling,ida3_price,True,,2026-03-07 10:30,4240.0
+y_yday_mean,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_yday_max,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+y_yday_min,rolling,ida3_price,True,,2026-03-09 10:30,1360.0
+base_value,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_dev,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_day_mean,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_day_max,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_day_min,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_rank,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_shape,base,ida3_price,True,,2026-03-09 13:30,1180.0
+base_lag_1d,base,ida3_price,True,,2026-03-08 13:30,2620.0
+base_change_1d,base,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_vol_total_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_flow_pt_to_es_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_flow_es_to_pt_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_vol_pt_buy_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_vol_pt_sell_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_es_minus_pt_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
+dar_vol_total_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
+dar_flow_pt_to_es_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
+dar_flow_es_to_pt_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
+dar_es_minus_pt_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
+ida1_spread_d0,cross_market,ida3_price,True,,2026-03-09 15:30,1060.0
+ida2_spread_d0,cross_market,ida3_price,True,,2026-03-09 22:30,640.0
+ida1_spread_lag1d,cross_market,ida3_price,True,,2026-03-08 15:30,2500.0
+ida2_spread_lag1d,cross_market,ida3_price,True,,2026-03-08 22:30,2080.0
+ida3_spread_lag2d,cross_market,ida3_price,True,,2026-03-08 10:30,2800.0
+xbid_spread_lag2d,cross_market,ida3_price,True,,2026-03-09 04:30,1720.0
+afrr_lag_1d,cross_market,ida3_price,True,,2026-03-08 16:00,2470.0
+imb_short_lag_6d,cross_market,ida3_price,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,ida3_price,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,ida3_price,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,ida3_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,ida3_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,ida3_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,ida3_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,ida3_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,ida3_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,ida3_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,ida3_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,ida3_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,xbid_price,True,,,
+cal_hour_sin,calendar,xbid_price,True,,,
+cal_hour_cos,calendar,xbid_price,True,,,
+cal_dow,calendar,xbid_price,True,,,
+cal_month,calendar,xbid_price,True,,,
+cal_is_weekend,calendar,xbid_price,True,,,
+cal_doy_sin,calendar,xbid_price,True,,,
+cal_doy_cos,calendar,xbid_price,True,,,
+cal_is_holiday_pt,calendar,xbid_price,True,,,
+cal_is_holiday_es,calendar,xbid_price,True,,,
+cal_is_bridge_pt,calendar,xbid_price,True,,,
+cal_is_bridge_es,calendar,xbid_price,True,,,
+cal_days_to_holiday_pt,calendar,xbid_price,True,,,
+cal_days_since_holiday_pt,calendar,xbid_price,True,,,
+cal_dst_day_type,calendar,xbid_price,True,,,
+rule_da_resolution_min,market_rule,xbid_price,True,,,
+rule_price_floor,market_rule,xbid_price,True,,,
+y_lag_1d,lag,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_lag_2d,lag,xbid_price,True,,2026-03-09 04:30,840.0
+y_lag_7d,lag,xbid_price,True,,2026-03-04 04:30,8040.0
+y_lag_14d,lag,xbid_price,True,,2026-02-25 04:30,18120.0
+y_roll_mean_7d_hour,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_std_7d_hour,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_min_7d_hour,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_max_7d_hour,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_mean_28d_hour,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_mean_7d_all,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_std_7d_all,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_roll_mean_7d_hour_e2,rolling,xbid_price,True,,2026-03-09 04:30,840.0
+y_roll_mean_7d_all_e2,rolling,xbid_price,True,,2026-03-09 04:30,840.0
+y_roll_std_7d_all_e2,rolling,xbid_price,True,,2026-03-09 04:30,840.0
+y_roll_mean_7d_hour_e3,rolling,xbid_price,True,,2026-03-08 04:30,2280.0
+y_roll_mean_7d_all_e3,rolling,xbid_price,True,,2026-03-08 04:30,2280.0
+y_roll_std_7d_all_e3,rolling,xbid_price,True,,2026-03-08 04:30,2280.0
+y_day_mean_lag2d,rolling,xbid_price,True,,2026-03-09 04:30,840.0
+y_day_mean_lag3d,rolling,xbid_price,True,,2026-03-08 04:30,2280.0
+y_yday_mean,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_yday_max,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+y_yday_min,rolling,xbid_price,False,reads xbid_pt up to D-1 but the target may use it only up to D-2,,
+base_value,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_dev,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_day_mean,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_day_max,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_day_min,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_rank,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_shape,base,xbid_price,True,,2026-03-09 13:30,300.0
+base_lag_1d,base,xbid_price,True,,2026-03-08 13:30,1740.0
+base_change_1d,base,xbid_price,True,,2026-03-09 13:30,300.0
+dar_vol_total_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_flow_pt_to_es_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_flow_es_to_pt_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_vol_pt_buy_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_vol_pt_sell_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_es_minus_pt_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
+dar_vol_total_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
+dar_flow_pt_to_es_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
+dar_flow_es_to_pt_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
+dar_es_minus_pt_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
+ida1_spread_d0,cross_market,xbid_price,True,,2026-03-09 15:30,180.0
+ida2_spread_d0,cross_market,xbid_price,False,ida2_pt is not in the target's information set,,
+ida1_spread_lag1d,cross_market,xbid_price,True,,2026-03-08 15:30,1620.0
+ida2_spread_lag1d,cross_market,xbid_price,False,ida2_pt is not in the target's information set,,
+ida3_spread_lag2d,cross_market,xbid_price,False,ida3_pt is not in the target's information set,,
+xbid_spread_lag2d,cross_market,xbid_price,True,,2026-03-09 04:30,840.0
+afrr_lag_1d,cross_market,xbid_price,True,,2026-03-08 16:00,1590.0
+imb_short_lag_6d,cross_market,xbid_price,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,xbid_price,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,xbid_price,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,xbid_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,xbid_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,xbid_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,xbid_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,xbid_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,xbid_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,xbid_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,xbid_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,xbid_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,afrr_cap_price,True,,,
+cal_hour_sin,calendar,afrr_cap_price,True,,,
+cal_hour_cos,calendar,afrr_cap_price,True,,,
+cal_dow,calendar,afrr_cap_price,True,,,
+cal_month,calendar,afrr_cap_price,True,,,
+cal_is_weekend,calendar,afrr_cap_price,True,,,
+cal_doy_sin,calendar,afrr_cap_price,True,,,
+cal_doy_cos,calendar,afrr_cap_price,True,,,
+cal_is_holiday_pt,calendar,afrr_cap_price,True,,,
+cal_is_holiday_es,calendar,afrr_cap_price,True,,,
+cal_is_bridge_pt,calendar,afrr_cap_price,True,,,
+cal_is_bridge_es,calendar,afrr_cap_price,True,,,
+cal_days_to_holiday_pt,calendar,afrr_cap_price,True,,,
+cal_days_since_holiday_pt,calendar,afrr_cap_price,True,,,
+cal_dst_day_type,calendar,afrr_cap_price,True,,,
+rule_da_resolution_min,market_rule,afrr_cap_price,True,,,
+rule_price_floor,market_rule,afrr_cap_price,True,,,
+y_lag_1d,lag,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_lag_2d,lag,afrr_cap_price,True,,2026-03-07 16:00,2760.0
+y_lag_7d,lag,afrr_cap_price,True,,2026-03-02 16:00,9960.0
+y_lag_14d,lag,afrr_cap_price,True,,2026-02-23 16:00,20040.0
+y_roll_mean_7d_hour,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_std_7d_hour,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_min_7d_hour,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_max_7d_hour,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_mean_28d_hour,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_mean_7d_all,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_std_7d_all,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_roll_mean_7d_hour_e2,rolling,afrr_cap_price,True,,2026-03-07 16:00,2760.0
+y_roll_mean_7d_all_e2,rolling,afrr_cap_price,True,,2026-03-07 16:00,2760.0
+y_roll_std_7d_all_e2,rolling,afrr_cap_price,True,,2026-03-07 16:00,2760.0
+y_roll_mean_7d_hour_e3,rolling,afrr_cap_price,True,,2026-03-06 16:00,4200.0
+y_roll_mean_7d_all_e3,rolling,afrr_cap_price,True,,2026-03-06 16:00,4200.0
+y_roll_std_7d_all_e3,rolling,afrr_cap_price,True,,2026-03-06 16:00,4200.0
+y_day_mean_lag2d,rolling,afrr_cap_price,True,,2026-03-07 16:00,2760.0
+y_day_mean_lag3d,rolling,afrr_cap_price,True,,2026-03-06 16:00,4200.0
+y_yday_mean,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_yday_max,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+y_yday_min,rolling,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+base_value,base,afrr_cap_price,False,does not apply to this target,,
+base_dev,base,afrr_cap_price,False,does not apply to this target,,
+base_day_mean,base,afrr_cap_price,False,does not apply to this target,,
+base_day_max,base,afrr_cap_price,False,does not apply to this target,,
+base_day_min,base,afrr_cap_price,False,does not apply to this target,,
+base_rank,base,afrr_cap_price,False,does not apply to this target,,
+base_shape,base,afrr_cap_price,False,does not apply to this target,,
+base_lag_1d,base,afrr_cap_price,False,does not apply to this target,,
+base_change_1d,base,afrr_cap_price,False,does not apply to this target,,
+dar_vol_total_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_flow_pt_to_es_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_flow_es_to_pt_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_vol_pt_buy_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_vol_pt_sell_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_es_minus_pt_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
+dar_vol_total_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
+dar_flow_pt_to_es_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
+dar_flow_es_to_pt_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
+dar_es_minus_pt_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
+ida1_spread_d0,cross_market,afrr_cap_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
+ida2_spread_d0,cross_market,afrr_cap_price,False,ida2_pt is not in the target's information set,,
+ida1_spread_lag1d,cross_market,afrr_cap_price,True,,2026-03-08 15:30,1350.0
+ida2_spread_lag1d,cross_market,afrr_cap_price,False,ida2_pt is not in the target's information set,,
+ida3_spread_lag2d,cross_market,afrr_cap_price,False,ida3_pt is not in the target's information set,,
+xbid_spread_lag2d,cross_market,afrr_cap_price,False,xbid_pt is not in the target's information set,,
+afrr_lag_1d,cross_market,afrr_cap_price,True,,2026-03-08 16:00,1320.0
+imb_short_lag_6d,cross_market,afrr_cap_price,True,,2026-03-08 12:00,1560.0
+imb_long_lag_6d,cross_market,afrr_cap_price,True,,2026-03-08 12:00,1560.0
+mfrr_lag_3d,cross_market,afrr_cap_price,False,mfrr_ap is not in the target's information set,,
+fund_load_forecast,fundamental,afrr_cap_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,afrr_cap_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,afrr_cap_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,afrr_cap_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,afrr_cap_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,afrr_cap_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,afrr_cap_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,afrr_cap_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,afrr_cap_price,False,data not collected (needs weather_forecast),,
+cal_hour,calendar,mfrr_price,True,,,
+cal_hour_sin,calendar,mfrr_price,True,,,
+cal_hour_cos,calendar,mfrr_price,True,,,
+cal_dow,calendar,mfrr_price,True,,,
+cal_month,calendar,mfrr_price,True,,,
+cal_is_weekend,calendar,mfrr_price,True,,,
+cal_doy_sin,calendar,mfrr_price,True,,,
+cal_doy_cos,calendar,mfrr_price,True,,,
+cal_is_holiday_pt,calendar,mfrr_price,True,,,
+cal_is_holiday_es,calendar,mfrr_price,True,,,
+cal_is_bridge_pt,calendar,mfrr_price,True,,,
+cal_is_bridge_es,calendar,mfrr_price,True,,,
+cal_days_to_holiday_pt,calendar,mfrr_price,True,,,
+cal_days_since_holiday_pt,calendar,mfrr_price,True,,,
+cal_dst_day_type,calendar,mfrr_price,True,,,
+rule_da_resolution_min,market_rule,mfrr_price,True,,,
+rule_price_floor,market_rule,mfrr_price,True,,,
+y_lag_1d,lag,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_lag_2d,lag,mfrr_price,False,reads mfrr_ap up to D-2 but the target may use it only up to D-3,,
+y_lag_7d,lag,mfrr_price,True,,2026-03-04 12:00,7320.0
+y_lag_14d,lag,mfrr_price,True,,2026-02-25 12:00,17400.0
+y_roll_mean_7d_hour,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_std_7d_hour,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_min_7d_hour,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_max_7d_hour,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_mean_28d_hour,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_mean_7d_all,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_std_7d_all,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_roll_mean_7d_hour_e2,rolling,mfrr_price,False,reads mfrr_ap up to D-2 but the target may use it only up to D-3,,
+y_roll_mean_7d_all_e2,rolling,mfrr_price,False,reads mfrr_ap up to D-2 but the target may use it only up to D-3,,
+y_roll_std_7d_all_e2,rolling,mfrr_price,False,reads mfrr_ap up to D-2 but the target may use it only up to D-3,,
+y_roll_mean_7d_hour_e3,rolling,mfrr_price,True,,2026-03-08 12:00,1560.0
+y_roll_mean_7d_all_e3,rolling,mfrr_price,True,,2026-03-08 12:00,1560.0
+y_roll_std_7d_all_e3,rolling,mfrr_price,True,,2026-03-08 12:00,1560.0
+y_day_mean_lag2d,rolling,mfrr_price,False,reads mfrr_ap up to D-2 but the target may use it only up to D-3,,
+y_day_mean_lag3d,rolling,mfrr_price,True,,2026-03-08 12:00,1560.0
+y_yday_mean,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_yday_max,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+y_yday_min,rolling,mfrr_price,False,reads mfrr_ap up to D-1 but the target may use it only up to D-3,,
+base_value,base,mfrr_price,False,does not apply to this target,,
+base_dev,base,mfrr_price,False,does not apply to this target,,
+base_day_mean,base,mfrr_price,False,does not apply to this target,,
+base_day_max,base,mfrr_price,False,does not apply to this target,,
+base_day_min,base,mfrr_price,False,does not apply to this target,,
+base_rank,base,mfrr_price,False,does not apply to this target,,
+base_shape,base,mfrr_price,False,does not apply to this target,,
+base_lag_1d,base,mfrr_price,False,does not apply to this target,,
+base_change_1d,base,mfrr_price,False,does not apply to this target,,
+dar_vol_total_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_flow_pt_to_es_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_flow_es_to_pt_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_vol_pt_buy_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_vol_pt_sell_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_es_minus_pt_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
+dar_vol_total_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
+dar_flow_pt_to_es_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
+dar_flow_es_to_pt_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
+dar_es_minus_pt_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
+ida1_spread_d0,cross_market,mfrr_price,False,ida1_pt is not in the target's information set,,
+ida2_spread_d0,cross_market,mfrr_price,False,ida2_pt is not in the target's information set,,
+ida1_spread_lag1d,cross_market,mfrr_price,False,ida1_pt is not in the target's information set,,
+ida2_spread_lag1d,cross_market,mfrr_price,False,ida2_pt is not in the target's information set,,
+ida3_spread_lag2d,cross_market,mfrr_price,False,ida3_pt is not in the target's information set,,
+xbid_spread_lag2d,cross_market,mfrr_price,False,xbid_pt is not in the target's information set,,
+afrr_lag_1d,cross_market,mfrr_price,True,,2026-03-08 16:00,1320.0
+imb_short_lag_6d,cross_market,mfrr_price,False,imb_short is not in the target's information set,,
+imb_long_lag_6d,cross_market,mfrr_price,False,imb_long is not in the target's information set,,
+mfrr_lag_3d,cross_market,mfrr_price,True,,2026-03-08 12:00,1560.0
+fund_load_forecast,fundamental,mfrr_price,False,data not collected (needs entsoe_transparency),,
+fund_wind_forecast,fundamental,mfrr_price,False,data not collected (needs entsoe_transparency),,
+fund_solar_forecast,fundamental,mfrr_price,False,data not collected (needs entsoe_transparency),,
+fund_residual_load,fundamental,mfrr_price,False,data not collected (needs entsoe_transparency),,
+fund_gas_ttf,fundamental,mfrr_price,False,data not collected (needs fuel_carbon),,
+fund_carbon_eua,fundamental,mfrr_price,False,data not collected (needs fuel_carbon),,
+fund_hydro_level,fundamental,mfrr_price,False,data not collected (needs reservoir_levels),,
+fund_ghi_forecast,fundamental,mfrr_price,False,data not collected (needs weather_forecast),,
+fund_temp_forecast,fundamental,mfrr_price,False,data not collected (needs weather_forecast),,

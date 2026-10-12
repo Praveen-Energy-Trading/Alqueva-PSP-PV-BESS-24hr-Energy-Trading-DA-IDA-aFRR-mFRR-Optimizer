@@ -265,6 +265,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   ├── rollout.py                            #   stage 9: what each price target's data allows (config/rollout.yaml)
 │   │   ├── live.py, old_new.py                   #   stage 10: live adapter (config/live_models.yaml), champion against legacy
 │   │   ├── summary.py                            #   stage 9: one table of where every price target stands
+│   │   ├── benchmark.py                          #   naive forecasts scored on the champion's hours (tools/benchmark_naive.py)
 │   │   └── synthetic.py                          #   artificial locked-window outcomes where configured (config/synthetic_fill.yaml)
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
@@ -501,6 +502,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   ├── monitor_champion.py                       #   stage 8: calibrate / log / plan / report
 │   ├── run_rollout.py                            #   stage 9: status of every price target; tune, compare, decide
 │   ├── compare_old_new.py                        #   stage 10: champion against the legacy forecaster on the same days
+│   ├── benchmark_naive.py                        #   champion against naive forecasts, development and locked (model_development/benchmark/)
 │   ├── make_results_summary.py                   #   stage 9: model_development/RESULTS.md from the decisions
 │   ├── render_pipeline_diagram.py                #   re-render docs/pipeline_architecture.png/.svg from the HTML
 │   └── rebuild_real_market_history.py            #   rebuild all price history from OMIE / REN
@@ -511,6 +513,22 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 </details>
 
 ---
+
+## ML Lifecycle dashboard
+
+The dashboard has a group of ten pages, **ML Lifecycle**, that walks through every stage of the forecasting work in the order a real
+machine-learning project runs: data and quality, market analysis, problem formulation, features, evaluation design, the tuning lab,
+the model arena, the decision and locked test, and the registry, monitoring and live switch. Each page has a collapsed "What to say"
+panel (a talk track and a likely follow-up question) and a "Limits" strip, and **Interview mode** (sidebar) expands the talk tracks and adds a
+tour bar. Every number comes from committed files, so the group works on any checkout:
+
+```
+streamlit run dashboard/app.py                 # the ML Lifecycle group is in the sidebar
+python dashboard/ml_pack.py                    # rebuild the demo data pack (model_development/data/) from the run folders
+```
+
+The pack (about 1 MB) holds the tuning trials, daily losses, locked-year forecasts, quality snapshot and registry snapshot; pages say
+"not yet run" for anything the pack does not contain. The plan is in `docs/ML_Dashboard_Plan.md`.
 
 ## Outputs
 

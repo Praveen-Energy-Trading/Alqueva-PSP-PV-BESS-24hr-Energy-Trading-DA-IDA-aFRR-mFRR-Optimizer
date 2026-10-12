@@ -1,0 +1,20 @@
+{
+  "latest_days": {
+    "afrr_price": "2026-10-11",
+    "da_price": "2026-10-12",
+    "ida_price": "2026-10-10",
+    "imbalance_price": "2026-10-07",
+    "mfrr_price": "2026-10-11",
+    "xbid_price": "2026-10-11"
+  },
+  "passed": false,
+  "reasons": [
+    "ida_price session 1: 63/851 days missing (7.4% > 6.0%)",
+    "stale feed: imbalance_price: newest delivery day 2026-10-07 is 5 days old (allowed 2)"
+  ],
+  "today": "2026-10-12",
+  "window": [
+    "2019-01-01",
+    "2026-10-11"
+  ]
+}

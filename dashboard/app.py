@@ -172,9 +172,22 @@ pages = {
     ],
     "Analyse": [
         st.Page("pages/5_backtest_risk.py", title="Backtest & Portfolio Risk", icon="📈"),
-        st.Page("pages/9_ml_forecasting.py", title="ML Forecasting", icon="🤖"),
         st.Page("pages/6_figures.py", title="Figures", icon="🖼️"),
         st.Page("pages/7_console_log.py", title="Console Log", icon="🖥️"),
+    ],
+    # The ML Lifecycle group replaces the old "ML Forecasting" page (pages/9_ml_forecasting.py, which read the legacy selection files).
+    # Every page reads committed files only (model_development/, built by dashboard/ml_pack.py), so the group works on any checkout.
+    "ML Lifecycle": [
+        st.Page("pages/ml_0_overview.py", title="Overview", icon="🧭"),
+        st.Page("pages/ml_1_data.py", title="Data and quality", icon="🗄️"),
+        st.Page("pages/ml_2_market.py", title="Market analysis", icon="📊"),
+        st.Page("pages/ml_3_formulation.py", title="Problem formulation", icon="🧩"),
+        st.Page("pages/ml_4_features.py", title="Features", icon="🧱"),
+        st.Page("pages/ml_5_evaluation.py", title="Evaluation design", icon="📐"),
+        st.Page("pages/ml_6_tuning.py", title="Tuning lab", icon="🎛️"),
+        st.Page("pages/ml_7_arena.py", title="Model arena", icon="🏟️"),
+        st.Page("pages/ml_8_decision.py", title="Decision and locked test", icon="🏆"),
+        st.Page("pages/ml_9_run.py", title="Run it: registry, monitoring, live", icon="🛰️"),
     ],
 }
 pg = st.navigation(pages)

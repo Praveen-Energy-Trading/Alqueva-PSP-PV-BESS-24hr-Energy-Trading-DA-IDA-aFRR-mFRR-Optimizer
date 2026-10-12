@@ -1,0 +1,17 @@
+{
+ "parts": {
+  "daily_loss": 22561,
+  "facts": 5,
+  "feature_availability": 693,
+  "load_status_monthly": 468,
+  "locked_forecasts": 39132,
+  "price_profile": 2016,
+  "prices_daily": 2842,
+  "quality_daily": 12246,
+  "raw_manifest_summary": 8,
+  "registry_runs": 20,
+  "trials": 4836,
+  "tuning_log": 130
+ },
+ "skipped": []
+}

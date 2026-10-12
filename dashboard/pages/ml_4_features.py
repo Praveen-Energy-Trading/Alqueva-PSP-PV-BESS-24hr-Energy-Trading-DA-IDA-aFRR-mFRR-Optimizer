@@ -1,0 +1,112 @@
+"""ML Lifecycle 4 - Features: a catalogue with written availability, feature sets, stability selection, the point-in-time check."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+import ml_data
+import ml_ui
+import theme
+
+ml_ui.header("Features", "Every feature is defined once, in a catalogue, and built by one function for training, evaluation and live "
+             "prediction. Whether a feature may be used for a target is derived from what it reads, not typed by hand.", step=4)
+ml_ui.tour_bar(4)
+
+cat = ml_ui.cached(lambda: ml_data.config("feature_catalogue"))()
+sets = ml_ui.cached(lambda: ml_data.config("feature_sets").get("feature_sets", {}))()
+sel = ml_ui.cached(lambda: ml_data.config("feature_selection_results").get("targets", {}))()
+avail = ml_ui.cached(lambda: ml_data.pack("feature_availability"))()
+feats = pd.DataFrame(cat.get("features", []))
+if feats.empty:
+    ml_ui.not_yet_run("the feature catalogue")
+    st.stop()
+
+target = ml_ui.target_picker()
+n_target = int(avail[(avail["target"] == target) & (avail["available"])].shape[0]) if not avail.empty else None
+blocked = int(feats[feats.get("status", pd.Series(dtype=object)).eq("not_collected")].shape[0]) if "status" in feats else 0
+theme.metric_cards([("Features in the catalogue", len(feats)), ("Feature kinds", feats["kind"].nunique()),
+                    (f"Available for {ml_data.label(target)}", n_target if n_target is not None else "-"), ("Defined, data not collected", blocked)], ncols=4)
+
+st.subheader("The catalogue")
+g = feats.groupby("group").size().sort_values(ascending=False)
+c1, c2 = st.columns([2, 3])
+with c1:
+    fig = go.Figure(go.Bar(x=g.values, y=g.index, orientation="h", marker_color=theme.BLUE))
+    fig.update_yaxes(autorange="reversed")
+    st.plotly_chart(theme.style_fig(fig, height=280, xaxis_title="features", legend=False), width="stretch")
+with c2:
+    grp = st.multiselect("Groups", list(g.index), default=list(g.index), key="ml4_groups")
+    show = feats[feats["group"].isin(grp)]
+    st.dataframe(show[["id", "group", "kind", "description"]].rename(columns={"id": "Feature", "group": "Group", "kind": "Kind", "description": "What it is"}),
+                 hide_index=True, width="stretch", height=250)
+st.caption("A feature is a *kind* (a lag, a rolling statistic, a calendar field, the day-ahead price...) with parameters and a version. "
+           "What it reads and when that is known follows from the kind and the parameters.")
+
+st.subheader("Availability: what each target may use")
+if avail.empty:
+    ml_ui.not_yet_run("the availability matrix (data pack)")
+else:
+    a = avail[avail["group"].isin(grp)]
+    pv = a.pivot(index="feature", columns="target", values="available").astype(float)
+    why = a.pivot(index="feature", columns="target", values="reason").fillna("")
+    order = [t for t in ml_data.TARGETS if t in pv.columns]
+    pv, why = pv[order], why[order]
+    fig = go.Figure(go.Heatmap(z=pv.values, x=[ml_data.label(t) for t in order], y=pv.index, colorscale=[[0, theme.STATUS_CRITICAL], [1, theme.STATUS_GOOD]],
+                               showscale=False, text=why.values, hovertemplate="%{y}<br>%{x}: %{text}<extra></extra>", zmin=0, zmax=1))
+    fig.update_yaxes(autorange="reversed", tickfont=dict(size=9))
+    st.plotly_chart(theme.style_fig(fig, height=max(320, 14 * len(pv)), legend=False), width="stretch")
+    st.caption("Green: available at the target's forecast time. Red: not available (hover for why). A feature that reads yesterday's "
+               "price is unavailable for XBID, which may use its own price only up to two days back, and for mFRR, three days back.")
+    bad = avail[(avail["target"] == target) & (~avail["available"])][["feature", "reason"]]
+    with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
+        st.dataframe(bad.rename(columns={"feature": "Feature", "reason": "Reason"}), hide_index=True, width="stretch")
+
+st.subheader("Feature sets")
+rows = []
+for name, spec in sets.items():
+    ids = spec["features"]
+    if isinstance(ids, list):
+        n = None if avail.empty else int(avail[(avail["target"] == target) & (avail["available"]) & (avail["feature"].isin(ids))].shape[0])
+        size = f"{len(ids)} listed" + (f", {n} available for this target" if n is not None else "")
+    else:
+        size = n_target and f"{n_target} available for this target" or ids
+    rows.append({"Set": name, "What it is": spec["description"], "Size": size})
+st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+st.caption("A set's version is a hash of its features' definitions, so a changed definition is a new version, never a silent edit. "
+           "The champions use `baseline_v1`, or `baseline_e2_v1` / `baseline_e3_v1` for the targets that cannot use yesterday's price.")
+
+st.subheader("Stability selection")
+r = sel.get(target)
+if not r:
+    ml_ui.not_yet_run(f"stability selection for {ml_data.label(target)}")
+else:
+    theme.metric_cards([("Candidates", r["candidates"]), ("Kept", len(r["selected"])), ("Periods", len(r["periods"])),
+                        ("Mean rank correlation across periods", r["mean_rank_correlation"])], ncols=4)
+    st.markdown("Kept: " + ", ".join(f"`{x}`" for x in r["selected"]))
+    st.caption(f"Rule: a feature is kept if it carries at least {100 * r['rule']['min_share']:.0f}% of the permutation importance in at least "
+               f"{100 * r['rule']['min_period_fraction']:.0f}% of the periods ({', '.join(r['periods'])}), using development data only. "
+               "On the day-ahead price the full set improved RMSE (p = 0.013 for LightGBM) but not MAE significantly, so the small set was kept.")
+
+st.subheader("No leakage by construction")
+st.markdown("""
+The **point-in-time check** builds a feature twice for the same delivery day: once on the as-of view and once with every value that
+should not be known replaced by noise. The two results must be identical. If a feature read a value from the future, they would differ and
+the test fails. The same single builder serves training, evaluation and live prediction, so a feature cannot differ between them.
+""")
+
+ml_ui.talk_track(
+    "Features are a catalogue, not code scattered over scripts. Each one says what it reads, and the system derives from that whether a target "
+    "may use it at its forecast time. A single builder produces the features for training, evaluation and live use, and a test proves that "
+    "replacing unknowable data with noise changes nothing.",
+    "How do you know you have no data leakage?",
+    "Three independent protections: the information set is written per target and enforced by the as-of view, the feature builder reads only "
+    "through that view, and an automated perturbation test randomises everything that must not be known and checks that the forecast does not "
+    "move. I also tried to cheat on purpose, and the check caught it.")
+ml_ui.limits("The catalogue holds 77 features, of which 9 (load, wind, solar, gas, carbon, hydro, weather forecasts) are defined but not collected. "
+             "Stability selection is run on development data only and gives small sets; the champions use the baseline sets.")

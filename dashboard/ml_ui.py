@@ -1,0 +1,97 @@
+"""
+ml_ui.py — the shared components of the ML Lifecycle pages: header, "what to say" panel, limits strip, target picker, status badges
+and the interview-mode tour. Streamlit only; the data comes from ml_data.py.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Iterable, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import streamlit as st
+
+import ml_data
+import theme
+
+PAGES = [("ml_0_overview", "Overview"), ("ml_1_data", "Data and quality"), ("ml_2_market", "Market analysis"),
+         ("ml_3_formulation", "Problem formulation"), ("ml_4_features", "Features"), ("ml_5_evaluation", "Evaluation design"),
+         ("ml_6_tuning", "Tuning lab"), ("ml_7_arena", "Model arena"), ("ml_8_decision", "Decision and locked test"),
+         ("ml_9_run", "Run it: registry, monitoring, live")]
+
+STATE_COLOR = {"done": theme.STATUS_GOOD, "partial": theme.STATUS_WARNING, "not run": theme.STATUS_NEUTRAL}
+
+
+def cached(fn):
+    """Cache a data-layer function for the session (the files are committed and change only with a commit)."""
+    return st.cache_data(show_spinner=False)(fn)
+
+
+def interview_mode() -> bool:
+    return bool(st.session_state.get("ml_interview_mode", False))
+
+
+def sidebar_controls() -> None:
+    st.sidebar.toggle("Interview mode", key="ml_interview_mode",
+                      help="Shows the talk track of every page expanded and a tour bar to step through the ten pages.")
+
+
+def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
+    """Page title, one-sentence purpose and (optionally) its place in the lifecycle."""
+    theme.inject_css()
+    sidebar_controls()
+    st.title(title)
+    st.markdown(f'<div style="color:{theme.INK_SECONDARY}; font-size:1.02rem; margin-top:-0.4rem; margin-bottom:0.6rem;">{subtitle}</div>',
+                unsafe_allow_html=True)
+    if step is not None:
+        st.progress((step + 1) / len(PAGES), text=f"Step {step + 1} of {len(PAGES)}: {PAGES[step][1]}")
+
+
+def talk_track(say: str, question: str, answer: str) -> None:
+    """A collapsed panel with what to say and the likely follow-up question with its answer (expanded in interview mode)."""
+    with st.expander("What to say", expanded=interview_mode()):
+        st.markdown(say)
+        st.markdown(f"**Likely question:** {question}")
+        st.markdown(f"**Answer:** {answer}")
+
+
+def limits(text: str) -> None:
+    """What this page does not prove."""
+    st.markdown(f'<div style="border-left:4px solid {theme.STATUS_WARNING}; background:{theme.SURFACE}; padding:0.55rem 0.9rem; '
+                f'border-radius:6px; color:{theme.INK_SECONDARY}; font-size:0.92rem; margin:0.4rem 0 1rem 0;"><b>Limits.</b> {text}</div>',
+                unsafe_allow_html=True)
+
+
+def not_yet_run(what: str) -> None:
+    st.info(f"Not yet run: {what}. This page fills in as soon as the stage has produced its files.")
+
+
+def badge(text: str, state: str = "done") -> str:
+    c = STATE_COLOR.get(state, theme.STATUS_NEUTRAL)
+    return (f'<span style="background:{c}22; color:{c}; border:1px solid {c}55; border-radius:999px; padding:2px 10px; '
+            f'font-size:0.8rem; font-weight:600;">{text}</span>')
+
+
+def target_picker(key: str = "ml_target", targets: Iterable[str] = ml_data.TARGETS, default: str = "da_price") -> str:
+    """One selectbox whose choice is shared by all ML pages (session state)."""
+    opts = list(targets)
+    if key not in st.session_state or st.session_state[key] not in opts:
+        st.session_state[key] = default if default in opts else opts[0]
+    return st.selectbox("Target", opts, key=key, format_func=ml_data.label)
+
+
+def tour_bar(step: int) -> None:
+    """In interview mode: previous and next buttons through the ten pages."""
+    if not interview_mode():
+        return
+    c1, c2, c3 = st.columns([1, 6, 1])
+    for col, idx, text, icon in ((c1, step - 1, "Previous", "⬅️"), (c3, step + 1, "Next", "➡️")):
+        with col:
+            if 0 <= idx < len(PAGES):
+                try:
+                    st.page_link(f"pages/{PAGES[idx][0]}.py", label=text, icon=icon)
+                except Exception:                                    # not inside the navigation (a single page run on its own)
+                    st.caption(f"{text}: {PAGES[idx][1]}")
+    with c2:
+        st.caption("Interview mode: " + " > ".join(f"**{n}**" if i == step else n for i, (_, n) in enumerate(PAGES)))
