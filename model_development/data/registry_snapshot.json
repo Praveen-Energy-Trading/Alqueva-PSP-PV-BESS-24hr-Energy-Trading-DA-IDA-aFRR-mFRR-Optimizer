@@ -53,6 +53,15 @@
     "status": "active",
     "version": 1
    }
+  ],
+  "xbid_price": [
+   {
+    "promoted_utc": "2026-10-12T18:56:25.010956+00:00",
+    "retired_utc": null,
+    "source": "xbid_price.json",
+    "status": "active",
+    "version": 1
+   }
   ]
  },
  "events": [
@@ -162,6 +171,24 @@
    "event": "artifact_fitted",
    "id": 18,
    "target": "ida3_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 19,
+   "target": "xbid_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 20,
+   "target": "xbid_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 21,
+   "target": "xbid_price",
    "version": 1
   }
  ],

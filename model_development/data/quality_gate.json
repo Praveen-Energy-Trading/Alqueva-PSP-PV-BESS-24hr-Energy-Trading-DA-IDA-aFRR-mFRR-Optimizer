@@ -7,14 +7,20 @@
     "mfrr_price": "2026-10-11",
     "xbid_price": "2026-10-11"
   },
-  "passed": false,
-  "reasons": [
-    "ida_price session 1: 63/851 days missing (7.4% > 6.0%)",
-    "stale feed: imbalance_price: newest delivery day 2026-10-07 is 5 days old (allowed 2)"
+  "passed": true,
+  "reasons": [],
+  "repairs": [
+    "afrr_price: 1/2842 days missing (0.0%), filled by the data curation",
+    "ida_price session 1: 64/852 days missing (7.5%), filled by the data curation",
+    "ida_price session 2: 17/852 days missing (2.0%), filled by the data curation",
+    "ida_price session 3: 13/852 days missing (1.5%), filled by the data curation",
+    "imbalance_price: 7/2842 days missing (0.2%), filled by the data curation",
+    "mfrr_price: 1/685 days missing (0.1%), filled by the data curation",
+    "xbid_price: 2/852 days missing (0.2%), filled by the data curation"
   ],
-  "today": "2026-10-12",
+  "today": "2026-10-13",
   "window": [
     "2019-01-01",
-    "2026-10-11"
+    "2026-10-12"
   ]
 }

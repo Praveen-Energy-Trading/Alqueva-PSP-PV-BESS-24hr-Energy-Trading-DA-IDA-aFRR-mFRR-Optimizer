@@ -31,18 +31,36 @@ else:
     m["source"] = m["source"].map(ml_data.source_label)
     ml_ui.table(m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}), compact=True)
 
-st.subheader("The quality gate")
+st.subheader("Checking, cleaning and filling")
+st.markdown("After every download the data is checked day by day. Data errors are removed and every missing hour is filled by the rule of its series, "
+            "so the models always receive complete data. Every filled value is flagged, and nothing is filled before a series starts.")
 if gate is None:
-    ml_ui.not_yet_run("the quality gate")
+    ml_ui.not_yet_run("the quality check")
 else:
     passed = bool(gate.get("passed"))
     st.markdown(f"Latest decision: {ml_ui.badge('PASS' if passed else 'FAIL', 'done' if passed else 'not run')} "
                 f"&nbsp; window {gate['window'][0]} to {gate['window'][1]}", unsafe_allow_html=True)
     for r in gate.get("reasons", []):
         st.markdown(f"- {ml_data.plain_text(r)}")
-    st.caption("The gate stops a model run when the data is not good enough. It currently fails on purpose: IDA1 has more empty auctions than "
-               "its 6% limit allows, and one feed is older than allowed. Whether a day on which the source published an empty file should count as "
-               "missing is an open design question, and the right fix is a rule that tells confirmed-empty days from ingestion gaps.")
+    if gate.get("repairs"):
+        st.markdown("**Missing days repaired**")
+        for r in gate["repairs"]:
+            st.markdown(f"- {ml_data.plain_text(r).replace('filled by the data curation', 'filled')}")
+    st.caption("The check stops a run only when there is too little real data to repair from, a feed has been silent for too long, or a stored file "
+               "no longer matches its checksum. Missing days are repaired, not blocked.")
+cur = ml_ui.cached(lambda: ml_data.pack("curation_summary"))()
+if not cur.empty:
+    c = cur.copy()
+    c["series"] = c["series"].map(ml_data.series_label)
+    c["filled_share"] = (100 * c["filled_share"]).round(1)
+    st.markdown("**What was filled**")
+    ml_ui.table(c[["series", "hours", "errors_removed", "filled", "filled_share", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
+        "series": "Series", "hours": "Hours", "errors_removed": "Data errors removed", "filled": "Hours filled", "filled_share": "Filled (%)",
+        "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
+        "same_hour_earlier": "Same hour earlier"}), formats={"filled_share": "%.1f"})
+    st.caption("A gap of up to three hours is bridged by a straight line; a longer one repeats the same hour a week earlier (or yesterday). "
+               "Band prices are carried forward first. An intraday price that is missing, for example in an empty auction, becomes the day-ahead price "
+               "plus the typical spread of that hour. Genuine price spikes and negative prices are kept.")
 
 st.subheader("Quality score over time")
 if qd.empty:

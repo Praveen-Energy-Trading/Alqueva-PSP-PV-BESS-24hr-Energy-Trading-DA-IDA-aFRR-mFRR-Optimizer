@@ -1,5 +1,7 @@
 {
  "parts": {
+  "curation_gaps": 1728,
+  "curation_summary": 16,
   "daily_loss": 29659,
   "facts": 5,
   "feature_availability": 770,
@@ -7,7 +9,7 @@
   "locked_forecasts": 54741,
   "price_profile": 2016,
   "prices_daily": 2842,
-  "quality_daily": 12246,
+  "quality_daily": 12254,
   "raw_manifest_summary": 8,
   "registry_runs": 24,
   "trials": 5952,

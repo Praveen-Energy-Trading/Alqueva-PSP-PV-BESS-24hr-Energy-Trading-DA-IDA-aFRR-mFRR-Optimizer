@@ -113,6 +113,14 @@ def part_quality(out: str, log: List[str]) -> Dict[str, int]:
         d = json.load(open(gate, encoding="utf-8"))
         d.pop("generated_utc", None)                                  # keep the pack reproducible
         json.dump(d, open(os.path.join(out, "quality_gate.json"), "w", encoding="utf-8", newline="\n"), indent=2, sort_keys=True)
+    for name, target in (("curation_summary.csv", "curation_summary.csv"), ("curation_gaps.csv", "curation_gaps.csv.gz")):
+        src = os.path.join(base, "quality", name)
+        if os.path.exists(src):
+            df = pd.read_csv(src)
+            df.to_csv(os.path.join(out, target), index=False, float_format="%.4f")
+            res[target.split(".")[0]] = len(df)
+        else:
+            log.append(f"{name} not found (python tools/run_data_quality.py): skipped")
     ll = os.path.join(base, "load_log.jsonl")
     if os.path.exists(ll):
         df = load_status_monthly(_jsonl(ll))
