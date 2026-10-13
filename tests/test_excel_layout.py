@@ -46,6 +46,18 @@ def test_floats_get_two_decimals_but_other_formats_are_kept():
     assert ws["B2"].number_format == xl.FLOAT_FORMAT and ws["B3"].number_format == "0.000" and ws["A2"].number_format == "General"
 
 
+def test_cells_are_centred_and_long_text_stays_left():
+    wb, ws = table()
+    ws["C3"] = "A long description of more than forty characters that is not centred"
+    xl.fit_columns(ws, header_row=1)
+    assert ws["A2"].alignment.horizontal == "center" and ws["B2"].alignment.horizontal == "center" and ws["B1"].alignment.horizontal == "center"
+    assert ws["C3"].alignment.horizontal == "left" and ws["C3"].alignment.wrap_text
+    kv = Workbook().active
+    kv.append(["Label", 12.5])
+    xl.fit_key_value_sheet(kv)
+    assert kv["B1"].alignment.horizontal == "center" and kv["A1"].alignment.horizontal != "center"
+
+
 def test_shown_length_counts_what_is_displayed():
     assert xl.shown_length(1234567.891) == len("1,234,567.89") and xl.shown_length(0.2083333333333333) == 4
     assert xl.shown_length(True) == 4 and xl.shown_length(None) == 0 and xl.shown_length(dt.date(2026, 1, 1)) == 10
