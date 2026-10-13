@@ -88,12 +88,3 @@ else:
     for c in s.columns:
         fig.add_trace(go.Bar(x=s.index, y=s[c], name=c.replace("_", " "), marker_color=palette.get(c, theme.INK_MUTED)))
     st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="days", barmode="stack"), width="stretch")
-    st.caption("**empty publication**: the source published a file with no data (the auction cleared nothing). **not published**: no file at all "
-               "(HTTP 404). Empty IDA1 auctions have become more frequent since October 2025; those hours are filled as described above.")
-
-st.subheader("Time is part of the data")
-st.markdown("Delivery days are local days, so a day has **23 hours** when the clocks go forward and **25** when they go back; the day-ahead "
-            "market has 96 periods of 15 minutes (92 or 100 on those days) since 2025-10-01. The pipeline keeps UTC start times, "
-            "parses every day against the calendar and rejects a file whose number of periods does not match. Three of these days are saved "
-            "as real test files.")
-
