@@ -701,53 +701,6 @@ def all_gate_tickets(delivery_date: str) -> list[dict]:
 
 
 @st.cache_data(ttl=5)
-def load_capacity_vs_activation(delivery_date: str) -> dict | None:
-    """Two separate real payments per reserve product, shown side by side:
-    capacity revenue (paid for OFFERING the reserve, whether or not the TSO
-    ever calls it -- run_afrr.py/run_mfrr.py's `capacity_revenue_eur`,
-    literally offer_mw * cap_price_up/dn, logged on the *_SUBMITTED audit
-    event and already surfaced per-gate via all_gate_tickets' revenue_items)
-    vs activation/energy revenue (paid only for MW actually delivered when
-    called -- load_activation_summary's up/dn MW * price, computed from
-    ActivationStore). Both numbers are real, already-loaded-elsewhere data;
-    this is a presentation-only aggregation, not a new computation. FCR is
-    mandatory and non-remunerated (see render_fcr_dispatch_card's caption)
-    so it genuinely rows as 0/0, not a missing value.
-
-    None only if neither aFRR nor mFRR has reached a capacity decision yet
-    today -- consistent with every other loader's "nothing to show" gate."""
-    tickets_by_gate = {t["gate"]: t for t in all_gate_tickets(delivery_date)}
-    if "AFRR" not in tickets_by_gate and "MFRR" not in tickets_by_gate:
-        return None
-
-    def _capacity_eur(gate: str) -> float:
-        ticket = tickets_by_gate.get(gate)
-        if ticket is None:
-            return 0.0
-        return next((v for label, v in ticket["revenue_items"] if label == "Capacity revenue"), 0.0)
-
-    afrr_act = load_activation_summary(delivery_date, "aFRR")
-    mfrr_act = load_activation_summary(delivery_date, "mFRR")
-    rows = [
-        {"product": "FCR", "capacity_eur": 0.0, "activation_eur": 0.0},
-        {"product": "aFRR", "capacity_eur": _capacity_eur("AFRR"),
-         "activation_eur": afrr_act["revenue_eur"] if afrr_act else 0.0},
-        {"product": "mFRR", "capacity_eur": _capacity_eur("MFRR"),
-         "activation_eur": mfrr_act["revenue_eur"] if mfrr_act else 0.0},
-    ]
-    return {"rows": rows}
-
-
-# ---------------------------------------------------------------------------
-# Delivery cards - phases 4A (RT dispatch), 4B (aFRR activation), 4C (mFRR
-# activation). Not "decisions" like the gates above (no Submitted/Held
-# choice - delivery always happens once a committed position exists), so
-# they don't fit _DECISION_SUFFIX/_build_ticket's vocabulary. Read directly
-# from DeliveryStore/ActivationStore (the per-ISP tables Phase 5 writes)
-# plus each phase's own audit summary event.
-# ---------------------------------------------------------------------------
-
-@st.cache_data(ttl=5)
 def load_rt_delivery(delivery_date: str) -> dict | None:
     """Phase 5A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this

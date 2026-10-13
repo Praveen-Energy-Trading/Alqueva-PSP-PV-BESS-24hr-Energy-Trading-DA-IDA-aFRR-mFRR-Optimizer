@@ -111,6 +111,24 @@ def _render_section(title: str, cards: list, state_key: str) -> None:
     st.markdown("---")
 
 
+def _crosshair(fig, hours, mw, price, mw_label, price_label) -> None:
+    """A vertical line that follows the cursor through both panels (top and bottom graph), with one hover box for the hour.
+    A spike drawn by plotly stops at the end of its own panel, so the line comes from an invisible full-height overlay axis
+    (a transparent point per hour) that matches the x axis of the two panels. The overlay is the hovered trace, so one transparent
+    trace per panel carries that panel's value for the hour into the shared hover box."""
+    for label, values, fmt in ((mw_label, mw, ",.0f"), (price_label, price, ",.1f")):
+        fig.add_trace(go.Scatter(x=list(hours), y=[0] * len(hours), mode="markers", marker=dict(opacity=0), opacity=0, xaxis="x3", yaxis="y3",
+                                 name=label, customdata=list(values), showlegend=False,
+                                 hovertemplate="%{customdata:" + fmt + "}"))
+    fig.update_layout(
+        hovermode="x unified",
+        plot_bgcolor="rgba(0,0,0,0)",       # the overlay panel must not paint over the two real panels; the paper has the same colour
+        xaxis3=dict(overlaying="x", matches="x", hoverformat=".2f", showgrid=False, zeroline=False, showline=False, showticklabels=False, ticks="",
+                    showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED),
+        yaxis3=dict(domain=[0, 1], anchor="x3", range=[-1, 1], showgrid=False, zeroline=False, showline=False, showticklabels=False, ticks=""),
+    )
+
+
 @st.fragment
 def _render_gate_positions(gate_pos: dict) -> None:
     """Gate Position Evolution -- its own fragment for the same reason as
@@ -126,14 +144,20 @@ def _render_gate_positions(gate_pos: dict) -> None:
         )
     else:
         selected_gate = st.session_state[gate_key]
+    # gate_pos["hours"] repeats each hour for its four 15-minute periods; bars at the same x would stack to four times the real MW,
+    # so every period gets its own position along the day (hour 1 = first period of the day)
+    n_isp = len(gate_pos["hours"])
+    xs = [1 + i * 24 / n_isp for i in range(n_isp)]
+    bar_w = 24 / n_isp
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
                          row_heights=[0.6, 0.4])
     if selected_gate == "DA":
-        fig.add_trace(go.Bar(x=gate_pos["hours"], y=gate_pos["gates_mw"]["DA"],
-                              name="Net MW", marker_color=theme.COLOR_GEN), row=1, col=1)
-        fig.add_trace(go.Scatter(x=gate_pos["hours"], y=gate_pos["gates_price"]["DA"],
+        fig.add_trace(go.Bar(x=xs, y=gate_pos["gates_mw"]["DA"],
+                              name="Net MW", marker_color=theme.COLOR_GEN, width=bar_w), row=1, col=1)
+        fig.add_trace(go.Scatter(x=xs, y=gate_pos["gates_price"]["DA"],
                                   name="Price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
         theme.style_fig(fig, height=460)
+        _crosshair(fig, xs, gate_pos["gates_mw"]["DA"], gate_pos["gates_price"]["DA"], "Net MW", "Price EUR/MWh")
         fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
         fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
         fig.update_xaxes(title_text="Hour", row=2, col=1)
@@ -154,13 +178,14 @@ def _render_gate_positions(gate_pos: dict) -> None:
         else:
             mw_d = gate_pos["gates_mw_delta"][selected_gate]
             price_d = gate_pos["gates_price_delta"][selected_gate]
-            fig.add_trace(go.Bar(x=gate_pos["hours"], y=mw_d,
-                                  name="MW vs DA", marker_color=theme.COLOR_GEN), row=1, col=1)
-            fig.add_trace(go.Scatter(x=gate_pos["hours"], y=price_d, mode="lines",
+            fig.add_trace(go.Bar(x=xs, y=mw_d,
+                                  name="MW vs DA", marker_color=theme.COLOR_GEN, width=bar_w), row=1, col=1)
+            fig.add_trace(go.Scatter(x=xs, y=price_d, mode="lines",
                                       name="Price vs DA (EUR/MWh)", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
             fig.add_hline(y=0, line_color=theme.GRIDLINE, row=1, col=1)
             fig.add_hline(y=0, line_color=theme.GRIDLINE, row=2, col=1)
             theme.style_fig(fig, height=460)
+            _crosshair(fig, xs, mw_d, price_d, "MW vs DA", "Price vs DA (EUR/MWh)")
             fig.update_yaxes(title_text="MW vs DA", gridcolor=theme.GRIDLINE, row=1, col=1)
             fig.update_yaxes(title_text="EUR/MWh vs DA", gridcolor=theme.GRIDLINE, row=2, col=1)
             fig.update_xaxes(title_text="Hour", row=2, col=1)
@@ -278,9 +303,7 @@ def _render() -> None:
     # from a pipeline run's audit trail - see data.py::load_fcr_activation.
     # ---------------------------------------------------------------------------
 
-    rt = data.load_rt_delivery(selected_date)
     imbalance = data.load_imbalance_settlement(selected_date)
-    capacity_vs_activation = data.load_capacity_vs_activation(selected_date)
     afrr_act = data.load_activation_summary(selected_date, "aFRR")
     mfrr_act = data.load_activation_summary(selected_date, "mFRR")
     fcr_act = data.load_fcr_activation(selected_date)
@@ -306,13 +329,11 @@ def _render() -> None:
         ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
         ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
         ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
-        ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
-        ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,
+        ("DA vs activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
         ("Imbalance settlement", lambda: components.html(delivery_ticket.render_imbalance_settlement_card(imbalance), height=560)) if imbalance else None,
         ("aFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(afrr_dispatch, afrr_act), height=650)) if afrr_dispatch else None,
         ("mFRR dispatch", lambda: components.html(dispatch_ticket.render_afrr_dispatch_card(mfrr_dispatch, mfrr_act), height=650)) if mfrr_dispatch else None,
         ("FCR dispatch", lambda: components.html(dispatch_ticket.render_fcr_dispatch_card(fcr_act), height=460)) if fcr_act else None,
-        ("Capacity vs activation", lambda: components.html(delivery_ticket.render_capacity_vs_activation_card(capacity_vs_activation), height=340)) if capacity_vs_activation else None,
     ]
     technical_cards = [c for c in technical_cards if c is not None]
 
