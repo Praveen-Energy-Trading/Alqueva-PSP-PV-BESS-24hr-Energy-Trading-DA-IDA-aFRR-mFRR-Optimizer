@@ -128,6 +128,7 @@ if live:
 - **Original forecaster:** the model the pipeline used before; **champion, original as fallback:** the champion if it is registered and verified, otherwise the original with a warning; **champion only:** the champion, or an error.
 - The champion is loaded only if the file matches its registered checksum, belongs to the active version and the feature definitions have not changed.
 - A target is switched by editing one setting, after the champion has been scored against the legacy forecaster on the same days.
+- Live forecasts, fits and monitoring read the cleaned and completed data (see Data and quality), so a gap in a feed does not stop a forecast.
 - aFRR is switched one side at a time: the up and the down price are separate targets, and a side without a champion keeps the original forecaster. mFRR cannot be switched: the original mFRR forecast is the capacity price, while the framework's target is the activation price.
 """)
 

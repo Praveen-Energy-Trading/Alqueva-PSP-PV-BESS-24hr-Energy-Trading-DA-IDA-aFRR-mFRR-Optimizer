@@ -23,11 +23,11 @@ What to say on each page, the likely follow-up question with its answer, and the
 
 ## ml_1_data: Data and quality
 
-**What to say.** I treat data work as the first model risk. The raw zone is immutable and checksummed, the clean zone is rebuilt from it, a daily quality score is computed per dataset and a gate can stop a run. I also handle time properly: 23 and 25 hour days, a change of resolution in the market in October 2025, and sources that publish late.
+**What to say.** I treat data work as the first model risk. The raw zone is immutable and checksummed, the clean zone is rebuilt from it, a daily quality score is computed per dataset, and then a curation step removes data errors and fills every missing hour by the rule of its series, flagging each filled value. I also handle time properly: 23 and 25 hour days, a change of resolution in the market in October 2025, and sources that publish late.
 
-**Likely question.** Your gate is failing: is the data bad?
+**Likely question.** Missing data is filled: how do you know the fill is not hiding a problem?
 
-**Answer.** No. The gate failing is the system working: IDA1 has 62 days without data out of 850, above the 6% limit. Most are days on which the source published an empty file, so the auction cleared nothing. I found that the empty days have become more frequent, and the rule that separates confirmed-empty days from ingestion gaps is a design question I list as open.
+**Answer.** Every filled value is flagged and counted per series, so the share is visible: for example about 7.5% of the IDA1 hours, mostly empty auctions, which I fill with the day-ahead price plus the typical spread of that hour. Real spikes and negative prices are kept; I only remove values that are outside their legal range, days that repeat or stay flat, and unit-size jumps. The model evaluation and the locked test score the published values only, so the filling cannot flatter the results; it keeps the live pipeline running when a feed has a gap.
 
 **Limits.** Quality is measured on what the sources publish; it cannot tell whether a published value is correct. The pack holds a snapshot of the quality database, not live data.
 

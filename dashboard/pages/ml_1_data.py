@@ -14,8 +14,8 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Data and quality", "Every model starts from data that is downloaded, kept untouched, checked every day and allowed "
-             "through a quality gate. Nothing is modelled until the data is trusted.", step=1)
+ml_ui.header("Data and quality", "Every model starts from data that is downloaded and stored untouched, checked every day, "
+             "cleaned and completed. Every value that was filled is flagged.", step=1)
 ml_ui.tour_bar(1)
 
 manifest = ml_ui.cached(lambda: ml_data.pack("raw_manifest_summary"))()
@@ -74,6 +74,7 @@ else:
         fig.add_trace(go.Scatter(x=x.index, y=x.rolling(14, min_periods=3).mean(), mode="lines", name=ml_data.dataset_label(d),
                                  line=dict(color=theme.CATEGORICAL[i % len(theme.CATEGORICAL)], width=1.6)))
     st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="score (14-day mean)"), width="stretch")
+    st.caption("The score describes the data as the sources published it, before cleaning and filling: a day with no data scores 0.")
 
 st.subheader("Missing and empty days")
 if status.empty:
@@ -88,7 +89,7 @@ else:
         fig.add_trace(go.Bar(x=s.index, y=s[c], name=c.replace("_", " "), marker_color=palette.get(c, theme.INK_MUTED)))
     st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="days", barmode="stack"), width="stretch")
     st.caption("**empty publication**: the source published a file with no data (the auction cleared nothing). **not published**: no file at all "
-               "(HTTP 404). Empty IDA1 auctions have become more frequent since October 2025, which is why the IDA1 gate threshold trips.")
+               "(HTTP 404). Empty IDA1 auctions have become more frequent since October 2025; those hours are filled as described above.")
 
 st.subheader("Time is part of the data")
 st.markdown("Delivery days are local days, so a day has **23 hours** when the clocks go forward and **25** when they go back; the day-ahead "

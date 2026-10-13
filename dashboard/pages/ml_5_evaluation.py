@@ -109,5 +109,6 @@ st.markdown("""
 - A final run must cover **exactly** the locked window and each algorithm may be scored on it **once**; every access is logged.
 - The outcomes of the locked year are **frozen** by digest, so a changed outcome stops the test.
 - Everything else (tuning, comparing, choosing the champion) uses the development window only.
+- The evaluation scores the values the markets published. The filled values of the data-cleaning step are used by the live pipeline, not for scoring.
 """)
 
