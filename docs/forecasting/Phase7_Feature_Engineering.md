@@ -12,14 +12,14 @@ Every feature a model may use is defined once, in a catalogue, and built by **on
 evaluation and live prediction, so a feature cannot differ between training and serving (findings F1 and F1b of the
 Phase 0 audit). What a feature reads is derived from its definition, and whether it is **available** for a target is
 computed against that target's information set and the publication times of Phase 5: no feature can use data its gate would
-not have, and a feature that read too far would be caught by the point-in-time check. The catalogue holds 77 features
-(51–65 available per price target); the fundamentals (load, wind, solar, residual load, gas, carbon, hydro, weather
+not have, and a feature that read too far would be caught by the point-in-time check. The catalogue holds 67 features
+(25–55 available per target); the fundamentals (load, wind, solar, residual load, gas, carbon, hydro, weather
 forecasts) are defined but blocked until their data is collected. A stability check across periods keeps only 2–6 features per
-target; on the day-ahead price the full set is modestly better than the small one, mostly on large errors.
+target; on the day-ahead price the full set is modestly better than the small one for LightGBM, mostly on large errors.
 
 ## 2. Calendar and market rules (`calendar.py`)
 
-Hour (with sine and cosine), weekday, month, annual cycle, weekend, **national holidays of Portugal and Spain** (Easter-based
+Hour (with sine and cosine), weekday, month, annual cycle, weekend, **national holidays of Portugal** (Easter-based
 ones included; the Portuguese holidays suspended in 2013–2015 are handled), **bridge days** (a Monday before a Tuesday holiday,
 a Friday after a Thursday holiday), days to the next and since the last Portuguese holiday, **daylight-saving day type**
 (−1 for the 23-hour day, +1 for the 25-hour day), and the market rules in force that day (day-ahead product length, price
@@ -29,10 +29,10 @@ floor). Regional and local holidays are not included.
 
 | Group | Features | What |
 |---|---|---|
-| Calendar and market rule | 17 | as above |
+| Calendar and market rule | 15 | as above |
 | Lags and rolling statistics | 22 | the modelled quantity 1, 2, 7, 14 days earlier; 7- and 28-day means, standard deviation, minimum, maximum by hour and over all hours; yesterday's mean, maximum, minimum; the same windows ending 2 or 3 days back for targets published later |
 | Base price (spread targets) | 9 | the day-ahead price of the hour and of the day (mean, maximum, minimum, rank, midday-minus-evening shape), yesterday's, and the change |
-| Day-ahead market results | 10 | matched volume, Spain–Portugal flows and the Spain-minus-Portugal price (market splitting), for day D (intraday gates) and yesterday |
+| Day-ahead market results | 2 | the Portuguese matched purchase and sale volumes of day D (for the intraday gates) |
 | Other markets | 10 | earlier auctions of the same day, spreads of earlier days, aFRR, imbalance and mFRR lags |
 | Fundamentals (blocked) | 9 | load, wind, solar, residual load, gas, carbon, hydro, weather forecasts: `not_collected`, each tied to its Phase 1 source |
 
@@ -71,13 +71,13 @@ their own development history. No period reaches the locked test period (the too
 
 | Target | Candidates | Kept | Rank correlation between periods | Selected features |
 |---|---|---|---|---|
-| Day-ahead price | 51 | 6 | 0.44 | hour (cosine), weekday, same hour yesterday, same hour last week, 7-day same-hour mean, yesterday's maximum |
-| IDA1 | 63 | 4 | 0.19 | day-ahead price and its deviation from the day mean, the day-ahead Spain-minus-Portugal price, 3-day-old daily mean |
-| IDA2 | 64 | 3 | 0.21 | day-ahead price and deviation, **IDA1 spread of the same day** |
-| IDA3 | 65 | 2 | 0.32 | **IDA1 and IDA2 spreads of the same day** |
-| Continuous market | 51 | 5 | 0.27 | hour, 2-day-old daily mean, day-ahead deviation and change, **IDA1 spread of the same day** |
-| aFRR price | 53 | 6 | 0.38 | weekday, same hour yesterday, 28-day same-hour mean, yesterday's mean, aFRR lag, day-ahead flow |
-| mFRR price | 35 | 4 | 0.28 | hour (sine), weekday, matched volume of day D and yesterday |
+| Day-ahead price | 45 | 5 | 0.41 | hour, weekday, same hour yesterday, same hour last week, yesterday's maximum |
+| IDA1 | 53 | 9 | 0.32 | hour, same hour last week, yesterday's minimum, the day-ahead price and its deviation from the day mean, the day's maximum and minimum of the day-ahead price, its change since yesterday, the Portuguese sales volume of day D |
+| IDA2 | 54 | 2 | 0.22 | day-ahead price, **IDA1 spread of the same day** |
+| IDA3 | 55 | 2 | 0.27 | **IDA1 and IDA2 spreads of the same day** |
+| Continuous market | 41 | 6 | 0.21 | hour, weekday, 2-day-old daily mean, day-ahead deviation and change, **IDA1 spread of the same day** |
+| aFRR price | 43 | 6 | 0.29 | weekday, same hour yesterday, 28-day same-hour mean, the Portuguese purchase and sale volumes of day D, aFRR lag |
+| mFRR price | 25 | 3 | 0.34 | hour (sine and cosine), same hour two weeks earlier |
 
 Readings: the later auctions are explained by **the earlier auctions of the same day** (IDA2 by IDA1, IDA3 by IDA1 and IDA2,
 the continuous market by IDA1), the information that finding F3 said the old forecasters left unused. The day-ahead price is
@@ -89,20 +89,21 @@ and 16 EUR/MWh for 2021–2025) shows again how much harder a rising market is f
 
 ## 7. Does a bigger feature set help? (day-ahead price, development window, untuned)
 
-2023-01-01 to 2025-10-11, 1,015 days, 24,359 hours; the `baseline_v1` set has 9 features for this target, `full_v1` 51.
+2023-01-01 to 2025-10-11, 1,015 days, 24,359 hours; the `baseline_v1` set has 9 features for this target, `full_v1` 45 (the Spanish features were
+removed from the catalogue on 2026-10-13, and this comparison was re-run without them).
 
 | Model | Feature set | SSE | MAE | RMSE |
 |---|---|---|---|---|
 | LightGBM | baseline_v1 | 15.47 M | 18.29 | 25.20 |
-| LightGBM | full_v1 | 14.46 M | 18.02 | 24.36 |
+| LightGBM | full_v1 | 14.25 M | 17.79 | 24.19 |
 | XGBoost | baseline_v1 | 15.32 M | 18.24 | 25.08 |
-| XGBoost | full_v1 | 14.58 M | 18.01 | 24.46 |
+| XGBoost | full_v1 | 14.88 M | 18.20 | 24.72 |
 
-Diebold–Mariano, baseline against full: on **absolute** error p = 0.36 (LightGBM) and 0.42 (XGBoost), not significant; on
-**squared** error p = 0.013 and 0.084. The extra features reduce the large errors (RMSE −3.3% and −2.5%), not the typical
-day's error (MAE −1.5% and −1.3%). Even `baseline_v1` improves on the first feature set of Phase 6 (LightGBM MAE 18.3
-against 19.5). The stability-selected set `selected_v1` is deliberately **not** scored on this window: it was chosen with data that
-includes these days, so scoring it here would be circular. It is judged once, on the locked period, with the others.
+Diebold–Mariano, baseline against full: on **absolute** error p = 0.079 (LightGBM) and 0.89 (XGBoost), not significant at 5%; on
+**squared** error p = 0.003 and 0.30. For LightGBM the extra features reduce the large errors (RMSE −4.0%) and a little the typical
+day's error (MAE −2.8%); for XGBoost the difference is not distinguishable from luck (RMSE −1.4%, MAE −0.2%). Even `baseline_v1` improves on the
+first feature set of Phase 6 (LightGBM MAE 18.3 against 19.5). The stability-selected set `selected_v1` is deliberately **not** scored on this
+window: it was chosen with data that includes these days, so scoring it here would be circular. It is judged once, on the locked period, with the others.
 
 ## 8. Limits
 

@@ -113,7 +113,6 @@ def update_training_data(delivery_date: str, zone: str = "PT") -> None:
                 "Date"                 : dt,
                 "Hour"                 : h,
                 "price_DA_PT_EUR_MWh"  : prices.get(h),
-                "price_DA_ES_EUR_MWh"  : None,
                 "source"               : source,
             })
 
@@ -204,7 +203,6 @@ def _fill_synthetic_gap(delivery_date: str, zone: str = "PT") -> None:
                 "Date"                : dt,
                 "Hour"                : h,
                 "price_DA_PT_EUR_MWh" : prices.get(h),
-                "price_DA_ES_EUR_MWh" : None,
                 "source"              : "SYNTHETIC",
             })
 
@@ -367,7 +365,7 @@ def _load_excel() -> pd.DataFrame:
     df = pd.read_excel(_EXCEL_PATH, sheet_name=_SHEET)
     df.columns    = [c.strip() for c in df.columns]
     df["Date"]    = pd.to_datetime(df["Date"])
-    return df
+    return df.drop(columns=["price_DA_ES_EUR_MWh"], errors="ignore")      # only Portugal is kept; the next save drops the old column
 
 
 def _save_excel(df: pd.DataFrame) -> None:

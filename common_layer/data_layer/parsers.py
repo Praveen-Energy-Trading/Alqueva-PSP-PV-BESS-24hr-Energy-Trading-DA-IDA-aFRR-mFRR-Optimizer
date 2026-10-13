@@ -38,7 +38,7 @@ class EmptyPublication(ParseError):
 
 # ------------------------------------------------------------------ helpers
 def _num_comma(s: str) -> float:
-    """Spanish number format: '1.234,56' -> 1234.56; '' -> NaN."""
+    """OMIE decimal-comma number format: '1.234,56' -> 1234.56; '' -> NaN."""
     s = s.strip()
     if not s:
         return NAN
@@ -79,22 +79,15 @@ def _resolution_for(day: dt.date, max_period: int) -> int:
 
 
 # ------------------------------------------------------------- OMIE day-ahead
-_DA_COLUMNS = {
-    ("precio marginal", "espa"): "price_es_eur_mwh",
+_DA_COLUMNS = {                                   # only the Portuguese rows of the file are read
     ("precio marginal", "portug"): "price_pt_eur_mwh",
-    ("compra", "espa"): "buy_es_mw",
-    ("venta", "espa"): "sell_es_mw",
     ("compra", "portug"): "buy_pt_mw",
     ("venta", "portug"): "sell_pt_mw",
-    ("total del mercado", "ib"): "total_iberian_mw",
-    ("bilaterales", ""): "total_with_bilaterals_mw",
-    ("importaci", ""): "flow_pt_to_es_mw",
-    ("exportaci", ""): "flow_es_to_pt_mw",
 }
 
 
 def parse_omie_da(raw: bytes, day: dt.date) -> pd.DataFrame:
-    """OMIE day-ahead file (INT_PBC_EV_H_1): prices, volumes and Spain-Portugal flows per period.
+    """OMIE day-ahead file (INT_PBC_EV_H_1): the Portuguese price and volumes per period.
 
     Volumes are MW (hourly files give MWh per hour, which is the same number)."""
     text = _decode(raw)
@@ -118,16 +111,10 @@ def parse_omie_da(raw: bytes, day: dt.date) -> pd.DataFrame:
             if k1 in name and k2 in name and col not in series:
                 series[col] = [_num_comma(v) for v in vals]
                 break
-    if "price_es_eur_mwh" not in series and "price_pt_eur_mwh" not in series:
-        raise ParseError("no price row found")
+    if "price_pt_eur_mwh" not in series:
+        raise ParseError("no Portuguese price row found")
 
     flags = ""
-    if "price_pt_eur_mwh" not in series:
-        series["price_pt_eur_mwh"] = list(series["price_es_eur_mwh"])
-        flags = "pt_row_missing_copied_from_es"
-    if "price_es_eur_mwh" not in series:
-        series["price_es_eur_mwh"] = list(series["price_pt_eur_mwh"])
-        flags = "es_row_missing_copied_from_pt"
     n = len(series["price_pt_eur_mwh"])
     res = cal.detect_resolution_min(day, n)
     if res is None:
@@ -143,7 +130,7 @@ def parse_omie_da(raw: bytes, day: dt.date) -> pd.DataFrame:
 
 # ------------------------------------------------------------- OMIE intraday
 def parse_omie_ida(raw: bytes, day: dt.date, session: int) -> pd.DataFrame:
-    """OMIE intraday auction file (marginalpibcpt): 'year;month;day;period;price_ES;price_PT;'."""
+    """OMIE intraday auction file (marginalpibcpt): 'year;month;day;period;price_ES;price_PT;'. Only the Portuguese price is read."""
     rows: Dict[int, tuple] = {}
     for ln in _decode(raw).splitlines():
         p = [x.strip() for x in ln.split(";")]
@@ -151,7 +138,7 @@ def parse_omie_ida(raw: bytes, day: dt.date, session: int) -> pd.DataFrame:
             continue
         if dt.date(int(p[0]), int(p[1]), int(p[2])) != day:
             raise ParseError(f"line for {p[0]}-{p[1]}-{p[2]} in a file for {day}")
-        rows[int(p[3])] = (_num_dot(p[4]), _num_dot(p[5]))
+        rows[int(p[3])] = _num_dot(p[5])
     if not rows:
         if _decode(raw).strip().upper().startswith("MARGINALPIBCPT") and len(raw) < 200:
             raise EmptyPublication("intraday file has a header and no price lines")
@@ -160,8 +147,7 @@ def parse_omie_ida(raw: bytes, day: dt.date, session: int) -> pd.DataFrame:
     idx = sorted(rows)
     df = _frame(day, len(idx), res, idx)
     df["session"] = session
-    df["price_es_eur_mwh"] = [rows[i][0] for i in idx]
-    df["price_pt_eur_mwh"] = [rows[i][1] for i in idx]
+    df["price_pt_eur_mwh"] = [rows[i] for i in idx]
     return df
 
 
@@ -206,14 +192,12 @@ def parse_omie_xbid(raw: bytes, day: dt.date) -> pd.DataFrame:
     c_max_pt = col(["máximopt", "maximopt", "m\xe1ximopt"])
     c_min_pt = col(["mínimopt", "minimopt", "m\xednimopt"])
     c_mean_pt = col(["mediopt"])
-    c_mean_es = col(["medioes"])
     mx, mn, me = get(c_max_pt), get(c_min_pt), get(c_mean_pt)
     traded = [0 if (a == 0 and b == 0 and c == 0) or math.isnan(c) else 1 for a, b, c in zip(mx, mn, me)]
     df["pt_traded"] = traded
     df["price_pt_max_eur_mwh"] = [v if t else NAN for v, t in zip(mx, traded)]
     df["price_pt_min_eur_mwh"] = [v if t else NAN for v, t in zip(mn, traded)]
     df["price_pt_mean_eur_mwh"] = [v if t else NAN for v, t in zip(me, traded)]
-    df["price_es_mean_eur_mwh"] = get(c_mean_es)
     df["issued_utc"] = issued or ""
     return df
 

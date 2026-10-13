@@ -67,7 +67,8 @@ def test_da_parser_true_periods_on_dst_days():
     assert (len(autumn), set(autumn.resolution_min)) == (100, {15})
     assert (len(spring26), set(spring26.resolution_min)) == (92, {15})
     assert autumn.start_utc.is_unique and autumn.start_utc.is_monotonic_increasing
-    assert spring.price_pt_eur_mwh.notna().all() and autumn.flow_es_to_pt_mw.notna().all()
+    assert spring.price_pt_eur_mwh.notna().all() and autumn.price_pt_eur_mwh.notna().all()
+    assert not [c for c in autumn.columns if c.endswith("_es_mw") or "_es_" in c or "iberian" in c or "flow_" in c]          # only Portugal is read
 
 
 def test_da_parser_rejects_wrong_day_and_garbage():

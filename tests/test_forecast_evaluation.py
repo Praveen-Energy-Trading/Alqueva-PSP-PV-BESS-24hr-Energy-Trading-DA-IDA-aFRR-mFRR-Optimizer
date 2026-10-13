@@ -42,7 +42,6 @@ def synthetic_panel(days: int = 300, seed: int = 1) -> pd.DataFrame:
     base = 60 + 25 * np.sin(2 * np.pi * hour / 24) - 10 * (dow >= 5) + r.normal(0, 3, len(idx))
     panel = pd.DataFrame(index=idx)
     panel["da_pt"] = base
-    panel["da_es"] = base
     panel["ida1_pt"] = base + r.normal(0, 4, len(idx))
     panel["ida2_pt"] = base + r.normal(0, 4, len(idx))
     panel["ida3_pt"] = base + r.normal(0, 4, len(idx))
@@ -112,7 +111,6 @@ def test_asof_view_masks_everything_the_information_set_does_not_allow():
     assert today["da_pt"].isna().all() and yesterday["da_pt"].notna().all()          # da_result: up to D-1
     assert v[v["local_date"] == D.toordinal() - 2]["xbid_pt"].notna().all() and yesterday["xbid_pt"].isna().all()   # xbid_summary: up to D-2
     assert v["imb_short"][v["local_date"] > D.toordinal() - 6].isna().all()          # imbalance: up to D-6 (published about four days late)
-    assert v["da_es"].notna().any()                                                   # same information item as da_pt
     ida = AsOfView(panel, FORM, "ida1_price")
     day = ida.at(D)[ida.at(D)["local_date"] == D.toordinal()]
     assert day["da_pt"].notna().all() and day["ida1_pt"].isna().all()               # day-ahead of D known at IDA1, IDA1 itself not

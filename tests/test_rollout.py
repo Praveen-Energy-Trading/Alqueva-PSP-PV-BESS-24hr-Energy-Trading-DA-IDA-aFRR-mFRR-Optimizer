@@ -54,7 +54,7 @@ def test_each_feature_set_is_available_for_its_own_target():
     import pandas as pd
     cat, sets = load_feature_catalogue(), load_feature_sets()
     panel = pd.DataFrame(index=pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC"),
-                         columns=["da_pt", "da_es", "ida1_pt", "ida2_pt", "ida3_pt", "xbid_pt", "afrr_up", "afrr_dn", "mfrr_ap", "imb_short", "imb_long"],
+                         columns=["da_pt", "ida1_pt", "ida2_pt", "ida3_pt", "xbid_pt", "afrr_up", "afrr_dn", "mfrr_ap", "imb_short", "imb_long"],
                          dtype=float)
     for t, v in R["targets"].items():
         i = AsOfView(panel, FORM, t).interface()

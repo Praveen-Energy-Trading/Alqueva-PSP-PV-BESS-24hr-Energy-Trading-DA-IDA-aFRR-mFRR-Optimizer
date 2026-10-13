@@ -135,7 +135,7 @@ reservoir:
     12: 550213.7
 
 # -----------------------------------------------------------------------------
-# FCR — MANDATORY, NON-REMUNERATED in Portugal/Spain.
+# FCR — MANDATORY, NON-REMUNERATED in Portugal.
 # Modelled ONLY as reserved headroom constraint, NEVER as a tradable market gate.
 # https://www.ren.pt (Manual de Procedimentos do Gestor do Sistema)
 #

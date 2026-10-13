@@ -22,7 +22,7 @@ sources:
   - id: omie_da
     status: in_use
     provider: "OMIE (MIBEL market operator)"
-    content: "Day-ahead clearing prices, Portugal and Spain (hourly; 15-minute from 2025-10-01)"
+    content: "Day-ahead clearing prices and volumes, Portugal (hourly; 15-minute from 2025-10-01)"
     access: {method: "file download", url: "https://www.omie.es/sites/default/files/dados/AGNO_<YYYY>/MES_<MM>/TXT/ (marginalpdbc files)", auth: none}
     resolution: ["hourly to 2025-09-30", "15-minute from 2025-10-01"]
     publication: "result for day D published D-1 ~12:45 (SDAC coupling); confirm empirically from load logs"
@@ -143,10 +143,10 @@ sources:
   - id: entsoe_transparency
     status: candidate
     provider: "ENTSO-E Transparency Platform"
-    content: "Load forecast and actual, wind and solar generation forecasts and actuals, generation by type, cross-border flows, day-ahead prices (Portugal and Spain bidding zones)"
+    content: "Load forecast and actual, wind and solar generation forecasts and actuals, generation by type, day-ahead prices (Portugal bidding zone)"
     access: {method: "RESTful API (XML)", url: "https://web-api.tp.entsoe.eu/api", auth: "free security token: register, then email transparency@entsoe.eu to enable API access"}
     resolution: ["hourly or 15-minute depending on the item"]
-    publication: "day-ahead forecasts are published before the day-ahead gate; exact times per item to be confirmed for the PT/ES zones"
+    publication: "day-ahead forecasts are published before the day-ahead gate; exact times per item to be confirmed for the Portuguese zone"
     history: {start: "2015 onward for most items", end: "live"}
     live_feed: true
     loader: none
@@ -158,26 +158,6 @@ sources:
     used_by: [da_price, ida1_price, ida2_price, ida3_price, xbid_price, pv_weather]
     owner: "project owner (Praveen)"
     quality_note: "Portuguese items sometimes have gaps; coverage per item to be audited in Phase 2"
-    findings: [D4]
-
-  - id: ree_esios
-    status: candidate
-    provider: "REE (Red Electrica), ESIOS"
-    content: "Spanish demand forecast, wind and solar forecasts, generation, prices (the Iberian system is coupled, so Spanish fundamentals drive Portuguese prices)"
-    access: {method: "REST API (JSON)", url: "https://api.esios.ree.es", auth: "personal token, requested by email to REE (consultasios@ree.es)"}
-    resolution: ["hourly or 15-minute"]
-    publication: "demand and wind forecasts are published for the following days; exact times to be confirmed"
-    history: {start: "varies by indicator", end: "live"}
-    live_feed: true
-    loader: none
-    stored_in: []
-    licence: {status: unverified, note: "terms to be read on the ESIOS site when the token is requested"}
-    cost: free
-    rate_limits: "unknown"
-    vintage: partial
-    used_by: [da_price, ida1_price]
-    owner: "project owner (Praveen)"
-    quality_note: "indicator identifiers differ between community guides: take them from the ESIOS indicator catalogue"
     findings: [D4]
 
   - id: ren_datahub

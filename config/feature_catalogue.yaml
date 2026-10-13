@@ -34,9 +34,7 @@ features:
   - {id: cal_doy_sin,           group: calendar, kind: calendar_day, params: {field: doy_sin},  version: 1, description: "annual cycle, sine"}
   - {id: cal_doy_cos,           group: calendar, kind: calendar_day, params: {field: doy_cos},  version: 1, description: "annual cycle, cosine"}
   - {id: cal_is_holiday_pt,     group: calendar, kind: calendar_day, params: {field: is_holiday_pt}, version: 1, description: "national holiday in Portugal"}
-  - {id: cal_is_holiday_es,     group: calendar, kind: calendar_day, params: {field: is_holiday_es}, version: 1, description: "national holiday in Spain"}
   - {id: cal_is_bridge_pt,      group: calendar, kind: calendar_day, params: {field: is_bridge_pt}, version: 1, description: "bridge day (Monday before a Tuesday holiday, Friday after a Thursday holiday), Portugal"}
-  - {id: cal_is_bridge_es,      group: calendar, kind: calendar_day, params: {field: is_bridge_es}, version: 1, description: "bridge day, Spain"}
   - {id: cal_days_to_holiday_pt,    group: calendar, kind: calendar_day, params: {field: days_to_holiday_pt}, version: 1, description: "days to the next Portuguese holiday (capped at 30)"}
   - {id: cal_days_since_holiday_pt, group: calendar, kind: calendar_day, params: {field: days_since_holiday_pt}, version: 1, description: "days since the last Portuguese holiday (capped at 30)"}
   - {id: cal_dst_day_type,      group: calendar, kind: calendar_day, params: {field: dst_day_type}, version: 1, description: "-1 spring day (23 h), 0 normal, +1 autumn day (25 h)"}
@@ -80,16 +78,8 @@ features:
   - {id: base_change_1d, group: base, kind: base_change, params: {lag_days: 1},  version: 1, description: "day-ahead price minus the same hour yesterday"}
 
   # ------------------------------------------------ day-ahead market results published with the price
-  - {id: dar_vol_total_d0,      group: market_result, kind: series_value, params: {col: da_vol_total,      day_offset: 0}, version: 1, description: "Iberian matched volume of the day (demand proxy), day D"}
-  - {id: dar_flow_pt_to_es_d0,  group: market_result, kind: series_value, params: {col: da_flow_pt_to_es,  day_offset: 0}, version: 1, description: "Portugal-to-Spain flow, day D"}
-  - {id: dar_flow_es_to_pt_d0,  group: market_result, kind: series_value, params: {col: da_flow_es_to_pt,  day_offset: 0}, version: 1, description: "Spain-to-Portugal flow, day D"}
   - {id: dar_vol_pt_buy_d0,     group: market_result, kind: series_value, params: {col: da_vol_pt_buy,     day_offset: 0}, version: 1, description: "Portuguese purchases, day D"}
   - {id: dar_vol_pt_sell_d0,    group: market_result, kind: series_value, params: {col: da_vol_pt_sell,    day_offset: 0}, version: 1, description: "Portuguese sales, day D"}
-  - {id: dar_es_minus_pt_d0,    group: market_result, kind: series_spread, params: {col: da_es, base_col: da_pt, day_offset: 0}, version: 1, description: "Spanish minus Portuguese price (market splitting), day D"}
-  - {id: dar_vol_total_lag1d,     group: market_result, kind: series_value, params: {col: da_vol_total,     day_offset: -1}, version: 1, description: "matched volume, same hour yesterday"}
-  - {id: dar_flow_pt_to_es_lag1d, group: market_result, kind: series_value, params: {col: da_flow_pt_to_es, day_offset: -1}, version: 1, description: "Portugal-to-Spain flow, same hour yesterday"}
-  - {id: dar_flow_es_to_pt_lag1d, group: market_result, kind: series_value, params: {col: da_flow_es_to_pt, day_offset: -1}, version: 1, description: "Spain-to-Portugal flow, same hour yesterday"}
-  - {id: dar_es_minus_pt_lag1d,   group: market_result, kind: series_spread, params: {col: da_es, base_col: da_pt, day_offset: -1}, version: 1, description: "Spanish minus Portuguese price, same hour yesterday"}
 
   # ------------------------------------------------ other markets: earlier auctions of the day, and lags
   - {id: ida1_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA1 minus day-ahead, day D (known after the IDA1 result)"}

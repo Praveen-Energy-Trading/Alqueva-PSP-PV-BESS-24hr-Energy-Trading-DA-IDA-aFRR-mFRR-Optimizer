@@ -2,7 +2,7 @@
 fcr_headroom_model.py — FCR mandatory headroom (NON-tradable).
 
 FCR (Frequency Containment Reserve / primary control) is MANDATORY and
-NON-REMUNERATED in Portugal and Spain: generators must provide it as a grid-code
+NON-REMUNERATED in Portugal: generators must provide it as a grid-code
 obligation, not sell it on a market. REN: Manual de Procedimentos do Gestor do
 Sistema. https://www.ren.pt
 

@@ -32,7 +32,6 @@ gaps:
 # stuck: the whole-day checks (one value all day, a copy of the day before) apply
 series:
   da_pt:            {rule: auction, range: [-500, 4000], stuck: true}
-  da_es:            {rule: auction, range: [-500, 4000], stuck: true}
   ida1_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
   ida2_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
   ida3_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
@@ -42,11 +41,8 @@ series:
   mfrr_ap:          {rule: reserve, range: [-1000, 5000]}
   imb_short:        {rule: reserve, range: [-1000, 5000]}
   imb_long:         {rule: reserve, range: [-1000, 5000]}
-  da_vol_total:     {rule: volume, range: [0, 60000]}
   da_vol_pt_buy:    {rule: volume, range: [0, 60000]}
   da_vol_pt_sell:   {rule: volume, range: [0, 60000]}
-  da_flow_pt_to_es: {rule: volume, range: [0, 5000]}
-  da_flow_es_to_pt: {rule: volume, range: [0, 5000]}
 
 # a series with more than this share of its hours filled is reported as poor (a warning, never a stop)
 warn_filled_share: 0.15

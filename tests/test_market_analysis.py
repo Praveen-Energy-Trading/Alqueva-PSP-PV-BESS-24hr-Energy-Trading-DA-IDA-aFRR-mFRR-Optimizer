@@ -72,14 +72,13 @@ def test_build_panel_reads_the_clean_zone_and_separates_ida_sessions(tmp_path):
         n = len(vals)
         df = pd.DataFrame({"delivery_date": day.isoformat(), "period_index": range(1, n + 1), "resolution_min": 60,
                            "start_utc": [cal.period_start_utc(day, i, 60).strftime("%Y-%m-%dT%H:%M:%SZ") for i in range(1, n + 1)],
-                           "price_es_eur_mwh": vals, "price_pt_eur_mwh": vals})
+                           "price_pt_eur_mwh": vals})
         if session is not None:
             df["session"] = session
         return df
 
     da = frame([float(i) for i in range(24)])
-    for c in ("buy_es_mw", "sell_es_mw", "buy_pt_mw", "sell_pt_mw", "total_iberian_mw", "total_with_bilaterals_mw",
-              "flow_pt_to_es_mw", "flow_es_to_pt_mw"):
+    for c in ("buy_pt_mw", "sell_pt_mw"):
         da[c] = 1.0
     da["issued_utc"], da["flags"] = "", ""
     store.replace_day("da_price", da, raw_sha256="x" * 64, raw_version=1, parser_version="1", ingest_id="t")

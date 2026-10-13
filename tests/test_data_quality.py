@@ -29,15 +29,14 @@ CFG = load_quality_config()
 D0 = dt.date(2021, 3, 1)
 
 
-def da_day(day: dt.date, prices, res: int = 60, es=None) -> pd.DataFrame:
+def da_day(day: dt.date, prices, res: int = 60) -> pd.DataFrame:
     n = len(prices)
     assert n == cal.expected_periods(day, res)
     df = pd.DataFrame({
         "delivery_date": day.isoformat(), "period_index": range(1, n + 1), "resolution_min": res,
         "start_utc": [cal.period_start_utc(day, i, res).strftime("%Y-%m-%dT%H:%M:%SZ") for i in range(1, n + 1)],
-        "price_es_eur_mwh": prices if es is None else es, "price_pt_eur_mwh": prices})
-    for c in ("buy_es_mw", "sell_es_mw", "buy_pt_mw", "sell_pt_mw", "total_iberian_mw",
-              "total_with_bilaterals_mw", "flow_pt_to_es_mw", "flow_es_to_pt_mw"):
+        "price_pt_eur_mwh": prices})
+    for c in ("buy_pt_mw", "sell_pt_mw"):
         df[c] = 100.0
     df["issued_utc"], df["flags"] = "", ""
     return df

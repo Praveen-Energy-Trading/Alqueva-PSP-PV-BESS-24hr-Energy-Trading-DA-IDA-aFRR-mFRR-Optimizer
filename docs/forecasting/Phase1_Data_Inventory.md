@@ -29,7 +29,6 @@ for most gaps.
 | Need | Candidate | Access | Licence and limits | Notes |
 |---|---|---|---|---|
 | Load, wind, solar forecasts, generation (PT/ES) | **ENTSO-E Transparency Platform** | API, free token (register, then email transparency@entsoe.eu) | free of charge by EU Regulation 543/2013; open licence for TSO data; 400 requests/min | forecasts stored as published; per-item coverage to audit |
-| Spanish demand, wind, solar forecasts | **REE ESIOS** | API, personal token by email to REE | terms to read at token request | Iberia is coupled, so Spanish fundamentals matter for Portuguese prices |
 | Portuguese consumption, production | **REN Data Hub** | JSON API (electricity endpoints to confirm) | described as open data | current-day values are provisional |
 | Irradiance history (replace the unverified file) | **NASA POWER**, **PVGIS**, **CAMS** | API; CAMS needs a free account | NASA CC BY 4.0; PVGIS and CAMS terms to read; CAMS 100 requests/day | reanalysis or satellite, not a plant sensor |
 | Weather forecasts with issue time | not chosen | to decide | Open-Meteo free tier is non-commercial only (CC BY 4.0, 10,000 calls/day); archived forecast runs not confirmed | needed for point-in-time tests |
@@ -85,7 +84,7 @@ The file names carry stale year ranges; the real spans are in the tables above.
 ## 7. Decisions and actions for you
 
 1. **Licences.** Read the "Aviso legal" on omie.es and REN's market-site terms (I could not retrieve either online) and tell me what they allow, or confirm the use is non-commercial research.
-2. **Tokens.** Request an ENTSO-E token (register, then email transparency@entsoe.eu) and, if you want Spanish fundamentals, an ESIOS token (email to REE). Free; I will not do this for you.
+2. **Tokens.** Request an ENTSO-E token (register, then email transparency@entsoe.eu). Free; I will not do this for you.
 3. **Weather.** Choose how to replace the PV weather history: NASA POWER (open licence, simplest), PVGIS/CAMS (better satellite quality, CAMS needs an account), or both.
 4. **Weather forecasts with issue time.** No source is confirmed; decide whether to start archiving forecasts from now (Phase 2) even if the history will be short.
 5. **Inflow.** Decide whether to keep the research dataset as is (stale after June 2026) or build a derived inflow from EDIA/SNIRH data.

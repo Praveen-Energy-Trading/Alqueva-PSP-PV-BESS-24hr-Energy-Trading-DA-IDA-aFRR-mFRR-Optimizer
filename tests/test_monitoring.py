@@ -241,8 +241,7 @@ def test_a_champion_is_flagged_when_the_market_it_was_trained_on_changes(db, tmp
     shift_day = pd.Timestamp("2022-01-01", tz="UTC") + pd.Timedelta(days=250)
     after = panel.index >= shift_day
     r = np.random.default_rng(9)
-    for col in ("da_pt", "da_es"):
-        panel.loc[after, col] = panel.loc[after, col] + 40.0 + r.normal(0, 15.0, after.sum())      # a regime change at day 250
+    panel.loc[after, "da_pt"] = panel.loc[after, "da_pt"] + 40.0 + r.normal(0, 15.0, after.sum())      # a regime change at day 250
     cfg = cfg_locked()
     champions.promote_initial(decision({"type": "single", "model": "lightgbm"}), FS, "d", db, T0)
     first = dt.date(2022, 4, 11)                                                                    # day 100: trained before the change

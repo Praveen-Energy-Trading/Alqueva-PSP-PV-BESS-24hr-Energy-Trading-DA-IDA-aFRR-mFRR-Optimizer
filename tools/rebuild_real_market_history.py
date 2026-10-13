@@ -191,14 +191,12 @@ def dl_da(day: dt.date) -> Optional[dict]:
         if "precio marginal" not in low:
             continue
         vals = [_num_comma(p) for p in line.split(";")[1:] if p.strip()]
-        key = "PT" if "portug" in low else "ES" if "espa" in low else None
-        if key and key not in rows:
-            rows[key] = vals
+        if "portug" in low and "PT" not in rows:                  # only the Portuguese row is read
+            rows["PT"] = vals
     if not rows:
         return None
-    es = rows.get("ES") or rows.get("PT")
-    pt = rows.get("PT") or es        # single coupled price when no PT row
-    out = {"PT": _to_24_hours(pt), "ES": _to_24_hours(es)}
+    pt = rows["PT"]
+    out = {"PT": _to_24_hours(pt)}
     if len(pt) in (92, 96, 100):     # 15-min era: keep the quarters for the ISP file
         out["PT_q"] = _to_96_quarters(pt)
     return out
@@ -374,15 +372,14 @@ def build_da(today: dt.date) -> pd.DataFrame:
     for d in _days(DA_START, today):
         res = got.get(d)
         if res:
-            pt, es, src = _jkey(res["PT"]), _jkey(res["ES"]), "OMIE_LIVE"
-            prev = (pt, es)
+            pt, src = _jkey(res["PT"]), "OMIE_LIVE"
+            prev = pt
         elif prev:
-            pt, es, src = prev[0], prev[1], "SYNTHETIC"
+            pt, src = prev, "SYNTHETIC"
         else:
             continue
         for h in range(1, 25):
-            rows.append({"Date": pd.Timestamp(d), "Hour": h, "price_DA_PT_EUR_MWh": pt[h],
-                         "price_DA_ES_EUR_MWh": es[h], "source": src})
+            rows.append({"Date": pd.Timestamp(d), "Hour": h, "price_DA_PT_EUR_MWh": pt[h], "source": src})
     df = pd.DataFrame(rows)
     _save(df, DA_XLSX, DA_SHEET)
 

@@ -1,9 +1,9 @@
 generated_by: tools/run_feature_selection.py
 targets:
   afrr_cap_price:
-    candidates: 53
-    feature_set_version: 5680d386153d
-    mean_rank_correlation: 0.38
+    candidates: 43
+    feature_set_version: 2d2e2bfda62a
+    mean_rank_correlation: 0.293
     periods:
     - y2021
     - y2022
@@ -17,13 +17,13 @@ targets:
     - cal_dow
     - y_lag_1d
     - y_roll_mean_28d_hour
-    - y_yday_mean
-    - dar_flow_es_to_pt_d0
+    - dar_vol_pt_buy_d0
+    - dar_vol_pt_sell_d0
     - afrr_lag_1d
   da_price:
-    candidates: 51
-    feature_set_version: d22aba3712e8
-    mean_rank_correlation: 0.436
+    candidates: 45
+    feature_set_version: a96f58441a87
+    mean_rank_correlation: 0.41
     periods:
     - y2021
     - y2022
@@ -34,16 +34,15 @@ targets:
       min_period_fraction: 0.75
       min_share: 0.01
     selected:
-    - cal_hour_cos
+    - cal_hour
     - cal_dow
     - y_lag_1d
     - y_lag_7d
-    - y_roll_mean_7d_hour
     - y_yday_max
   ida1_price:
-    candidates: 63
-    feature_set_version: cde86c5c7b20
-    mean_rank_correlation: 0.186
+    candidates: 53
+    feature_set_version: da2dcb0880d8
+    mean_rank_correlation: 0.321
     periods:
     - block1
     - block2
@@ -53,14 +52,19 @@ targets:
       min_period_fraction: 0.75
       min_share: 0.01
     selected:
-    - y_day_mean_lag3d
+    - cal_hour
+    - y_lag_7d
+    - y_yday_min
     - base_value
     - base_dev
-    - dar_es_minus_pt_d0
+    - base_day_max
+    - base_day_min
+    - base_change_1d
+    - dar_vol_pt_sell_d0
   ida2_price:
-    candidates: 64
-    feature_set_version: 1823a3452c38
-    mean_rank_correlation: 0.212
+    candidates: 54
+    feature_set_version: 5b3118e8bfe6
+    mean_rank_correlation: 0.217
     periods:
     - block1
     - block2
@@ -71,12 +75,11 @@ targets:
       min_share: 0.01
     selected:
     - base_value
-    - base_dev
     - ida1_spread_d0
   ida3_price:
-    candidates: 65
+    candidates: 55
     feature_set_version: 96639f04e01c
-    mean_rank_correlation: 0.32
+    mean_rank_correlation: 0.272
     periods:
     - block1
     - block2
@@ -89,9 +92,9 @@ targets:
     - ida1_spread_d0
     - ida2_spread_d0
   mfrr_price:
-    candidates: 35
-    feature_set_version: 2423bec2d57d
-    mean_rank_correlation: 0.276
+    candidates: 25
+    feature_set_version: ceb2b7c3f4c5
+    mean_rank_correlation: 0.341
     periods:
     - block1
     - block2
@@ -101,13 +104,12 @@ targets:
       min_share: 0.01
     selected:
     - cal_hour_sin
-    - cal_dow
-    - dar_vol_total_d0
-    - dar_vol_total_lag1d
+    - cal_hour_cos
+    - y_lag_14d
   xbid_price:
-    candidates: 51
-    feature_set_version: 2b7ee5e63507
-    mean_rank_correlation: 0.27
+    candidates: 41
+    feature_set_version: a54c5455c1ec
+    mean_rank_correlation: 0.208
     periods:
     - block1
     - block2
@@ -118,6 +120,7 @@ targets:
       min_share: 0.01
     selected:
     - cal_hour
+    - cal_dow
     - y_day_mean_lag2d
     - base_dev
     - base_change_1d

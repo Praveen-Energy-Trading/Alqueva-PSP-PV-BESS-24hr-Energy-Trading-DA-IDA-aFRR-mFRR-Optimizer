@@ -20,12 +20,11 @@ TZ = "Europe/Madrid"
 
 # panel column -> information-set series in forecast_formulation.yaml
 PANEL_TO_INPUT: Dict[str, str] = {
-    "da_pt": "da_result", "da_es": "da_result", "ida1_pt": "ida1_result", "ida2_pt": "ida2_result",
+    "da_pt": "da_result", "ida1_pt": "ida1_result", "ida2_pt": "ida2_result",
     "ida3_pt": "ida3_result", "xbid_pt": "xbid_summary", "afrr_up": "afrr_band_result",
     "afrr_dn": "afrr_band_result", "mfrr_ap": "mfrr_series", "imb_short": "imbalance_price",
     "imb_long": "imbalance_price",
-    "da_vol_total": "da_result", "da_vol_pt_buy": "da_result", "da_vol_pt_sell": "da_result",
-    "da_flow_pt_to_es": "da_result", "da_flow_es_to_pt": "da_result",
+    "da_vol_pt_buy": "da_result", "da_vol_pt_sell": "da_result",
 }
 
 

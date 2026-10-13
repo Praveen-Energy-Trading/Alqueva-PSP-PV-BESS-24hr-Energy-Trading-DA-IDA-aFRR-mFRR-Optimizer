@@ -40,32 +40,32 @@ def synthetic_panel(days: int = 120, seed: int = 1) -> pd.DataFrame:
     hour, dow = local.hour.to_numpy(), local.dayofweek.to_numpy()
     base = 60 + 25 * np.sin(2 * np.pi * hour / 24) - 10 * (dow >= 5) + r.normal(0, 3, len(idx))
     p = pd.DataFrame(index=idx)
-    p["da_pt"], p["da_es"] = base, base + (r.random(len(idx)) < 0.1) * 5.0
+    p["da_pt"] = base
     for c, sd in (("ida1_pt", 4), ("ida2_pt", 4), ("ida3_pt", 4), ("xbid_pt", 5)):
         p[c] = base + r.normal(0, sd, len(idx))
     p["afrr_up"] = 10 + r.normal(0, 1, len(idx))
     p["afrr_dn"] = p["afrr_up"]
     p["mfrr_ap"] = base + r.normal(0, 8, len(idx))
     p["imb_short"], p["imb_long"] = base + r.normal(0, 8, len(idx)), base - 5 + r.normal(0, 8, len(idx))
-    for c in ("da_vol_total", "da_vol_pt_buy", "da_vol_pt_sell", "da_flow_pt_to_es", "da_flow_es_to_pt"):
+    for c in ("da_vol_pt_buy", "da_vol_pt_sell"):
         p[c] = 1000 + r.normal(0, 50, len(idx))
     return p
 
 
 # ------------------------------------------------------------------------------ calendar
-def test_easter_and_portuguese_spanish_holidays():
+def test_easter_and_portuguese_holidays():
     assert [cal.easter(y) for y in (2024, 2025, 2026)] == [dt.date(2024, 3, 31), dt.date(2025, 4, 20), dt.date(2026, 4, 5)]
     assert cal.is_holiday(dt.date(2024, 4, 25), "pt") and cal.is_holiday(dt.date(2024, 3, 29), "pt")        # 25 April, Good Friday
     assert cal.is_holiday(dt.date(2024, 5, 30), "pt")                                                       # Corpus Christi
     assert not cal.is_holiday(dt.date(2014, 10, 5), "pt") and cal.is_holiday(dt.date(2016, 10, 5), "pt")  # suspended 2013-2015
-    assert cal.is_holiday(dt.date(2025, 10, 12), "es") and not cal.is_holiday(dt.date(2025, 10, 12), "pt")
-    assert cal.is_holiday(dt.date(2025, 4, 17), "es") and not cal.is_holiday(dt.date(2025, 4, 17), "pt")   # Holy Thursday
+    assert not cal.is_holiday(dt.date(2025, 10, 12), "pt") and not cal.is_holiday(dt.date(2025, 4, 17), "pt")      # only the Portuguese calendar is kept
+    with pytest.raises(ValueError):
+        cal.is_holiday(dt.date(2025, 10, 12), "es")
 
 
 def test_bridge_days_are_working_days_next_to_a_holiday_and_the_weekend():
     assert cal.is_bridge(dt.date(2024, 4, 26), "pt")        # Friday after Thursday 25 April
     assert cal.is_bridge(dt.date(2023, 4, 24), "pt")        # Monday before Tuesday 25 April
-    assert cal.is_bridge(dt.date(2025, 5, 2), "es")         # Friday after Thursday 1 May
     assert not cal.is_bridge(dt.date(2024, 4, 25), "pt")    # the holiday itself
     assert not cal.is_bridge(dt.date(2024, 4, 24), "pt")    # Wednesday
 
@@ -90,7 +90,7 @@ def test_availability_is_derived_from_what_each_feature_reads():
     assert ok("y_lag_1d", "da_price") and not ok("y_lag_1d", "xbid_price") and ok("y_lag_2d", "xbid_price")   # xbid published later
     assert not ok("y_lag_1d", "mfrr_price") and ok("y_lag_7d", "mfrr_price")
     assert not ok("base_value", "da_price") and ok("base_value", "ida1_price")                  # base price only for spread targets
-    assert not ok("dar_vol_total_d0", "da_price") and ok("dar_vol_total_lag1d", "da_price") and ok("dar_vol_total_d0", "ida1_price")
+    assert not ok("dar_vol_pt_buy_d0", "da_price") and ok("dar_vol_pt_buy_d0", "ida1_price")                      # day D volumes: only after the day-ahead result
     assert ok("ida1_spread_d0", "ida2_price") and not ok("ida1_spread_d0", "ida1_price") and not ok("ida2_spread_d0", "ida2_price")
     assert not t[t.group == "fundamental"]["available"].any()                                    # not collected
     assert t[t.target.isin(["pv_weather", "reservoir_inflow"]) & t.available]["group"].isin(["calendar", "market_rule"]).all()
@@ -124,7 +124,7 @@ def test_feature_sets_resolve_per_target_and_versions_follow_definitions(tmp_pat
     res.write_text(yaml.safe_dump({"targets": {"da_price": {"selected": ["y_lag_1d", "cal_dow"]}}}), encoding="utf-8")
     assert resolve_feature_set("selected_v1", SETS, CAT, spec, off, "da_price", results_path=str(res)) == ["y_lag_1d", "cal_dow"]
     with pytest.raises(ValueError, match="not available"):
-        resolve_feature_set("selected_v1", {"selected_v1": {"features": ["dar_vol_total_d0"]}}, CAT, spec, off, "da_price")   # reads day D
+        resolve_feature_set("selected_v1", {"selected_v1": {"features": ["dar_vol_pt_buy_d0"]}}, CAT, spec, off, "da_price")   # reads day D
     v = feature_set_version(["y_lag_1d", "cal_dow"], CAT)
     assert v == feature_set_version(["y_lag_1d", "cal_dow"], CAT) and v != feature_set_version(["cal_dow", "y_lag_1d"], CAT)
     changed = copy.deepcopy(CAT)
@@ -140,7 +140,7 @@ def _builder(target: str, ids):
 
 def test_builder_values_match_the_panel_for_lags_rolls_and_calendar():
     view, b = _builder("da_price", ["cal_hour", "cal_dow", "cal_is_weekend", "y_lag_1d", "y_lag_7d", "y_roll_mean_7d_hour",
-                                    "y_roll_mean_7d_all", "y_yday_max", "dar_flow_pt_to_es_lag1d"])
+                                    "y_roll_mean_7d_all", "y_yday_max", "afrr_lag_1d"])
     D = dt.date(2022, 3, 9)
     X = b.build(view.at(D), D)
     panel = view._truth
@@ -153,12 +153,12 @@ def test_builder_values_match_the_panel_for_lags_rolls_and_calendar():
     assert row["y_roll_mean_7d_hour"] == pytest.approx(np.mean([da[(D - dt.timedelta(days=k), h)] for k in range(1, 8)]))
     assert row["y_roll_mean_7d_all"] == pytest.approx(np.mean([da[(D - dt.timedelta(days=k), x)] for k in range(1, 8) for x in range(24)]))
     assert row["y_yday_max"] == pytest.approx(max(da[(D - dt.timedelta(days=1), x)] for x in range(24)))
-    assert row["cal_dow"] == D.weekday() and len(X) == 24 and X["dar_flow_pt_to_es_lag1d"].notna().all()
+    assert row["cal_dow"] == D.weekday() and len(X) == 24 and X["afrr_lag_1d"].notna().all()
 
 
 def test_spread_target_features_use_the_known_base_price_and_earlier_auctions():
     view, b = _builder("ida2_price", ["base_value", "base_dev", "base_shape", "base_rank", "base_lag_1d", "base_change_1d",
-                                      "ida1_spread_d0", "ida1_spread_lag1d", "dar_vol_total_d0"])
+                                      "ida1_spread_d0", "ida1_spread_lag1d", "dar_vol_pt_buy_d0"])
     D = dt.date(2022, 3, 9)
     X = b.build(view.at(D), D)
     t = view.truth_day(D)
@@ -194,14 +194,14 @@ def test_every_available_feature_is_point_in_time_correct(target):
 def test_the_point_in_time_check_catches_a_feature_that_reads_ahead(monkeypatch):
     panel = synthetic_panel(100)
     view = AsOfView(panel, FORM, "da_price")
-    b = fb.FeatureBuilder(view.interface(), CAT, ["dar_vol_total_lag1d"])
+    b = fb.FeatureBuilder(view.interface(), CAT, ["afrr_lag_1d"])
     good = fb._KIND["series_value"]
 
     def reads_ahead(ctx, p, cache):                        # bug: reads one day later than declared
         return good(ctx, {**p, "day_offset": int(p["day_offset"]) + 1}, cache)
     monkeypatch.setitem(fb._KIND, "series_value", reads_ahead)
     bad = fb.point_in_time_check(view, b, [dt.date(2022, 3, 12)])
-    assert list(bad["feature"]) == ["dar_vol_total_lag1d"]
+    assert list(bad["feature"]) == ["afrr_lag_1d"]
 
 
 # ------------------------------------------------------------------------------------ store

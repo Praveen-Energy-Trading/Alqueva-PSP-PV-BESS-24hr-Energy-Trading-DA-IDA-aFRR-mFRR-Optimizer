@@ -44,8 +44,6 @@ looked sensible but were wrong, and one real anomaly:
   (flag).
 * **Aggregate constants are normal for reserves.** The aFRR band price is legitimately constant for hours and days,
   so the stuck-feed checks apply to auction prices only.
-* **A real anomaly.** The day-ahead file of 2022-02-20 shows a Spain-to-Portugal flow of up to 5,085 MW, above any
-  plausible interconnector level. It is flagged as a warning on that day and left unchanged.
 
 ## 4. Score and gate
 

@@ -49,9 +49,9 @@ versions stay. `rebuild_clean(..., as_of_utc=t)` rebuilds what was known at time
 
 | Dataset | Source | Kept (beyond the old loaders) |
 |---|---|---|
-| `da_price` | OMIE day-ahead file | ES and PT price, purchase and sale volumes, Spain–Portugal flows, issue time |
-| `ida_price` | OMIE `marginalpibcpt`, sessions 1–3 | ES and PT price per session |
-| `xbid_price` | OMIE `precios_pibcic` | PT max, min, volume-weighted mean, ES mean, `pt_traded` flag |
+| `da_price` | OMIE day-ahead file | PT price, PT purchase and sale volumes, issue time |
+| `ida_price` | OMIE `marginalpibcpt`, sessions 1–3 | PT price per session |
+| `xbid_price` | OMIE `precios_pibcic` | PT max, min, volume-weighted mean, `pt_traded` flag |
 | `afrr_price` | REN `BaFRRPreco` | initial and adjusted up/down prices, DA reference |
 | `mfrr_price` | REN `MFRRPreco` | programmed-activation price, direct-activation prices (empty so far), DA reference |
 | `imbalance_price` | REN `DesvioPreco` | short and long prices, DA reference |
@@ -103,3 +103,5 @@ phases read from the clean zone; the old loaders are replaced only when the new 
 * REN endpoints are an internal website API with no published terms or service level (Phase 1); a changed field
   name would make parsing fail loudly (rejected day), not silently.
 * Weather, inflow and fundamentals are not part of this phase; they wait for the source decisions in Phase 1.
+
+*Update (2026-10-13): only Portugal is kept. The Spanish columns of the OMIE files (prices, volumes, Iberian totals, Spain–Portugal flows) are no longer read, checked or filled; the clean zone was rebuilt from the unchanged raw zone and the Portuguese series are identical to before.*

@@ -1,10 +1,9 @@
 """
 calendar.py — what the calendar says about a delivery day, known long before the day.
 
-Holidays follow the national lists. Portugal: 1 Jan, Good Friday, Easter Sunday, 25 Apr, 1 May, Corpus Christi,
+Holidays follow the Portuguese national list: 1 Jan, Good Friday, Easter Sunday, 25 Apr, 1 May, Corpus Christi,
 10 Jun, 15 Aug, 5 Oct, 1 Nov, 1 Dec, 8 Dec, 25 Dec; Corpus Christi, 5 Oct, 1 Nov and 1 Dec were suspended
-2013-2015. Spain (national plus the near-universal Holy Thursday): 1 Jan, 6 Jan, Holy Thursday, Good Friday,
-1 May, 15 Aug, 12 Oct, 1 Nov, 6 Dec, 8 Dec, 25 Dec. Regional and local holidays are not included.
+2013-2015. Regional and local holidays are not included.
 
 Bridge day (puente): a working weekday sandwiched between a holiday and the weekend, i.e. a Monday followed by a
 Tuesday holiday or a Friday preceded by a Thursday holiday.
@@ -46,19 +45,13 @@ def holidays_pt(year: int) -> Set[dt.date]:
     return h
 
 
-@functools.lru_cache(maxsize=None)
-def holidays_es(year: int) -> Set[dt.date]:
-    e = easter(year)
-    return {dt.date(year, 1, 1), dt.date(year, 1, 6), e - dt.timedelta(days=3), e - dt.timedelta(days=2),
-            dt.date(year, 5, 1), dt.date(year, 8, 15), dt.date(year, 10, 12), dt.date(year, 11, 1),
-            dt.date(year, 12, 6), dt.date(year, 12, 8), dt.date(year, 12, 25)}
-
-
 def _holidays(country: str, year: int) -> Set[dt.date]:
-    return holidays_pt(year) if country == "pt" else holidays_es(year)
+    if country != "pt":
+        raise ValueError("only the Portuguese calendar is kept (country='pt')")
+    return holidays_pt(year)
 
 
-def is_holiday(day: dt.date, country: str) -> bool:
+def is_holiday(day: dt.date, country: str = "pt") -> bool:
     return day in _holidays(country, day.year)
 
 
@@ -91,8 +84,7 @@ def day_features(day: dt.date, events=None) -> Dict[str, float]:
     return {
         "dow": float(day.weekday()), "month": float(day.month), "is_weekend": float(day.weekday() >= 5),
         "doy_sin": math.sin(2 * math.pi * doy / 365.25), "doy_cos": math.cos(2 * math.pi * doy / 365.25),
-        "is_holiday_pt": float(is_holiday(day, "pt")), "is_holiday_es": float(is_holiday(day, "es")),
-        "is_bridge_pt": float(is_bridge(day, "pt")), "is_bridge_es": float(is_bridge(day, "es")),
+        "is_holiday_pt": float(is_holiday(day, "pt")), "is_bridge_pt": float(is_bridge(day, "pt")),
         "days_to_holiday_pt": float(days_to_next_holiday(day, "pt")),
         "days_since_holiday_pt": float(days_since_holiday(day, "pt")),
         "dst_day_type": float({23: -1, 24: 0, 25: 1}[hours]),

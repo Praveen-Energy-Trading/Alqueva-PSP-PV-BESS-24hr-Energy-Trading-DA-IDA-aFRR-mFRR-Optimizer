@@ -46,23 +46,18 @@ _MW: Range = (0.0, 60000.0)
 DATASETS: Dict[str, Dataset] = {
     "da_price": Dataset(
         "da_price", ("delivery_date", "period_index"),
-        {"price_es_eur_mwh": _PRICE, "price_pt_eur_mwh": _PRICE,
-         "buy_es_mw": _MW, "sell_es_mw": _MW, "buy_pt_mw": _MW, "sell_pt_mw": _MW,
-         "total_iberian_mw": _MW, "total_with_bilaterals_mw": _MW,
-         "flow_pt_to_es_mw": (0.0, 5000.0), "flow_es_to_pt_mw": (0.0, 5000.0)},
-        optional_cols=("buy_es_mw", "sell_es_mw", "buy_pt_mw", "sell_pt_mw", "total_iberian_mw",
-                       "total_with_bilaterals_mw", "flow_pt_to_es_mw", "flow_es_to_pt_mw"),
+        {"price_pt_eur_mwh": _PRICE, "buy_pt_mw": _MW, "sell_pt_mw": _MW},
+        optional_cols=("buy_pt_mw", "sell_pt_mw"),
         text_cols=("issued_utc", "flags"), max_lag_days=1),
     "ida_price": Dataset(
         "ida_price", ("delivery_date", "session", "period_index"),
-        {"price_es_eur_mwh": _ANY_PRICE, "price_pt_eur_mwh": _ANY_PRICE}, int_cols=("session",),
+        {"price_pt_eur_mwh": _ANY_PRICE}, int_cols=("session",),
         max_lag_days=2),
     "xbid_price": Dataset(
         "xbid_price", ("delivery_date", "period_index"),
         {"price_pt_max_eur_mwh": _ANY_PRICE, "price_pt_min_eur_mwh": _ANY_PRICE,
-         "price_pt_mean_eur_mwh": _ANY_PRICE, "price_es_mean_eur_mwh": _ANY_PRICE},
-        optional_cols=("price_pt_max_eur_mwh", "price_pt_min_eur_mwh", "price_pt_mean_eur_mwh",
-                       "price_es_mean_eur_mwh"),
+         "price_pt_mean_eur_mwh": _ANY_PRICE},
+        optional_cols=("price_pt_max_eur_mwh", "price_pt_min_eur_mwh", "price_pt_mean_eur_mwh"),
         text_cols=("issued_utc",), int_cols=("pt_traded",), max_lag_days=2),
     "afrr_price": Dataset(
         "afrr_price", ("delivery_date", "period_index"),

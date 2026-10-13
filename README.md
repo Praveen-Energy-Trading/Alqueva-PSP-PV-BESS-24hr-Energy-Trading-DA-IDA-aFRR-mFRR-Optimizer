@@ -270,7 +270,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │   └── synthetic.py                          #   artificial locked-window outcomes where configured (config/synthetic_fill.yaml)
 │   │
 │   ├── feature_engineering/                      #   Phase 7: features with written availability
-│   │   ├── calendar.py                           #   PT/ES holidays, bridge days, DST, market rules
+│   │   ├── calendar.py                           #   Portuguese holidays, bridge days, DST, market rules
 │   │   ├── catalogue.py, builder.py              #   catalogue, derived availability, one builder for train/serve
 │   │   └── store.py, selection.py                #   versioned feature store, stability-checked selection
 │   │

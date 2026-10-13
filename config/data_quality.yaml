@@ -12,12 +12,12 @@ version: 1
 datasets:
   da_price:
     expected_start: "2020-01-01"
-    price_cols: [price_pt_eur_mwh, price_es_eur_mwh]
+    price_cols: [price_pt_eur_mwh]
     stuck_checks: true         # auction prices: constant-day, duplicate-day and DST-copy checks apply
     sources: [omie_da]
   ida_price:
     expected_start: "2024-06-13"
-    price_cols: [price_pt_eur_mwh, price_es_eur_mwh]
+    price_cols: [price_pt_eur_mwh]
     stuck_checks: true
     sources: [omie_ida1, omie_ida2, omie_ida3]     # session n <-> omie_ida<n>
   xbid_price:
@@ -106,9 +106,7 @@ gate:
 imputation:
   default: {method: none}
   da_price.price_pt_eur_mwh:             {method: none, why: "an auction price is never missing on a published day; a gap is an error, not something to fill"}
-  da_price.price_es_eur_mwh:             {method: none}
   ida_price.price_pt_eur_mwh:            {method: none, why: "no result means the auction did not clear; the model must see the gap"}
-  ida_price.price_es_eur_mwh:            {method: none}
   xbid_price.price_pt_mean_eur_mwh:      {method: none, why: "no Portuguese trade is information (pt_traded=0), not a missing price"}
   afrr_price.price_adjusted_up:          {method: ffill, max_periods: 4, why: "band price is set per block and rarely changes"}
   afrr_price.price_adjusted_dn:          {method: ffill, max_periods: 4}
