@@ -77,7 +77,7 @@ def style_fig(fig: go.Figure, *, height: int = 380, yaxis_title: str | None = No
         showlegend=legend,
     )
     if legend:
-        layout_kwargs["legend"] = dict(orientation="h", y=-0.18, font=dict(color=INK_SECONDARY))
+        layout_kwargs["legend"] = dict(orientation="h", x=0.5, xanchor="center", y=-0.18, yanchor="top", font=dict(color=INK_SECONDARY))   # centred under the plot
     if barmode:
         layout_kwargs["barmode"] = barmode
     fig.update_layout(**layout_kwargs)

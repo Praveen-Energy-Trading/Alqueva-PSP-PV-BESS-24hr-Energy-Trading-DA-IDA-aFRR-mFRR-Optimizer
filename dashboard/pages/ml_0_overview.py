@@ -81,7 +81,6 @@ if len(g):
     if len(kn):
         fig.add_trace(go.Bar(x=kn["target"].map(ml_data.short), y=100 * kn["locked_gain_vs_naive"], name="Over strongest naive, locked year", marker_color=theme.CATEGORICAL[3]))
     fig.add_hline(y=0, line_color=theme.INK_MUTED)
-    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
     st.plotly_chart(theme.style_fig(fig, height=380, yaxis_title="% lower MAE than the reference", barmode="group"), width="stretch")
     st.caption("The gain over the reference is measured on the same hours, so it does not depend on the price level. The raw locked-year MAE "
                "does: for aFRR capacity the price level fell by about 80% in 2025, so its locked-year MAE is lower for that reason, not "

@@ -339,7 +339,7 @@ def _rebid_block(info: dict, wrapper_id: str = "", hidden: bool = False) -> str:
             <span style="font-size:9px; color:{theme.INK_MUTED};">H1</span>
             <span style="font-size:9px; color:{theme.INK_MUTED};">H{n_total}</span>
           </div>
-          <div style="display:flex; gap:12px; margin-top:6px;">{''.join(legend_bits)}</div>
+          <div style="display:flex; justify-content:center; gap:12px; margin-top:6px;">{''.join(legend_bits)}</div>
         </div>
         <script>
         (function() {{
