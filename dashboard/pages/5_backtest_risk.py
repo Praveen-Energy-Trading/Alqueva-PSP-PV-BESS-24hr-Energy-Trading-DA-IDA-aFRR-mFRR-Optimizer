@@ -138,11 +138,12 @@ def _intraday(d: pd.DataFrame) -> None:
         rows.append(row)
         prev_col, prev_name = col, name
     t = pd.DataFrame(rows)
+    chg = t.dropna(subset=["Average change per day (EUR)"])       # the chart below; the day-ahead row has no step before it
+    t = t[t["Market"] != "Day-ahead"]                              # the table lists the intraday markets only
     if "Latest run, forecast prices (EUR)" in t.columns:
         t["Latest run, forecast prices (EUR)"] = t["Latest run, forecast prices (EUR)"].map(lambda v: None if pd.isna(v) else f"{v:,.0f}")
     ml_ui.table(_thousands(t.fillna({"Compared with": "–"}), ["Average revenue per day (EUR)", "Average change per day (EUR)"]),
                 formats={"Share of days improved (%)": "%.0f"})
-    chg = t.dropna(subset=["Average change per day (EUR)"])
     fig = go.Figure(go.Bar(x=chg["Market"], y=chg["Average change per day (EUR)"], marker_color=[theme.COLOR_GEN if v >= 0 else theme.COLOR_PUMP for v in chg["Average change per day (EUR)"]],
                            text=[_eur(v) for v in chg["Average change per day (EUR)"]], textposition="outside", name="Average change per day"))
     theme.style_fig(fig, height=320, yaxis_title="EUR per day, against the step before", legend=False)
