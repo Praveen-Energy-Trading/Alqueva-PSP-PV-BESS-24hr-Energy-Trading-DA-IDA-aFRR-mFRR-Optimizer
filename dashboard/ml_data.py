@@ -120,6 +120,23 @@ def plain_params(p) -> str:
     return ", ".join(f"{str(k).replace('_', ' ')} {v}" for k, v in d.items())
 
 
+def repair_cards(repairs) -> list:
+    """The repaired-days lines of the quality gate ('aFRR prices: 1/2842 days missing (0.0%), filled') as (label, value) pairs for cards:
+    the label is the dataset (and session), the value the missing days of all days with their share. A line in another form is kept as it is."""
+    import re
+    out = []
+    for r in repairs:
+        text = plain_text(r)
+        m = re.match(r"^(.*?): (\d+)/(\d+) days missing \(([\d.]+)%\)", text)
+        if not m:
+            out.append((text, ""))
+            continue
+        name, miss, total, share = m.groups()
+        name = (name if name.startswith(("aFRR", "mFRR")) else name[:1].upper() + name[1:]).replace(" session ", " · session ")
+        out.append((name, f'{int(miss):,} <span style="font-size:13px; font-weight:400; color:#52514e;">of {int(total):,} days · {share}%</span>'))
+    return out
+
+
 def humanize(text: str) -> str:
     """Replaces algorithm ids inside a sentence (for example in a decision reason) by their names."""
     import re

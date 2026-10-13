@@ -27,15 +27,6 @@ prices = ml_ui.cached(lambda: ml_data.pack("prices_daily"))()
 profile = ml_ui.cached(lambda: ml_data.pack("price_profile"))()
 periods = ml_ui.cached(lambda: ml_data.config("market_analysis").get("periods", []))()
 
-st.markdown("**Findings of the market analysis** (docs/forecasting/Phase4_Market_Analysis.md):")
-st.markdown("""
-- The day-ahead price is dominated by a slowly moving **level** (67% of the variance is in the year-month mean), driven by fuel and hydrology, not by rule changes.
-- The **shape of the day** has become the main structure: midday prices fell from the daily average (ratio 1.00 in 2020) to under a third of it (0.31 in 2026), and 8.8% of 2026 hours are non-positive.
-- Daily changes are close to uncorrelated while the level is not stationary, so a model needs the **recent level** and **recent years** of training data.
-- The intraday prices follow the day-ahead price closely (it explains 90-98% of their variance), so the **spread** is the thing to model.
-- The aFRR band price is slow and symmetric and barely explained by the day-ahead price: it is a different problem.
-""")
-
 if prices.empty:
     ml_ui.not_yet_run("the data pack")
 else:

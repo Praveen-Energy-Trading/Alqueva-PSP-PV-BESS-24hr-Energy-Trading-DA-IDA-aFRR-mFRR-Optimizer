@@ -43,9 +43,8 @@ else:
     for r in gate.get("reasons", []):
         st.markdown(f"- {ml_data.plain_text(r)}")
     if gate.get("repairs"):
-        st.markdown("**Missing days repaired**")
-        for r in gate["repairs"]:
-            st.markdown(f"- {ml_data.plain_text(r).replace('filled by the data curation', 'filled')}")
+        st.markdown("**Missing days repaired (filled)**")
+        ml_ui.cards(ml_data.repair_cards(gate["repairs"]), ncols=4, pre_formatted=True)
     st.caption("The check stops a run only when there is too little real data to repair from, a feed has been silent for too long, or a stored file "
                "no longer matches its checksum. Missing days are repaired, not blocked.")
 cur = ml_ui.cached(lambda: ml_data.pack("curation_summary"))()
