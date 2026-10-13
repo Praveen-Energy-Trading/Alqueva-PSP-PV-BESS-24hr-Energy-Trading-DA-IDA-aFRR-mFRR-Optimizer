@@ -21,7 +21,7 @@ INK_MUTED = "#6d6c68"
 
 CSS = f"""
 <style>
-.htab-wrap {{ overflow: auto; border: 1px solid {GRID}; border-radius: 8px; background: #fcfcfb; margin: 0.2rem 0 0.8rem 0; max-width: 100%; }}
+.htab-wrap {{ display: block; width: fit-content; max-width: 100%; overflow: auto; border: 1px solid {GRID}; border-radius: 8px; background: #fcfcfb; margin: 0.2rem 0 0.8rem 0; }}
 table.htab {{ border-collapse: separate; border-spacing: 0; width: auto !important; min-width: 0 !important; font-size: 0.86rem; color: {INK}; }}
 table.htab th {{ position: sticky; top: 0; z-index: 1; background: {HEAD_BG}; color: {INK_MUTED}; font-weight: 500; text-align: center;
                  vertical-align: bottom; padding: 7px 10px; border-bottom: 1px solid {GRID}; border-right: 1px solid {GRID};
