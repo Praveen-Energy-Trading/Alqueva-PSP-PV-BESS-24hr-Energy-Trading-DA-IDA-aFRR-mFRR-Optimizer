@@ -23,8 +23,9 @@ STATE_COLOR = {"done": theme.STATUS_GOOD, "partial": theme.STATUS_WARNING, "not 
 
 
 def cached(fn):
-    """Cache a data-layer function for the session (the files are committed and change only with a commit)."""
-    return st.cache_data(show_spinner=False)(fn)
+    """Cache a data-layer function, for at most a minute: the pack and result files change when a stage is re-run or a commit is pulled,
+    and the page must then show the new numbers without restarting the server."""
+    return st.cache_data(show_spinner=False, ttl=60)(fn)
 
 
 def interview_mode() -> bool:
