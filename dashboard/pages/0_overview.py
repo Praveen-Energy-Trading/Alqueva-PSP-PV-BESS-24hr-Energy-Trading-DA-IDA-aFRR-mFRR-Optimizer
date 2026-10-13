@@ -75,6 +75,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Allocation of the plant's MW over the markets: one stacked bar, then a legend line with MW and share (reserve figures are the largest offers).
+_alloc = data.load_market_allocation()
+_alloc_total = _alloc[-1][1]
+_alloc_colours = [theme.COLOR_GEN, theme.COLOR_UP, theme.COLOR_PUMP, theme.COLOR_PRICE]
+st.markdown(
+    f'<div style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500; margin:14px 0 6px 0;">'
+    f'Allocation of the {_alloc_total:.1f} MW over the markets (largest offers)</div>'
+    '<div style="display:flex; height:16px; border-radius:8px; overflow:hidden; border:1px solid ' + theme.GRIDLINE + ';">' +
+    "".join(f'<div style="width:{share:.2f}%; background:{colour};"></div>' for (_, _, share), colour in zip(_alloc[:-1], _alloc_colours)) +
+    '</div><div style="display:flex; flex-wrap:wrap; gap:6px 22px; margin-top:7px; font-size:13px; color:' + theme.INK_SECONDARY + ';">' +
+    "".join(f'<span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:{colour}; margin-right:6px;"></span>'
+            f'<b style="color:{theme.INK_PRIMARY}; font-weight:600;">{name}</b> {share:.0f}% · {mw:.0f} MW</span>'
+            for (name, mw, share), colour in zip(_alloc[:-1], _alloc_colours)) +
+    '</div>',
+    unsafe_allow_html=True,
+)
+
 # Plain st.tabs has no session_state key, so its selected tab is pure
 # client-side DOM state - a full script rerun (e.g. every auto-refresh
 # tick while a pipeline is live) always snaps it back to the first tab.

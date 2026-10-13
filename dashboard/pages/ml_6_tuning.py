@@ -15,7 +15,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Tuning lab", "Hyperparameters are searched inside the rolling backtest, never on the test period, with the same budget for "
-             "every algorithm. Every trial is kept, so the search itself can be inspected.", step=6)
+             "every algorithm. Every trial is kept, so the search itself can be inspected.", step=5)
 ml_ui.tour_bar(6)
 
 cfg = ml_ui.cached(lambda: ml_data.config("tuning"))()

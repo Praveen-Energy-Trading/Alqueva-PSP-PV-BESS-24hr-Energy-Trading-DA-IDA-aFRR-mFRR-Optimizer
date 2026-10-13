@@ -15,7 +15,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Evaluation design", "A model is only as good as the way it is scored. The scoring contract is fixed before any model is fitted: "
-             "which days, trained on what, scored how, and what counts as a real difference.", step=5)
+             "which days, trained on what, scored how, and what counts as a real difference.", step=4)
 ml_ui.tour_bar(5)
 
 ev = ml_ui.cached(lambda: ml_data.config("evaluation"))()

@@ -43,6 +43,18 @@ def load_plant_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "plant.yaml").read_text(encoding="utf-8"))
 
 
+@st.cache_data
+def load_market_allocation() -> list:
+    """How the plant's MW are split over the markets: [(name, MW, share of the plant)], from config. The reserve figures are the largest offers
+    (config/market.yaml), FCR is the mandatory headroom (config/plant.yaml) and day-ahead energy is what is left of the plant's total MW."""
+    plant = load_plant_config()
+    market = yaml.safe_load((CONFIG_DIR / "market.yaml").read_text(encoding="utf-8"))
+    total = plant["psp"]["n_units"] * plant["psp"]["p_turbine_max_mw"] + plant["pv"]["peak_capacity_mw"] + plant["bess"]["power_mw"]
+    afrr, mfrr, fcr = float(market["afrr"]["max_offer_up_mw"]), float(market["mfrr"]["max_offer_up_mw"]), float(plant["fcr"]["mandatory_headroom_mw"])
+    parts = [("Day-ahead energy", total - afrr - mfrr - fcr), ("aFRR", afrr), ("mFRR", mfrr), ("FCR", fcr)]
+    return [(name, mw, 100.0 * mw / total) for name, mw in parts] + [("Plant total", total, 100.0)]
+
+
 # ---------------------------------------------------------------------------
 # ComponentStore (JSON) - shared cache. Seven different loaders below
 # (reservoir trajectory, PV routing, multi-asset dispatch, ISP dispatch,

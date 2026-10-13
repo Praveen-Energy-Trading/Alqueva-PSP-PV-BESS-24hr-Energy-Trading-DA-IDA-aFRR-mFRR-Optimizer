@@ -16,7 +16,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Run it: registry, monitoring, live", "A model in production needs a record of how it was made, a rule for replacing it, a watch on "
-             "its errors and a safe way to switch it on. This page shows each.", step=9)
+             "its errors and a safe way to switch it on. This page shows each.", step=8)
 ml_ui.tour_bar(9)
 
 snap = ml_ui.cached(lambda: ml_data.pack_json("registry_snapshot"))() or {}

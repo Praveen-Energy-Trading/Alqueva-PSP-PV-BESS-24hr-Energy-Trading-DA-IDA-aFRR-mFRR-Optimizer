@@ -152,14 +152,6 @@ def test_every_ml_page_also_opens_in_interview_mode(page):
     assert not at.exception, [e.value for e in at.exception]
 
 
-def test_the_overview_numbers_equal_the_decision_files():
-    at = AppTest.from_file(str(REPO / "dashboard" / "pages" / "ml_0_overview.py"), default_timeout=60).run()
-    text = " ".join(m.value for m in at.markdown)
-    dec = ml_data.decisions()
-    assert f"{len(dec)} of {len(ml_data.TARGETS) - 1}" in text                                          # targets with a champion
-    assert any("lifecycle" in s.value.lower() for s in at.subheader)
-
-
 # --------------------------------------------------------------------------------------- data layer: replay, trials, folds
 def _daily(model_mae, days=120, model="champion", target="da_price"):
     import datetime as dt
@@ -233,6 +225,6 @@ def test_the_pages_still_open_when_the_pack_and_runtime_are_missing(tmp_path, mo
     monkeypatch.setattr(ml_data, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(ml_data, "pack", lambda name, root=tmp_path: pd.DataFrame())
     monkeypatch.setattr(ml_data, "pack_json", lambda name, root=tmp_path: None)
-    for page in ("ml_0_overview.py", "ml_1_data.py", "ml_6_tuning.py", "ml_9_run.py"):
+    for page in ("ml_1_data.py", "ml_6_tuning.py", "ml_9_run.py"):
         at = AppTest.from_file(str(REPO / "dashboard" / "pages" / page), default_timeout=60).run()
         assert not at.exception, (page, [e.value for e in at.exception])

@@ -15,7 +15,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Data and quality", "Every model starts from data that is downloaded and stored untouched, checked every day, "
-             "cleaned and completed. Every value that was filled is flagged.", step=1)
+             "cleaned and completed. Every value that was filled is flagged.", step=0)
 ml_ui.tour_bar(1)
 
 manifest = ml_ui.cached(lambda: ml_data.pack("raw_manifest_summary"))()

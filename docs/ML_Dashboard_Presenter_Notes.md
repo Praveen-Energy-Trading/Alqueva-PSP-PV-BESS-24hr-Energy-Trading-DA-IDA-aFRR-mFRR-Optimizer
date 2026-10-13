@@ -2,25 +2,6 @@
 
 What to say on each page, the likely follow-up question with its answer, and the limits of each page. These used to sit inside the dashboard; they are here so that the dashboard shows only the project. Written in the first person for reading aloud.
 
-## ml_0_overview: ML Lifecycle: from data to a monitored model
-
-**What to say.** This is a price-forecasting system for the Portuguese electricity market, built end to end: eight forecasting targets from day-ahead to the reserve markets. I treated it as a real machine-learning project, not a notebook: each box above is a stage with its own code, tests and evidence, and I can show you any of them.
-
-**Likely question.** Which result matters most?
-
-**Answer.** The day-ahead champion, tuned LightGBM, is 11% better than the decision-tree reference, and the difference is significant against every other algorithm. The intraday targets show smaller, mostly tied differences, and I say so: with about 300 days only larger differences can be established.
-
-**What the project demonstrates (summary list).**
-
-1. **Problem framing:** what is forecast, what is known when, and why a spread or a level.
-2. **Honest evaluation:** a rolling origin, a locked test year used once, point-in-time features, and statistical tests of every difference.
-3. **Fair tuning and comparison:** nested time-aware tuning with equal budgets, and Holm-corrected pairwise tests.
-4. **A written decision rule,** fixed before the results, and a report of what was found even when it is unflattering.
-5. **ML as operations:** a registry, reproducible experiments, a promotion rule, monitoring, retraining and a safe live switch.
-
-**Limits.** f"Eight targets, {decided} with a champion: mFRR is deferred because its history is too short. The intraday targets are labelled "
-             "limited evidence. Gains are measured against a decision tree and against the strongest of several naive forecasts; the intraday gains over a naive forecast are small."
-
 ## ml_1_data: Data and quality
 
 **What to say.** I treat data work as the first model risk. The raw zone is immutable and checksummed, the clean zone is rebuilt from it, a daily quality score is computed per dataset, and then a curation step removes data errors and fills every missing hour by the rule of its series, flagging each filled value. I also handle time properly: 23 and 25 hour days, a change of resolution in the market in October 2025, and sources that publish late.

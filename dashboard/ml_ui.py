@@ -14,7 +14,7 @@ import streamlit as st
 import ml_data
 import theme
 
-PAGES = [("ml_0_overview", "Overview"), ("ml_1_data", "Data and quality"), ("ml_2_market", "Market analysis"),
+PAGES = [("ml_1_data", "Data and quality"), ("ml_2_market", "Market analysis"),
          ("ml_3_formulation", "Problem formulation"), ("ml_4_features", "Features"), ("ml_5_evaluation", "Evaluation design"),
          ("ml_6_tuning", "Tuning lab"), ("ml_7_arena", "Model arena"), ("ml_8_decision", "Decision and locked test"),
          ("ml_9_run", "Run it: registry, monitoring, live")]
@@ -34,7 +34,7 @@ def interview_mode() -> bool:
 
 def sidebar_controls() -> None:
     st.sidebar.toggle("Interview mode", key="ml_interview_mode",
-                      help="Shows a tour bar to step through the ten pages.")
+                      help="Shows a tour bar to step through the nine pages.")
 
 
 def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
@@ -105,7 +105,7 @@ def target_picker(key: str = "ml_target", targets: Iterable[str] = ml_data.TARGE
 
 
 def tour_bar(step: int) -> None:
-    """In interview mode: previous and next buttons through the ten pages."""
+    """In interview mode: previous and next buttons through the nine pages."""
     if not interview_mode():
         return
     c1, c2, c3 = st.columns([1, 6, 1])

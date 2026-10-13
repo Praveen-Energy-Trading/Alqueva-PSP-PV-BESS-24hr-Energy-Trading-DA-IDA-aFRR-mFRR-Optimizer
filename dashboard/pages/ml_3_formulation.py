@@ -17,7 +17,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Problem formulation", "A forecast is only useful if it uses what is known at the time the decision is made. Each target is "
-             "defined by what it forecasts, when it is needed and which data exists by then.", step=3)
+             "defined by what it forecasts, when it is needed and which data exists by then.", step=2)
 ml_ui.tour_bar(3)
 
 form = ml_ui.cached(lambda: ml_data.config("forecast_formulation"))()

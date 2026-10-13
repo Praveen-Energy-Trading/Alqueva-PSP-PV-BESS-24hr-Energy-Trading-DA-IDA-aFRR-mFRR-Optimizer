@@ -15,7 +15,7 @@ import ml_ui
 import theme
 
 ml_ui.header("Decision and locked test", "The champion is chosen by a rule written down before the results existed, applied by code, and then "
-             "scored once on a year that nothing was tuned or chosen on.", step=8)
+             "scored once on a year that nothing was tuned or chosen on.", step=7)
 ml_ui.tour_bar(8)
 
 policy = ml_ui.cached(lambda: ml_data.config("model_selection").get("policy", {}))()

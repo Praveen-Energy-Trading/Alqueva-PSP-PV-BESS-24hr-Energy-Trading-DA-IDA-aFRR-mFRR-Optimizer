@@ -517,7 +517,7 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 
 ## ML Lifecycle dashboard
 
-The dashboard has a group of ten pages, **ML Lifecycle**, that walks through every stage of the forecasting work in the order a real
+The dashboard has a group of nine pages, **ML Lifecycle**, that walks through every stage of the forecasting work in the order a real
 machine-learning project runs: data and quality, market analysis, problem formulation, features, evaluation design, the tuning lab,
 the model arena, the decision and locked test, and the registry, monitoring and live switch. The pages show the project only;
 the talk tracks and likely questions are kept apart in `docs/ML_Dashboard_Presenter_Notes.md`. **Interview mode** (sidebar) adds a tour

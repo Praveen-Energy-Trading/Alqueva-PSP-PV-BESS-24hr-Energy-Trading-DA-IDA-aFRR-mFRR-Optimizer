@@ -178,7 +178,6 @@ pages = {
     # The ML Lifecycle group replaces the old "ML Forecasting" page (pages/9_ml_forecasting.py, which read the legacy selection files).
     # Every page reads committed files only (model_development/, built by dashboard/ml_pack.py), so the group works on any checkout.
     "ML Lifecycle": [
-        st.Page("pages/ml_0_overview.py", title="Overview", icon="🧭"),
         st.Page("pages/ml_1_data.py", title="Data and quality", icon="🗄️"),
         st.Page("pages/ml_2_market.py", title="Market analysis", icon="📊"),
         st.Page("pages/ml_3_formulation.py", title="Problem formulation", icon="🧩"),
