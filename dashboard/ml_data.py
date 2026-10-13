@@ -199,6 +199,11 @@ def pack_json(name: str, root: Path = REPO_ROOT) -> Optional[dict]:
     return read_json(pack_dir(root) / f"{name}.json")
 
 
+def exploratory(target: str, root: Path = REPO_ROOT) -> Optional[dict]:
+    """The exploratory result of a target whose history is too short for a decision (tools/explore_mfrr.py), or None."""
+    return read_json(md(root) / "exploratory" / f"{target}.json")
+
+
 # -------------------------------------------------------------------------------------------------- decisions and results
 def decisions(root: Path = REPO_ROOT) -> Dict[str, dict]:
     out = {}

@@ -470,7 +470,7 @@ def _gate_close_display(gate: str, delivery_date: str) -> str | None:
         if not spec:
             return None
         close_dt = resolve_gate_time(spec, day)
-        return f"Gate closes {close_dt.strftime('%H:%M')} CET on {close_dt.strftime('%d %b')}"
+        return f"Gate closes {close_dt.strftime('%H:%M')} CET on {close_dt.strftime('%d-%m-%Y')}"
     if gate == "XBID":
         hrs = cfg.market.gate("XBID").gate_closure_hours_before_delivery
         return f"Gate closes {hrs}h before each delivery hour (rolling)" if hrs else None

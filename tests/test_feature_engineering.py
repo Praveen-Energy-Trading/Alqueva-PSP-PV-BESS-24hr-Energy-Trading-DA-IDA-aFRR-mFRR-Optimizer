@@ -92,7 +92,6 @@ def test_availability_is_derived_from_what_each_feature_reads():
     assert not ok("base_value", "da_price") and ok("base_value", "ida1_price")                  # base price only for spread targets
     assert not ok("dar_vol_pt_buy_d0", "da_price") and ok("dar_vol_pt_buy_d0", "ida1_price")                      # day D volumes: only after the day-ahead result
     assert ok("ida1_spread_d0", "ida2_price") and not ok("ida1_spread_d0", "ida1_price") and not ok("ida2_spread_d0", "ida2_price")
-    assert not t[t.group == "fundamental"]["available"].any()                                    # not collected
     assert t[t.target.isin(["pv_weather", "reservoir_inflow"]) & t.available]["group"].isin(["calendar", "market_rule"]).all()
     assert (t[t.available & t.margin_min.notna()]["margin_min"] >= 0).all()
 
@@ -105,9 +104,6 @@ def test_the_validator_rejects_dead_and_malformed_features():
     bad = copy.deepcopy(CAT)
     bad["features"].append({"id": "oops", "group": "x", "kind": "modelled_lag", "params": {}, "version": 1, "description": "d"})
     assert any("oops" in p and "needs params" in p for p in validate_feature_catalogue(bad, FORM, FC, INV))
-    bad = copy.deepcopy(CAT)
-    next(f for f in bad["features"] if f["id"] == "fund_gas_ttf")["blocked_on"] = "no_such_source"
-    assert any("fund_gas_ttf" in p for p in validate_feature_catalogue(bad, FORM, FC, INV))
 
 
 def test_feature_sets_resolve_per_target_and_versions_follow_definitions(tmp_path):
@@ -176,8 +172,6 @@ def test_building_an_unavailable_feature_is_refused():
     view = AsOfView(synthetic_panel(), FORM, "da_price")
     with pytest.raises(fb.FeatureUnavailable, match="base_value"):
         fb.FeatureBuilder(view.interface(), CAT, ["base_value"])
-    with pytest.raises(fb.FeatureUnavailable, match="fund_load_forecast"):
-        fb.FeatureBuilder(view.interface(), CAT, ["fund_load_forecast"])
 
 
 # ------------------------------------------------------------- point-in-time correctness

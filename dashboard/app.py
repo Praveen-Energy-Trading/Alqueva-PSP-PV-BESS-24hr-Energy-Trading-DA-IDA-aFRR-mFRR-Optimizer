@@ -22,8 +22,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import streamlit as st
 
 import data
+import date_format
 import runner
 import theme
+
+date_format.install()          # every date shown is written dd-mm-yyyy
 
 st.set_page_config(
     page_title="Alqueva PSP-PV-BESS Trading Dashboard",

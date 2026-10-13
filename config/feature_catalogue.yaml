@@ -19,7 +19,6 @@
 #   series_value     col, day_offset     a panel series at day D+offset, same hour
 #   series_spread    col, base_col, day_offset   col minus base_col at day D+offset, same hour
 #   series_day_stat  col, day_offset, stat      a daily statistic of a series, repeated for each hour
-#   fundamental      (not built) status: not_collected, blocked_on: the data source still to be set up
 # =============================================================================
 version: 1
 
@@ -93,13 +92,3 @@ features:
   - {id: imb_long_lag_6d,   group: cross_market, kind: series_value, params: {col: imb_long,  day_offset: -6}, version: 1, description: "imbalance price (surplus), same hour six days ago"}
   - {id: mfrr_lag_3d,       group: cross_market, kind: series_value, params: {col: mfrr_ap,   day_offset: -3}, version: 1, description: "mFRR activation price, same hour three days ago"}
 
-  # ------------------------------------------------ fundamentals: defined, not yet built (data not collected)
-  - {id: fund_load_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead load forecast for the hour"}
-  - {id: fund_wind_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead wind generation forecast"}
-  - {id: fund_solar_forecast,  group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "day-ahead solar generation forecast"}
-  - {id: fund_residual_load,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: entsoe_transparency, version: 1, description: "load minus wind minus solar forecast (the main driver of the hourly price shape)"}
-  - {id: fund_gas_ttf,         group: fundamental, kind: fundamental, status: not_collected, blocked_on: fuel_carbon, version: 1, description: "gas price (TTF), latest end-of-day value known at the as-of time"}
-  - {id: fund_carbon_eua,      group: fundamental, kind: fundamental, status: not_collected, blocked_on: fuel_carbon, version: 1, description: "carbon price (EUA), latest end-of-day value"}
-  - {id: fund_hydro_level,     group: fundamental, kind: fundamental, status: not_collected, blocked_on: reservoir_levels, version: 1, description: "reservoir levels (Iberian hydro reserves)"}
-  - {id: fund_ghi_forecast,    group: fundamental, kind: fundamental, status: not_collected, blocked_on: weather_forecast, version: 1, description: "forecast global horizontal irradiance for the hour"}
-  - {id: fund_temp_forecast,   group: fundamental, kind: fundamental, status: not_collected, blocked_on: weather_forecast, version: 1, description: "forecast air temperature for the hour (heating and cooling demand)"}

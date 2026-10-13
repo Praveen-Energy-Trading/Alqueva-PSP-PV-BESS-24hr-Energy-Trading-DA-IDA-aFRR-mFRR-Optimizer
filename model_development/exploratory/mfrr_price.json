@@ -1,0 +1,75 @@
+{
+ "target": "mfrr_price",
+ "status": "exploratory",
+ "note": "Not a decision: fewer scored days than the evidence rule requires; nothing tuned; no champion chosen; the locked year was not read.",
+ "first_test_day": "2025-05-28",
+ "last_test_day": "2025-10-11",
+ "scored_days": 137,
+ "required_days": 250,
+ "scored_hours": 3181,
+ "training": {
+  "min_train_days": 180,
+  "window": "expanding",
+  "refit_every_days": 30
+ },
+ "feature_set": "baseline_e3_v1",
+ "naive_lags_days": {
+  "naive_week": 7,
+  "naive_3days": 3
+ },
+ "scores": {
+  "decision_tree": {
+   "n": 3181.0,
+   "sse": 7537754.353583578,
+   "mae": 39.448003972148314,
+   "rmse": 48.67872062234534
+  },
+  "random_forest": {
+   "n": 3181.0,
+   "sse": 6810994.914953977,
+   "mae": 38.35652473858898,
+   "rmse": 46.272551075229664
+  },
+  "gradient_boosting": {
+   "n": 3181.0,
+   "sse": 7292121.712720456,
+   "mae": 39.33953710250549,
+   "rmse": 47.87900536988208
+  },
+  "xgboost": {
+   "n": 3181.0,
+   "sse": 7562293.22392223,
+   "mae": 40.0361269317045,
+   "rmse": 48.757892094223436
+  },
+  "lightgbm": {
+   "n": 3181.0,
+   "sse": 7574652.179554274,
+   "mae": 39.89304655766484,
+   "rmse": 48.797718017678605
+  },
+  "naive_week": {
+   "n": 3181.0,
+   "sse": 8909220.45659375,
+   "mae": 42.16361914492298,
+   "rmse": 52.92221566216014
+  },
+  "naive_3days": {
+   "n": 3181.0,
+   "sse": 8653959.87249375,
+   "mae": 41.193507544797235,
+   "rmse": 52.158561340019666
+  }
+ },
+ "best_algorithm": "random_forest",
+ "best_naive": "naive_3days",
+ "gain_of_best_over_best_naive": 0.06886965872287243,
+ "dm_best_vs_best_naive": {
+  "n_days": 137.0,
+  "mean_loss_a": 38.28511646256116,
+  "mean_loss_b": 41.14962067509011,
+  "mean_diff": -2.86450421252895,
+  "statistic": -1.5076328821379328,
+  "p_value": 0.13396795604111086
+ }
+}

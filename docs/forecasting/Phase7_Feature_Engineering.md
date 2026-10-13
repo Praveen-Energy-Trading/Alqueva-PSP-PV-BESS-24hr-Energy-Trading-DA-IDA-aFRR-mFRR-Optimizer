@@ -12,9 +12,8 @@ Every feature a model may use is defined once, in a catalogue, and built by **on
 evaluation and live prediction, so a feature cannot differ between training and serving (findings F1 and F1b of the
 Phase 0 audit). What a feature reads is derived from its definition, and whether it is **available** for a target is
 computed against that target's information set and the publication times of Phase 5: no feature can use data its gate would
-not have, and a feature that read too far would be caught by the point-in-time check. The catalogue holds 67 features
-(25–55 available per target); the fundamentals (load, wind, solar, residual load, gas, carbon, hydro, weather
-forecasts) are defined but blocked until their data is collected. A stability check across periods keeps only 2–6 features per
+not have, and a feature that read too far would be caught by the point-in-time check. The catalogue holds 58 features
+(25–55 available per target). A stability check across periods keeps only 2–6 features per
 target; on the day-ahead price the full set is modestly better than the small one for LightGBM, mostly on large errors.
 
 ## 2. Calendar and market rules (`calendar.py`)
@@ -34,13 +33,11 @@ floor). Regional and local holidays are not included.
 | Base price (spread targets) | 9 | the day-ahead price of the hour and of the day (mean, maximum, minimum, rank, midday-minus-evening shape), yesterday's, and the change |
 | Day-ahead market results | 2 | the Portuguese matched purchase and sale volumes of day D (for the intraday gates) |
 | Other markets | 10 | earlier auctions of the same day, spreads of earlier days, aFRR, imbalance and mFRR lags |
-| Fundamentals (blocked) | 9 | load, wind, solar, residual load, gas, carbon, hydro, weather forecasts: `not_collected`, each tied to its Phase 1 source |
 
 Availability follows from what each feature reads. Examples the check produces: the continuous-market target cannot use
 yesterday's price (its summary is published the next morning), so it gets windows ending two days back; the mFRR target only
 three days back; the day-ahead target cannot use any market result of day D but can use yesterday's; the intraday gates can
-use the day-ahead volumes and flows of day D (published with the price), which are a demand and interconnection proxy while the
-real fundamentals are missing. Every available feature reaches its target at least 30 minutes before the as-of time (the
+use the day-ahead volumes and flows of day D (published with the price), which are a demand and interconnection proxy. Every available feature reaches its target at least 30 minutes before the as-of time (the
 day-ahead file is the tightest input, and a gate that depends on it has a late policy from Phase 5).
 
 **Imbalance lags start at six days.** REN publishes settled imbalance prices about four days late (the API returned

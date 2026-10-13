@@ -29,11 +29,15 @@ if manifest.empty:
 else:
     m = manifest[["source", "days", "first_key", "last_key"]].copy()
     m["source"] = m["source"].map(ml_data.source_label)
-    ml_ui.table(m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}), compact=True)
+    m = m.rename(columns={"source": "Source", "days": "Days", "first_key": "First day", "last_key": "Last day"}).reset_index(drop=True)
+    half = (len(m) + 1) // 2                              # two tables side by side: less height, the width is used
+    left, right = st.columns(2)
+    with left:
+        ml_ui.table(m.iloc[:half], compact=True)
+    with right:
+        ml_ui.table(m.iloc[half:], compact=True)
 
 st.subheader("Checking, cleaning and filling")
-st.markdown("After every download the data is checked day by day. Data errors are removed and every missing hour is filled by the rule of its series, "
-            "so the models always receive complete data. Every filled value is flagged, and nothing is filled before a series starts.")
 if gate is None:
     ml_ui.not_yet_run("the quality check")
 else:
@@ -42,19 +46,27 @@ else:
                 f"&nbsp; window {gate['window'][0]} to {gate['window'][1]}", unsafe_allow_html=True)
     for r in gate.get("reasons", []):
         st.markdown(f"- {ml_data.plain_text(r)}")
-    if gate.get("repairs"):
-        st.markdown("**Missing days repaired (filled)**")
-        ml_ui.cards(ml_data.repair_cards(gate["repairs"]), ncols=4, pre_formatted=True)
     st.caption("The check stops a run only when there is too little real data to repair from, a feed has been silent for too long, or a stored file "
                "no longer matches its checksum. Missing days are repaired, not blocked.")
 cur = ml_ui.cached(lambda: ml_data.pack("curation_summary"))()
 if not cur.empty:
     c = cur.copy()
-    c["series"] = c["series"].map(ml_data.series_label)
     c["filled_share"] = (100 * c["filled_share"]).round(1)
+    # days with a gap that were filled, from the quality gate's lines such as 'afrr_price: 1/2842 days missing (0.0%)' and 'ida_price session 2: ...'
+    import re
+    series_of = {"afrr_price": ["afrr_up", "afrr_dn"], "mfrr_price": ["mfrr_ap"], "imbalance_price": ["imb_short", "imb_long"], "xbid_price": ["xbid_pt"], "da_price": ["da_pt"]}
+    days_filled = {}
+    for line in (gate or {}).get("repairs", []):
+        hit = re.match(r"^(\w+?)(?: session (\d))?: (\d+)/(\d+) days missing \(([\d.]+)%\)", str(line))
+        if hit:
+            name, session, miss, _, share = hit.groups()
+            for key in ([f"ida{session}_pt"] if name == "ida_price" and session else series_of.get(name, [])):
+                days_filled[key] = f"{int(miss):,} ({float(share):.1f}%)"
+    c["days_filled"] = [days_filled.get(k, "0") for k in c["series"]]
+    c["series"] = c["series"].map(ml_data.series_label)
     st.markdown("**What was filled**")
-    ml_ui.table(c[["series", "hours", "errors_removed", "filled", "filled_share", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
-        "series": "Series", "hours": "Hours", "errors_removed": "Data errors removed", "filled": "Hours filled", "filled_share": "Filled (%)",
+    ml_ui.table(c[["series", "hours", "errors_removed", "days_filled", "filled", "filled_share", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
+        "series": "Series", "hours": "Hours", "errors_removed": "Data errors removed", "days_filled": "Days with a gap, filled", "filled": "Hours filled", "filled_share": "Filled (%)",
         "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
         "same_hour_earlier": "Same hour earlier"}), formats={"Filled (%)": "%.1f"})
     st.caption("A gap of up to three hours is bridged by a straight line; a longer one repeats the same hour a week earlier (or yesterday). "

@@ -103,6 +103,28 @@ else:
         st.caption("Negative differences (blue) mean the champion was better that day. A statistic far from zero with a small p-value means the "
                    "difference is unlikely to be luck; many pairwise comparisons are corrected with the Holm method on the next pages.")
 
+st.subheader("A short history: mFRR")
+expl = ml_data.exploratory("mfrr_price")
+if not expl:
+    ml_ui.not_yet_run("the mFRR exploration")
+else:
+    st.info(f"Exploratory, not a decision. mFRR prices start on 27-11-2024, so only {expl['scored_days']} days can be scored against the {expl['required_days']} the "
+            "evidence rule requires. Nothing is tuned, no champion is chosen and the locked year is not read.")
+    sc = expl["scores"]
+    rows = [(n, sc[n]) for n in sorted([n for n in sc if n not in expl["naive_lags_days"]], key=ml_data.model_index)]
+    rows += [(n, sc[n]) for n in expl["naive_lags_days"]]
+    names = {"naive_week": "Naive: same hour a week earlier", "naive_3days": "Naive: same hour three days earlier"}
+    t = __import__("pandas").DataFrame([{"Forecast": names.get(n, ml_data.MODEL_LABELS.get(n, ml_data.pretty(n))), "MAE (EUR/MWh)": s_["mae"], "RMSE (EUR/MWh)": s_["rmse"]} for n, s_ in rows])
+    c_left, c_right = st.columns([3, 2])
+    with c_left:
+        ml_ui.table(t, formats={"MAE (EUR/MWh)": "%.1f", "RMSE (EUR/MWh)": "%.1f"})
+    with c_right:
+        ml_ui.cards([("Days scored", f"{expl['scored_days']} of {expl['required_days']} required"),
+                     ("Best algorithm over the best naive", f"{100 * expl['gain_of_best_over_best_naive']:.1f}% lower MAE"),
+                     ("Diebold-Mariano p-value", f"{expl['dm_best_vs_best_naive']['p_value']:.2f}")], ncols=1, pre_formatted=True)
+    st.caption("The algorithms are ahead of the naive forecasts, but with this few days the difference cannot be told from luck (p above 0.05). "
+               "mFRR joins the full process when the windows are rolled forward and the history is long enough.")
+
 st.subheader("The locked year")
 st.markdown("""
 - The development window **ends before** the locked year starts, and the tools refuse any development run that touches it.

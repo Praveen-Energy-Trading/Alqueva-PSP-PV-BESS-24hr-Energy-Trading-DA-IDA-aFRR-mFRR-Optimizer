@@ -123,7 +123,7 @@ def _day_ahead(d: pd.DataFrame) -> None:
     best, worst = d.loc[s.idxmax()], d.loc[s.idxmin()]
     groups = [(f"Past days, valued at real prices ({len(s):,} days)",
                [("Average revenue per day", f"€{s.mean():,.0f}"), ("Median day", f"€{s.median():,.0f}"),
-                ("Best day", f"€{best[DA_COL]:,.0f} · {best['date']:%d %b %Y}"), ("Worst day", f"−€{abs(worst[DA_COL]):,.0f} · {worst['date']:%d %b %Y}" if worst[DA_COL] < 0 else f"€{worst[DA_COL]:,.0f} · {worst['date']:%d %b %Y}"),
+                ("Best day", f"€{best[DA_COL]:,.0f} · {best['date']:%d-%m-%Y}"), ("Worst day", f"−€{abs(worst[DA_COL]):,.0f} · {worst['date']:%d-%m-%Y}" if worst[DA_COL] < 0 else f"€{worst[DA_COL]:,.0f} · {worst['date']:%d-%m-%Y}"),
                 ("Days earning below zero", f"{(s < 0).sum():,}"),
                 ("Days with the real OMIE price", f"{(d['realised_price_source'] == 'OMIE_LIVE').sum():,} of {len(d):,}")])]
     latest = _latest_run("DA", "Energy revenue")
