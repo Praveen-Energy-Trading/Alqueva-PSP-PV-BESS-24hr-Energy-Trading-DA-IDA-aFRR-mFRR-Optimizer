@@ -286,7 +286,6 @@ def _render() -> None:
     fcr_act = data.load_fcr_activation(selected_date)
     reservoir_traj = data.load_reservoir_trajectory(selected_date)
     pv_routing = data.load_pv_routing(selected_date)
-    multi_asset = data.load_multi_asset_dispatch(selected_date)
     water_balance = data.load_water_balance(selected_date)
     bess_charge_source = data.load_bess_charge_source(selected_date)
     da_vs_activation = data.load_da_vs_activation(selected_date)
@@ -306,7 +305,6 @@ def _render() -> None:
         ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=390)) if water_balance else None,
         ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
         ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
-        ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
         ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
         ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
         ("ISP dispatch", lambda: components.html(delivery_ticket.render_rt_card(rt), height=374)) if rt else None,

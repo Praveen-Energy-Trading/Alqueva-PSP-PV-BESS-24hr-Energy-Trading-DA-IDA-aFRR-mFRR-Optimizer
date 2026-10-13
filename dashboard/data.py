@@ -1082,54 +1082,6 @@ def load_pv_routing(delivery_date: str) -> dict | None:
 
 
 @st.cache_data(ttl=5)
-def load_multi_asset_dispatch(delivery_date: str) -> dict | None:
-    """Per-hour DA dispatch decomposed by physical asset -- PV (to grid),
-    BESS (discharge/charge), PSP (turbine/pump) -- from ComponentStore's
-    pv_schedule/bess_schedule/psp_schedule, the real solved-model split, not
-    a derived approximation. Reserve headroom (Gen/Pump_headroom_MW,
-    aFRR/mFRR up/dn MW) is plant-level only in the real pipeline -- there is
-    no per-asset attribution of reserve capacity anywhere in
-    reserve_offer_builder.py/reserve_activation.py (fat_deliverable_mw sums
-    psp_ramp_cap + bess_cap into one combined ceiling) -- shown here honestly
-    as a combined overlay, not fabricated into a PSP-vs-BESS split."""
-    comp = load_component_store(delivery_date)
-    if comp is None:
-        return None
-    psp_sched = comp.get("psp_schedule") or {}
-    bess_sched = comp.get("bess_schedule") or {}
-    pv_sched = comp.get("pv_schedule") or {}
-    if not psp_sched:
-        return None
-    hours = sorted(psp_sched)
-
-    report = load_daily_report(delivery_date)
-    df = report["dispatch"] if report is not None else None
-    has_headroom = df is not None and {"Gen_headroom_MW", "Pump_headroom_MW"}.issubset(df.columns)
-    gen_headroom = df.set_index("Hour")["Gen_headroom_MW"].to_dict() if has_headroom else {}
-    pump_headroom = df.set_index("Hour")["Pump_headroom_MW"].to_dict() if has_headroom else {}
-
-    pv_mw = [pv_sched.get(h, {}).get("used_mw", 0.0) for h in hours]
-    bess_dis = [bess_sched.get(h, {}).get("discharge_mw", 0.0) for h in hours]
-    bess_chg = [bess_sched.get(h, {}).get("total_charge_mw", 0.0) for h in hours]
-    psp_turb = [psp_sched[h]["turbine_mw"] for h in hours]
-    psp_pump = [psp_sched[h]["pump_mw"] for h in hours]
-    net_mw = [pv_mw[i] + bess_dis[i] + psp_turb[i] - bess_chg[i] - psp_pump[i] for i in range(len(hours))]
-
-    return {
-        "hours": hours,
-        "pv_mw": pv_mw,
-        "bess_dis_mw": bess_dis,
-        "bess_chg_mw": bess_chg,
-        "psp_turb_mw": psp_turb,
-        "psp_pump_mw": psp_pump,
-        "net_mw": net_mw,
-        "gen_headroom_mw": [float(gen_headroom.get(h, 0.0)) for h in hours],
-        "pump_headroom_mw": [float(pump_headroom.get(h, 0.0)) for h in hours],
-        "has_headroom": has_headroom,
-    }
-
-
-@st.cache_data(ttl=5)
 def load_water_balance(delivery_date: str) -> dict | None:
     """Per-hour hydrological water balance for the upper reservoir (Alqueva)
     -- inflow_m3h (natural river inflow, real forecast input) + pump-return
@@ -1312,8 +1264,7 @@ def load_da_vs_activation(delivery_date: str) -> dict | None:
     factor settlement uses) since this compares two instantaneous MW
     quantities at native ISP grain, not an hourly-aggregated energy total.
     Combined aFRR+mFRR, plant-level only (no per-asset attribution exists in
-    the real activation pipeline, same caveat as the Multi-asset dispatch
-    widget). None for dates that predate ISP-native resolution."""
+    the real activation pipeline). None for dates that predate ISP-native resolution."""
     committed = PositionStore().committed_position(delivery_date)
     if len(committed) < _MIN_REAL_ISP_COUNT:
         return None

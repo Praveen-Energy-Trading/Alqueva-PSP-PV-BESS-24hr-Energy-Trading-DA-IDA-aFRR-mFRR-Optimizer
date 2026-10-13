@@ -564,180 +564,6 @@ def render_pv_routing_card(pv: dict) -> str:
 </script>'''
 
 
-_MULTI_REPLAY_SCRIPT = '''
-<script>
-window.dtMultiReplay = function(btn) {
-  var block = btn.closest('.mx-chart-block');
-  if (!block || block.dataset.replaying === '1') return;
-  block.dataset.replaying = '1';
-  var data = JSON.parse(block.dataset.mx);
-  var n = data.hours.length;
-  var readout = block.querySelector('#mx-readout');
-  var groups = ['mx-bar-pv', 'mx-bar-bessdis', 'mx-bar-besschg', 'mx-bar-turb', 'mx-bar-pump'];
-  var steps = n;
-  var stepMs = 8000 / steps;
-
-  groups.forEach(function(g) {
-    block.querySelectorAll('.' + g).forEach(function(b) { b.setAttribute('height', '0'); });
-  });
-
-  for (var s = 1; s <= steps; s++) {
-    (function(s) {
-      setTimeout(function() {
-        var idx = s - 1;
-        groups.forEach(function(g) {
-          var bar = block.querySelector('.' + g + '[data-hidx="' + idx + '"]');
-          if (bar) { bar.setAttribute('height', bar.dataset.finalH); bar.setAttribute('y', bar.dataset.finalY); bar.style.opacity = '1'; }
-        });
-        if (readout) {
-          readout.textContent = 'H' + data.hours[idx] + ': PV ' + data.pvMw[idx].toFixed(1) +
-            ' + BESS dis ' + data.bessDisMw[idx].toFixed(1) + ' \\u2212 BESS chg ' + data.bessChgMw[idx].toFixed(1) +
-            ' MW \\u00a0|\\u00a0 PSP turbine ' + data.turbMw[idx].toFixed(0) + ' \\u2212 pump ' + data.pumpMw[idx].toFixed(0) +
-            ' MW \\u00a0|\\u00a0 net ' + data.netMw[idx].toFixed(0) + ' MW';
-        }
-        if (s === steps) block.dataset.replaying = '0';
-      }, s * stepMs);
-    })(s);
-  }
-};
-</script>'''
-
-
-def render_multi_asset_dispatch_card(mx: dict) -> str:
-    """The solver's asset-coordination decision each hour, split into two
-    independently-scaled charts because PV (5 MWp) and BESS (1 MW) are two
-    orders of magnitude smaller than PSP (400+ MW) -- on one shared axis
-    PV/BESS bars are invisible next to PSP. Top chart: PV + BESS on their
-    own MW scale. Bottom chart: PSP turbine/pump on its own MW scale. Same
-    underlying real solved-model data (pv_schedule/bess_schedule/
-    psp_schedule) as the single-chart version, just legible now. Reserve
-    headroom (Gen/Pump_headroom_MW) is genuinely plant-level only in this
-    pipeline (reserve_offer_builder.py's fat_deliverable_mw sums
-    psp_ramp_cap + bess_cap into one combined FAT ceiling) -- shown as a
-    footnote, not fabricated into a per-asset split that doesn't exist."""
-    hours = mx["hours"]
-    n = len(hours)
-    pv, bess_dis, bess_chg = mx["pv_mw"], mx["bess_dis_mw"], mx["bess_chg_mw"]
-    turb, pump, net = mx["psp_turb_mw"], mx["psp_pump_mw"], mx["net_mw"]
-
-    x0, x1 = 10, 1390
-    slot_w = (x1 - x0) / n
-    bar_w = max(min(28.0, slot_w * 0.7), 4.0)
-
-    # -- Top chart: PV + BESS (small-scale) --------------------------------
-    pv_bess_max = max([abs(pv[i]) + max(bess_dis[i], bess_chg[i]) for i in range(n)] + [1e-6])
-    zero_y1, half_h1 = 55, 48
-    pv_bars, dis_bars, chg_bars = [], [], []
-    for i in range(n):
-        x = x0 + i * slot_w + (slot_w - bar_w) / 2
-        h_pv = pv[i] / pv_bess_max * half_h1
-        h_dis = bess_dis[i] / pv_bess_max * half_h1
-        h_chg = bess_chg[i] / pv_bess_max * half_h1
-
-        y_pv = zero_y1 - h_pv
-        y_dis = y_pv - h_dis
-        pv_bars.append(f'<rect class="mx-bar-pv" data-hidx="{i}" data-final-h="{h_pv:.1f}" data-final-y="{y_pv:.1f}" x="{x:.1f}" y="{y_pv:.1f}" width="{bar_w:.1f}" height="{h_pv:.1f}" fill="{theme.YELLOW}" opacity="0.9"/>')
-        dis_bars.append(f'<rect class="mx-bar-bessdis" data-hidx="{i}" data-final-h="{h_dis:.1f}" data-final-y="{y_dis:.1f}" x="{x:.1f}" y="{y_dis:.1f}" width="{bar_w:.1f}" height="{h_dis:.1f}" fill="{theme.COLOR_UP}" opacity="0.9"/>')
-
-        y_chg = zero_y1 + h_chg
-        chg_bars.append(f'<rect class="mx-bar-besschg" data-hidx="{i}" data-final-h="{h_chg:.1f}" data-final-y="{zero_y1}" x="{x:.1f}" y="{zero_y1}" width="{bar_w:.1f}" height="{h_chg:.1f}" fill="{theme.COLOR_DOWN}" opacity="0.9"/>')
-
-    # -- Bottom chart: PSP turbine/pump (large-scale) -----------------------
-    psp_max = max([max(turb[i], pump[i]) for i in range(n)] + [1e-6])
-    zero_y2, half_h2 = 55, 48
-    turb_bars, pump_bars = [], []
-    for i in range(n):
-        x = x0 + i * slot_w + (slot_w - bar_w) / 2
-        h_turb = turb[i] / psp_max * half_h2
-        h_pump = pump[i] / psp_max * half_h2
-        y_turb = zero_y2 - h_turb
-        turb_bars.append(f'<rect class="mx-bar-turb" data-hidx="{i}" data-final-h="{h_turb:.1f}" data-final-y="{y_turb:.1f}" x="{x:.1f}" y="{y_turb:.1f}" width="{bar_w:.1f}" height="{h_turb:.1f}" fill="{theme.COLOR_GEN}" opacity="0.9"/>')
-        pump_bars.append(f'<rect class="mx-bar-pump" data-hidx="{i}" data-final-h="{h_pump:.1f}" data-final-y="{zero_y2}" x="{x:.1f}" y="{zero_y2}" width="{bar_w:.1f}" height="{h_pump:.1f}" fill="{theme.COLOR_PUMP}" opacity="0.9"/>')
-
-    payload = {
-        "hours": hours, "pvMw": pv, "bessDisMw": bess_dis, "turbMw": turb,
-        "bessChgMw": bess_chg, "pumpMw": pump, "netMw": net,
-    }
-    payload_json = _json.dumps(payload)
-
-    hover_cfg_top = _json.dumps({
-        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
-        "catchSelector": "#mx-top-hover-catch", "lineSelector": "#mx-top-hover-line",
-        "tooltipSelector": "#mx-top-tooltip", "indexLabel": "Hour", "indexVals": hours,
-        "traces": [
-            {"label": "PV", "yvals": pv, "py": pv, "color": theme.YELLOW, "unit": "MW", "decimals": 2},
-            {"label": "BESS dis", "yvals": bess_dis, "py": bess_dis, "color": theme.COLOR_UP, "unit": "MW", "decimals": 2},
-            {"label": "BESS chg", "yvals": bess_chg, "py": bess_chg, "color": theme.COLOR_DOWN, "unit": "MW", "decimals": 2},
-        ],
-    })
-    hover_cfg_bot = _json.dumps({
-        "n": n, "x0": x0, "x1": x1, "viewW": 1400,
-        "catchSelector": "#mx-bot-hover-catch", "lineSelector": "#mx-bot-hover-line",
-        "tooltipSelector": "#mx-bot-tooltip", "indexLabel": "Hour", "indexVals": hours,
-        "traces": [
-            {"label": "PSP turbine", "yvals": turb, "py": turb, "color": theme.COLOR_GEN, "unit": "MW", "decimals": 1},
-            {"label": "PSP pump", "yvals": pump, "py": pump, "color": theme.COLOR_PUMP, "unit": "MW", "decimals": 1},
-        ],
-    })
-
-    return f'''
-<div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
-  <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
-    </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Multi-asset dispatch</div>
-    <div class="mx-chart-block" data-mx='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:6px;">
-      <button class="gt-replay" onclick="dtMultiReplay(this)">&#9654; Replay</button>
-    </div>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
-    <div style="position:relative; height:104px;">
-      <svg viewBox="0 0 1400 110" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        {''.join(pv_bars)}
-        {''.join(dis_bars)}
-        {''.join(chg_bars)}
-        {_hover_svg_elems("mx-top", x0, x1, 110, 0)}
-      </svg>
-      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="mx-top-tooltip"')}
-    </div>
-    <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
-      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
-      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS charge</span>
-    </div>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine &amp; pump (own scale, max {psp_max:.0f} MW)</p>
-    <div style="position:relative; height:104px;">
-      <svg viewBox="0 0 1400 110" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
-        {''.join(turb_bars)}
-        {''.join(pump_bars)}
-        {_hover_svg_elems("mx-bot", x0, x1, 110, 0)}
-      </svg>
-      {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="mx-bot-tooltip"')}
-    </div>
-    <div style="display:flex; gap:12px; margin:2px 0 8px;">
-      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
-      <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_PUMP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP pump</span>
-    </div>
-    <span id="mx-readout" style="display:none;"></span>
-    </div>
-  </div>
-</div>
-{_REPLAY_STYLE}
-{_MULTI_REPLAY_SCRIPT}
-{_HOVER_CROSSHAIR_SCRIPT}
-<script>
-(function() {{
-  var block = document.querySelector('.mx-chart-block');
-  if (block) {{ dtHoverInit(block, {hover_cfg_top}); dtHoverInit(block, {hover_cfg_bot}); }}
-}})();
-</script>'''
-
-
 _WATER_REPLAY_SCRIPT = '''
 <script>
 window.dtWaterReplay = function(btn) {
@@ -1269,13 +1095,12 @@ def render_isp_dispatch_card(dv: dict) -> str:
     true 96-ISP (15-min) resolution -- every point is a genuinely different
     solved value now that DA/IDA/XBID run natively at ISP resolution, not a
     repeated hourly number. Same minimal chart language as the other
-    Optimization cards (Multi-asset dispatch, Water balance, etc.): no
+    Optimization cards (Water balance, etc.): no
     boxed frame or axis tick labels, just a zero line, colored traces, and
     a small legend row below each panel. PSP is mirrored around a mid-panel
     zero baseline -- turbine (generation) up, pump (consumption) down --
-    same convention as Multi-asset dispatch, instead of the earlier
-    turbine-only version of this panel which silently dropped every
-    pumping hour."""
+    instead of the earlier turbine-only version of this panel which
+    silently dropped every pumping hour."""
     isps = dv["isps"]
     hours = dv["hours"]
     n = len(isps)
