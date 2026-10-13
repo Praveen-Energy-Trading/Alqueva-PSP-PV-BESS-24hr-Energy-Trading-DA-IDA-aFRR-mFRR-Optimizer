@@ -18,14 +18,17 @@ from common_layer.market_analysis import dependence, panel as pnl  # noqa: E402
 from common_layer.market_analysis.config import events  # noqa: E402
 
 PRIMARY = "da_pt"
+NAMES = {"da_pt": "Day-ahead", "ida1_pt": "IDA1", "ida2_pt": "IDA2", "ida3_pt": "IDA3", "xbid_pt": "XBID", "afrr_up": "aFRR up", "afrr_dn": "aFRR down",
+         "mfrr_ap": "mFRR activation", "imb_short": "Imbalance (short)", "imb_long": "Imbalance (long)"}      # readable names for the axes
 plt.rcParams.update({"figure.dpi": 130, "axes.grid": True, "grid.alpha": 0.25, "axes.spines.top": False,
-                     "axes.spines.right": False, "font.size": 9})
+                     "axes.spines.right": False, "font.size": 9, "svg.fonttype": "none"})      # svg.fonttype none: the text stays text in the SVG (sharp at any zoom)
 
 
 def _save(fig, fig_dir: str, name: str) -> str:
     os.makedirs(fig_dir, exist_ok=True)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_dir, name))
+    fig.savefig(os.path.join(fig_dir, os.path.splitext(name)[0] + ".svg"), bbox_inches="tight", pad_inches=0.05)    # a vector copy for the dashboard, cropped to the plot
     plt.close(fig)
     return name
 
@@ -136,8 +139,8 @@ def correlations(T: Dict[str, pd.DataFrame], fig_dir: str) -> str:
         return ""
     fig, ax = plt.subplots(figsize=(6.4, 5.4))
     im = ax.imshow(c.values.astype(float), vmin=-1, vmax=1, cmap="RdBu_r")
-    ax.set_xticks(range(len(c))), ax.set_xticklabels(c.columns, rotation=45, ha="right")
-    ax.set_yticks(range(len(c))), ax.set_yticklabels(c.index)
+    ax.set_xticks(range(len(c))), ax.set_xticklabels([NAMES.get(x, x) for x in c.columns], rotation=45, ha="right")
+    ax.set_yticks(range(len(c))), ax.set_yticklabels([NAMES.get(x, x) for x in c.index])
     for i in range(len(c)):
         for j in range(len(c)):
             v = c.values[i, j]

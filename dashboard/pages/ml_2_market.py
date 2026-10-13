@@ -87,5 +87,5 @@ for name, cap in [("phase4_structural_breaks.png", "Structural breaks: the docum
     p = ml_data.REPO_ROOT / "docs" / "forecasting" / "figures" / name
     if p.exists():
         with st.expander(cap):
-            st.image(str(p), width="stretch")
+            ml_ui.figure(p)
 

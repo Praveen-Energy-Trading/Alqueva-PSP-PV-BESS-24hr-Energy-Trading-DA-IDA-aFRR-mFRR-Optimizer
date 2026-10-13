@@ -71,6 +71,19 @@ def table(df, compact: bool = False, height=None, formats: Optional[dict] = None
     st.markdown(html_table.html_table(df, formats=formats, height=height), unsafe_allow_html=True)
 
 
+def figure(path) -> None:
+    """Show a figure at the full width of the page: the SVG next to a PNG if there is one (sharp at any zoom), else the PNG itself."""
+    import base64
+    from pathlib import Path
+    p = Path(path)
+    svg = p.with_suffix(".svg")
+    if svg.exists():
+        data = base64.b64encode(svg.read_bytes()).decode("ascii")
+        st.markdown(f'<img src="data:image/svg+xml;base64,{data}" width="100%" alt="{p.stem}">', unsafe_allow_html=True)
+    else:
+        st.image(str(p), width="stretch")
+
+
 def not_yet_run(what: str) -> None:
     st.info(f"Not yet run: {what}. This page fills in as soon as the stage has produced its files.")
 
