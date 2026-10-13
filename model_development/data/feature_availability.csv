@@ -8,9 +8,7 @@ cal_is_weekend,calendar,da_price,True,,,
 cal_doy_sin,calendar,da_price,True,,,
 cal_doy_cos,calendar,da_price,True,,,
 cal_is_holiday_pt,calendar,da_price,True,,,
-cal_is_holiday_es,calendar,da_price,True,,,
 cal_is_bridge_pt,calendar,da_price,True,,,
-cal_is_bridge_es,calendar,da_price,True,,,
 cal_days_to_holiday_pt,calendar,da_price,True,,,
 cal_days_since_holiday_pt,calendar,da_price,True,,,
 cal_dst_day_type,calendar,da_price,True,,,
@@ -47,16 +45,8 @@ base_rank,base,da_price,False,does not apply to this target,,
 base_shape,base,da_price,False,does not apply to this target,,
 base_lag_1d,base,da_price,False,does not apply to this target,,
 base_change_1d,base,da_price,False,does not apply to this target,,
-dar_vol_total_d0,market_result,da_price,False,reads da_vol_total up to D+0 but the target may use it only up to D-1,,
-dar_flow_pt_to_es_d0,market_result,da_price,False,reads da_flow_pt_to_es up to D+0 but the target may use it only up to D-1,,
-dar_flow_es_to_pt_d0,market_result,da_price,False,reads da_flow_es_to_pt up to D+0 but the target may use it only up to D-1,,
 dar_vol_pt_buy_d0,market_result,da_price,False,reads da_vol_pt_buy up to D+0 but the target may use it only up to D-1,,
 dar_vol_pt_sell_d0,market_result,da_price,False,reads da_vol_pt_sell up to D+0 but the target may use it only up to D-1,,
-dar_es_minus_pt_d0,market_result,da_price,False,reads da_es up to D+0 but the target may use it only up to D-1,,
-dar_vol_total_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
-dar_flow_pt_to_es_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
-dar_flow_es_to_pt_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
-dar_es_minus_pt_lag1d,market_result,da_price,True,,2026-03-08 13:30,1290.0
 ida1_spread_d0,cross_market,da_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
 ida2_spread_d0,cross_market,da_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
 ida1_spread_lag1d,cross_market,da_price,True,,2026-03-08 15:30,1170.0
@@ -85,9 +75,7 @@ cal_is_weekend,calendar,pv_weather,True,,,
 cal_doy_sin,calendar,pv_weather,True,,,
 cal_doy_cos,calendar,pv_weather,True,,,
 cal_is_holiday_pt,calendar,pv_weather,True,,,
-cal_is_holiday_es,calendar,pv_weather,True,,,
 cal_is_bridge_pt,calendar,pv_weather,True,,,
-cal_is_bridge_es,calendar,pv_weather,True,,,
 cal_days_to_holiday_pt,calendar,pv_weather,True,,,
 cal_days_since_holiday_pt,calendar,pv_weather,True,,,
 cal_dst_day_type,calendar,pv_weather,True,,,
@@ -124,16 +112,8 @@ base_rank,base,pv_weather,False,does not apply to this target,,
 base_shape,base,pv_weather,False,does not apply to this target,,
 base_lag_1d,base,pv_weather,False,does not apply to this target,,
 base_change_1d,base,pv_weather,False,does not apply to this target,,
-dar_vol_total_d0,market_result,pv_weather,False,da_vol_total is not in the target's information set,,
-dar_flow_pt_to_es_d0,market_result,pv_weather,False,da_flow_pt_to_es is not in the target's information set,,
-dar_flow_es_to_pt_d0,market_result,pv_weather,False,da_flow_es_to_pt is not in the target's information set,,
 dar_vol_pt_buy_d0,market_result,pv_weather,False,da_vol_pt_buy is not in the target's information set,,
 dar_vol_pt_sell_d0,market_result,pv_weather,False,da_vol_pt_sell is not in the target's information set,,
-dar_es_minus_pt_d0,market_result,pv_weather,False,da_es is not in the target's information set,,
-dar_vol_total_lag1d,market_result,pv_weather,False,da_vol_total is not in the target's information set,,
-dar_flow_pt_to_es_lag1d,market_result,pv_weather,False,da_flow_pt_to_es is not in the target's information set,,
-dar_flow_es_to_pt_lag1d,market_result,pv_weather,False,da_flow_es_to_pt is not in the target's information set,,
-dar_es_minus_pt_lag1d,market_result,pv_weather,False,da_es is not in the target's information set,,
 ida1_spread_d0,cross_market,pv_weather,False,ida1_pt is not in the target's information set,,
 ida2_spread_d0,cross_market,pv_weather,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,pv_weather,False,ida1_pt is not in the target's information set,,
@@ -162,9 +142,7 @@ cal_is_weekend,calendar,reservoir_inflow,True,,,
 cal_doy_sin,calendar,reservoir_inflow,True,,,
 cal_doy_cos,calendar,reservoir_inflow,True,,,
 cal_is_holiday_pt,calendar,reservoir_inflow,True,,,
-cal_is_holiday_es,calendar,reservoir_inflow,True,,,
 cal_is_bridge_pt,calendar,reservoir_inflow,True,,,
-cal_is_bridge_es,calendar,reservoir_inflow,True,,,
 cal_days_to_holiday_pt,calendar,reservoir_inflow,True,,,
 cal_days_since_holiday_pt,calendar,reservoir_inflow,True,,,
 cal_dst_day_type,calendar,reservoir_inflow,True,,,
@@ -201,16 +179,8 @@ base_rank,base,reservoir_inflow,False,does not apply to this target,,
 base_shape,base,reservoir_inflow,False,does not apply to this target,,
 base_lag_1d,base,reservoir_inflow,False,does not apply to this target,,
 base_change_1d,base,reservoir_inflow,False,does not apply to this target,,
-dar_vol_total_d0,market_result,reservoir_inflow,False,da_vol_total is not in the target's information set,,
-dar_flow_pt_to_es_d0,market_result,reservoir_inflow,False,da_flow_pt_to_es is not in the target's information set,,
-dar_flow_es_to_pt_d0,market_result,reservoir_inflow,False,da_flow_es_to_pt is not in the target's information set,,
 dar_vol_pt_buy_d0,market_result,reservoir_inflow,False,da_vol_pt_buy is not in the target's information set,,
 dar_vol_pt_sell_d0,market_result,reservoir_inflow,False,da_vol_pt_sell is not in the target's information set,,
-dar_es_minus_pt_d0,market_result,reservoir_inflow,False,da_es is not in the target's information set,,
-dar_vol_total_lag1d,market_result,reservoir_inflow,False,da_vol_total is not in the target's information set,,
-dar_flow_pt_to_es_lag1d,market_result,reservoir_inflow,False,da_flow_pt_to_es is not in the target's information set,,
-dar_flow_es_to_pt_lag1d,market_result,reservoir_inflow,False,da_flow_es_to_pt is not in the target's information set,,
-dar_es_minus_pt_lag1d,market_result,reservoir_inflow,False,da_es is not in the target's information set,,
 ida1_spread_d0,cross_market,reservoir_inflow,False,ida1_pt is not in the target's information set,,
 ida2_spread_d0,cross_market,reservoir_inflow,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,reservoir_inflow,False,ida1_pt is not in the target's information set,,
@@ -239,9 +209,7 @@ cal_is_weekend,calendar,ida1_price,True,,,
 cal_doy_sin,calendar,ida1_price,True,,,
 cal_doy_cos,calendar,ida1_price,True,,,
 cal_is_holiday_pt,calendar,ida1_price,True,,,
-cal_is_holiday_es,calendar,ida1_price,True,,,
 cal_is_bridge_pt,calendar,ida1_price,True,,,
-cal_is_bridge_es,calendar,ida1_price,True,,,
 cal_days_to_holiday_pt,calendar,ida1_price,True,,,
 cal_days_since_holiday_pt,calendar,ida1_price,True,,,
 cal_dst_day_type,calendar,ida1_price,True,,,
@@ -278,16 +246,8 @@ base_rank,base,ida1_price,True,,2026-03-09 13:30,40.0
 base_shape,base,ida1_price,True,,2026-03-09 13:30,40.0
 base_lag_1d,base,ida1_price,True,,2026-03-08 13:30,1480.0
 base_change_1d,base,ida1_price,True,,2026-03-09 13:30,40.0
-dar_vol_total_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
-dar_flow_pt_to_es_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
-dar_flow_es_to_pt_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
 dar_vol_pt_buy_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
 dar_vol_pt_sell_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
-dar_es_minus_pt_d0,market_result,ida1_price,True,,2026-03-09 13:30,40.0
-dar_vol_total_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
-dar_flow_pt_to_es_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
-dar_flow_es_to_pt_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
-dar_es_minus_pt_lag1d,market_result,ida1_price,True,,2026-03-08 13:30,1480.0
 ida1_spread_d0,cross_market,ida1_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
 ida2_spread_d0,cross_market,ida1_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
 ida1_spread_lag1d,cross_market,ida1_price,True,,2026-03-08 15:30,1360.0
@@ -316,9 +276,7 @@ cal_is_weekend,calendar,ida2_price,True,,,
 cal_doy_sin,calendar,ida2_price,True,,,
 cal_doy_cos,calendar,ida2_price,True,,,
 cal_is_holiday_pt,calendar,ida2_price,True,,,
-cal_is_holiday_es,calendar,ida2_price,True,,,
 cal_is_bridge_pt,calendar,ida2_price,True,,,
-cal_is_bridge_es,calendar,ida2_price,True,,,
 cal_days_to_holiday_pt,calendar,ida2_price,True,,,
 cal_days_since_holiday_pt,calendar,ida2_price,True,,,
 cal_dst_day_type,calendar,ida2_price,True,,,
@@ -355,16 +313,8 @@ base_rank,base,ida2_price,True,,2026-03-09 13:30,460.0
 base_shape,base,ida2_price,True,,2026-03-09 13:30,460.0
 base_lag_1d,base,ida2_price,True,,2026-03-08 13:30,1900.0
 base_change_1d,base,ida2_price,True,,2026-03-09 13:30,460.0
-dar_vol_total_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
-dar_flow_pt_to_es_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
-dar_flow_es_to_pt_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
 dar_vol_pt_buy_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
 dar_vol_pt_sell_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
-dar_es_minus_pt_d0,market_result,ida2_price,True,,2026-03-09 13:30,460.0
-dar_vol_total_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
-dar_flow_pt_to_es_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
-dar_flow_es_to_pt_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
-dar_es_minus_pt_lag1d,market_result,ida2_price,True,,2026-03-08 13:30,1900.0
 ida1_spread_d0,cross_market,ida2_price,True,,2026-03-09 15:30,340.0
 ida2_spread_d0,cross_market,ida2_price,False,reads ida2_pt up to D+0 but the target may use it only up to D-1,,
 ida1_spread_lag1d,cross_market,ida2_price,True,,2026-03-08 15:30,1780.0
@@ -393,9 +343,7 @@ cal_is_weekend,calendar,ida3_price,True,,,
 cal_doy_sin,calendar,ida3_price,True,,,
 cal_doy_cos,calendar,ida3_price,True,,,
 cal_is_holiday_pt,calendar,ida3_price,True,,,
-cal_is_holiday_es,calendar,ida3_price,True,,,
 cal_is_bridge_pt,calendar,ida3_price,True,,,
-cal_is_bridge_es,calendar,ida3_price,True,,,
 cal_days_to_holiday_pt,calendar,ida3_price,True,,,
 cal_days_since_holiday_pt,calendar,ida3_price,True,,,
 cal_dst_day_type,calendar,ida3_price,True,,,
@@ -432,16 +380,8 @@ base_rank,base,ida3_price,True,,2026-03-09 13:30,1180.0
 base_shape,base,ida3_price,True,,2026-03-09 13:30,1180.0
 base_lag_1d,base,ida3_price,True,,2026-03-08 13:30,2620.0
 base_change_1d,base,ida3_price,True,,2026-03-09 13:30,1180.0
-dar_vol_total_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
-dar_flow_pt_to_es_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
-dar_flow_es_to_pt_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
 dar_vol_pt_buy_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
 dar_vol_pt_sell_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
-dar_es_minus_pt_d0,market_result,ida3_price,True,,2026-03-09 13:30,1180.0
-dar_vol_total_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
-dar_flow_pt_to_es_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
-dar_flow_es_to_pt_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
-dar_es_minus_pt_lag1d,market_result,ida3_price,True,,2026-03-08 13:30,2620.0
 ida1_spread_d0,cross_market,ida3_price,True,,2026-03-09 15:30,1060.0
 ida2_spread_d0,cross_market,ida3_price,True,,2026-03-09 22:30,640.0
 ida1_spread_lag1d,cross_market,ida3_price,True,,2026-03-08 15:30,2500.0
@@ -470,9 +410,7 @@ cal_is_weekend,calendar,xbid_price,True,,,
 cal_doy_sin,calendar,xbid_price,True,,,
 cal_doy_cos,calendar,xbid_price,True,,,
 cal_is_holiday_pt,calendar,xbid_price,True,,,
-cal_is_holiday_es,calendar,xbid_price,True,,,
 cal_is_bridge_pt,calendar,xbid_price,True,,,
-cal_is_bridge_es,calendar,xbid_price,True,,,
 cal_days_to_holiday_pt,calendar,xbid_price,True,,,
 cal_days_since_holiday_pt,calendar,xbid_price,True,,,
 cal_dst_day_type,calendar,xbid_price,True,,,
@@ -509,16 +447,8 @@ base_rank,base,xbid_price,True,,2026-03-09 13:30,300.0
 base_shape,base,xbid_price,True,,2026-03-09 13:30,300.0
 base_lag_1d,base,xbid_price,True,,2026-03-08 13:30,1740.0
 base_change_1d,base,xbid_price,True,,2026-03-09 13:30,300.0
-dar_vol_total_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
-dar_flow_pt_to_es_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
-dar_flow_es_to_pt_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
 dar_vol_pt_buy_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
 dar_vol_pt_sell_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
-dar_es_minus_pt_d0,market_result,xbid_price,True,,2026-03-09 13:30,300.0
-dar_vol_total_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
-dar_flow_pt_to_es_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
-dar_flow_es_to_pt_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
-dar_es_minus_pt_lag1d,market_result,xbid_price,True,,2026-03-08 13:30,1740.0
 ida1_spread_d0,cross_market,xbid_price,True,,2026-03-09 15:30,180.0
 ida2_spread_d0,cross_market,xbid_price,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,xbid_price,True,,2026-03-08 15:30,1620.0
@@ -547,9 +477,7 @@ cal_is_weekend,calendar,afrr_cap_price,True,,,
 cal_doy_sin,calendar,afrr_cap_price,True,,,
 cal_doy_cos,calendar,afrr_cap_price,True,,,
 cal_is_holiday_pt,calendar,afrr_cap_price,True,,,
-cal_is_holiday_es,calendar,afrr_cap_price,True,,,
 cal_is_bridge_pt,calendar,afrr_cap_price,True,,,
-cal_is_bridge_es,calendar,afrr_cap_price,True,,,
 cal_days_to_holiday_pt,calendar,afrr_cap_price,True,,,
 cal_days_since_holiday_pt,calendar,afrr_cap_price,True,,,
 cal_dst_day_type,calendar,afrr_cap_price,True,,,
@@ -586,16 +514,8 @@ base_rank,base,afrr_cap_price,False,does not apply to this target,,
 base_shape,base,afrr_cap_price,False,does not apply to this target,,
 base_lag_1d,base,afrr_cap_price,False,does not apply to this target,,
 base_change_1d,base,afrr_cap_price,False,does not apply to this target,,
-dar_vol_total_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
-dar_flow_pt_to_es_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
-dar_flow_es_to_pt_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_buy_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_sell_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
-dar_es_minus_pt_d0,market_result,afrr_cap_price,True,,2026-03-09 13:30,30.0
-dar_vol_total_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
-dar_flow_pt_to_es_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
-dar_flow_es_to_pt_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
-dar_es_minus_pt_lag1d,market_result,afrr_cap_price,True,,2026-03-08 13:30,1470.0
 ida1_spread_d0,cross_market,afrr_cap_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
 ida2_spread_d0,cross_market,afrr_cap_price,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,afrr_cap_price,True,,2026-03-08 15:30,1350.0
@@ -624,9 +544,7 @@ cal_is_weekend,calendar,afrr_dn_price,True,,,
 cal_doy_sin,calendar,afrr_dn_price,True,,,
 cal_doy_cos,calendar,afrr_dn_price,True,,,
 cal_is_holiday_pt,calendar,afrr_dn_price,True,,,
-cal_is_holiday_es,calendar,afrr_dn_price,True,,,
 cal_is_bridge_pt,calendar,afrr_dn_price,True,,,
-cal_is_bridge_es,calendar,afrr_dn_price,True,,,
 cal_days_to_holiday_pt,calendar,afrr_dn_price,True,,,
 cal_days_since_holiday_pt,calendar,afrr_dn_price,True,,,
 cal_dst_day_type,calendar,afrr_dn_price,True,,,
@@ -663,16 +581,8 @@ base_rank,base,afrr_dn_price,False,does not apply to this target,,
 base_shape,base,afrr_dn_price,False,does not apply to this target,,
 base_lag_1d,base,afrr_dn_price,False,does not apply to this target,,
 base_change_1d,base,afrr_dn_price,False,does not apply to this target,,
-dar_vol_total_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
-dar_flow_pt_to_es_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
-dar_flow_es_to_pt_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_buy_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_sell_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
-dar_es_minus_pt_d0,market_result,afrr_dn_price,True,,2026-03-09 13:30,30.0
-dar_vol_total_lag1d,market_result,afrr_dn_price,True,,2026-03-08 13:30,1470.0
-dar_flow_pt_to_es_lag1d,market_result,afrr_dn_price,True,,2026-03-08 13:30,1470.0
-dar_flow_es_to_pt_lag1d,market_result,afrr_dn_price,True,,2026-03-08 13:30,1470.0
-dar_es_minus_pt_lag1d,market_result,afrr_dn_price,True,,2026-03-08 13:30,1470.0
 ida1_spread_d0,cross_market,afrr_dn_price,False,reads ida1_pt up to D+0 but the target may use it only up to D-1,,
 ida2_spread_d0,cross_market,afrr_dn_price,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,afrr_dn_price,True,,2026-03-08 15:30,1350.0
@@ -701,9 +611,7 @@ cal_is_weekend,calendar,mfrr_price,True,,,
 cal_doy_sin,calendar,mfrr_price,True,,,
 cal_doy_cos,calendar,mfrr_price,True,,,
 cal_is_holiday_pt,calendar,mfrr_price,True,,,
-cal_is_holiday_es,calendar,mfrr_price,True,,,
 cal_is_bridge_pt,calendar,mfrr_price,True,,,
-cal_is_bridge_es,calendar,mfrr_price,True,,,
 cal_days_to_holiday_pt,calendar,mfrr_price,True,,,
 cal_days_since_holiday_pt,calendar,mfrr_price,True,,,
 cal_dst_day_type,calendar,mfrr_price,True,,,
@@ -740,16 +648,8 @@ base_rank,base,mfrr_price,False,does not apply to this target,,
 base_shape,base,mfrr_price,False,does not apply to this target,,
 base_lag_1d,base,mfrr_price,False,does not apply to this target,,
 base_change_1d,base,mfrr_price,False,does not apply to this target,,
-dar_vol_total_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
-dar_flow_pt_to_es_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
-dar_flow_es_to_pt_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_buy_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
 dar_vol_pt_sell_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
-dar_es_minus_pt_d0,market_result,mfrr_price,True,,2026-03-09 13:30,30.0
-dar_vol_total_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
-dar_flow_pt_to_es_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
-dar_flow_es_to_pt_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
-dar_es_minus_pt_lag1d,market_result,mfrr_price,True,,2026-03-08 13:30,1470.0
 ida1_spread_d0,cross_market,mfrr_price,False,ida1_pt is not in the target's information set,,
 ida2_spread_d0,cross_market,mfrr_price,False,ida2_pt is not in the target's information set,,
 ida1_spread_lag1d,cross_market,mfrr_price,False,ida1_pt is not in the target's information set,,

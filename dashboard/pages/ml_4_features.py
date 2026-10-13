@@ -104,7 +104,7 @@ else:
     st.markdown("Kept: " + "; ".join(fname(x).lower() for x in r["selected"]))
     st.caption(f"Rule: a feature is kept if it carries at least {100 * r['rule']['min_share']:.0f}% of the permutation importance in at least "
                f"{100 * r['rule']['min_period_fraction']:.0f}% of the periods ({', '.join(r['periods'])}), using development data only. "
-               "On the day-ahead price the full set improved RMSE (p = 0.013 for LightGBM) but not MAE significantly, so the small set was kept.")
+               "On the day-ahead price the full set improved the squared error for LightGBM (p = 0.003) but not the absolute error significantly (p = 0.08), and not for XGBoost, so the small set was kept.")
 
 st.subheader("No leakage by construction")
 st.markdown("""

@@ -60,7 +60,7 @@ SOURCE_LABELS = {"omie_da": "OMIE day-ahead market", "omie_ida1": "OMIE intraday
                  "ren_afrr": "REN aFRR reserve prices", "ren_imbalance": "REN imbalance prices", "ren_mfrr": "REN mFRR reserve prices"}
 DATASET_LABELS = {"da_price": "Day-ahead prices", "ida_price": "Intraday auction prices", "xbid_price": "XBID prices", "afrr_price": "aFRR prices",
                   "mfrr_price": "mFRR prices", "imbalance_price": "Imbalance prices"}
-SERIES_LABELS = {"da_result": "Day-ahead result", "da_pt": "Day-ahead price (Portugal)", "da_es": "Day-ahead price (Spain)",
+SERIES_LABELS = {"da_result": "Day-ahead result", "da_pt": "Day-ahead price (Portugal)",
                  "ida1_result": "IDA1 result", "ida2_result": "IDA2 result", "ida3_result": "IDA3 result", "ida1_pt": "IDA1 price", "ida2_pt": "IDA2 price",
                  "ida3_pt": "IDA3 price", "xbid_summary": "XBID summary", "xbid_pt": "XBID price", "afrr_band_result": "aFRR band result",
                  "afrr_up": "aFRR up price", "afrr_dn": "aFRR down price", "imbalance_price": "Imbalance price", "mfrr_series": "mFRR prices",
@@ -93,8 +93,7 @@ def run_label(s: str) -> str:
 
 
 PHRASES = {"da_price": "day-ahead prices", "ida_price": "intraday auction prices", "xbid_price": "XBID prices", "afrr_price": "aFRR prices",
-           "mfrr_price": "mFRR prices", "imbalance_price": "imbalance prices", "da_vol_total": "the day-ahead traded volume", "da_flow_pt_to_es": "the flow from Portugal to Spain", "da_flow_es_to_pt": "the flow from Spain to Portugal",
-           "da_vol_pt_buy": "the Portuguese day-ahead purchases", "da_vol_pt_sell": "the Portuguese day-ahead sales", "da_es": "the Spanish day-ahead price",
+           "mfrr_price": "mFRR prices", "imbalance_price": "imbalance prices",            "da_vol_pt_buy": "the Portuguese day-ahead purchases", "da_vol_pt_sell": "the Portuguese day-ahead sales",
            "da_pt": "the Portuguese day-ahead price", "ida1_pt": "the IDA1 price", "ida2_pt": "the IDA2 price", "ida3_pt": "the IDA3 price",
            "xbid_pt": "the XBID price", "afrr_up": "the aFRR up price", "afrr_dn": "the aFRR down price", "mfrr_ap": "the mFRR activation price",
            "entsoe_transparency": "ENTSO-E transparency data", "fuel_carbon": "fuel and carbon prices", "reservoir_levels": "reservoir levels",
