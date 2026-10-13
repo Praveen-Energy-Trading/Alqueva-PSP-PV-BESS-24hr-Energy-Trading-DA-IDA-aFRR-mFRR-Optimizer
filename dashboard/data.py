@@ -1183,47 +1183,6 @@ def load_water_balance(delivery_date: str) -> dict | None:
 
 
 @st.cache_data(ttl=5)
-def load_bess_soc_price(delivery_date: str) -> dict | None:
-    """BESS state-of-charge trajectory vs DA clearing price, the real
-    storage-arbitrage decision the solver actually made -- soc_mwh,
-    charge_mw/discharge_mw from ComponentStore.bess_schedule, DA_price_EUR_MWh
-    from the same Dispatch_Hourly sheet every other price series here reads."""
-    comp = load_component_store(delivery_date)
-    if comp is None:
-        return None
-    bess_sched = comp.get("bess_schedule") or {}
-    if not bess_sched:
-        return None
-    report = load_daily_report(delivery_date)
-    if report is None:
-        return None
-    df = report["dispatch"]
-    if "DA_price_EUR_MWh" not in df.columns:
-        return None
-    price_by_hour = df.set_index("Hour")["DA_price_EUR_MWh"].to_dict()
-
-    hours = sorted(bess_sched)
-    cfg = load_config()
-    e_min, e_max = cfg.plant.bess.e_min_mwh, cfg.plant.bess.e_max_mwh
-
-    soc_mwh = [bess_sched[h]["soc_mwh"] for h in hours]
-    chg_mw = [bess_sched[h]["total_charge_mw"] for h in hours]
-    dis_mw = [bess_sched[h]["discharge_mw"] for h in hours]
-    price = [float(price_by_hour.get(h, 0.0)) for h in hours]
-
-    return {
-        "hours": hours,
-        "soc_mwh": soc_mwh,
-        "soc_pct": [(s - e_min) / max(e_max - e_min, 1e-9) * 100 for s in soc_mwh],
-        "chg_mw": chg_mw,
-        "dis_mw": dis_mw,
-        "price_eur_mwh": price,
-        "e_min_mwh": e_min,
-        "e_max_mwh": e_max,
-    }
-
-
-@st.cache_data(ttl=5)
 def load_bess_charge_source(delivery_date: str) -> dict | None:
     """Real per-hour split of what BESS charging power actually came from --
     grid (bess_schedule.charge_mw, the p_chg solver variable) vs PV

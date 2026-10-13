@@ -241,7 +241,7 @@ def _render() -> None:
         for i, t in enumerate(all_tickets):
             icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
             rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else " - "
-            label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}\n{t['decision']} · {rev}"
+            label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}  \n{t['decision']}  \n{rev}"      # one line each (markdown hard breaks); no separator dot to dangle at a line end
             is_selected = t["gate"] == st.session_state[state_key]
             cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
                             use_container_width=True, type="primary" if is_selected else "secondary",
@@ -288,7 +288,6 @@ def _render() -> None:
     pv_routing = data.load_pv_routing(selected_date)
     multi_asset = data.load_multi_asset_dispatch(selected_date)
     water_balance = data.load_water_balance(selected_date)
-    bess_soc_price = data.load_bess_soc_price(selected_date)
     bess_charge_source = data.load_bess_charge_source(selected_date)
     da_vs_activation = data.load_da_vs_activation(selected_date)
     isp_dispatch = data.load_isp_dispatch(selected_date)
@@ -307,7 +306,6 @@ def _render() -> None:
         ("Water balance", lambda: components.html(dispatch_ticket.render_water_balance_card(water_balance), height=390)) if water_balance else None,
         ("PV routing & curtailment", lambda: components.html(dispatch_ticket.render_pv_routing_card(pv_routing), height=400)) if pv_routing else None,
         ("BESS charge source", lambda: components.html(dispatch_ticket.render_bess_charge_source_card(bess_charge_source), height=370)) if bess_charge_source else None,
-        ("BESS SOC vs price", lambda: components.html(dispatch_ticket.render_bess_soc_price_card(bess_soc_price), height=400)) if bess_soc_price else None,
         ("Multi-asset dispatch", lambda: components.html(dispatch_ticket.render_multi_asset_dispatch_card(multi_asset), height=460)) if multi_asset else None,
         ("ISP asset dispatch (96-pt)", lambda: components.html(dispatch_ticket.render_isp_dispatch_card(isp_dispatch), height=490)) if isp_dispatch else None,
         ("DA vs ISP activation", lambda: components.html(dispatch_ticket.render_da_vs_activation_card(da_vs_activation), height=355)) if da_vs_activation else None,
