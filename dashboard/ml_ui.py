@@ -79,7 +79,9 @@ def figure(path) -> None:
     svg = p.with_suffix(".svg")
     if svg.exists():
         data = base64.b64encode(svg.read_bytes()).decode("ascii")
-        st.markdown(f'<img src="data:image/svg+xml;base64,{data}" width="100%" alt="{p.stem}">', unsafe_allow_html=True)
+        # Streamlit sets object-fit: scale-down on images, which never enlarges an SVG beyond its natural size; fill the box instead
+        st.markdown('<style>img[src^="data:image/svg+xml"] { object-fit: fill !important; }</style>'
+                    f'<img src="data:image/svg+xml;base64,{data}" width="100%" alt="{p.stem}">', unsafe_allow_html=True)
     else:
         st.image(str(p), width="stretch")
 
