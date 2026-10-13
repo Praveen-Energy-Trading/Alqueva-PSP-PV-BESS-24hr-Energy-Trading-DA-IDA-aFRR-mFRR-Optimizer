@@ -21,6 +21,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 
+from common_layer.utilities import excel_layout
 from common_layer.database import (
     PositionStore, ReserveStore, ActivationStore, ComponentStore,
 )
@@ -168,18 +169,9 @@ def _repo_root() -> str:
     return os.path.abspath(os.path.join(here, os.pardir, os.pardir))
 
 
-def _autofit(ws, min_w=8, max_w=30):
-    """Widen columns to roughly fit content."""
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            try:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
-            except Exception:
-                pass
-        ws.column_dimensions[col_letter].width = min(max_w, max(min_w, max_len + 2))
+def _autofit(ws, min_w=8, max_w=30, header_row=2):
+    """Column widths from the data cells, not from the header (the header wraps inside the column); see common_layer/utilities/excel_layout.py."""
+    excel_layout.fit_columns(ws, header_row=header_row, min_w=min_w, max_w=max_w)
 
 
 def _title_row(ws, title: str, n_cols: int):
@@ -239,7 +231,7 @@ def _write_dispatch(wb: Workbook, delivery_date: str, df: pd.DataFrame):
                 cell.fill = _BAD_FILL
 
     ws.freeze_panes = "A4"
-    _autofit(ws, min_w=6, max_w=20)
+    _autofit(ws, min_w=7, max_w=22, header_row=3)
 
 
 # ── Sheet 2: ISP_Activation ───────────────────────────────────────────────────

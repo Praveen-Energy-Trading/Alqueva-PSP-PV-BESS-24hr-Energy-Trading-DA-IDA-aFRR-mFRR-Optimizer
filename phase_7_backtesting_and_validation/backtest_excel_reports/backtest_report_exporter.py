@@ -13,6 +13,8 @@ from typing import Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
+from common_layer.utilities.excel_layout import format_workbook
+
 from phase_7_backtesting_and_validation.backtest_engine.backtest_runner import (
     BacktestResult, StochasticComparisonResult,
 )
@@ -216,6 +218,7 @@ def export_backtest(start_date: str, result: BacktestResult,
     out_dir = os.path.join(_repo_root(), "runtime", "reports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, filename or f"backtest_{start_date}_{result.n_days}d.xlsx")
+    format_workbook(wb)                                   # widths follow the content, not the header
     wb.save(path)
     return path
 
@@ -284,6 +287,7 @@ def export_risk_comparison(start_date: str, result: StochasticComparisonResult) 
     out_dir = os.path.join(_repo_root(), "runtime", "reports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"risk_comparison_{start_date}_{result.n_days}d.xlsx")
+    format_workbook(wb)                                   # widths follow the content, not the header
     wb.save(path)
     return path
 
@@ -341,5 +345,6 @@ def export_live_resettlement(delivery_date: str, result: LiveBidResettlement) ->
     out_dir = os.path.join(_repo_root(), "runtime", "reports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"live_resettlement_{delivery_date}.xlsx")
+    format_workbook(wb)                                   # widths follow the content, not the header
     wb.save(path)
     return path
