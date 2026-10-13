@@ -29,12 +29,12 @@ def _date(s: str) -> dt.date:
     return dt.date.fromisoformat(s)
 
 
-def _view(target: str):
+def _view(target: str, curate: bool = True):
     from common_layer.configuration.forecast_formulation import load_forecast_formulation
     from common_layer.data_layer.clean_store import CleanStore
     from common_layer.forecast_evaluation.asof import AsOfView
     from common_layer.market_analysis import panel as pnl
-    return AsOfView(pnl.build_panel(CleanStore()), load_forecast_formulation(), target)
+    return AsOfView(pnl.build_panel(CleanStore(), curate=curate), load_forecast_formulation(), target)
 
 
 def main() -> int:
@@ -75,7 +75,7 @@ def main() -> int:
     elif a.cmd == "plan":
         print(json.dumps(monitoring.plan(a.target, a.as_of, cfg, ecfg), indent=2, default=str))
     elif a.cmd == "report":
-        view = _view(a.target)
+        view = _view(a.target, curate=False)                       # outcomes are scored on what was published, not on filled values
         rep = monitoring.build_report(a.target, a.as_of, view, cfg, ecfg)
         base = monitoring.load_baseline(a.target, rep["version"])
         os.makedirs(a.out, exist_ok=True)

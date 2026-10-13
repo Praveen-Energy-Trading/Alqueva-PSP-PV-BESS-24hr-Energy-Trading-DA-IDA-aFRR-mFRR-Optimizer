@@ -82,7 +82,7 @@ def main() -> int:
         from common_layer.forecast_evaluation.tuning import load_tuning_config
         from common_layer.market_analysis import panel as pnl
         from common_layer.model_development import serving
-        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore()), load_forecast_formulation(), cfg_for(a.target), load_tuning_config(), a.first_day,
+        r = serving.fit_artifact(a.target, pnl.build_panel(CleanStore(), curate=True), load_forecast_formulation(), cfg_for(a.target), load_tuning_config(), a.first_day,
                                  role=a.role, force_retune=a.force_retune)
         print(f"fitted {r['role']} of version {r['version']} ({', '.join(r['members'])}), training ends {r['train_end']}, "
               f"settings tuned {r['tuned_at']}: {r['path']}")

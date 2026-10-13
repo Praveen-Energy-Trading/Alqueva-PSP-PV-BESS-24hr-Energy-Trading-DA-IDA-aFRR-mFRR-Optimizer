@@ -5,11 +5,14 @@ Score per (dataset, session, delivery day): 100 minus the penalties of its warni
 `penalties`), floored at 0. A day with no rows scores 0. Info rows (spikes, negative prices,
 prices at the limit) never reduce the score.
 
-The gate is green only if, for every dataset (per session for the intraday auctions):
-    * the share of missing days is within its limit,
-    * the mean score of the present days and the share of days below 70 are within limits,
-    * no feed is stale,
-    * the raw-zone checksums verify.
+The gate has two modes (config gate.mode).
+  repair (default)  missing days and bad days are repaired by the data curation (common_layer/data_quality/curation.py) before
+                    the models see the data, so they do not stop a run: they are listed as repairs. The gate is red only if
+                    more than `max_repaired_share` of a dataset's days are missing (too little real data to repair from),
+                    a feed is stale, or the raw-zone checksums do not verify.
+  strict            green only if, for every dataset (per session for the intraday auctions): the share of missing days is
+                    within its limit, the mean score of the present days and the share of days below 70 are within limits,
+                    no feed is stale and the raw-zone checksums verify.
 """
 from __future__ import annotations
 
@@ -41,11 +44,14 @@ class GateResult:
     passed: bool
     reasons: List[str] = field(default_factory=list)
     table: pd.DataFrame = field(default_factory=pd.DataFrame)
+    repairs: List[str] = field(default_factory=list)          # what the curation repairs (repair mode)
 
 
 def evaluate_gate(daily: pd.DataFrame, cfg: dict, freshness: Iterable, raw_problems: List[str]) -> GateResult:
     g = cfg["gate"]
+    repair = g.get("mode", "strict") == "repair"
     reasons: List[str] = []
+    repairs: List[str] = []
     rows = []
     for (ds, sess), d in daily.groupby(["dataset", "session"]):
         limit = float(g["max_missing_day_share"].get(ds, g["max_missing_day_share"]["default"]))
@@ -57,12 +63,21 @@ def evaluate_gate(daily: pd.DataFrame, cfg: dict, freshness: Iterable, raw_probl
         ok_missing = (miss / n) <= limit if n else False
         ok_mean = mean_score >= float(g["min_mean_score"])
         ok_below = below70 <= float(g["max_share_days_below_70"])
-        if not ok_missing:
-            reasons.append(f"{name}: {miss}/{n} days missing ({miss / n:.1%} > {limit:.1%})")
-        if not ok_mean:
-            reasons.append(f"{name}: mean score {mean_score:.1f} < {g['min_mean_score']}")
-        if not ok_below:
-            reasons.append(f"{name}: {below70:.1%} of days below score 70 (> {g['max_share_days_below_70']:.1%})")
+        if repair:
+            ceiling = float(g.get("max_repaired_share", 0.25))
+            ok_missing = (miss / n) <= ceiling if n else False
+            if miss:
+                repairs.append(f"{name}: {miss}/{n} days missing ({miss / n:.1%}), filled by the data curation")
+            if not ok_missing:
+                reasons.append(f"{name}: {miss}/{n} days missing ({miss / n:.1%} > {ceiling:.0%}): too little real data to repair from")
+            ok_mean = ok_below = True
+        else:
+            if not ok_missing:
+                reasons.append(f"{name}: {miss}/{n} days missing ({miss / n:.1%} > {limit:.1%})")
+            if not ok_mean:
+                reasons.append(f"{name}: mean score {mean_score:.1f} < {g['min_mean_score']}")
+            if not ok_below:
+                reasons.append(f"{name}: {below70:.1%} of days below score 70 (> {g['max_share_days_below_70']:.1%})")
         rows.append({"dataset": ds, "session": sess, "days": n, "missing": miss,
                      "missing_share": miss / n if n else 1.0, "mean_score": mean_score,
                      "share_below_70": below70, "ok": ok_missing and ok_mean and ok_below})
@@ -70,4 +85,4 @@ def evaluate_gate(daily: pd.DataFrame, cfg: dict, freshness: Iterable, raw_probl
         reasons.append(f"stale feed: {f.message}")
     if g.get("require_raw_checksums", True) and raw_problems:
         reasons.append(f"raw zone: {len(raw_problems)} checksum problems, first: {raw_problems[0]}")
-    return GateResult(not reasons, reasons, pd.DataFrame(rows))
+    return GateResult(not reasons, reasons, pd.DataFrame(rows), repairs)

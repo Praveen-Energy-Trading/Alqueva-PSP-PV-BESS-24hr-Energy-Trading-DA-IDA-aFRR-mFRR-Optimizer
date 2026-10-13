@@ -150,7 +150,7 @@ VaR and CVaR here are the low tail of daily **profit** (the 5th percentile day),
 
 | Phase | Entry Point | What It Does |
 |-------|------------|--------------|
-| **Phase 1, Data** | `run_data_pipeline.py` | Daily: download new OMIE / REN files into an immutable raw zone, validate against data contracts into a clean zone, quality checks + daily score + report, pass/fail gate ([details](phase_1_data_pipeline/README.md)) |
+| **Phase 1, Data** | `run_data_pipeline.py` | Daily: download new OMIE / REN files into an immutable raw zone, validate against data contracts into a clean zone, quality checks + daily score + report, data cleaning and filling (curation), pass/fail gate ([details](phase_1_data_pipeline/README.md)) |
 | **Phase 2, DA** | `run_da.py` | MILP solve → physical check → risk check → trader approval → position save |
 | **Phase 3A, IDA1** | `run_ida1.py` | Re-optimise H1–H24, no-churn threshold, SIDC delta bids |
 | **Phase 3B, IDA2** | `run_ida2.py` | H1–H2 frozen, re-optimise H3–H24 |
@@ -228,7 +228,8 @@ Alqueva-PSP-PV-BESS-24hr-Energy-Trading-DA-IDA-aFRR-mFRR-Optimizer/
 │   │
 │   ├── data_quality/                             #   Phase 1 library: checks, score, gate
 │   │   ├── checks.py                             #   gaps, stale/duplicate days, DST copies, cross-source, spikes (info)
-│   │   ├── scoring.py                            #   daily 0–100 score and the pass/fail gate
+│   │   ├── scoring.py                            #   daily 0–100 score and the pass/fail gate (repair or strict mode)
+│   │   ├── curation.py                           #   data cleaning and filling before forecasting (config/data_curation.yaml)
 │   │   ├── imputation.py                         #   per-variable fill rules that never look forward
 │   │   ├── provenance.py                         #   live / synthetic labels
 │   │   ├── report.py                             #   Markdown quality report

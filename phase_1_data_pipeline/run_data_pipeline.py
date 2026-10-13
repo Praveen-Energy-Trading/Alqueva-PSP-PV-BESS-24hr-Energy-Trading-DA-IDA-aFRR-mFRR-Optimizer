@@ -11,7 +11,10 @@ One run does, in order:
                 can have; store new files in the raw zone (immutable, checksummed, versioned)
     2. BUILD    validate each day against its data contract and write the clean zone (SQLite)
     3. CHECK    quality checks, daily score, Markdown report
-    4. GATE     green / red; red means no model run (see config/data_pipeline.yaml: gate_mode)
+    4. CURATE   clean the data (remove data errors) and fill every missing hour by the written rule of its series, flagging
+                what was filled (config/data_curation.yaml); the models read the curated data
+    5. GATE     green / red; red means no model run (see config/data_pipeline.yaml: gate_mode). Missing days are repaired
+                by step 4 and do not turn the gate red (config/data_quality.yaml: gate.mode repair)
 
 Exit code: 0 gate green, 1 gate red, 2 configuration problem or another run in progress.
 `run_data_phase` is the entry point used by run_production.py (phase key "data").
@@ -36,7 +39,8 @@ if _REPO not in sys.path:
 from common_layer.data_layer import fetchers, ingest  # noqa: E402
 from common_layer.data_layer.clean_store import CleanStore  # noqa: E402
 from common_layer.data_layer.raw_store import RawStore  # noqa: E402
-from common_layer.data_quality import runner  # noqa: E402
+from common_layer.data_quality import curation, runner  # noqa: E402
+from common_layer.market_analysis import panel as pnl  # noqa: E402
 from common_layer.data_quality.config import load_quality_config  # noqa: E402
 from common_layer.utilities.timezone_utils import MARKET_TZ  # noqa: E402
 
@@ -116,8 +120,15 @@ def run_daily(cfg: Optional[dict] = None, *, today: Optional[dt.date] = None, ra
         qrun = runner.run_quality(clean, raw, log, start=dt.date.fromisoformat(str(since)) if since else None,
                                   end=quality_end or (today - dt.timedelta(days=1)), today=today, cfg=quality_cfg)
         paths = runner.store_results(qrun, quality_dir, report_dir)
+        cur_info: Dict[str, object] = {}
+        try:                                                                  # curation never stops the pipeline: it is a repair step
+            cur = curation.curate(pnl.build_panel(clean))
+            cur_info = {"filled_hours": int(cur.summary["filled"].sum()), "errors_removed": int(cur.summary["errors_removed"].sum()),
+                        "files": curation.write_outputs(cur, quality_dir or runner.DEFAULT_QUALITY_DIR)}
+        except Exception as exc:                                              # an empty or tiny clean zone (the demo) has nothing to curate
+            cur_info = {"skipped": str(exc)}
 
-    return {"status": "GREEN" if qrun.gate.passed else "RED", "gate_passed": qrun.gate.passed,
+    return {"status": "GREEN" if qrun.gate.passed else "RED", "gate_passed": qrun.gate.passed, "repairs": qrun.gate.repairs, "curation": cur_info,
             "reasons": qrun.gate.reasons, "ingest": counts, "report": paths["report"], "gate_file": paths["gate"],
             "today": today.isoformat(), "ingest_id": iid}
 
@@ -129,7 +140,9 @@ def summarise(res: dict) -> str:
         for k, n in v.items():
             if k != "loaded":
                 other[k] = other.get(k, 0) + n
-    return f"gate {res['status']} | loaded {loaded} | " + ", ".join(f"{k} {n}" for k, n in sorted(other.items()))
+    filled = res.get("curation", {}).get("filled_hours")
+    return (f"gate {res['status']} | loaded {loaded} | " + ", ".join(f"{k} {n}" for k, n in sorted(other.items()))
+            + (f" | curation filled {filled} hours" if filled is not None else ""))
 
 
 def run_data_phase(date: str, app_cfg=None, use_synthetic: bool = False) -> dict:

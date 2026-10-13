@@ -83,7 +83,7 @@ DATASETS: Dict[str, Dataset] = {
         "imbalance_price", ("delivery_date", "period_index"),
         {"price_short_eur_mwh": _ANY_PRICE, "price_long_eur_mwh": _ANY_PRICE,
          "price_da_ref_eur_mwh": _PRICE},
-        optional_cols=(), max_lag_days=2),
+        optional_cols=(), max_lag_days=7),                 # REN publishes the imbalance prices about 4 to 6 days late (known up to D-6)
 }
 
 _COMMON = ("delivery_date", "period_index", "resolution_min", "start_utc")

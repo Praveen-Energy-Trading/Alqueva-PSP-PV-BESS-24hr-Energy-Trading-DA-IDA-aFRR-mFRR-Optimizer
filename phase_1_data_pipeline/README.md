@@ -54,10 +54,25 @@ flowchart LR
 * **Idempotent and safe to repeat.** Stored days are skipped; the last two days are re-checked because OMIE
   re-issues files; a lock stops two runs overlapping.
 
+## Cleaning and filling (step 4, the data curation)
+
+The clean zone keeps exactly what the sources published. After the checks, the curation (`common_layer/data_quality/curation.py`,
+rules in `config/data_curation.yaml`) removes data errors (a value outside its legal range, a day with one value all day, a copy of the
+day before, a level jump of 20 times or more) and fills every missing hour by the rule of its series: a gap of up to three hours by a
+straight line, a longer one by the same hour a week earlier, band prices by carrying the last value forward first, and the intraday
+prices by the day-ahead price plus the typical spread of that hour (so an empty auction becomes the day-ahead price). Genuine spikes and
+negative prices are kept; hours an auction does not cover by design (IDA3 trades only the afternoon) are never filled; nothing is filled
+before a series starts. Every filled value is flagged and counted per series (`curation_summary.csv`, `curation_gaps.csv`). The live
+pipeline, the champions' fits and the monitoring read the curated panel (`build_panel(clean, curate=True)`); the model-development
+evaluation scores the published values only.
+
 ## The gate
 
-Green requires, for every dataset: missing days within the limit (2 %; intraday auctions 6 %, continuous market
-5 %), mean daily score at least 95 with at most 2 % of days below 70, no stale feed, and all raw checksums valid.
+In `repair` mode (`config/data_quality.yaml: gate.mode`, the default) missing and bad days are repaired by the curation and are listed
+as repairs, not failures. The gate is red only if more than 25 % of a dataset's days are missing (too little real data to repair from), a
+feed is more than seven days beyond its allowed lag, or a raw checksum fails. In `strict` mode green requires, for every dataset:
+missing days within the limit (2 %; intraday auctions 6 %, continuous market 5 %), mean daily score at least 95 with at most 2 % of days
+below 70, no stale feed, and all raw checksums valid.
 `config/data_pipeline.yaml: gate_mode` decides what red does inside `run_production.py`:
 
 | gate_mode | red gate means |

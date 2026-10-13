@@ -178,12 +178,31 @@ def test_score_penalises_warnings_not_information():
     assert s["2021-03-01"] == 100 and s["2021-03-02"] == 100 - 25 - 10 and s["2021-03-03"] == 100 and s["2021-03-04"] == 0
 
 
-def run_da(store, tmp_path, days, **kw):
+def run_da(store, tmp_path, days, mode="strict", **kw):
     cfg = copy.deepcopy(CFG)
+    cfg["gate"]["mode"] = mode
     cfg["datasets"]["da_price"]["expected_start"] = D0.isoformat()
     return runner.run_quality(store, RawStore(str(tmp_path / "raw")), LoadLog(str(tmp_path / "log.jsonl")),
                               start=D0, end=D0 + dt.timedelta(days=days - 2), today=D0 + dt.timedelta(days=days - 1),
                               cfg=cfg, datasets=["da_price"])
+
+
+def test_the_repair_gate_does_not_stop_a_run_for_missing_days_but_lists_the_repairs(store, tmp_path):
+    gappy = CleanStore(str(tmp_path / "gappy.db"))
+    for i in range(40):
+        if not 10 <= i < 15:                                                   # 5 of 39 days missing: over the strict limit, under the repair ceiling
+            d = D0 + dt.timedelta(days=i)
+            put(gappy, "da_price", da_day(d, wavy(d, n=cal.expected_periods(d, 60))))
+    assert not run_da(gappy, tmp_path, 40, mode="strict").gate.passed
+    run = run_da(gappy, tmp_path, 40, mode="repair")
+    assert run.gate.passed and not run.gate.reasons
+    assert any("5/39 days missing" in r and "curation" in r for r in run.gate.repairs)
+    cfg = copy.deepcopy(CFG)
+    cfg["gate"]["mode"], cfg["gate"]["max_repaired_share"] = "repair", 0.05                 # a hole bigger than the ceiling is too little to repair from
+    cfg["datasets"]["da_price"]["expected_start"] = D0.isoformat()
+    red = runner.run_quality(gappy, RawStore(str(tmp_path / "raw")), LoadLog(str(tmp_path / "log.jsonl")), start=D0, end=D0 + dt.timedelta(days=38),
+                             today=D0 + dt.timedelta(days=39), cfg=cfg, datasets=["da_price"])
+    assert not red.gate.passed and any("too little real data" in r for r in red.gate.reasons)
 
 
 def test_gate_green_on_clean_data_and_red_on_gaps_or_stale(store, tmp_path):

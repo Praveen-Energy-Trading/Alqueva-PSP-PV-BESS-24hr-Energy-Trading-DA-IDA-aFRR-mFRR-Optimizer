@@ -89,6 +89,8 @@ def run_quality(clean: CleanStore, raw: RawStore, log: LoadLog, *, start: Option
     universe = pd.DataFrame(universe_rows)
     daily = scoring.daily_scores(universe, issues, cfg)
     extra = int(cfg["gate"].get("max_stale_days_extra", 0))
+    if cfg["gate"].get("mode") == "repair":                      # a few days without a refresh are bridged by the curation; a long silence is not
+        extra += int(cfg["gate"].get("repair_stale_days_extra", 7))
     fresh = [f for f in freshness_issues(latest, today - dt.timedelta(days=extra))
              if any(f.message.startswith(d + ":") for d in wanted)]
     raw_problems = raw.verify_all()
@@ -109,7 +111,7 @@ def store_results(run: QualityRun, quality_dir: Optional[str] = None, report_dir
         run.daily.assign(present=run.daily["present"].astype(int)).to_sql("dq_daily", c, if_exists="replace", index=False)
     gate_path = os.path.join(quality_dir, "gate.json")
     with open(gate_path, "w", encoding="utf-8") as fh:
-        json.dump({"passed": run.gate.passed, "reasons": run.gate.reasons, "generated_utc": run.generated_utc,
+        json.dump({"passed": run.gate.passed, "reasons": run.gate.reasons, "repairs": run.gate.repairs, "generated_utc": run.generated_utc,
                    "window": [str(run.start), str(run.end)], **run.meta}, fh, indent=2)
     md_path = os.path.join(report_dir, f"data_quality_{run.generated_utc[:10]}.md")
     with open(md_path, "w", encoding="utf-8") as fh:

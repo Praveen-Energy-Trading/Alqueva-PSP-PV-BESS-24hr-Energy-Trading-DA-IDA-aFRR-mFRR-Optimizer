@@ -81,7 +81,13 @@ penalties:
 
 # ---- gate: must be green before any model run -------------------------------------------------
 gate:
-  max_missing_day_share:             # per dataset (per session for IDA), over the checked window
+  # repair: missing and bad days are repaired by the data curation (config/data_curation.yaml) before the models see the data, so they
+  #         do not stop a run; the gate is red only for too little real data (max_repaired_share), a stale feed or a failed checksum.
+  # strict: the limits below stop the run.
+  mode: repair
+  repair_stale_days_extra: 7         # repair mode: a feed may be this many days older than its allowed lag before the gate turns red
+  max_repaired_share: 0.25           # repair mode: more missing days than this share of a dataset's window is too little to repair from
+  max_missing_day_share:             # strict mode: per dataset (per session for IDA), over the checked window
     default: 0.02
     ida_price: 0.06                  # auctions can have no result on a day (empty publication)
     xbid_price: 0.05
@@ -90,6 +96,8 @@ gate:
   max_stale_days_extra: 0            # on top of each dataset's allowed lag
   require_raw_checksums: true
 
+# ---- imputation rules: NOT USED any more; superseded by config/data_curation.yaml (data cleaning and filling) ----
+# (kept only because common_layer/data_quality/imputation.py and its test still read them)
 # ---- imputation rules (as-of safe: a value is only ever filled from the past) ------------------
 # method: none | ffill (carry the last observed value up to max_periods) |
 #         prev_day (value exactly 24 h earlier, if observed)

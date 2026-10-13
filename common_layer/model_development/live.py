@@ -56,7 +56,7 @@ def default_panel() -> pd.DataFrame:
     if not _panel_cache or now - _panel_cache["at"] > PANEL_TTL_SECONDS:
         from common_layer.data_layer.clean_store import CleanStore
         from common_layer.market_analysis import panel as pnl
-        _panel_cache.update(panel=pnl.build_panel(CleanStore()), at=now)
+        _panel_cache.update(panel=pnl.build_panel(CleanStore(), curate=True), at=now)
     return _panel_cache["panel"]
 
 

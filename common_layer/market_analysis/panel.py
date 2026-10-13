@@ -3,8 +3,10 @@ panel.py — all price series on one hourly UTC grid, read from the clean zone.
 
 Quarter-hour values become hourly means only when all four quarters are present; hourly values pass
 through. The hourly "day-ahead price" of the 15-minute era (from 2025-10-01) is therefore the mean of its
-four quarters, which is how it compares with the earlier hourly prices. Nothing is filled or interpolated:
-a missing hour stays missing.
+four quarters, which is how it compares with the earlier hourly prices. By default nothing is filled or
+interpolated: a missing hour stays missing (the model-development evaluation scores real outcomes only).
+`curate=True` returns the panel after data cleaning and filling (common_layer/data_quality/curation.py), which is what the
+live pipeline and the champions' fits use.
 
 Calendar features use market time (Europe/Madrid), the time zone of the auctions.
 """
@@ -60,8 +62,8 @@ def to_hourly(df: pd.DataFrame, col: str) -> pd.Series:
 
 
 def build_panel(clean: CleanStore, start: Optional[dt.date] = None, end: Optional[dt.date] = None,
-                names: Optional[Iterable[str]] = None) -> pd.DataFrame:
-    """Hourly UTC panel with one column per series name (see SERIES)."""
+                names: Optional[Iterable[str]] = None, curate: bool = False) -> pd.DataFrame:
+    """Hourly UTC panel with one column per series name (see SERIES); `curate` cleans and fills it (see the module header)."""
     names = list(names) if names else list(SERIES)
     cache: Dict[str, pd.DataFrame] = {}
     cols: Dict[str, pd.Series] = {}
@@ -74,6 +76,9 @@ def build_panel(clean: CleanStore, start: Optional[dt.date] = None, end: Optiona
             df = df[df["session"] == session]
         cols[name] = to_hourly(df, col)
     panel = pd.DataFrame(cols).sort_index()
+    if curate:
+        from common_layer.data_quality import curation
+        panel = curation.curate(panel).panel
     return panel
 
 

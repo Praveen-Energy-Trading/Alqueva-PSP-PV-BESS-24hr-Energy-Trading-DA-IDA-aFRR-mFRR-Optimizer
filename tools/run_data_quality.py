@@ -42,6 +42,14 @@ def main() -> int:
     print("GATE:", "GREEN" if run.gate.passed else "RED")
     for r in run.gate.reasons[:15]:
         print(" -", r)
+    for r in run.gate.repairs[:15]:
+        print(" repair:", r)
+    from common_layer.data_quality import curation                      # clean and fill: what the models will read
+    from common_layer.market_analysis import panel as pnl
+    cur = curation.curate(pnl.build_panel(CleanStore()))
+    curation.write_outputs(cur, runner.DEFAULT_QUALITY_DIR)
+    print(f"curation: {int(cur.summary['filled'].sum()):,} hours filled, {int(cur.summary['errors_removed'].sum()):,} data errors removed; "
+          f"files in {runner.DEFAULT_QUALITY_DIR}")
     print("report:", paths["report"])
     return 0 if run.gate.passed else 1
 

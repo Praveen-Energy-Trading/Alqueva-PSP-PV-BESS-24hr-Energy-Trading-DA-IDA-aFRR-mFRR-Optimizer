@@ -1,0 +1,52 @@
+# =============================================================================
+# Data curation: clean and fill the hourly market data before it is used for forecasting
+# (common_layer/data_quality/curation.py)
+#
+# The clean zone keeps exactly what the sources published. Curation turns it into a complete hourly
+# series for the models, in two steps, and records everything it did:
+#   1. data errors are removed: a value outside its legal range, a day with one value for all 24
+#      hours, a day that copies the previous one, a day whose level jumps by a factor of 20 or more
+#      (the same thresholds as config/data_quality.yaml). Genuine price spikes and negative
+#      prices are NOT errors and are kept.
+#   2. every missing hour (a gap in the publication, an empty auction, a removed error) is filled
+#      by the rule of its series, using only earlier values except for short gaps, which are
+#      bridged by a straight line between their two neighbours.
+# Every filled value is flagged; the share of filled hours is reported per series.
+# =============================================================================
+version: 1
+
+gaps:
+  interpolate_max_hours: 3            # a gap this short is bridged by a straight line (in time) between its neighbours
+  seasonal_lags_hours: [168, 24, 336] # a longer gap: the same hour one week earlier, else yesterday, else two weeks earlier
+  band_ffill_max_hours: 48            # band prices are set per block and rarely change: carry the last value forward first
+  max_tail_hours: null                # hours after a series' last published value that are still filled; null = fill them all (a limit would leave cells empty)
+  spread_history_days: 28             # intraday spread targets: day-ahead price plus the median spread of the same hour over these days
+
+# rule: auction    price of an auction or a market result (linear for short gaps, then the same hour a week earlier)
+#       spread     price of a market that trades around the day-ahead price: day-ahead price plus the typical spread
+#                  of that hour (an empty auction is then simply the day-ahead price)
+#       band       reserve band price: carry forward, then the same hour a week earlier
+#       reserve    other reserve and imbalance prices: as an auction price
+#       volume     matched volumes and flows: as an auction price
+# range: legal limits; a value outside them is a data error
+# stuck: the whole-day checks (one value all day, a copy of the day before) apply
+series:
+  da_pt:            {rule: auction, range: [-500, 4000], stuck: true}
+  da_es:            {rule: auction, range: [-500, 4000], stuck: true}
+  ida1_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
+  ida2_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
+  ida3_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
+  xbid_pt:          {rule: spread, base: da_pt, range: [-500, 4000], stuck: true}
+  afrr_up:          {rule: band, range: [0, 3000]}
+  afrr_dn:          {rule: band, range: [0, 3000]}
+  mfrr_ap:          {rule: reserve, range: [-1000, 5000]}
+  imb_short:        {rule: reserve, range: [-1000, 5000]}
+  imb_long:         {rule: reserve, range: [-1000, 5000]}
+  da_vol_total:     {rule: volume, range: [0, 60000]}
+  da_vol_pt_buy:    {rule: volume, range: [0, 60000]}
+  da_vol_pt_sell:   {rule: volume, range: [0, 60000]}
+  da_flow_pt_to_es: {rule: volume, range: [0, 5000]}
+  da_flow_es_to_pt: {rule: volume, range: [0, 5000]}
+
+# a series with more than this share of its hours filled is reported as poor (a warning, never a stop)
+warn_filled_share: 0.15
