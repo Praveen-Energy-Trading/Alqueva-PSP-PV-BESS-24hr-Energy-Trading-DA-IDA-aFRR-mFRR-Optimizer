@@ -12,6 +12,7 @@ import streamlit.components.v1 as components
 
 import data
 import dispatch_ticket
+import ml_ui
 import theme
 
 
@@ -100,10 +101,10 @@ def _render() -> None:
             )
             gate_rows = live_resettle.get("LiveResettlement")
             if gate_rows is not None and not gate_rows.empty:
-                st.dataframe(gate_rows, use_container_width=True, hide_index=True)
+                ml_ui.table(gate_rows, fit=True)
             reserve_rows = live_resettle.get("ReserveResettlement")
             if reserve_rows is not None and not reserve_rows.empty:
-                st.dataframe(reserve_rows, use_container_width=True, hide_index=True)
+                ml_ui.table(reserve_rows, fit=True)
             summary = live_resettle.get("Summary")
             if summary:
                 for label, val, is_header in summary:
@@ -145,7 +146,7 @@ def _render() -> None:
     st.markdown("---")
 
     st.subheader("Per-gate trading decisions (DA / IDA1-3 / XBID)")
-    st.dataframe(gates, width="stretch", height=360)
+    ml_ui.table(gates, fit=True)
 
     st.markdown("---")
 
@@ -154,10 +155,10 @@ def _render() -> None:
     # appearing on two pages.
 
     with st.expander("Full hourly dispatch table"):
-        st.dataframe(dispatch, width="stretch", height=500)
+        ml_ui.table(dispatch, fit=True, height=500)
 
     with st.expander("ISP-level reserve activation (96 x 15-min)"):
-        st.dataframe(isp, width="stretch", height=400)
+        ml_ui.table(isp, fit=True, height=400)
 
 
 _render()

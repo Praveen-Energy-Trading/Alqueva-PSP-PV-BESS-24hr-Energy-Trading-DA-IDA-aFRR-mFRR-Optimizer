@@ -60,7 +60,7 @@ view["treatment"] = view["treatment"].map(ml_data.pretty)
 st.markdown("**Development window**")
 ml_ui.table(view[["label", "treatment", "dev_days", "champion_short", "dev_mae", "unit", "gain_vs_reference", "gain_vs_naive"]].rename(columns={
     "label": "Target", "treatment": "Treatment", "dev_days": "Days", "champion_short": "Champion", "dev_mae": "MAE", "unit": "Unit",
-    "gain_vs_reference": "Gain over decision tree (%)", "gain_vs_naive": "Gain over strongest naive (%)"}), formats={"dev_mae": "%.2f"})
+    "gain_vs_reference": "Gain over decision tree (%)", "gain_vs_naive": "Gain over strongest naive (%)"}), formats={"MAE": "%.2f"})
 st.markdown("**Locked year**")
 ml_ui.table(view[["label", "locked_mae", "unit", "locked_gain_vs_reference", "locked_gain_vs_naive"]].rename(columns={
     "label": "Target", "locked_mae": "MAE", "unit": "Unit", "locked_gain_vs_reference": "Gain over decision tree (%)",

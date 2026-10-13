@@ -44,7 +44,7 @@ with l:
 with r:
     sb = board.assign(model=board["model"].map(ml_data.model_label), days_best=(100 * board["days_best"]).round(0))
     ml_ui.table(sb[["model", "mae", "rmse", "days_best"]].rename(columns={"model": "Algorithm", "mae": "MAE", "rmse": "RMSE", "days_best": "Best on (% of days)"}),
-                formats={"mae": "%.2f", "rmse": "%.2f", "days_best": "%d"})
+                formats={"MAE": "%.2f", "RMSE": "%.2f", "Best on (% of days)": "%d"})
 st.caption("Tuned algorithms on the development window. 'Best on' is the share of days on which an algorithm had the smallest error of the day: "
            "the average error and the winning share can disagree.")
 

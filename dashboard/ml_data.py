@@ -63,7 +63,8 @@ DATASET_LABELS = {"da_price": "Day-ahead prices", "ida_price": "Intraday auction
 SERIES_LABELS = {"da_result": "Day-ahead result", "da_pt": "Day-ahead price (Portugal)",
                  "ida1_result": "IDA1 result", "ida2_result": "IDA2 result", "ida3_result": "IDA3 result", "ida1_pt": "IDA1 price", "ida2_pt": "IDA2 price",
                  "ida3_pt": "IDA3 price", "xbid_summary": "XBID summary", "xbid_pt": "XBID price", "afrr_band_result": "aFRR band result",
-                 "afrr_up": "aFRR up price", "afrr_dn": "aFRR down price", "imbalance_price": "Imbalance price", "mfrr_series": "mFRR prices",
+                 "afrr_up": "aFRR up price", "afrr_dn": "aFRR down price", "imbalance_price": "Imbalance price", "mfrr_series": "mFRR prices", "imb_short": "Imbalance price (short)", "imb_long": "Imbalance price (long)",
+                 "da_vol_pt_buy": "Day-ahead purchases (Portugal)", "da_vol_pt_sell": "Day-ahead sales (Portugal)",
                  "mfrr_ap": "mFRR activation price", "weather_forecast": "Weather forecast", "fundamentals_forecast": "Fundamentals forecast",
                  "calendar": "Calendar", "xbid_live": "XBID live trades"}
 RUN_LABELS = {"evaluation": "Model evaluation", "schedule_comparison": "Schedule comparison", "dev": "Development", "final": "Locked test",

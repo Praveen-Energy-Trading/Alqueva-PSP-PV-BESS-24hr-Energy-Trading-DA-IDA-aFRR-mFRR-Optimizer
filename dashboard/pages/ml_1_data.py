@@ -57,7 +57,7 @@ if not cur.empty:
     ml_ui.table(c[["series", "hours", "errors_removed", "filled", "filled_share", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
         "series": "Series", "hours": "Hours", "errors_removed": "Data errors removed", "filled": "Hours filled", "filled_share": "Filled (%)",
         "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
-        "same_hour_earlier": "Same hour earlier"}), formats={"filled_share": "%.1f"})
+        "same_hour_earlier": "Same hour earlier"}), formats={"Filled (%)": "%.1f"})
     st.caption("A gap of up to three hours is bridged by a straight line; a longer one repeats the same hour a week earlier (or yesterday). "
                "Band prices are carried forward first. An intraday price that is missing, for example in an empty auction, becomes the day-ahead price "
                "plus the typical spread of that hour. Genuine price spikes and negative prices are kept.")
