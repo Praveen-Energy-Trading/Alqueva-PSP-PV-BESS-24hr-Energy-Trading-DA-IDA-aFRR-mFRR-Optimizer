@@ -196,6 +196,32 @@ window.dtReservoirReplay = function(btn) {
 </script>'''
 
 
+def _axes(n, x0, x1, view_w, view_h, y_ticks, unit, show_x=True, gutter=44):
+    """Axis labels laid over a chart container (HTML text, so the labels are not stretched like the SVG underneath).
+
+    The container must be `position:relative` and have `margin-left: gutter px` (room for the vertical-axis numbers) and, with `show_x`, a
+    bottom margin of about 34 px (room for the clock times and the axis title). `y_ticks` is [(y in the SVG's own coordinates, label), ...];
+    the horizontal axis runs over the n quarter-hours of the day: ISP 1 at 00:00, ISP n at the end of the day."""
+    ink, ink2 = theme.INK_MUTED, theme.INK_SECONDARY
+    out = []
+    for y, label in y_ticks:
+        out.append(f'<span style="position:absolute; left:-{gutter}px; width:{gutter - 6}px; text-align:right; top:{y / view_h * 100:.2f}%; '
+                   f'transform:translateY(-50%); font-size:11px; color:{ink}; white-space:nowrap;">{label}</span>')
+    if unit:
+        out.append(f'<span style="position:absolute; left:-{gutter}px; top:-17px; font-size:11px; font-weight:600; color:{ink2}; white-space:nowrap;">{unit}</span>')
+    if show_x:
+        for k in range(5):
+            i = round(n * k / 4)
+            minutes = i * 15
+            left = (x0 + (x1 - x0) * i / n) / view_w * 100
+            out.append(f'<span style="position:absolute; top:calc(100% + 3px); left:{left:.2f}%; transform:translateX(-50%); font-size:11px; color:{ink}; '
+                       f'white-space:nowrap;">{minutes // 60:02d}:{minutes % 60:02d}</span>')
+        out.append(f'<span style="position:absolute; top:calc(100% + 17px); left:0; right:0; text-align:center; font-size:11px; color:{ink2};">'
+                   f'Time of day (one step = one quarter-hour, ISP 1&ndash;{n})</span>')
+    return "".join(out)
+
+
+
 def render_reservoir_trajectory_card(traj: dict) -> str:
     """Two-reservoir (Alqueva upper / Pedrogao lower) volume trajectory from
     the real solved DA MILP, each normalized to its own operational band
@@ -284,28 +310,27 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     hover_cfg_a = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
         "catchSelector": "#res-a-hover-catch", "lineSelector": "#res-a-hover-line",
-        "tooltipSelector": "#res-a-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "tooltipSelector": "#res-a-tooltip", "indexLabel": "ISP", "indexVals": hours,
         "traces": [{"label": "Alqueva", "yvals": upper_hm3, "py": upper_py, "dotSelector": "#res-a-hover-dot-0",
                     "color": theme.COLOR_GEN, "unit": "hm³", "decimals": 1}],
     })
     hover_cfg_b = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
         "catchSelector": "#res-b-hover-catch", "lineSelector": "#res-b-hover-line",
-        "tooltipSelector": "#res-b-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "tooltipSelector": "#res-b-tooltip", "indexLabel": "ISP", "indexVals": hours,
         "traces": [{"label": "Pedrógão", "yvals": lower_hm3, "py": lower_py, "dotSelector": "#res-b-hover-dot-0",
                     "color": theme.COLOR_PUMP, "unit": "hm³", "decimals": 1}],
     })
 
-    terminal_badge = (
-        f'<span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10003; Ended the day at least as full as it started</span>'
-        if traj["terminal_ok"] else
+    terminal_badge = (                                              # only a problem is shown: a day that ends emptier than it started
+        "" if traj["terminal_ok"] else
         f'<span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; font-size:13.5px; padding:2px 8px; border-radius:5px; font-weight:500;">&#10007; Ended the day emptier than it started</span>'
     )
     spill_total = sum(traj["spill_m3h"])
     spill_note = (
         f"The upper lake got completely full at some point today, so {spill_total:,.0f} m&sup3;/h of water had to be released without generating power."
         if spill_total > 1e-6 else
-        "The upper lake never got completely full today, so no water was wasted."
+        ""                                                         # a day without spill needs no note
     )
 
     return f'''
@@ -321,7 +346,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtReservoirReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:84px;">
+    <div style="position:relative; height:84px; margin:4px 0 4px 0px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-a"><rect id="res-clip-rect-a" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
@@ -339,7 +364,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</p>
-    <div style="position:relative; height:84px;">
+    <div style="position:relative; height:84px; margin:4px 0 42px 0px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-b"><rect id="res-clip-rect-b" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
@@ -353,6 +378,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
         {_hover_svg_elems("res-b", x0, x1, 76, 1)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
+      {_axes(n, x0, x1, 1400, 76, [], "", gutter=0)}
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {lower_band_note}</p>
     <div style="display:flex; gap:16px; margin-top:8px;">
@@ -384,12 +410,10 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     </div>
     <div style="display:flex; gap:14px; margin-top:8px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:1px; background:{theme.STATUS_WARNING}; margin-right:4px; vertical-align:middle;"></span>Level the day must end at or above</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY}; margin-left:auto;">Day total wasted: {spill_total:,.0f} m&sup3;/h</span>
     </div>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      {terminal_badge}
-      <span style="font-size:13.5px; color:{theme.INK_MUTED};">Day total wasted: {spill_total:,.0f} m&sup3;/h</span>
-    </div>
-    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:4px 0 0;">{spill_note}</p>
+    {f'<div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">{terminal_badge}</div>' if terminal_badge else ''}
+    {f'<p style="font-size:13px; color:{theme.INK_MUTED}; margin:4px 0 0;">{spill_note}</p>' if spill_note else ''}
   </div>
 </div>
 {_REPLAY_STYLE}
@@ -493,7 +517,7 @@ def render_pv_routing_card(pv: dict) -> str:
     hover_cfg = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
         "catchSelector": "#pv-hover-catch", "lineSelector": "#pv-hover-line",
-        "tooltipSelector": "#pv-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "tooltipSelector": "#pv-tooltip", "indexLabel": "ISP", "indexVals": hours,
         "traces": [
             {"label": "Used", "yvals": used, "py": used, "color": theme.YELLOW, "unit": "MW", "decimals": 1},
             {"label": "BESS", "yvals": to_bess, "py": to_bess, "color": theme.COLOR_UP, "unit": "MW", "decimals": 1},
@@ -526,10 +550,10 @@ def render_pv_routing_card(pv: dict) -> str:
     </div>
     <div class="pv-chart-block" data-pv='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Share of the available PV (%) in each quarter-hour (ISP 1&ndash;96)</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">PV power in MW for each quarter-hour (ISP 1&ndash;96): grid, battery and curtailed, stacked</span>
       <button class="gt-replay" onclick="dtPvReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px;">
+    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(used_bars)}
@@ -538,6 +562,7 @@ def render_pv_routing_card(pv: dict) -> str:
         {_hover_svg_elems("pv", x0, x1, 100, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="pv-tooltip"')}
+      {_axes(n, x0, x1, 1400, 100, [(zero_y, "0"), (top_y, f"{max_avail:.1f}")], "MW")}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Used (to grid)</span>
@@ -646,7 +671,7 @@ def render_water_balance_card(wb: dict) -> str:
     hover_cfg = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
         "catchSelector": "#wb-hover-catch", "lineSelector": "#wb-hover-line",
-        "tooltipSelector": "#wb-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "tooltipSelector": "#wb-tooltip", "indexLabel": "ISP", "indexVals": hours,
         "traces": [
             {"label": "Inflow", "yvals": [r["inflow_m3h"] for r in rows], "py": [r["inflow_m3h"] for r in rows], "color": theme.COLOR_UP, "unit": "m³/h", "decimals": 0},
             {"label": "Pump return", "yvals": [r["pump_m3h"] for r in rows], "py": [r["pump_m3h"] for r in rows], "color": theme.COLOR_PUMP, "unit": "m³/h", "decimals": 0},
@@ -656,7 +681,7 @@ def render_water_balance_card(wb: dict) -> str:
     })
 
     spill_note = (
-        f"No spill this day - every m&sup3; of inflow and pumped water stayed usable."
+        ""
         if wb["total_spill_m3h"] <= 1e-6 else
         f"{wb['total_spill_m3h']:,.0f} m&sup3;/h spilled total - reservoir hit its usable ceiling at some hour."
     )
@@ -671,11 +696,10 @@ def render_water_balance_card(wb: dict) -> str:
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, as a flow rate in each quarter-hour</p>
     <div class="wb-chart-block" data-wb='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Water flow rate in m&sup3;/h for each quarter-hour (ISP 1&ndash;96) &middot; above zero = inflows, below = outflows</span>
+    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:0;">
       <button class="gt-replay" onclick="dtWaterReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px;">
+    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(in_bars)}
@@ -685,6 +709,7 @@ def render_water_balance_card(wb: dict) -> str:
         {_hover_svg_elems("wb", x0, x1, 100, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="wb-tooltip"')}
+      {_axes(n, x0, x1, 1400, 100, [(zero_y - half_h, f"+{max_mag:.1f}"), (zero_y, "0"), (zero_y + half_h, f"&minus;{max_mag:.1f}")], "million m&sup3;/h")}
     </div>
     <div style="display:flex; gap:12px; margin-top:4px; flex-wrap:wrap;">
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Natural inflow</span>
@@ -692,11 +717,12 @@ def render_water_balance_card(wb: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Turbine draw</span>
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.6;"></span>Spill</span>
     </div>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
+    <style>.wb-readout-row:has(#wb-readout:empty) {{ display:none; }}</style>
+    <div class="wb-readout-row" style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
+      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;"></span>
     </div>
     </div>
-    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>
+    {f'<p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>' if spill_note else ''}
   </div>
 </div>
 {_REPLAY_STYLE}
@@ -784,7 +810,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
     hover_cfg = _json.dumps({
         "n": n, "x0": x0, "x1": x1, "viewW": 1400,
         "catchSelector": "#bc2-hover-catch", "lineSelector": "#bc2-hover-line",
-        "tooltipSelector": "#bc2-tooltip", "indexLabel": "Hour", "indexVals": hours,
+        "tooltipSelector": "#bc2-tooltip", "indexLabel": "ISP", "indexVals": hours,
         "traces": [
             {"label": "Grid", "yvals": grid_mw, "py": grid_mw, "color": theme.COLOR_DOWN, "unit": "MW", "decimals": 2},
             {"label": "PV", "yvals": pv_mw, "py": pv_mw, "color": theme.YELLOW, "unit": "MW", "decimals": 2},
@@ -822,7 +848,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};">Charging power in MW for each quarter-hour (ISP 1&ndash;96), stacked, charging periods only</span>
       <button class="gt-replay" onclick="dtBesschgReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px;">
+    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
       <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(grid_bars)}
@@ -830,6 +856,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
         {_hover_svg_elems("bc2", x0, x1, 100, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="bc2-tooltip"')}
+      {_axes(len(bc["hours"]), x0, x1, 1400, 100, [(zero_y, "0"), (top_y, f"{max_mag:.1f}")], "MW")}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid</span>
@@ -968,22 +995,24 @@ def render_da_vs_activation_card(dv: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday) &middot; MW per quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtDaactReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:78px;">
+    <div style="position:relative; height:78px; margin:18px 0 6px 44px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(da_bars)}
         {_hover_svg_elems("da2-top", x0, x1, 90, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-top-tooltip"')}
+      {_axes(len(isps), x0, x1, 1400, 90, [(zero_y1 - half_h1, f"+{da_max:.0f}"), (zero_y1, "0"), (zero_y1 + half_h1, f"&minus;{da_max:.0f}")], "MW", show_x=False)}
     </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time) &middot; MW per quarter-hour</p>
-    <div style="position:relative; height:78px;">
+    <div style="position:relative; height:78px; margin:18px 0 42px 44px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(delta_bars)}
         {_hover_svg_elems("da2-bot", x0, x1, 90, 0)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-bot-tooltip"')}
+      {_axes(len(isps), x0, x1, 1400, 90, [(zero_y2 - half_h2, f"+{delta_max:.0f}"), (zero_y2, "0"), (zero_y2 + half_h2, f"&minus;{delta_max:.0f}")], "MW")}
     </div>
     <div style="display:flex; gap:14px; margin-top:4px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_GOOD}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid asked for more power</span>
@@ -1187,7 +1216,7 @@ def render_isp_dispatch_card(dv: dict) -> str:
       <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
     </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
-    <div style="position:relative; height:92px;">
+    <div style="position:relative; height:92px; margin:18px 0 6px 44px;">
       <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="ispd-clip-a"><rect id="ispd-clip-rect-a" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_a}" x2="{x1}" y2="{zero_a}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -1198,13 +1227,14 @@ def render_isp_dispatch_card(dv: dict) -> str:
         {_hover_svg_elems("ispd-top", x0, x1, 80, 2)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="ispd-top-tooltip"')}
+      {_axes(n, x0, x1, 1400, 80, [(zero_a, "0"), (top_a, f"{pv_bess_max:.1f}")], "MW", show_x=False)}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
     </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine vs pump (own scale, max {psp_max:.0f} MW)</p>
-    <div style="position:relative; height:92px;">
+    <div style="position:relative; height:92px; margin:18px 0 42px 44px;">
       <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="ispd-clip-b"><rect id="ispd-clip-rect-b" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_b}" x2="{x1}" y2="{zero_b}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -1217,6 +1247,7 @@ def render_isp_dispatch_card(dv: dict) -> str:
         {_hover_svg_elems("ispd-bot", x0, x1, 80, 2)}
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="ispd-bot-tooltip"')}
+      {_axes(n, x0, x1, 1400, 80, [(zero_b - half_b, f"{psp_max:.0f}"), (zero_b, "0"), (zero_b + half_b, f"&minus;{psp_max:.0f}")], "MW")}
     </div>
     <div style="display:flex; gap:12px; margin:2px 0 8px;">
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_GEN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PSP turbine</span>
