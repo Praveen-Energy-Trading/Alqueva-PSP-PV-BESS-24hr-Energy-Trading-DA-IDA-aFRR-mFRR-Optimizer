@@ -156,12 +156,6 @@ else:
 # an unrelated widget the same way.
 st.session_state["_auto_refresh_interval_s"] = interval_s
 
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Reads run_production.py's saved outputs - this app doesn't run trades "
-    "on its own except via the explicit Run & Monitor page."
-)
-
 # ---------------------------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------------------------

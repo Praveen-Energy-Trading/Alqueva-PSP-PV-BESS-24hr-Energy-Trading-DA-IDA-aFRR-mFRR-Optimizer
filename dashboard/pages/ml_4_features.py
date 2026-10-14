@@ -54,9 +54,6 @@ with c2:
     show = feats[feats["group"].isin(grp)]
     show = show.assign(feature=show["id"].map(fname), group=show["group"].map(ml_data.pretty), kind=show["kind"].map(ml_data.pretty))
     ml_ui.table(show[["feature", "group", "kind"]].rename(columns={"feature": "Feature", "group": "Group", "kind": "Kind"}), height=250)
-st.caption("A feature is a *kind* (a lag, a rolling statistic, a calendar field, the day-ahead price...) with parameters and a version. "
-           "What it reads and when that is known follows from the kind and the parameters.")
-
 st.subheader("Availability: what each target may use")
 if avail.empty:
     ml_ui.not_yet_run("the availability matrix")
@@ -73,9 +70,6 @@ else:
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(side="top")
     st.plotly_chart(theme.style_fig(fig, height=60 + 42 * len(ok), legend=False), width="stretch")
-    st.caption("Each cell counts the features of a group that the target may use at its forecast time, out of all features of the group. A feature that "
-               "reads yesterday's price is unavailable for XBID, which may use its own price only up to two days back, and for mFRR, three days back. "
-               "The champions use a small baseline set of about 11 features (calendar basics and lags of the modelled quantity), shifted back for XBID and mFRR.")
     bad = avail[(avail["target"] == target) & (~avail["available"])][["feature", "reason"]].assign(
         reason=lambda x: x["reason"].map(ml_data.plain_text))
     with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
