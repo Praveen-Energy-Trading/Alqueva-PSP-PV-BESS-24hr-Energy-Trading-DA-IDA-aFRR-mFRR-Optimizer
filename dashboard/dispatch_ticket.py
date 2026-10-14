@@ -181,7 +181,7 @@ window.dtReservoirReplay = function(btn) {
         clipA.setAttribute('width', (1400 * frac).toFixed(1));
         clipB.setAttribute('width', (1400 * frac).toFixed(1));
         if (playhead) playhead.style.left = (frac * 100) + '%';
-        if (clock) clock.textContent = 'H' + data.hours[idx];
+        if (clock) clock.textContent = 'ISP ' + data.hours[idx];
         if (s % numberEvery === 0 || s === steps) {
           if (upperLabel) upperLabel.textContent = data.upperHm3[idx].toFixed(1) + ' hm³';
           if (lowerLabel) lowerLabel.textContent = data.lowerHm3[idx].toFixed(1) + ' hm³';
@@ -318,7 +318,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     </div>
     <div class="res-chart-block" data-res='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake) &middot; volume in hm&sup3;, hours 1&ndash;24</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtReservoirReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:84px;">
@@ -338,7 +338,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake) &middot; volume in hm&sup3;, hours 1&ndash;24</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</p>
     <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-b"><rect id="res-clip-rect-b" x="0" y="0" width="1400" height="76"/></clipPath></defs>
@@ -374,11 +374,11 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
-      <span style="font-size:14px; color:{theme.INK_MUTED};">H1</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 1</span>
       <div style="flex:1; height:4px; background:{theme.GRIDLINE}; border-radius:2px; position:relative;">
         <div id="res-playhead" style="position:absolute; left:0%; top:-3px; width:10px; height:10px; border-radius:50%; background:{theme.COLOR_GEN}; transform:translateX(-50%);"></div>
       </div>
-      <span style="font-size:14px; color:{theme.INK_MUTED};">H24</span>
+      <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 96</span>
       <span id="res-clock" style="font-size:14px; color:{theme.INK_SECONDARY}; min-width:30px; text-align:right;"></span>
     </div>
     </div>
@@ -434,7 +434,7 @@ window.dtPvReplay = function(btn) {
           var bess = data.toBessMw[idx].toFixed(1);
           var curt = data.curtailedMw[idx].toFixed(1);
           var cause = data.causes[idx];
-          var txt = 'H' + data.hours[idx] + ': ' + avail + ' MW available \\u2192 ' + used + ' grid / ' + bess + ' BESS / ' + curt + ' curtailed';
+          var txt = 'ISP ' + data.hours[idx] + ': ' + avail + ' MW available \\u2192 ' + used + ' grid / ' + bess + ' BESS / ' + curt + ' curtailed';
           if (cause) txt += ' (' + cause + ')';
           readout.textContent = txt;
         }
@@ -526,7 +526,7 @@ def render_pv_routing_card(pv: dict) -> str:
     </div>
     <div class="pv-chart-block" data-pv='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Share of the available PV in each hour (%), hours 1&ndash;24</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Share of the available PV (%) in each quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtPvReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -545,7 +545,7 @@ def render_pv_routing_card(pv: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.55;"></span>Curtailed</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
+      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
     </div>
     </div>
     <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>
@@ -586,7 +586,7 @@ window.dtWaterReplay = function(btn) {
           if (bar) { bar.setAttribute('height', bar.dataset.finalH); bar.setAttribute('y', bar.dataset.finalY); bar.style.opacity = '1'; }
         });
         if (readout) {
-          readout.textContent = 'H' + data.hours[idx] + ': inflow ' + Math.round(data.inflow[idx]).toLocaleString() +
+          readout.textContent = 'ISP ' + data.hours[idx] + ': inflow ' + Math.round(data.inflow[idx]).toLocaleString() +
             ' + pump ' + Math.round(data.pump[idx]).toLocaleString() + ' \\u2212 turbine ' + Math.round(data.turb[idx]).toLocaleString() +
             ' \\u2212 spill ' + Math.round(data.spill[idx]).toLocaleString() + ' m\\u00b3/h = \\u0394' + data.delta[idx].toFixed(2) + ' hm\\u00b3 (' + data.upperHm3[idx].toFixed(1) + ' hm\\u00b3)';
         }
@@ -669,10 +669,10 @@ def render_water_balance_card(wb: dict) -> str:
       <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">Water balance</div>
       <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, per hour</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, as a flow rate in each quarter-hour</p>
     <div class="wb-chart-block" data-wb='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Water flow in m&sup3;/h for each hour (1&ndash;24) &middot; above zero = inflows, below = outflows</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Water flow rate in m&sup3;/h for each quarter-hour (ISP 1&ndash;96) &middot; above zero = inflows, below = outflows</span>
       <button class="gt-replay" onclick="dtWaterReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -693,7 +693,7 @@ def render_water_balance_card(wb: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.6;"></span>Spill</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
+      <span id="wb-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
     </div>
     </div>
     <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{spill_note}</p>
@@ -736,7 +736,7 @@ window.dtBesschgReplay = function(btn) {
           if (bar) { bar.setAttribute('height', bar.dataset.finalH); bar.setAttribute('y', bar.dataset.finalY); bar.style.opacity = '1'; }
         });
         if (readout) {
-          readout.textContent = 'H' + data.hours[idx] + ': grid ' + data.gridMw[idx].toFixed(2) +
+          readout.textContent = 'ISP ' + data.hours[idx] + ': grid ' + data.gridMw[idx].toFixed(2) +
             ' MW + PV ' + data.pvMw[idx].toFixed(2) + ' MW charging';
         }
         if (s === steps) block.dataset.replaying = '0';
@@ -819,7 +819,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from - grid vs PV - {summary}</p>
     <div class="bc2-chart-block" data-bc2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Charging power in MW for each hour (1&ndash;24), stacked, charging hours only</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Charging power in MW for each quarter-hour (ISP 1&ndash;96), stacked, charging periods only</span>
       <button class="gt-replay" onclick="dtBesschgReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -836,7 +836,7 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
     </div>
     <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each hour</span>
+      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
     </div>
     {empty_badge}
     </div>
