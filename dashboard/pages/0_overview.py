@@ -59,36 +59,43 @@ ASSET_CARDS = [
     ("🛡️", "FCR headroom", f"{fcr['mandatory_headroom_mw']:.1f} MW", "49.8–50.2 Hz, <30s"),
 ]
 
+_CARD = f"background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE}; border-radius:12px; box-shadow:0 1px 2px rgba(11,11,11,0.04);"
+_TINTS = ["#e8f0fb", "#fdeee4", "#fff6dc", "#e3f5ee", "#efe9fb"]                  # one soft tint per icon tile
+
 st.markdown(
-    f'<div style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500; margin-bottom:8px;">'
+    f'<div style="font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; margin-bottom:8px;">'
     f'Alqueva PSP + PV + BESS</div>'
-    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px;">' +
+    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px;">' +
     "".join(
-        f'<div style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE}; border-radius:10px; padding:0.75rem 0.9rem;">'
-        f'<div style="font-size:12px; color:{theme.INK_SECONDARY}; margin-bottom:4px;">{icon} {label}</div>'
-        f'<div style="font-size:16px; font-weight:500; color:{theme.INK_PRIMARY};">{value}</div>'
-        f'<div style="font-size:12px; color:{theme.INK_MUTED}; margin-top:2px;">{sub}&nbsp;</div>'
-        f'</div>'
-        for icon, label, value, sub in ASSET_CARDS
+        f'<div style="{_CARD} padding:12px 14px; display:flex; align-items:center; gap:12px;">'
+        f'<div style="flex:none; width:36px; height:36px; border-radius:10px; background:{_TINTS[n]}; display:flex; align-items:center; justify-content:center; font-size:18px;">{icon}</div>'
+        f'<div style="min-width:0;">'
+        f'<div style="font-size:11.5px; color:{theme.INK_MUTED}; font-weight:500; margin-bottom:1px;">{label}</div>'
+        f'<div style="font-size:16px; font-weight:600; color:{theme.INK_PRIMARY}; line-height:1.25;">{value}</div>'
+        + (f'<div style="font-size:11.5px; color:{theme.INK_MUTED}; margin-top:1px;">{sub}</div>' if sub else "") +
+        f'</div></div>'
+        for n, (icon, label, value, sub) in enumerate(ASSET_CARDS)
     ) +
     "</div>",
     unsafe_allow_html=True,
 )
 
-# Allocation of the plant's MW over the markets: one stacked bar, then a legend line with MW and share (reserve figures are the largest offers).
+# Allocation of the plant's MW over the markets: a card with one segmented bar and a legend with share and MW (reserve figures are the largest offers).
 _alloc = data.load_market_allocation()
 _alloc_total = _alloc[-1][1]
 _alloc_colours = [theme.COLOR_GEN, theme.COLOR_UP, theme.COLOR_PUMP, theme.COLOR_PRICE]
 st.markdown(
-    f'<div style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500; margin:14px 0 6px 0;">'
-    f'Allocation of the {_alloc_total:.1f} MW over the markets (largest offers)</div>'
-    '<div style="display:flex; height:16px; border-radius:8px; overflow:hidden; border:1px solid ' + theme.GRIDLINE + ';">' +
-    "".join(f'<div style="width:{share:.2f}%; background:{colour};"></div>' for (_, _, share), colour in zip(_alloc[:-1], _alloc_colours)) +
-    '</div><div style="display:flex; flex-wrap:wrap; gap:6px 22px; margin-top:7px; font-size:13px; color:' + theme.INK_SECONDARY + ';">' +
-    "".join(f'<span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:{colour}; margin-right:6px;"></span>'
-            f'<b style="color:{theme.INK_PRIMARY}; font-weight:600;">{name}</b> {share:.0f}% · {mw:.0f} MW</span>'
+    f'<div style="{_CARD} padding:12px 16px; margin-top:12px;">'
+    f'<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">'
+    f'<span style="font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600;">Allocation over the markets (largest offers)</span>'
+    f'<span style="font-size:13px; color:{theme.INK_SECONDARY};"><b style="color:{theme.INK_PRIMARY}; font-weight:600;">{_alloc_total:.1f} MW</b> in total</span></div>'
+    '<div style="display:flex; gap:3px; height:12px;">' +
+    "".join(f'<div style="flex:{share:.2f} 1 0; min-width:6px; background:{colour}; border-radius:6px;"></div>' for (_, _, share), colour in zip(_alloc[:-1], _alloc_colours)) +
+    '</div><div style="display:flex; flex-wrap:wrap; gap:6px 26px; margin-top:10px; font-size:13px; color:' + theme.INK_SECONDARY + ';">' +
+    "".join(f'<span style="display:inline-flex; align-items:center;"><span style="width:9px; height:9px; border-radius:50%; background:{colour}; margin-right:7px;"></span>'
+            f'<b style="color:{theme.INK_PRIMARY}; font-weight:600; margin-right:6px;">{name}</b>{share:.0f}% · {mw:.0f} MW</span>'
             for (name, mw, share), colour in zip(_alloc[:-1], _alloc_colours)) +
-    '</div>',
+    '</div></div>',
     unsafe_allow_html=True,
 )
 
@@ -212,6 +219,13 @@ def _render_gate_positions(gate_pos: dict) -> None:
     st.markdown("---")
 
 
+def _status_line(kind: str, html_text: str) -> None:
+    """The run status as one slim line (st.success / st.error take about twice the height for the same sentence)."""
+    bg, fg = ("#e6f4ea", "#1e6b33") if kind == "good" else ("#fdecea", "#9b2c2c")
+    st.markdown(f'<div style="background:{bg}; color:{fg}; border-radius:12px; padding:6px 16px; font-size:14px; line-height:1.35; margin:14px 0;">{html_text}</div>',
+                unsafe_allow_html=True)
+
+
 @st.fragment(run_every=theme.auto_refresh_interval())
 def _render() -> None:
     theme.inject_scroll_restore()
@@ -248,9 +262,9 @@ def _render() -> None:
         n_fail = sum(1 for r in results if r["status"] == "FAIL")
         n_pass = sum(1 for r in results if r["status"] == "PASS")
         if n_fail:
-            st.error(f"🔴 **{selected_date}** - {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            _status_line("bad", f"🔴 <b>{selected_date}</b> - {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
         else:
-            st.success(f"🟢 **{selected_date}** - {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            _status_line("good", f"🟢 <b>{selected_date}</b> - {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
 
     # ---------------------------------------------------------------------------
     # Live gate tickets - updates gate-by-gate as the pipeline runs, reading
@@ -279,36 +293,48 @@ def _render() -> None:
         def _select_gate(gate: str) -> None:
             st.session_state[state_key] = gate
 
-        cols = st.columns(len(all_tickets))
-        for i, t in enumerate(all_tickets):
-            icon = {"good": "🟢", "neutral": "⚪", "critical": "🔴"}[t["status_class"]]
-            rev = f"€{t['revenue_items'][0][1]:,.0f}" if t.get("revenue_items") else " - "
-            label = f"{icon} {gate_ticket.gate_caption_name(t['gate'])}  \n{t['decision']}  \n{rev}"      # one line each (markdown hard breaks); no separator dot to dangle at a line end
+        # Two rows of buttons of the same width: the day-ahead and reserve gates (3, centred), then the intraday gates (4). Each keeps its name,
+        # decision and amount on one line; a flat colour dot shows the status.
+        st.markdown(
+            '<style>'
+            'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { min-height: 2.6rem; border-radius: 12px; font-weight: 500;'
+            ' border: 1px solid ' + theme.GRIDLINE + '; box-shadow: 0 1px 2px rgba(11,11,11,0.05); transition: box-shadow .15s, border-color .15s; }'
+            'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover { border-color: ' + theme.BLUE + '; box-shadow: 0 2px 6px rgba(42,120,214,0.18); }'
+            'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="primary"] { font-weight: 600; box-shadow: 0 2px 8px rgba(42,120,214,0.35); }'
+            '</style>', unsafe_allow_html=True)
+        # One row of equal cards: the name with a status dot above, the amount below.
+        row_cols = st.columns(len(all_tickets))
+        for slot, t in zip(row_cols, all_tickets):
+            dot = {"good": ":green[●]", "neutral": ":gray[●]", "critical": ":red[●]"}[t["status_class"]]
+            value = t["revenue_items"][0][1] if t.get("revenue_items") else None
+            rev = "–" if value is None else (f"−€{abs(value):,.0f}" if value < 0 else f"€{value:,.0f}")
             is_selected = t["gate"] == st.session_state[state_key]
-            cols[i].button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
-                            use_container_width=True, type="primary" if is_selected else "secondary",
-                            on_click=_select_gate, args=(t["gate"],))
+            if is_selected:
+                dot = "●"                                              # white on the blue selected button
+            label = f"{dot} {gate_ticket.gate_caption_name(t['gate'])}  \n{rev}"      # a markdown hard break between the two lines
+            slot.button(label, key=f"gatebtn_{selected_date}_{t['gate']}",
+                        use_container_width=True, type="primary" if is_selected else "secondary",
+                        on_click=_select_gate, args=(t["gate"],), help=f"{t['decision']}")
 
         selected_ticket = next(t for t in all_tickets if t["gate"] == st.session_state[state_key])
-        fig_num = gate_keys.index(st.session_state[state_key]) + 1
         # Card height varies by content: standard DA/aFRR/mFRR bar-chart cards
         # are shorter (no tradable-hours section), rebid cards (IDA1-3) are
         # taller, and XBID's multi-window pill row adds a bit more on top of
         # that. One fixed height sized for the tallest case left a large blank
         # gap in the iframe below every shorter card.
         if selected_ticket.get("xbid_windows"):
-            card_height = 325
+            card_height = 365
         elif selected_ticket.get("is_rebid_gate"):
-            card_height = 285
+            card_height = 340
         else:
-            card_height = 345
+            card_height = 405
         # +20px for the "Gate closes ..." line added below the decided
         # timestamp (see gate_ticket.py's gate_close_bit) -- every real gate
         # has one, but guard on presence anyway so a ticket without it
         # doesn't get a blank gap under it.
         if selected_ticket.get("gate_close"):
             card_height += 20
-        components.html(gate_ticket.render(selected_ticket, selected_date, fig_num=fig_num), height=card_height)
+        components.html(gate_ticket.render(selected_ticket, selected_date), height=card_height)
         st.markdown("---")
 
     # ---------------------------------------------------------------------------

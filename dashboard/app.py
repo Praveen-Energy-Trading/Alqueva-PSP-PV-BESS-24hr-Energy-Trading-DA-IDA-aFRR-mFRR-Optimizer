@@ -23,10 +23,24 @@ import streamlit as st
 
 import data
 import date_format
+import frame_fit
 import runner
 import theme
 
 date_format.install()          # every date shown is written dd-mm-yyyy
+frame_fit.install()           # every card in its own frame takes the height of its content
+
+# Every page starts close to the top bar (the default leaves a wide empty band above the title).
+st.markdown('<style>div[data-testid="stMainBlockContainer"] { padding-top: 1.1rem !important; }'
+            'div[data-testid="stMainBlockContainer"] h1 { padding-top: 0 !important; padding-bottom: 0.4rem !important; }'
+            'header[data-testid="stHeader"] { height: 1.6rem !important; min-height: 0 !important; background: transparent !important; }'
+            # elements that show nothing (style-only blocks, zero-height script frames) each cost one 1rem gap above the title; taken out of the flow they cost none
+            'div[data-testid="stElementContainer"]:has(div[data-testid="stMarkdownContainer"] > style:only-child), div[data-testid="stElementContainer"][height="0px"]'
+            ' { position: absolute !important; width: 0 !important; height: 0 !important; overflow: hidden !important; margin: 0 !important; }'
+            # closer sections: slimmer dividers and section headings (the spacing inside a section is left as Streamlit has it)
+            'div[data-testid="stMainBlockContainer"] hr { margin: 0.4rem 0 !important; }'
+            'div[data-testid="stMainBlockContainer"] h2, div[data-testid="stMainBlockContainer"] h3, div[data-testid="stMainBlockContainer"] h4, '
+            'div[data-testid="stMainBlockContainer"] h5 { padding-top: 0.5rem !important; padding-bottom: 0.3rem !important; }</style>', unsafe_allow_html=True)
 
 st.set_page_config(
     page_title="Alqueva PSP-PV-BESS Trading Dashboard",

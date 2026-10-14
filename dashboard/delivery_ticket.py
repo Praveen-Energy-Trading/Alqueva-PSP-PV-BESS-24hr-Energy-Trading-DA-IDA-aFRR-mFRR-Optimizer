@@ -118,7 +118,7 @@ def render_imbalance_settlement_card(im: dict) -> str:
     </div>
     <div class="imb-chart-block" style="position:relative; height:{total_h*0.92:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <text x="{x0}" y="14" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Imbalance (MW)</text>
+        <text x="{x0}" y="14" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Imbalance (MW) for each quarter-hour, ISP 1-96</text>
         <line x1="{x0}" y1="{imb_mid_y - imb_half:.1f}" x2="{x1}" y2="{imb_mid_y - imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{imb_mid_y:.1f}" x2="{x1}" y2="{imb_mid_y:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.2"/>
         <line x1="{x0}" y1="{imb_mid_y + imb_half:.1f}" x2="{x1}" y2="{imb_mid_y + imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -130,7 +130,7 @@ def render_imbalance_settlement_card(im: dict) -> str:
         <path d="{pos_edge}" fill="none" stroke="{theme.COLOR_UP}" stroke-width="1.8"/>
         <path d="{neg_edge}" fill="none" stroke="{theme.COLOR_DOWN}" stroke-width="1.8"/>
 
-        <text x="{x0}" y="{price_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Reference price - illustrative (EUR/MWh)</text>
+        <text x="{x0}" y="{price_title_y:.1f}" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Reference price - illustrative (EUR/MWh) for each quarter-hour</text>
         <line x1="{x0}" y1="{price_top:.1f}" x2="{x1}" y2="{price_top:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{price_bot:.1f}" x2="{x1}" y2="{price_bot:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <text x="{x0-6}" y="{price_top+3:.1f}" font-size="11" fill="{theme.INK_PRIMARY}" font-weight="600" text-anchor="end">{price_max:.0f}</text>

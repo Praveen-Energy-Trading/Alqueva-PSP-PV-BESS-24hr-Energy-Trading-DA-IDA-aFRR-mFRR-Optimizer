@@ -28,7 +28,9 @@ if feats.empty:
     ml_ui.not_yet_run("the feature catalogue")
     st.stop()
 
-target = ml_ui.target_picker()
+pick_col, info_col = st.columns([1, 2])                           # the target picker and the summary share one row
+with pick_col:
+    target = ml_ui.target_picker()
 _desc = dict(zip(feats["id"], feats["description"]))
 
 
@@ -39,8 +41,10 @@ def fname(fid: str) -> str:
 
 
 n_target = int(avail[(avail["target"] == target) & (avail["available"])].shape[0]) if not avail.empty else None
-ml_ui.cards([("Features in the catalogue", len(feats)), ("Feature kinds", feats["kind"].nunique()),
-                    (f"Available for {ml_data.label(target)}", n_target if n_target is not None else "-")], ncols=3)
+with info_col:
+    st.markdown('<div style="height:1.7rem"></div>', unsafe_allow_html=True)           # lines the table up with the selector box
+    ml_ui.table(pd.DataFrame([{"Features in the catalogue": len(feats), "Feature kinds": feats["kind"].nunique(),
+                               f"Available for {ml_data.label(target)}": n_target if n_target is not None else "–"}]), stretch=True)
 
 st.subheader("The catalogue")
 g = feats.groupby("group").size().sort_values(ascending=False)
@@ -80,8 +84,8 @@ r = sel.get(target)
 if not r:
     ml_ui.not_yet_run(f"stability selection for {ml_data.label(target)}")
 else:
-    ml_ui.cards([("Candidates", r["candidates"]), ("Kept", len(r["selected"]))], ncols=4)
-    st.markdown("Kept: " + "; ".join(fname(x).lower() for x in r["selected"]))
+    ml_ui.table(pd.DataFrame([{"Candidates": r["candidates"], "Kept": len(r["selected"]),
+                               "Kept features": "; ".join(fname(x) for x in r["selected"])}]), stretch=True)
     st.caption(f"Rule: a feature is kept if it carries at least {100 * r['rule']['min_share']:.0f}% of the permutation importance in at least "
                f"{100 * r['rule']['min_period_fraction']:.0f}% of the {len(r['periods'])} yearly periods ({', '.join(r['periods'])}), using development data only.")
 

@@ -33,7 +33,7 @@ def _nice_max(raw_max: float) -> float:
             return nice_frac * base
     return 10 * base
 
-_REPLAY_STYLE = f'<style>.gt-replay {{ font-size:14px; padding:2px 10px; border:1px solid {theme.GRIDLINE}; border-radius:6px; background:{theme.SURFACE}; cursor:pointer; }}</style>'
+_REPLAY_STYLE = f'<style>.gt-replay {{ white-space:nowrap; flex:none; font-size:14px; padding:2px 10px; border:1px solid {theme.GRIDLINE}; border-radius:6px; background:{theme.SURFACE}; cursor:pointer; }}</style>'
 
 # One generic mousemove-crosshair module, reused by every hand-drawn SVG
 # chart in this file instead of duplicating hover-tracking JS per widget.
@@ -311,15 +311,14 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">Reservoir trajectory</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Reservoir trajectory</div>
     <div class="res-chart-block" data-res='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake)</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake) &middot; volume in hm&sup3;, hours 1&ndash;24</span>
       <button class="gt-replay" onclick="dtReservoirReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:84px;">
@@ -339,7 +338,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake)</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake) &middot; volume in hm&sup3;, hours 1&ndash;24</p>
     <div style="position:relative; height:84px;">
       <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="res-clip-b"><rect id="res-clip-rect-b" x="0" y="0" width="1400" height="76"/></clipPath></defs>
@@ -511,12 +510,11 @@ def render_pv_routing_card(pv: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">PV routing &amp; curtailment</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">PV routing &amp; curtailment</div>
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px;">
       <span style="background:{theme.YELLOW}22; color:{theme.YELLOW}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#9728; PV</span>
       <span style="color:{theme.INK_MUTED}; font-size:15px;">splits into</span>
@@ -528,7 +526,7 @@ def render_pv_routing_card(pv: dict) -> str:
     </div>
     <div class="pv-chart-block" data-pv='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Stacked per hour, normalized to available PV each hour</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Share of the available PV in each hour (%), hours 1&ndash;24</span>
       <button class="gt-replay" onclick="dtPvReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -666,16 +664,15 @@ def render_water_balance_card(wb: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">Water balance</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">Water balance</div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, per hour</p>
     <div class="wb-chart-block" data-wb='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Above zero = inflows &middot; below = outflows</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Water flow in m&sup3;/h for each hour (1&ndash;24) &middot; above zero = inflows, below = outflows</span>
       <button class="gt-replay" onclick="dtWaterReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -814,16 +811,15 @@ def render_bess_charge_source_card(bc: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">BESS charge source</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">BESS charge source</div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from - grid vs PV - {summary}</p>
     <div class="bc2-chart-block" data-bc2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Stacked per hour, charging only</span>
+      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Charging power in MW for each hour (1&ndash;24), stacked, charging hours only</span>
       <button class="gt-replay" onclick="dtBesschgReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:130px;">
@@ -962,15 +958,14 @@ def render_da_vs_activation_card(dv: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">DA schedule vs grid activation</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">DA schedule vs grid activation</div>
     <div class="da2-chart-block" data-da2='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;">
-      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday)</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">1. What the plant already agreed to do (planned yesterday) &middot; MW per quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtDaactReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:78px;">
@@ -981,7 +976,7 @@ def render_da_vs_activation_card(dv: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-top-tooltip"')}
     </div>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time)</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time) &middot; MW per quarter-hour</p>
     <div style="position:relative; height:78px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -1083,7 +1078,7 @@ def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines
     <div style="font-size:38px; font-weight:700; color:{theme.INK_PRIMARY}; letter-spacing:-0.5px;">{total_pnl:,.0f} <span style="font-size:18px; font-weight:500; color:{theme.INK_MUTED};">EUR</span></div>
   </div>
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
     {''.join(rows_html)}
     {reserve_html}
   </div>
@@ -1181,15 +1176,16 @@ def render_isp_dispatch_card(dv: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Optimization</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Real solved MILP output</span>
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;">
+      <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">ISP dispatch</div>
+      <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">ISP dispatch</div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Real per-asset dispatch at 96-ISP (15-min) resolution</p>
-
     <div class="ispd-chart-block" data-ispd='{payload_json}'>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 8px;">
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Real per-asset dispatch in MW for each of the 96 quarter-hours (ISP 1&ndash;96)</span>
+      <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
+    </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
     <div style="position:relative; height:92px;">
       <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
@@ -1228,7 +1224,6 @@ def render_isp_dispatch_card(dv: dict) -> str:
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
       <span id="ispd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each ISP</span>
-      <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
       <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 1</span>
@@ -1489,7 +1484,7 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY}; font-weight:500;">Reserve delivery</span>
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
@@ -1499,7 +1494,10 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
     {stats_html}
 
     <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 10px; font-weight:500;">ACE deviation (top), and regulation activated at those same moments - {n} real ISPs</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:6px 0 10px;">
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">ACE deviation and regulation activated, both in MW, for each of the {n} real quarter-hours (ISP 1&ndash;96)</span>
+      <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
+    </div>
     <div style="position:relative; height:{total_h*0.92:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="afrrd-clip"><rect id="afrrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
@@ -1539,7 +1537,6 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
       <span id="afrrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each ISP</span>
-      <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
       <span style="font-size:14px; color:{theme.INK_MUTED};">ISP 1</span>
@@ -1703,7 +1700,7 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
-              border-radius:12px; padding:1rem 1.25rem; width:100%; box-sizing:border-box;">
+              border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:13px; color:{theme.INK_SECONDARY}; font-weight:500;">Delivery</span>
       <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:15px; padding:3px 10px; border-radius:6px; font-weight:500;">Mandatory, non-remunerated</span>
@@ -1712,7 +1709,10 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Reserved headroom {headroom:.1f} MW, plant-level only - no per-resource split exists</p>
 
     <div class="fcrd-chart-block" data-fcrd='{payload_json}'>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">Grid frequency deviation from 50.000 Hz, and the plant's response at those same moments ({n:,} real 30-s ticks)</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:6px 0 2px;">
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Frequency deviation (mHz, top) and plant response (MW, bottom) per 30-second tick, {n:,} ticks</span>
+      <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
+    </div>
     <div style="position:relative; height:{total_h*0.95:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
         <defs><clipPath id="fcrd-clip"><rect id="fcrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
@@ -1754,7 +1754,6 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
       <span id="fcrd-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through every 30-s tick</span>
-      <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
       <span style="font-size:14px; color:{theme.INK_MUTED};">00:00:00</span>

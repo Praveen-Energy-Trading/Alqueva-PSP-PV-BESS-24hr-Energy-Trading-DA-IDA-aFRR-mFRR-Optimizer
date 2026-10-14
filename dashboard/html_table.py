@@ -22,7 +22,7 @@ INK_MUTED = "#6d6c68"
 CSS = f"""
 <style>
 .htab-wrap {{ display: block; width: fit-content; max-width: 100%; overflow: auto; border: 1px solid {GRID}; border-radius: 8px; background: #fcfcfb; margin: 0.2rem 0 0.8rem 0; }}
-table.htab {{ border-collapse: separate; border-spacing: 0; width: auto !important; min-width: 0 !important; font-size: 0.86rem; color: {INK}; }}
+table.htab {{ border-collapse: separate; border-spacing: 0; margin: 0 !important; width: auto !important; min-width: 0 !important; font-size: 0.86rem; color: {INK}; }}
 table.htab th {{ position: sticky; top: 0; z-index: 1; background: {HEAD_BG}; color: {INK_MUTED}; font-weight: 500; text-align: center;
                  vertical-align: bottom; padding: 7px 10px; border-bottom: 1px solid {GRID}; border-right: 1px solid {GRID};
                  white-space: normal; line-height: 1.25; }}
@@ -30,6 +30,10 @@ table.htab td {{ padding: 6px 10px; border-bottom: 1px solid {GRID}; border-righ
 table.htab td.txt {{ white-space: nowrap; }}
 table.htab td.long {{ white-space: normal; min-width: 260px; max-width: 460px; text-align: left; }}
 table.htab td.num {{ font-variant-numeric: tabular-nums; }}
+table.htab.stretch {{ width: 100% !important; }}
+table.htab.stretch th {{ padding: 3px 10px; line-height: 1.15; }}
+table.htab.stretch td {{ padding: 2px 10px; line-height: 1.2; }}
+.htab-wrap.stretch-wrap {{ margin: 0.1rem 0 0.4rem 0; }}
 table.htab tr:last-child td {{ border-bottom: none; }}
 table.htab th:last-child, table.htab td:last-child {{ border-right: none; }}
 </style>
@@ -58,7 +62,7 @@ def _header(text) -> str:
     return html.escape(str(text)).replace("_", "_<wbr>")
 
 
-def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optional[int] = None) -> str:
+def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optional[int] = None, stretch: bool = False) -> str:
     formats = formats or {}
     heads, numeric, long_text = [], [], []
     for c in df.columns:
@@ -80,5 +84,9 @@ def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optiona
                 cells.append(f'<td class="{"long" if is_long else "txt"}">{html.escape(text)}</td>')
         rows.append("<tr>" + "".join(cells) + "</tr>")
     style = f' style="max-height:{int(height)}px"' if height else ""
-    return (CSS + f'<div class="htab-wrap"{style}><table class="htab"><thead><tr>' + "".join(heads) + "</tr></thead><tbody>"
+    if stretch:                                                         # the table takes the full width: its columns share the room
+        style = ' style="width:100%' + (f'; max-height:{int(height)}px' if height else "") + '"'
+    table_class = "htab stretch" if stretch else "htab"
+    wrap_class = "htab-wrap stretch-wrap" if stretch else "htab-wrap"
+    return (CSS + f'<div class="{wrap_class}"{style}><table class="{table_class}"><thead><tr>' + "".join(heads) + "</tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")

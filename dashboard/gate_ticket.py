@@ -159,7 +159,7 @@ def _bars_svg(ticket: dict) -> tuple[str, str, str, int, str]:
     return svg, overlay, hour_row, n, hover_script
 
 
-def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str:
+def _standard_chart_block(ticket: dict, delivery_date: str) -> str:
     """DA/aFRR/mFRR: the full 24h absolute bar chart + Replay button."""
     unit = "MW" if ticket["is_reserve"] else "MWh"
     bars_svg, y_axis_html, hour_row_html, n_hours, hover_script = _bars_svg(ticket)
@@ -189,7 +189,7 @@ def _standard_chart_block(ticket: dict, delivery_date: str, fig_num: int) -> str
       {legend_html}
     </div>
     <p style="font-size:10.5px; color:{theme.INK_SECONDARY}; text-align:center; margin:4px 0 0;">
-      <b>Fig. {fig_num}.</b>&nbsp; {_html.escape(gate_caption_name(ticket['gate']))} hourly {'reserve capacity' if ticket['is_reserve'] else 'bid volume'}, delivery {_html.escape(delivery_date)}.
+      {_html.escape(gate_caption_name(ticket['gate']))} hourly {'reserve capacity' if ticket['is_reserve'] else 'bid volume'}, delivery {_html.escape(delivery_date)}.
     </p>
     {hover_script}
     ''', n_hours
@@ -435,7 +435,7 @@ def _xbid_windows_block(windows: list[dict]) -> str:
     </script>'''
 
 
-def render(ticket: dict, delivery_date: str, fig_num: int = 1) -> str:
+def render(ticket: dict, delivery_date: str) -> str:
     """Returns the full self-contained HTML for the gate ticket card."""
     is_rebid = bool(ticket.get("is_rebid_gate"))
 
@@ -539,7 +539,7 @@ def render(ticket: dict, delivery_date: str, fig_num: int = 1) -> str:
 }})();
 </script>'''
     else:
-        body, n_hours = _standard_chart_block(ticket, delivery_date, fig_num)
+        body, n_hours = _standard_chart_block(ticket, delivery_date)
         replay_script = f'''
 <script>
 (function() {{

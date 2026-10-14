@@ -14,8 +14,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Evaluation design", "A model is only as good as the way it is scored. The scoring contract is fixed before any model is fitted: "
-             "which days, trained on what, scored how, and what counts as a real difference.", step=4)
+ml_ui.header("Evaluation design", "", step=4)
 ml_ui.tour_bar(5)
 
 ev = ml_ui.cached(lambda: ml_data.config("evaluation"))()
@@ -31,14 +30,12 @@ def d(x):
 
 
 dev, lk, sch = ev["development"], ev["locked_test"], ev["schedule"]
-ml_ui.cards([("Development scoring", f"{dev['test_start']} to {dev['test_end']}"), ("Locked test year", f"{lk['start']} to {lk['end']}"),
-                    ("Refit every", f"{sch['retrain_every_days']} days"), ("Training window", f"{sch['train_window_days']} days"),
-                    ("Gap before the first test day", f"{sch['gap_days']} day")], ncols=5, pre_formatted=True)
+ml_ui.table(__import__("pandas").DataFrame([{
+    "Development scoring": f"{dev['test_start']} to {dev['test_end']}", "Locked test year": f"{lk['start']} to {lk['end']}",
+    "Refit every": f"{sch['retrain_every_days']} days", "Training window": f"{sch['train_window_days']} days",
+    "Gap before the first test day": f"{sch['gap_days']} day"}]), stretch=True)
 
 st.subheader("Rolling-origin folds")
-st.markdown("The model is refitted every few weeks on the most recent history and used to forecast the next days, exactly as it would have been "
-            "run live. Each row below is one refit: a training window (blue), a gap, and the test days it forecasts (orange). The red band is the "
-            "locked year: it is never used to choose anything.")
 treat = st.radio("Treatment", ["Standard (day-ahead, aFRR)", "Limited evidence (IDA1-3, XBID)"], horizontal=True, key="ml5_treat")
 limited = treat.startswith("Limited")
 lim = roll.get("treatments", {}).get("limited_evidence", {}).get("schedule", {})

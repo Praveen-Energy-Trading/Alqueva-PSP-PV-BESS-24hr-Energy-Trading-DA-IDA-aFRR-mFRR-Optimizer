@@ -90,10 +90,10 @@ def style_fig(fig: go.Figure, *, height: int = 380, yaxis_title: str | None = No
 
 CSS = f"""
 <style>
-    .block-container {{ padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1280px; }}
+    .block-container {{ padding-top: 1rem; padding-bottom: 3rem; max-width: 1280px; }}
     /* Streamlit 1.51 pads the page by 6rem under a 3.75rem bar: shrink the bar (transparent, so nothing is hidden) and start the text right below it */
     header[data-testid="stHeader"] {{ background: transparent; height: 2.5rem; }}
-    div[data-testid="stMainBlockContainer"] {{ padding-top: 2.5rem !important; padding-bottom: 3rem; }}
+    div[data-testid="stMainBlockContainer"] {{ padding-top: 1.1rem !important; padding-bottom: 3rem; }}
     div[data-testid="stMainBlockContainer"] h1 {{ padding-top: 0 !important; }}
     [data-testid="stMetric"] {{
         background: {SURFACE};

@@ -24,7 +24,9 @@ def _render() -> None:
         st.info("No figures found - run the pipeline to generate them.")
     else:
         for png in pngs:
-            st.image(str(png), caption=png.stem, width="stretch")
+            import re
+            title = re.sub(r"^fig\d+_", "", png.stem).replace("_", " ")           # fig01_dispatch_and_price -> "Dispatch and price": no figure number
+            st.image(str(png), caption=title[:1].upper() + title[1:], width="stretch")
 
 
 _render()
