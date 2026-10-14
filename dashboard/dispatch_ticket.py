@@ -196,6 +196,12 @@ window.dtReservoirReplay = function(btn) {
 </script>'''
 
 
+def _yline(x, y1, y2):
+    """Thin vertical axis line at x (SVG units) from y1 to y2; the stroke keeps its 1 px width however the SVG is stretched."""
+    return (f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{theme.AXIS_LINE}" stroke-width="1.5" '
+            'vector-effect="non-scaling-stroke"/>')
+
+
 def _axes(n, x0, x1, view_w, view_h, y_ticks, unit, show_x=True, gutter=44):
     """Axis labels laid over a chart container (HTML text, so the labels are not stretched like the SVG underneath).
 
@@ -346,8 +352,8 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Alqueva (upper lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtReservoirReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:84px; margin:4px 0 4px 0px;">
-      <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:66px; margin:2px 0 2px 0px;">
+      <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 76)}
         <defs><clipPath id="res-clip-a"><rect id="res-clip-rect-a" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{mid_y:.1f}" x2="{x1}" y2="{mid_y:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
@@ -362,10 +368,10 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       </svg>
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-a-tooltip"')}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:8px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {upper_band_note}</p>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 4px; font-weight:500;">Pedr&oacute;g&atilde;o (lower lake) &middot; volume in hm&sup3; for each quarter-hour (ISP 1&ndash;96)</p>
-    <div style="position:relative; height:84px; margin:4px 0 42px 0px;">
-      <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:66px; margin:2px 0 40px 0px;">
+      <svg viewBox="0 0 1400 76" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 76)}
         <defs><clipPath id="res-clip-b"><rect id="res-clip-rect-b" x="0" y="0" width="1400" height="76"/></clipPath></defs>
         <line x1="{x0}" y1="{top_y}" x2="{x1}" y2="{top_y}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
         <line x1="{x0}" y1="{mid_y:.1f}" x2="{x1}" y2="{mid_y:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1" stroke-dasharray="2,3"/>
@@ -380,7 +386,7 @@ def render_reservoir_trajectory_card(traj: dict) -> str:
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="res-b-tooltip"')}
       {_axes(n, x0, x1, 1400, 76, [], "", gutter=0)}
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:2px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {lower_band_note}</p>
+    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:8px 0 0; text-align:right;">hm&sup3; - zoomed to today's range &middot; {lower_band_note}</p>
     <div style="display:flex; gap:16px; margin-top:8px;">
       <div style="flex:1;">
         <p style="font-size:14px; color:{theme.INK_MUTED}; margin:0 0 2px;">Alqueva now</p>
@@ -526,7 +532,7 @@ def render_pv_routing_card(pv: dict) -> str:
     })
 
     curt_note = (
-        f"No curtailment this day - every available PV MWh was exported or stored."
+        ""                                                         # a day without curtailment needs no note
         if pv["total_curtailed_mwh"] <= 1e-6 else
         f"{pv['total_curtailed_mwh']:.1f} MWh curtailed ({pv['curtailed_pct']:.1f}% of available) - cost &euro;{pv['curtailment_cost_eur']:.0f}."
     )
@@ -549,12 +555,11 @@ def render_pv_routing_card(pv: dict) -> str:
       <span style="background:{theme.STATUS_CRITICAL}22; color:{theme.STATUS_CRITICAL}; padding:3px 9px; border-radius:6px; font-weight:600; font-size:15px;">&#10005; Curtailed</span>
     </div>
     <div class="pv-chart-block" data-pv='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">PV power in MW for each quarter-hour (ISP 1&ndash;96): grid, battery and curtailed, stacked</span>
+    <div style="display:flex; justify-content:flex-end; align-items:flex-start; height:0; position:relative; z-index:2;">
       <button class="gt-replay" onclick="dtPvReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
-      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:130px; margin:30px 0 42px 44px;">
+      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 100)}
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(used_bars)}
         {''.join(bess_bars)}
@@ -569,11 +574,12 @@ def render_pv_routing_card(pv: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>To BESS</span>
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.STATUS_CRITICAL}; border-radius:2px; margin-right:4px; vertical-align:middle; opacity:0.55;"></span>Curtailed</span>
     </div>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
+    <style>.pv-readout-row:has(#pv-readout:empty) {{ display:none; }}</style>
+    <div class="pv-readout-row" style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
+      <span id="pv-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;"></span>
     </div>
     </div>
-    <p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>
+    {f'<p style="font-size:13px; color:{theme.INK_MUTED}; margin:8px 0 0;">{curt_note}</p>' if curt_note else ''}
   </div>
 </div>
 {_REPLAY_STYLE}
@@ -696,11 +702,11 @@ def render_water_balance_card(wb: dict) -> str:
     </div>
     <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">Upper reservoir (Alqueva): inflow + pump return &minus; turbine draw &minus; spill, as a flow rate in each quarter-hour</p>
     <div class="wb-chart-block" data-wb='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:0;">
+    <div style="display:flex; justify-content:flex-end; align-items:flex-start; height:0; position:relative; z-index:2;">
       <button class="gt-replay" onclick="dtWaterReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
-      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:130px; margin:30px 0 42px 44px;">
+      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 100)}
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(in_bars)}
         {''.join(pump_bars)}
@@ -818,10 +824,8 @@ def render_bess_charge_source_card(bc: dict) -> str:
     })
 
     if bc["any_charging"]:
-        summary = f"{bc['grid_share_pct']:.0f}% from grid, {bc['pv_share_pct']:.0f}% from PV this day"
         empty_badge = ""
     else:
-        summary = "No charging this day"
         empty_badge = (
             f'<div style="background:{theme.STATUS_WARNING}18; border:1px solid {theme.STATUS_WARNING}55; '
             f'border-radius:8px; padding:10px 12px; margin-top:8px; font-size:14.5px; color:{theme.INK_PRIMARY}; line-height:1.5;">'
@@ -842,14 +846,12 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <div style="font-size:20px; font-weight:600; color:{theme.INK_PRIMARY};">BESS charge source</div>
       <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
-    <p style="font-size:15px; color:{theme.INK_MUTED}; margin:0 0 10px;">What BESS charging power actually came from - grid vs PV - {summary}</p>
     <div class="bc2-chart-block" data-bc2='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-      <span style="font-size:14px; color:{theme.INK_SECONDARY};">Charging power in MW for each quarter-hour (ISP 1&ndash;96), stacked, charging periods only</span>
+    <div style="display:flex; justify-content:flex-end; align-items:flex-start; height:0; position:relative; z-index:2;">
       <button class="gt-replay" onclick="dtBesschgReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:130px; margin:20px 0 42px 44px;">
-      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:130px; margin:30px 0 42px 44px;">
+      <svg viewBox="0 0 1400 100" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 100)}
         <line x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(grid_bars)}
         {''.join(pv_bars)}
@@ -862,8 +864,9 @@ def render_bess_charge_source_card(bc: dict) -> str:
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Grid</span>
       <span style="font-size:14px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.YELLOW}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>PV</span>
     </div>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
-      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;">Full day shown - Replay steps through each quarter-hour</span>
+    <style>.bc2-readout-row:has(#bc2-readout:empty) {{ display:none; }}</style>
+    <div class="bc2-readout-row" style="margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE};">
+      <span id="bc2-readout" style="font-size:14.5px; color:{theme.INK_PRIMARY}; font-weight:500;"></span>
     </div>
     {empty_badge}
     </div>
@@ -996,7 +999,7 @@ def render_da_vs_activation_card(dv: dict) -> str:
       <button class="gt-replay" onclick="dtDaactReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:78px; margin:18px 0 6px 44px;">
-      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 90)}
         <line x1="{x0}" y1="{zero_y1}" x2="{x1}" y2="{zero_y1}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(da_bars)}
         {_hover_svg_elems("da2-top", x0, x1, 90, 0)}
@@ -1006,7 +1009,7 @@ def render_da_vs_activation_card(dv: dict) -> str:
     </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time) &middot; MW per quarter-hour</p>
     <div style="position:relative; height:78px; margin:18px 0 42px 44px;">
-      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+      <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 90)}
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         {''.join(delta_bars)}
         {_hover_svg_elems("da2-bot", x0, x1, 90, 0)}
@@ -1068,7 +1071,7 @@ window.dtIspReplay = function(btn) {
 </script>'''
 
 
-def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines: list[tuple[str, float, str]]) -> str:
+def render_pnl_breakdown_card(total_pnl: float, lines: list[tuple[str, float, str]]) -> str:
     """Total P&L plus every real revenue line item as a mini proportion bar
     under it, replacing the old 5-flat-metric row. `lines` = [(label, value,
     color)], each bar's width = |value| / |total_pnl| (capped 100%) so all
@@ -1093,13 +1096,6 @@ def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines
           </div>
         </div>''')
 
-    reserve_html = (
-        f'<div style="display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid {theme.GRIDLINE}; font-size:13px;">'
-        f'<span style="color:{theme.INK_MUTED};">Reserve share of P&amp;L</span>'
-        f'<span style="font-weight:600; color:{theme.INK_PRIMARY};">{reserve_pct:.1f}%</span></div>'
-        if reserve_pct is not None else ""
-    )
-
     return f'''
 <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
   <div style="margin-bottom:10px;">
@@ -1109,7 +1105,6 @@ def render_pnl_breakdown_card(total_pnl: float, reserve_pct: float | None, lines
   <div class="dt-card" style="background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE};
               border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
     {''.join(rows_html)}
-    {reserve_html}
   </div>
 </div>'''
 
@@ -1211,13 +1206,12 @@ def render_isp_dispatch_card(dv: dict) -> str:
       <span style="background:{theme.STATUS_GOOD}1f; color:{theme.STATUS_GOOD}; font-size:12.5px; padding:2px 10px; border-radius:999px; font-weight:600; white-space:nowrap;">Real solved MILP output</span>
     </div>
     <div class="ispd-chart-block" data-ispd='{payload_json}'>
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 8px;">
-      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Real per-asset dispatch in MW for each of the 96 quarter-hours (ISP 1&ndash;96)</span>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:6px 0 2px;">
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</span>
       <button class="gt-replay" onclick="dtIspReplay(this)">&#9654; Replay</button>
     </div>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PV &amp; BESS (own scale, max {pv_bess_max:.1f} MW)</p>
-    <div style="position:relative; height:92px; margin:18px 0 6px 44px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:76px; margin:18px 0 4px 44px;">
+      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 80)}
         <defs><clipPath id="ispd-clip-a"><rect id="ispd-clip-rect-a" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_a}" x2="{x1}" y2="{zero_a}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#ispd-clip-a)">
@@ -1234,8 +1228,8 @@ def render_isp_dispatch_card(dv: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_UP}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>BESS discharge</span>
     </div>
     <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:6px 0 2px; font-weight:500;">PSP turbine vs pump (own scale, max {psp_max:.0f} MW)</p>
-    <div style="position:relative; height:92px; margin:18px 0 42px 44px;">
-      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
+    <div style="position:relative; height:76px; margin:18px 0 40px 44px;">
+      <svg viewBox="0 0 1400 80" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 80)}
         <defs><clipPath id="ispd-clip-b"><rect id="ispd-clip-rect-b" x="0" y="0" width="1400" height="80"/></clipPath></defs>
         <line x1="{x0}" y1="{zero_b}" x2="{x1}" y2="{zero_b}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <g clip-path="url(#ispd-clip-b)">
@@ -1496,17 +1490,17 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
     if act is not None:
         platform, fat = _FAT_BY_PRODUCT.get(product, ("", ""))
         stats_html = f'''
-    <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 10px;">{act['n_isp']} of {n} ISPs activated &middot; decided {_html.escape(act['timestamp'])}</p>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+    <p style="font-size:12px; color:{theme.INK_SECONDARY}; margin:0 0 6px;">{act['n_isp']} of {n} ISPs activated &middot; decided {_html.escape(act['timestamp'])}</p>
+    <div style="display:flex; gap:8px; margin-bottom:6px;">
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.3rem 0.7rem; flex:1;">
         <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Activation revenue</p>
         <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">&euro;{act['revenue_eur']:,.0f}</p>
       </div>
-      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.3rem 0.7rem; flex:1;">
         <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Energy up / down</p>
         <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{act['up_mwh']:.1f} / {act['dn_mwh']:.1f} MWh</p>
       </div>
-      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.55rem 0.75rem; flex:1;">
+      <div style="background:{theme.GRIDLINE}44; border-radius:8px; padding:0.3rem 0.7rem; flex:1;">
         <p style="font-size:11px; color:{theme.INK_SECONDARY}; margin:0 0 2px;">Platform &middot; FAT</p>
         <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{platform} &middot; {fat}</p>
       </div>
@@ -1529,9 +1523,9 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
       <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">ACE deviation and regulation activated, both in MW, for each of the {n} real quarter-hours (ISP 1&ndash;96)</span>
       <button class="gt-replay" onclick="dtAfrrReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:{total_h*0.92:.0f}px;">
+    <div style="position:relative; height:{total_h*0.72:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <defs><clipPath id="afrrd-clip"><rect id="afrrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
+        {_yline(x0, ace_mid_y - ace_half, ace_mid_y + ace_half)}{_yline(x0, reg_mid_y - reg_half, reg_mid_y + reg_half)}<defs><clipPath id="afrrd-clip"><rect id="afrrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
         <text x="{x0}" y="16" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">ACE deviation (MW)</text>
         {axis_ticks(ace_mid_y, ace_half, ace_max)}
 
@@ -1744,9 +1738,9 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
       <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Frequency deviation (mHz, top) and plant response (MW, bottom) per 30-second tick, {n:,} ticks</span>
       <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
     </div>
-    <div style="position:relative; height:{total_h*0.95:.0f}px;">
+    <div style="position:relative; height:{total_h*0.72:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <defs><clipPath id="fcrd-clip"><rect id="fcrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
+        {_yline(x0, f_mid_y - f_half, f_mid_y + f_half)}{_yline(x0, r_mid_y - r_half, r_mid_y + r_half)}<defs><clipPath id="fcrd-clip"><rect id="fcrd-clip-rect" x="0" y="0" width="1400" height="{total_h}"/></clipPath></defs>
         <rect x="{x0}" y="{deadband_top:.1f}" width="{x1-x0}" height="{deadband_bot-deadband_top:.1f}" fill="{theme.STATUS_GOOD}" fill-opacity="0.10"/>
         <line x1="{x0}" y1="{f_mid_y}" x2="{x1}" y2="{f_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{r_mid_y}" x2="{x1}" y2="{r_mid_y}" stroke="{theme.GRIDLINE}" stroke-width="1"/>

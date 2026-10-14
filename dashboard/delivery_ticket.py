@@ -26,7 +26,7 @@ import html as _html
 import json as _json
 
 import theme
-from dispatch_ticket import _HOVER_CROSSHAIR_SCRIPT, _hover_svg_elems, _hover_tooltip_div, _sparse_edge_path
+from dispatch_ticket import _HOVER_CROSSHAIR_SCRIPT, _hover_svg_elems, _hover_tooltip_div, _sparse_edge_path, _yline
 
 def render_imbalance_settlement_card(im: dict) -> str:
     """Imbalance settlement mechanism explainer: why deviating from a
@@ -116,9 +116,9 @@ def render_imbalance_settlement_card(im: dict) -> str:
         <p style="font-size:17px; font-weight:500; margin:0; color:{theme.INK_PRIMARY};">{n_long} / {n_short}</p>
       </div>
     </div>
-    <div class="imb-chart-block" style="position:relative; height:{total_h*0.92:.0f}px;">
+    <div class="imb-chart-block" style="position:relative; height:{total_h*0.8:.0f}px;">
       <svg viewBox="0 0 1400 {total_h}" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">
-        <text x="{x0}" y="14" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Imbalance (MW) for each quarter-hour, ISP 1-96</text>
+        {_yline(x0, imb_mid_y - imb_half, imb_mid_y + imb_half)}{_yline(x0, price_top, price_bot)}<text x="{x0}" y="14" font-size="12" font-weight="700" fill="{theme.INK_PRIMARY}">Imbalance (MW) for each quarter-hour, ISP 1-96</text>
         <line x1="{x0}" y1="{imb_mid_y - imb_half:.1f}" x2="{x1}" y2="{imb_mid_y - imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
         <line x1="{x0}" y1="{imb_mid_y:.1f}" x2="{x1}" y2="{imb_mid_y:.1f}" stroke="{theme.INK_PRIMARY}" stroke-width="1.2"/>
         <line x1="{x0}" y1="{imb_mid_y + imb_half:.1f}" x2="{x1}" y2="{imb_mid_y + imb_half:.1f}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -147,9 +147,6 @@ def render_imbalance_settlement_card(im: dict) -> str:
       <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:9px; height:9px; background:{theme.COLOR_DOWN}; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>Short (under-delivered)</span>
       <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.STATUS_CRITICAL}; margin-right:4px; vertical-align:middle;"></span>Short price (buy back)</span>
       <span style="font-size:11.5px; color:{theme.INK_SECONDARY};"><span style="display:inline-block; width:14px; height:2px; background:{theme.STATUS_GOOD}; margin-right:4px; vertical-align:middle;"></span>Long price (sell)</span>
-    </div>
-    <div style="background:{theme.STATUS_WARNING}22; border-left:3px solid {theme.STATUS_WARNING}; padding:6px 10px; margin-top:10px;">
-      <span style="font-size:11px; color:{theme.INK_PRIMARY}; font-weight:500;">Short price &gt; long price by design (see config: fallback_short_factor 1.20x DA, fallback_long_factor 0.85x DA) - that gap is what makes deviating from your schedule a net cost, not a coin flip.</span>
     </div>
     {_HOVER_CROSSHAIR_SCRIPT}
     <script>

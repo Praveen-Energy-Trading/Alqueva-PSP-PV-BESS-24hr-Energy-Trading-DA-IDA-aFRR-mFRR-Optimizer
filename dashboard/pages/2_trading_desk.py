@@ -55,7 +55,6 @@ def _render() -> None:
     mfrr_cap  = data.kpi_value(kpis, "mFRR capacity revenue") or 0.0
     mfrr_act  = data.kpi_value(kpis, "mFRR activation revenue") or 0.0
     imbalance = data.kpi_value(kpis, "Imbalance settlement") or 0.0
-    reserve_pct = data.kpi_value(kpis, "Reserve share of P&L")
 
     # ---------------------------------------------------------------------------
     # P&L breakdown card - same widget as Overview's "P&L Breakdown" (moved here
@@ -76,7 +75,7 @@ def _render() -> None:
         ("Imbalance settlement", imbalance, theme.STATUS_GOOD),
     ]
     st.subheader("P&L Breakdown")
-    components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, reserve_pct, pnl_lines), height=510)
+    components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, pnl_lines), height=510)
     _caption = _mfrr_capacity_caption()
     if _caption:
         st.caption(_caption)

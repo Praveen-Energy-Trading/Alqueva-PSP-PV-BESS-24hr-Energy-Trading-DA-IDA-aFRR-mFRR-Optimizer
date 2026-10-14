@@ -50,6 +50,7 @@ INK_PRIMARY   = "#0b0b0b"
 INK_SECONDARY = "#52514e"
 INK_MUTED     = "#898781"
 GRIDLINE      = "#e1e0d9"
+AXIS_LINE     = "#74726b"
 SURFACE       = "#fcfcfb"
 
 FONT_FAMILY = "system-ui, -apple-system, 'Segoe UI', sans-serif"
@@ -85,6 +86,15 @@ def style_fig(fig: go.Figure, *, height: int = 380, yaxis_title: str | None = No
                       title_text=yaxis_title, title_font=dict(color=INK_SECONDARY))
     fig.update_xaxes(gridcolor="rgba(0,0,0,0)", tickfont=dict(color=INK_MUTED),
                       title_text=xaxis_title, title_font=dict(color=INK_SECONDARY))
+    # a thin vertical axis line right at the left edge of each plot (a layout shape: Plotly's own axis line sits a few pixels outside the plot)
+    def _axis_line(ax):
+        if getattr(ax, 'overlaying', None) or getattr(ax, 'side', None) == 'right':
+            return
+        y_ref = ax._plotly_name.replace('yaxis', 'y')
+        x_ref = (ax.anchor or 'x') if str(ax.anchor or 'x').startswith('x') else 'x'
+        fig.add_shape(type='line', xref=f'{x_ref} domain', x0=0, x1=0, yref=f'{y_ref} domain', y0=0, y1=1,
+                      line=dict(color=AXIS_LINE, width=1.5), layer='above')
+    fig.for_each_yaxis(_axis_line)
     return fig
 
 

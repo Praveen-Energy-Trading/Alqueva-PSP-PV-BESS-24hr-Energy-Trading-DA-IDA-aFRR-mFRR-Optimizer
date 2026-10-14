@@ -135,19 +135,19 @@ def _render_section(title: str, cards: list, state_key: str) -> None:
     st.markdown("---")
 
 
-def _crosshair(fig, hours, mw, price, mw_label, price_label) -> None:
-    """A vertical line that follows the cursor through both panels (top and bottom graph), with one hover box for the hour.
+def _crosshair_series(fig, hours, series, x_format) -> None:
+    """A vertical line that follows the cursor through all panels of a figure, with one hover box for the hour.
     A spike drawn by plotly stops at the end of its own panel, so the line comes from an invisible full-height overlay axis
-    (a transparent point per hour) that matches the x axis of the two panels. The overlay is the hovered trace, so one transparent
-    trace per panel carries that panel's value for the hour into the shared hover box."""
-    for label, values, fmt in ((mw_label, mw, ",.0f"), (price_label, price, ",.1f")):
+    (a transparent point per hour) that matches the x axis of the panels. The overlay is the hovered trace, so one transparent
+    trace per value, `series` = [(label, values, number format), ...], carries that value for the hour into the shared hover box."""
+    for label, values, fmt in series:
         fig.add_trace(go.Scatter(x=list(hours), y=[0] * len(hours), mode="markers", marker=dict(opacity=0), opacity=0, xaxis="x3", yaxis="y3",
                                  name=label, customdata=list(values), showlegend=False,
-                                 hovertemplate="%{customdata:" + fmt + "}"))
+                                 hovertemplate="%{customdata:" + fmt + "}" if fmt else "%{customdata}"))
     fig.update_layout(
         hovermode="x unified",
-        plot_bgcolor="rgba(0,0,0,0)",       # the overlay panel must not paint over the two real panels; the paper has the same colour
-        xaxis3=dict(overlaying="x", matches="x", hoverformat=".2f", showgrid=False, zeroline=False, showline=False, showticklabels=False, ticks="",
+        plot_bgcolor="rgba(0,0,0,0)",       # the overlay panel must not paint over the real panels; the paper has the same colour
+        xaxis3=dict(overlaying="x", matches="x", hoverformat=x_format, showgrid=False, zeroline=False, showline=False, showticklabels=False, ticks="",
                     showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED),
         yaxis3=dict(domain=[0, 1], anchor="x3", range=[-1, 1], showgrid=False, zeroline=False, showline=False, showticklabels=False, ticks=""),
     )
@@ -168,24 +168,38 @@ def _render_gate_positions(gate_pos: dict) -> None:
         )
     else:
         selected_gate = st.session_state[gate_key]
-    # gate_pos["hours"] repeats each hour for its four 15-minute periods; bars at the same x would stack to four times the real MW,
-    # so every period gets its own position along the day (hour 1 = first period of the day)
+    # gate_pos["hours"] repeats each hour for its four 15-minute periods, so the day is drawn on a clock axis: one bar per quarter-hour
+    # (ISP 1 = 00:00-00:15), centred in its period, and the price as a step line that starts at 00:00 and ends at 24:00
     n_isp = len(gate_pos["hours"])
-    xs = [1 + i * 24 / n_isp for i in range(n_isp)]
-    bar_w = 24 / n_isp
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
-                         row_heights=[0.6, 0.4])
-    if selected_gate == "DA":
-        fig.add_trace(go.Bar(x=xs, y=gate_pos["gates_mw"]["DA"],
-                              name="Net MW", marker_color=theme.COLOR_GEN, width=bar_w), row=1, col=1)
-        fig.add_trace(go.Scatter(x=xs, y=gate_pos["gates_price"]["DA"],
-                                  name="Price EUR/MWh", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-        theme.style_fig(fig, height=460)
-        _crosshair(fig, xs, gate_pos["gates_mw"]["DA"], gate_pos["gates_price"]["DA"], "Net MW", "Price EUR/MWh")
-        fig.update_yaxes(title_text="MW", gridcolor=theme.GRIDLINE, row=1, col=1)
-        fig.update_yaxes(title_text="EUR/MWh", gridcolor=theme.GRIDLINE, row=2, col=1)
-        fig.update_xaxes(title_text="Hour", row=2, col=1)
+    day_ms = 24 * 3600 * 1000
+    step = day_ms / n_isp
+    starts = [i * step for i in range(n_isp)]
+    centres = [t + step / 2 for t in starts]
+    bar_w = step * 0.88
+    spans = [f"{int(t // 3600000):02d}:{int(t % 3600000 // 60000):02d}-{int((t + step) // 3600000):02d}:{int((t + step) % 3600000 // 60000):02d}" for t in starts]
+
+    def _plot(mw, price, up_name, down_name, up_color, down_color, mw_title, price_title, crosshair_mw, crosshair_price) -> None:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.07, row_heights=[0.6, 0.4])
+        pos = [v if v > 0 else None for v in mw]
+        neg = [v if v < 0 else None for v in mw]
+        fig.add_trace(go.Bar(x=centres, y=pos, name=up_name, marker_color=up_color, width=bar_w), row=1, col=1)
+        fig.add_trace(go.Bar(x=centres, y=neg, name=down_name, marker_color=down_color, width=bar_w), row=1, col=1)
+        fig.add_trace(go.Scatter(x=starts + [day_ms], y=list(price) + [price[-1]], name=price_title, mode="lines", line_shape="hv",
+                                 line=dict(color=theme.COLOR_PRICE, width=2), fill="tozeroy" if min(price) >= 0 else None,
+                                 fillcolor=theme.rgba(theme.COLOR_PRICE, 0.08)), row=2, col=1)
+        theme.style_fig(fig, height=460, barmode="overlay")
+        _crosshair_series(fig, centres, [("Quarter-hour", spans, ""), (crosshair_mw, mw, ",.0f"), (crosshair_price, price, ",.1f")], "Time of day")
+        fig.add_hline(y=0, line_color=theme.AXIS_LINE, line_width=1, row=1, col=1)
+        fig.update_yaxes(title_text=mw_title, gridcolor=theme.GRIDLINE, row=1, col=1)
+        fig.update_yaxes(title_text=price_title, gridcolor=theme.GRIDLINE, row=2, col=1)
+        fig.update_xaxes(type="date", range=[0, day_ms], tickvals=[h * 3600000 for h in range(0, 25, 4)],
+                         ticktext=[f"{h:02d}:00" for h in range(0, 25, 4)], showgrid=False)
+        fig.update_xaxes(title_text="Time of day (one bar = one quarter-hour, ISP 1-96)", row=2, col=1)
         st.plotly_chart(fig, width="stretch")
+
+    if selected_gate == "DA":
+        _plot(gate_pos["gates_mw"]["DA"], gate_pos["gates_price"]["DA"], "Selling (generating)", "Buying (pumping)",
+              theme.COLOR_GEN, theme.COLOR_PUMP, "Net position (MW)", "Price (EUR/MWh)", "Net MW", "Price EUR/MWh")
         st.caption("**DA** is the fixed reference position -- every other gate below is "
                    "shown as its deviation from this chart, not from each other.")
     else:
@@ -200,20 +214,8 @@ def _render_gate_positions(gate_pos: dict) -> None:
             st.info(f"**{selected_gate}** held - position is unchanged from DA at every "
                     f"ISP. Nothing to plot; the DA chart above is still the live position.")
         else:
-            mw_d = gate_pos["gates_mw_delta"][selected_gate]
-            price_d = gate_pos["gates_price_delta"][selected_gate]
-            fig.add_trace(go.Bar(x=xs, y=mw_d,
-                                  name="MW vs DA", marker_color=theme.COLOR_GEN, width=bar_w), row=1, col=1)
-            fig.add_trace(go.Scatter(x=xs, y=price_d, mode="lines",
-                                      name="Price vs DA (EUR/MWh)", line=dict(color=theme.COLOR_PRICE, width=2)), row=2, col=1)
-            fig.add_hline(y=0, line_color=theme.GRIDLINE, row=1, col=1)
-            fig.add_hline(y=0, line_color=theme.GRIDLINE, row=2, col=1)
-            theme.style_fig(fig, height=460)
-            _crosshair(fig, xs, mw_d, price_d, "MW vs DA", "Price vs DA (EUR/MWh)")
-            fig.update_yaxes(title_text="MW vs DA", gridcolor=theme.GRIDLINE, row=1, col=1)
-            fig.update_yaxes(title_text="EUR/MWh vs DA", gridcolor=theme.GRIDLINE, row=2, col=1)
-            fig.update_xaxes(title_text="Hour", row=2, col=1)
-            st.plotly_chart(fig, width="stretch")
+            _plot(gate_pos["gates_mw_delta"][selected_gate], gate_pos["gates_price_delta"][selected_gate], "More than DA", "Less than DA",
+                  theme.COLOR_UP, theme.COLOR_DOWN, "Change vs DA (MW)", "Price vs DA (EUR/MWh)", "MW vs DA", "Price vs DA (EUR/MWh)")
             st.caption(f"**{selected_gate}** diverged from DA at **{n_diverged}** ISP(s), "
                        f"net **{net_delta:+.1f} MW** vs the DA baseline.")
     st.markdown("---")
@@ -439,11 +441,15 @@ def _render() -> None:
         fig.update_layout(margin=dict(t=32))  # subplot title ("aFRR") otherwise sits under the modebar icons
         fig.update_yaxes(title_text="aFRR (MW)", gridcolor=theme.GRIDLINE, row=1, col=1)
         fig.update_yaxes(title_text="mFRR (MW)", gridcolor=theme.GRIDLINE, row=2, col=1)
-        fig.update_xaxes(title_text="Hour", row=2, col=1)
+        _crosshair_series(fig, dispatch["Hour"], [("aFRR up (MW)", dispatch["aFRR_up_MW"], ",.0f"), ("aFRR down (MW)", dispatch["aFRR_dn_MW"], ",.0f"),
+                                                  ("mFRR up (MW)", dispatch["mFRR_up_MW"], ",.0f"), ("mFRR down (MW)", dispatch["mFRR_dn_MW"], ",.0f")], ".0f")
+        fig.update_xaxes(range=[1, 24], tickvals=[1, 4, 8, 12, 16, 20, 24])
+        fig.update_xaxes(title_text="Hour of the day (1-24)", row=2, col=1)
         for ann in fig["layout"]["annotations"]:
             ann["font"] = dict(color=theme.INK_SECONDARY, size=13)
         st.plotly_chart(fig, width="stretch")
-        st.caption("Up = capacity to increase output · Down = capacity to reduce output (shown negative).")
+        st.caption("Up = more injection or less pumping · Down (shown negative) = less injection or more pumping. "
+                   "Reserve capacity is contracted per hour.")
 
 
 _render()
