@@ -105,21 +105,24 @@ if len(plot) and gate_h is not None:
         return ("D" if day == 0 else f"D{day:+d}".replace("-", "−")) + f" {minute // 60:02d}:{minute % 60:02d}"
 
     early = plot["hours"] < left_edge
-    xs = [left_edge + 1.5 if e else h for h, e in zip(plot["hours"], early)]
-    labels = ["published long before" if e else clock(h) for h, e in zip(plot["hours"], early)]
+    ends = [gate_h if e else h for h, e in zip(plot["hours"], early)]                # a green bar ends where the series' latest data became available
+    labels = ["known in advance" if e else clock(h) for h, e in zip(plot["hours"], early)]
+    series = list(plot["series"])
     fig = go.Figure()
     fig.add_vrect(x0=gate_h, x1=10, fillcolor=theme.STATUS_CRITICAL, opacity=0.07, line_width=0, layer="below")
-    fig.add_trace(go.Scatter(x=xs, y=plot["series"], mode="markers+text", text=labels, textposition=["middle right" if e else "middle left" for e in early],
-                             textfont=dict(size=11, color=theme.INK_SECONDARY),
-                             marker=dict(size=13, symbol=["triangle-left" if e else "circle" for e in early],
-                                         color=[theme.STATUS_GOOD if h <= gate_h else theme.STATUS_CRITICAL for h in plot["hours"]]),
-                             customdata=[[s, f"D{o:+d}".replace("-", "−").replace("D+0", "D"), lab] for s, o, lab in zip(plot["series"], plot["latest_day_offset"], labels)],
-                             hovertemplate="%{customdata[0]}<br>data of day %{customdata[1]}, available %{customdata[2]}<extra></extra>", showlegend=False))
+    fig.add_trace(go.Bar(y=series, base=[left_edge] * len(series), x=[e - left_edge for e in ends], orientation="h", width=0.55, name="Real data, used by the model",
+                         marker=dict(color=theme.STATUS_GOOD), text=labels, textposition="inside", insidetextanchor="end", textfont=dict(color="white", size=11),
+                         customdata=[[s_, f"D{o:+d}".replace("-", "−").replace("D+0", "D"), lab] for s_, o, lab in zip(series, plot["latest_day_offset"], labels)],
+                         hovertemplate="%{customdata[0]}<br>latest data: day %{customdata[1]}, available %{customdata[2]}<extra></extra>"))
+    waiting = [max(gate_h - e, 0) for e in ends]
+    fig.add_trace(go.Bar(y=series, base=ends, x=waiting, orientation="h", width=0.55, name="Nothing newer yet: not used, the model relies on patterns",
+                         marker=dict(color="rgba(0,0,0,0)", pattern=dict(shape="/", fgcolor=theme.INK_MUTED, bgcolor="rgba(0,0,0,0)", size=6), line=dict(color=theme.INK_MUTED, width=1)),
+                         hoverinfo="skip"))
     fig.add_vline(x=gate_h, line_dash="dash", line_color=theme.INK_PRIMARY, annotation_text=f"forecast made: {clock(gate_h)}", annotation_position="top")
     fig.add_vline(x=0, line_color=theme.INK_MUTED, annotation_text="delivery day D starts", annotation_position="bottom right")
     fig.add_annotation(x=(gate_h + 8) / 2, y=1.0, yref="paper", yanchor="bottom", text="not yet known", showarrow=False, font=dict(color=theme.STATUS_CRITICAL, size=11))
-    theme.style_fig(fig, height=330, xaxis_title="time before the delivery day (D = the day being forecast, D−1 = the day before)", legend=False)
-    fig.update_layout(margin=dict(t=44, b=10, l=10, r=10))      # room above the plot for the "forecast made" label
+    theme.style_fig(fig, height=360, xaxis_title="time before the delivery day (D = the day being forecast, D−1 = the day before)")
+    fig.update_layout(margin=dict(t=44, b=10, l=10, r=10), barmode="overlay", legend=dict(orientation="h", x=0, y=1.16, xanchor="left"))
     ticks = list(range(-60, 1, 12))
     fig.update_xaxes(range=[left_edge, 8], tickvals=ticks, ticktext=[clock(t) for t in ticks])
     fig.update_yaxes(range=[-0.7, len(plot["series"].unique()) - 0.3])
