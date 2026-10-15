@@ -1,4 +1,4 @@
-"""ML Lifecycle 4 - Features: a catalogue with written availability, feature sets, the point-in-time check."""
+"""ML Lifecycle 4 - Features: a catalogue with written availability, feature sets."""
 from __future__ import annotations
 
 import sys
@@ -79,13 +79,6 @@ else:
         reason=lambda x: x["reason"].map(ml_data.plain_text))
     with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
         ml_ui.table(bad.assign(feature=bad["feature"].map(fname)).rename(columns={"feature": "Feature", "reason": "Reason"}))
-
-st.subheader("No leakage by construction")
-st.markdown("""
-The **point-in-time check** builds a feature twice for the same delivery day: once on the as-of view and once with every value that
-should not be known replaced by noise. The two results must be identical. If a feature read a value from the future, they would differ and
-the test fails. The same single builder serves training, evaluation and live prediction, so a feature cannot differ between them.
-""")
 
 st.subheader("Plant inputs")
 _rows = []
