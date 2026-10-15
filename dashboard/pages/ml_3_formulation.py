@@ -1,4 +1,4 @@
-"""ML Lifecycle 3 - Problem formulation: what is forecast, what is known when, and how the target is transformed."""
+"""ML Lifecycle 3 - Problem formulation: what is forecast and what is known when."""
 from __future__ import annotations
 
 import html
@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -55,11 +54,10 @@ def _esc(v) -> str:
     return html.escape(str(v))
 
 
-_plant_input = q.get("series") is None                                    # the plant inputs (PV, inflow) are not prices: no series name, no transform
+_plant_input = q.get("series") is None                                    # the plant inputs (PV, inflow) are not prices: no series name
 _forecast = ({"pv_weather": "irradiance and temperature, hourly", "reservoir_inflow": "inflow, one value per day"}.get(target, "level") if _plant_input
              else f"{'spread to ' + ml_data.series_label(q['base']) if q['kind'] == 'spread' else 'price level'}")
-_top = [("Forecast", _forecast, theme.BLUE), ("Series", ml_data.label(target) if _plant_input else ml_data.series_label(q["series"]), theme.AQUA),
-        ("Transform", "none" if q["transform"]["name"] == "none" else f"{q['transform']['name']}, scale {q['transform'].get('scale', '-')}", theme.ORANGE)]
+_top = [("Forecast", _forecast, theme.BLUE), ("Series", ml_data.label(target) if _plant_input else ml_data.series_label(q["series"]), theme.AQUA)]
 _rows = [("Used for", cdef.get("decision", "-")), ("Needed by", cdef.get("as_of", {}).get("rule", "-"))] + _res_pairs
 _tiles = "".join(
     f'<div style="flex:1 1 0; min-width:0; background:{c}12; border-left:4px solid {c}; border-radius:10px; padding:0.55rem 0.9rem;">'
@@ -129,21 +127,3 @@ if len(plot) and gate_h is not None:
 
 if tdef.get("forbidden"):
     st.markdown("**Forbidden for this target:**\n" + "\n".join(f"- {x[:1].upper() + x[1:]}" if isinstance(x, str) else f"- {ml_data.series_label(x.get('series', x))}" for x in tdef["forbidden"]))
-
-if q["transform"]["name"] == "asinh":                                       # only the price targets use the transform
-    st.subheader("Why a spread, and why the asinh transform")
-    l, r = st.columns(2)
-    with l:
-        st.markdown("""
-    - **Level targets** (day-ahead, aFRR, mFRR): the price itself is forecast.
-    - **Spread targets** (IDA1-3, XBID): the forecast is *price minus the day-ahead price*, which is known at the gate. The day-ahead price explains 90-98% of the intraday variance, so the spread is the part that is left to forecast; the forecast price is the day-ahead price plus the forecast spread.
-    - **The transform** compresses spikes and keeps negative prices (a logarithm cannot): `z = asinh(price / scale)`. The scale was chosen from the data so that the day-over-day change no longer depends on the price level (the elasticity of the change falls from 0.58 to 0.00 at scale 20 for the day-ahead price).
-    """)
-    with r:
-        scale = st.slider("Scale", 1.0, 50.0, float(q["transform"].get("scale", 20.0)), 1.0, key="ml3_scale")
-        x = np.linspace(-200, 400, 400)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=x, y=np.arcsinh(x / scale), mode="lines", name=f"asinh(x / {scale:g})", line=dict(color=theme.BLUE, width=2)))
-        fig.add_trace(go.Scatter(x=x, y=x / max(abs(x).max(), 1), mode="lines", name="linear (rescaled)", line=dict(color=theme.INK_MUTED, dash="dot")))
-        st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="transformed value", xaxis_title="price"), width="stretch")
-
