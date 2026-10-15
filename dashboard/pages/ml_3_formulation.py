@@ -98,19 +98,36 @@ for inp in tdef["inputs"]:
 tl = pd.DataFrame(rows)
 plot = tl.dropna(subset=["hours"])
 if len(plot) and gate_h is not None:
+    left_edge = -62.0                                                # anything published earlier than this is drawn at the edge as "long before"
+
+    def clock(h: float) -> str:
+        """Hours after the start of day D -> 'D-2 13:30' (day D is the delivery day)."""
+        total = int(round(h * 60))
+        day, minute = divmod(total, 1440)
+        return ("D" if day == 0 else f"D{day:+d}".replace("-", "−")) + f" {minute // 60:02d}:{minute % 60:02d}"
+
+    early = plot["hours"] < left_edge
+    xs = [left_edge + 1.5 if e else h for h, e in zip(plot["hours"], early)]
+    labels = ["published long before" if e else clock(h) for h, e in zip(plot["hours"], early)]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=plot["hours"], y=plot["series"], mode="markers", marker=dict(size=13, color=[theme.STATUS_GOOD if h <= gate_h else theme.STATUS_CRITICAL
-                                                                                                        for h in plot["hours"]]),
-                             text=[f"{s}: data of day D{o:+d}, published {p}" for s, o, p in zip(plot["series"], plot["latest_day_offset"], plot["published"])],
-                             hoverinfo="text", showlegend=False))
-    fig.add_vline(x=gate_h, line_dash="dash", line_color=theme.INK_PRIMARY, annotation_text=f"forecast made: {gate_rule}", annotation_position="top")
+    fig.add_vrect(x0=gate_h, x1=10, fillcolor=theme.STATUS_CRITICAL, opacity=0.07, line_width=0, layer="below")
+    fig.add_trace(go.Scatter(x=xs, y=plot["series"], mode="markers+text", text=labels, textposition=["middle right" if e else "middle left" for e in early],
+                             textfont=dict(size=11, color=theme.INK_SECONDARY),
+                             marker=dict(size=13, symbol=["triangle-left" if e else "circle" for e in early],
+                                         color=[theme.STATUS_GOOD if h <= gate_h else theme.STATUS_CRITICAL for h in plot["hours"]]),
+                             customdata=[[s, f"D{o:+d}".replace("-", "−").replace("D+0", "D"), lab] for s, o, lab in zip(plot["series"], plot["latest_day_offset"], labels)],
+                             hovertemplate="%{customdata[0]}<br>data of day %{customdata[1]}, available %{customdata[2]}<extra></extra>", showlegend=False))
+    fig.add_vline(x=gate_h, line_dash="dash", line_color=theme.INK_PRIMARY, annotation_text=f"forecast made: {clock(gate_h)}", annotation_position="top")
     fig.add_vline(x=0, line_color=theme.INK_MUTED, annotation_text="delivery day D starts", annotation_position="bottom right")
-    theme.style_fig(fig, height=330, xaxis_title="hours relative to the start of delivery day D (negative = before)", legend=False)
+    fig.add_annotation(x=(gate_h + 8) / 2, y=1.0, yref="paper", yanchor="bottom", text="not yet known", showarrow=False, font=dict(color=theme.STATUS_CRITICAL, size=11))
+    theme.style_fig(fig, height=330, xaxis_title="time before the delivery day (D = the day being forecast, D−1 = the day before)", legend=False)
     fig.update_layout(margin=dict(t=44, b=10, l=10, r=10))      # room above the plot for the "forecast made" label
+    ticks = list(range(-60, 1, 12))
+    fig.update_xaxes(range=[left_edge, 8], tickvals=ticks, ticktext=[clock(t) for t in ticks])
     fig.update_yaxes(range=[-0.7, len(plot["series"].unique()) - 0.3])
     st.plotly_chart(fig, width="stretch")
-    st.caption("Each dot is the latest data of an input series that exists when the forecast is made. A dot after the dashed line would be a "
-               "leak, and the framework refuses it: the as-of view gives a model only what the information set allows.")
+    st.caption("Each dot is the moment the latest data of an input series becomes available. Everything left of the dashed line is known when the forecast is made; "
+               "a dot in the red zone would be a leak, and the framework refuses it.")
 def _input_rows(frame) -> str:
     """One card per input series: name and when it is published on the left, the day of its latest data and its status on the right."""
     out = ""

@@ -1,7 +1,6 @@
 """ML Lifecycle 2 - Market analysis: what the data looks like before any model is fitted."""
 from __future__ import annotations
 
-import datetime as dt
 import sys
 from pathlib import Path
 
@@ -23,7 +22,6 @@ ml_ui.header("Market analysis", "", step=1)
 ml_ui.tour_bar(2)
 
 prices = ml_ui.cached(lambda: ml_data.pack("prices_daily"))()
-profile = ml_ui.cached(lambda: ml_data.pack("price_profile"))()
 periods = ml_ui.cached(lambda: ml_data.config("market_analysis").get("periods", []))()
 
 if prices.empty:
@@ -107,16 +105,3 @@ else:
         for col, part, offset in ((left, events[:half], 0), (right, events[half:], half)):
             with col:
                 st.markdown("  \n".join(f"**{offset + i + 1}** &nbsp; {e['text']} ({e['date']:%d-%m-%Y})" for i, e in enumerate(part)))
-
-if profile.empty:
-    ml_ui.not_yet_run("the price profile")
-else:
-    st.subheader("The shape of the day, by month")
-    s = st.selectbox("Series", [x for x in SERIES if x in set(profile["series"])], format_func=SERIES.get, key="ml2_prof")
-    pv = profile[profile["series"] == s].pivot_table(index="month", columns="hour", values="mean")
-    fig = go.Figure(go.Heatmap(z=pv.values, x=[f"{h:02d}" for h in pv.columns], y=[dt.date(2000, int(m), 1).strftime("%b") for m in pv.index],
-                               colorscale="Viridis", colorbar=dict(title="mean")))
-    fig.update_yaxes(autorange="reversed")
-    st.plotly_chart(theme.style_fig(fig, height=360, xaxis_title="hour of the local day", legend=False), width="stretch")
-    st.caption("Average over all years. The midday trough of the day-ahead price in spring and summer is the solar effect; it is why hour and "
-               "month are features and why a model must see the recent level.")
