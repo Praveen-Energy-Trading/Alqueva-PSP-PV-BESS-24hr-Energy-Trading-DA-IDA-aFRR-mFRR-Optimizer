@@ -42,21 +42,24 @@ def fname(fid: str) -> str:
 n_target = int(avail[(avail["target"] == target) & (avail["available"])].shape[0]) if not avail.empty else None
 with info_col:
     st.markdown('<div style="height:1.7rem"></div>', unsafe_allow_html=True)           # lines the table up with the selector box
-    ml_ui.table(pd.DataFrame([{"Features in the catalogue": len(feats), "Feature kinds": feats["kind"].nunique(),
+    ml_ui.table(pd.DataFrame([{"Features in the catalogue": len(feats),
                                f"Available for {ml_data.label(target)}": n_target if n_target is not None else "–"}]), stretch=True)
 
 st.subheader("The catalogue")
 g = feats.groupby("group").size().sort_values(ascending=False)
 c1, c2 = st.columns([2, 3])
 with c1:
-    fig = go.Figure(go.Bar(x=g.values, y=g.index, orientation="h", marker_color=theme.BLUE))
+    fig = go.Figure(go.Bar(x=g.values, y=g.index.map(ml_data.pretty), orientation="h", marker_color=theme.BLUE))
     fig.update_yaxes(autorange="reversed")
     st.plotly_chart(theme.style_fig(fig, height=280, xaxis_title="features", legend=False), width="stretch")
 with c2:
     grp = st.multiselect("Groups", list(g.index), default=list(g.index), key="ml4_groups", format_func=ml_data.pretty)
     show = feats[feats["group"].isin(grp)]
-    show = show.assign(feature=show["id"].map(fname), group=show["group"].map(ml_data.pretty), kind=show["kind"].map(ml_data.pretty))
-    ml_ui.table(show[["feature", "group", "kind"]].rename(columns={"feature": "Feature", "group": "Group", "kind": "Kind"}), height=250)
+    usable = set(avail[(avail["target"] == target) & (avail["available"])]["feature"]) if not avail.empty else set(show["id"])
+    show = show.assign(ok=show["id"].isin(usable)).sort_values("ok", ascending=False, kind="stable")          # the features this target may use first, numbered
+    show = show.assign(no=[str(i) if o else "–" for i, o in zip(range(1, len(show) + 1), show["ok"])], feature=show["id"].map(fname),
+                       group=show["group"].map(ml_data.pretty), kind=show["kind"].map(ml_data.pretty))
+    ml_ui.table(show[["no", "feature", "group", "kind"]].rename(columns={"no": "No.", "feature": "Feature", "group": "Group", "kind": "Kind"}), height=250, stretch=True)
 st.subheader("Availability: what each target may use")
 if avail.empty:
     ml_ui.not_yet_run("the availability matrix")
