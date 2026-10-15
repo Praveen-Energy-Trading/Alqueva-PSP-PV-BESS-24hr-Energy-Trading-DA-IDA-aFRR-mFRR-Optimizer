@@ -25,7 +25,7 @@ def _line(points, colour, width=2, dash=None):
 
 def _chart(body: str) -> str:
     """A mini chart as an image (an SVG inside an <img> is never touched by the page's HTML cleaning)."""
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 285 120" font-family="system-ui, -apple-system, \'Segoe UI\', sans-serif">'
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 10 285 104" font-family="system-ui, -apple-system, \'Segoe UI\', sans-serif">'
            f'<line x1="16" y1="108" x2="270" y2="108" stroke="{_GREY}" stroke-width="0.5"/>{body}</svg>')
     data = base64.b64encode(svg.encode("utf-8")).decode("ascii")
     return f'<img src="data:image/svg+xml;base64,{data}" width="100%" alt="">'
@@ -59,33 +59,35 @@ def _earlier() -> str:
 
 
 _CARDS = [
-    ("Straight line", _straight, [("Applies to", "day-ahead price, mFRR, imbalance prices, volumes"), ("Condition", "gap of 1 to 3 hours, with a real value on both sides"),
-                                  ("Value", "a straight line in time between the two neighbours")]),
-    ("Carried forward", _carried, [("Applies to", "aFRR band prices first; any series as a last resort"),
-                                   ("Condition", "up to 48 hours after the last known value (last resort: nothing a week, a day or two weeks earlier)"),
-                                   ("Value", "the last known value, repeated")]),
-    ("Day-ahead price + spread", _spread, [("Applies to", "IDA1, IDA2, IDA3, XBID"),
-                                           ("Condition", "any missing hour the auction normally covers, when the day-ahead price exists (gap length does not matter)"),
-                                           ("Value", "day-ahead price + median spread of that hour over the last 28 days (0 if there is no history)")]),
-    ("Same hour earlier", _earlier, [("Applies to", "everything still missing after the steps above"),
-                                     ("Condition", "gap longer than 3 hours (or no neighbour on one side) and an earlier value exists"),
-                                     ("Value", "the same hour 1 week earlier; else yesterday; else 2 weeks earlier")]),
+    ("Straight line", "the rule for every series", _straight,
+     [("Gap length", "1 to 3 hours"), ("Condition", "a real value on both sides of the gap"), ("Value", "a straight line in time between the two neighbours")]),
+    ("Carried forward", "exception: aFRR band prices (they change in blocks)", _carried,
+     [("Gap length", "up to 48 hours"), ("Value", "the last known value, repeated"),
+      ("Also", "the last resort for any series, when nothing a week, a day or two weeks earlier exists")]),
+    ("Day-ahead price + spread", "exception: IDA1, IDA2, IDA3, XBID (forecast as a spread to the day-ahead price)", _spread,
+     [("Gap length", "any length"), ("Condition", "the day-ahead price of that hour exists"),
+      ("Value", "day-ahead price + median spread of that hour over the last 28 days (0 if there is no history)")]),
+    ("Same hour earlier", "the rule for every series", _earlier,
+     [("Gap length", "longer than 3 hours, no upper limit"), ("Condition", "an earlier value exists"), ("Value", "the same hour 1 week earlier; else yesterday; else 2 weeks earlier")]),
 ]
 
-_NOTE = ("Order for day-ahead, mFRR and imbalance prices: straight line, then same hour earlier, then carried forward as a last resort. aFRR: carried forward first. "
-         "IDA1-3 and XBID: day-ahead + spread first. Wrong values are removed first and then count as missing. Genuine spikes and negative prices are kept.")
+_NOTE = ("One rule for every series: a gap of 1 to 3 hours is joined by a straight line, a longer gap repeats the same hour from earlier. Two exceptions, each with a reason: "
+         "aFRR band prices are carried forward (up to 48 hours) and IDA1-3 and XBID use the day-ahead price + spread. Wrong values are removed first and then count as missing. "
+         "Genuine spikes and negative prices are kept.")
 
 
 def html_block() -> str:
     border, muted, ink = theme.GRIDLINE, theme.INK_MUTED, theme.INK_PRIMARY
     cards = ""
-    for title, chart, rows in _CARDS:
-        lines = "".join(f'<div style="display:grid; grid-template-columns:5.2rem 1fr; gap:0.6rem; padding:0.4rem 0; border-top:1px solid {border}; font-size:0.86rem; line-height:1.45;">'
-                        f'<div style="color:{muted}; font-size:0.74rem; padding-top:0.1rem;">{html.escape(k)}</div><div style="color:{ink};">{html.escape(v)}</div></div>' for k, v in rows)
-        cards += (f'<div style="border:1px solid {border}; border-radius:12px; background:{theme.SURFACE}; padding:0.7rem 0.9rem 0.4rem;">'
-                  f'<div style="font-weight:600; font-size:0.95rem; color:{ink}; margin-bottom:0.2rem;">{html.escape(title)}</div>{chart()}{lines}</div>')
-    legend = (f'<div style="display:flex; gap:1.2rem; align-items:center; font-size:0.8rem; color:{theme.INK_SECONDARY}; margin:0.5rem 0 0.2rem;">'
+    for title, tag, chart, rows in _CARDS:
+        lines = "".join(f'<div style="display:grid; grid-template-columns:4.6rem 1fr; gap:0.5rem; padding:0.25rem 0; border-top:1px solid {border}; font-size:0.82rem; line-height:1.35;">'
+                        f'<div style="color:{muted}; font-size:0.72rem; padding-top:0.08rem;">{html.escape(k)}</div><div style="color:{ink};">{html.escape(v)}</div></div>' for k, v in rows)
+        cards += (f'<div style="border:1px solid {border}; border-radius:12px; background:{theme.SURFACE}; padding:0.55rem 0.8rem 0.3rem;">'
+                  f'<div style="line-height:1.3; margin-bottom:0.25rem;"><span style="font-weight:600; font-size:0.93rem; color:{ink};">{html.escape(title)}</span>'
+                  f'<span style="font-size:0.74rem; color:{muted};"> &middot; {html.escape(tag)}</span></div>'
+                  f'<div style="display:flex; gap:0.8rem; align-items:center;"><div style="flex:0 0 34%; min-width:0;">{chart()}</div><div style="flex:1 1 0; min-width:0;">{lines}</div></div></div>')
+    legend = (f'<div style="display:flex; gap:1.2rem; align-items:center; font-size:0.78rem; color:{theme.INK_SECONDARY}; margin:0.4rem 0 0.1rem;">'
               f'<span><span style="display:inline-block; width:0.7rem; height:0.7rem; border-radius:50%; background:{_MEASURED}; vertical-align:-1px;"></span> measured value</span>'
               f'<span><span style="display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; border:2px solid {_FILLED}; vertical-align:-1px;"></span> filled value</span></div>')
-    return (f'<div style="margin:0.3rem 0 0.8rem 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">{cards}</div>{legend}'
-            f'<div style="font-size:0.8rem; color:{theme.INK_SECONDARY}; line-height:1.5;">{html.escape(_NOTE)}</div></div>')
+    return (f'<div style="margin:0.2rem 0 0.6rem 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">{cards}</div>{legend}'
+            f'<div style="font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.45;">{html.escape(_NOTE)}</div></div>')
