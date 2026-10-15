@@ -170,7 +170,7 @@ targets:
     horizon: "delivery day D"
     as_of:
       gate: AFRR
-      rule: "after the DA result is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
+      rule: "after the day-ahead price is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
       allowed: ["actual DA result for D", "band prices of days <= D-1 (cleared D-2)"]
       forbidden: ["band prices of day D"]
     output: point
@@ -189,7 +189,7 @@ targets:
     horizon: "delivery day D"
     as_of:
       gate: AFRR
-      rule: "after the DA result is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
+      rule: "after the day-ahead price is published (~12:45 D-1) and before IDA1 15:00; exact hour set by REN notice (not public)"
       allowed: ["actual DA result for D", "band prices of days <= D-1 (cleared D-2)"]
       forbidden: ["band prices of day D"]
     output: point

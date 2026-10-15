@@ -73,6 +73,8 @@ RUN_LABELS = {"evaluation": "Model evaluation", "schedule_comparison": "Schedule
 
 def pretty(name) -> str:
     """A code-style name as plain words: underscores become spaces and the first letter is a capital."""
+    if str(name) == "market_result":                      # the day-ahead purchases and sales published with the price
+        return "Day-ahead volumes"
     s = str(name).replace("_", " ").strip()
     return s[:1].upper() + s[1:]
 
