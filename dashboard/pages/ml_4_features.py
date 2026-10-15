@@ -1,4 +1,4 @@
-"""ML Lifecycle 4 - Features: a catalogue with written availability, feature sets, stability selection, the point-in-time check."""
+"""ML Lifecycle 4 - Features: a catalogue with written availability, feature sets, the point-in-time check."""
 from __future__ import annotations
 
 import sys
@@ -18,7 +18,6 @@ ml_ui.header("Features", "", step=3)
 ml_ui.tour_bar(4)
 
 cat = ml_ui.cached(lambda: ml_data.config("feature_catalogue"))()
-sel = ml_ui.cached(lambda: ml_data.config("feature_selection_results").get("targets", {}))()
 avail = ml_ui.cached(lambda: ml_data.pack("feature_availability"))()
 feats = pd.DataFrame(cat.get("features", []))
 if not avail.empty and not feats.empty:
@@ -80,16 +79,6 @@ else:
         reason=lambda x: x["reason"].map(ml_data.plain_text))
     with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
         ml_ui.table(bad.assign(feature=bad["feature"].map(fname)).rename(columns={"feature": "Feature", "reason": "Reason"}))
-
-st.subheader("Stability selection")
-r = sel.get(target)
-if not r:
-    ml_ui.not_yet_run(f"stability selection for {ml_data.label(target)}")
-else:
-    ml_ui.table(pd.DataFrame([{"Candidates": r["candidates"], "Kept": len(r["selected"]),
-                               "Kept features": "; ".join(fname(x) for x in r["selected"])}]), stretch=True)
-    st.caption(f"Rule: a feature is kept if it carries at least {100 * r['rule']['min_share']:.0f}% of the permutation importance in at least "
-               f"{100 * r['rule']['min_period_fraction']:.0f}% of the {len(r['periods'])} yearly periods ({', '.join(r['periods'])}), using development data only.")
 
 st.subheader("No leakage by construction")
 st.markdown("""
