@@ -127,6 +127,3 @@ if len(plot) and gate_h is not None:
     fig.update_xaxes(range=[left_edge, 8], tickvals=ticks, ticktext=[clock(t) for t in ticks])
     fig.update_yaxes(range=[-0.7, len(plot["series"].unique()) - 0.3])
     st.plotly_chart(fig, width="stretch")
-
-if tdef.get("forbidden"):
-    st.markdown("**Forbidden for this target:**\n" + "\n".join(f"- {x[:1].upper() + x[1:]}" if isinstance(x, str) else f"- {ml_data.series_label(x.get('series', x))}" for x in tdef["forbidden"]))
