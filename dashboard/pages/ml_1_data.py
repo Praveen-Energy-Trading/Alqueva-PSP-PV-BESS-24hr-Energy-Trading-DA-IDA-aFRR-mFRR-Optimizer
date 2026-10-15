@@ -10,6 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import fill_legend
 import ml_data
 import ml_ui
 import theme
@@ -63,9 +64,7 @@ if not cur.empty:
         "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours filled",
         "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
         "same_hour_earlier": "Same hour earlier"}))
-    st.caption("A gap of up to three hours is bridged by a straight line; a longer one repeats the same hour a week earlier (or yesterday). "
-               "Band prices are carried forward first. An intraday price that is missing, for example in an empty auction, becomes the day-ahead price "
-               "plus the typical spread of that hour. Genuine price spikes and negative prices are kept.")
+    st.markdown(fill_legend.html_block(), unsafe_allow_html=True)
 
 st.subheader("Plant input series")
 _plant = [(key, name, ml_data.plant_input(key)) for key, name, _ in ml_data.PLANT_INPUTS]
