@@ -126,32 +126,7 @@ if len(plot) and gate_h is not None:
     fig.update_xaxes(range=[left_edge, 8], tickvals=ticks, ticktext=[clock(t) for t in ticks])
     fig.update_yaxes(range=[-0.7, len(plot["series"].unique()) - 0.3])
     st.plotly_chart(fig, width="stretch")
-    st.caption("Each dot is the moment the latest data of an input series becomes available. Everything left of the dashed line is known when the forecast is made; "
-               "a dot in the red zone would be a leak, and the framework refuses it.")
-def _input_rows(frame) -> str:
-    """One card per input series: name and when it is published on the left, the day of its latest data and its status on the right."""
-    out = ""
-    for _, r in frame.iterrows():
-        status = str(r["status"])
-        ok = status == "available"
-        bg, fg = ("#e6f4ea", "#1e6b33") if ok else ("#fdf1e3", "#9a5a00")
-        day = f"D{r['latest_day_offset']:+d}" if r["latest_day_offset"] else "D"
-        out += (f'<div style="display:flex; align-items:center; gap:0.7rem; padding:0.5rem 0.2rem; border-top:1px solid {theme.GRIDLINE};">'
-                f'<div style="width:0.55rem; height:0.55rem; border-radius:50%; background:{fg}; flex:none;"></div>'
-                f'<div style="flex:1 1 auto; min-width:0;"><div style="font-weight:600; color:{theme.INK_PRIMARY}; font-size:0.93rem;">{_esc(r["series"])}</div>'
-                f'<div style="color:{theme.INK_MUTED}; font-size:0.78rem;">published {_esc(r["published"])} &middot; {_esc(r["evidence"])}</div></div>'
-                f'<span style="flex:none; background:{theme.GRIDLINE}; color:{theme.INK_SECONDARY}; border-radius:999px; padding:0.1rem 0.55rem; font-size:0.76rem; font-weight:600;" '
-                f'title="day of the latest data">{day}</span>'
-                f'<span style="flex:none; background:{bg}; color:{fg}; border-radius:999px; padding:0.1rem 0.6rem; font-size:0.76rem; font-weight:600; white-space:nowrap;">{_esc(status)}</span></div>')
-    return out
 
-
-_half = (len(tl) + 1) // 2
-_l, _r = st.columns(2)
-for _col, _part in ((_l, tl.iloc[:_half]), (_r, tl.iloc[_half:])):
-    with _col:
-        st.markdown(f'<div style="border:1px solid {theme.GRIDLINE}; border-radius:14px; background:{theme.SURFACE}; padding:0.2rem 0.9rem 0.3rem; '
-                    f'box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-bottom:0.9rem;">{_input_rows(_part)}</div>', unsafe_allow_html=True)
 if tdef.get("forbidden"):
     st.markdown("**Forbidden for this target:**\n" + "\n".join(f"- {x[:1].upper() + x[1:]}" if isinstance(x, str) else f"- {ml_data.series_label(x.get('series', x))}" for x in tdef["forbidden"]))
 
