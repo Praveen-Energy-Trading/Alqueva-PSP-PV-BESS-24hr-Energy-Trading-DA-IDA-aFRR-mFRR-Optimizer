@@ -88,6 +88,6 @@ def html_block() -> str:
                   f'<div style="display:flex; gap:0.8rem; align-items:center;"><div style="flex:0 0 34%; min-width:0;">{chart()}</div><div style="flex:1 1 0; min-width:0;">{lines}</div></div></div>')
     legend = (f'<div style="display:flex; gap:1.2rem; align-items:center; font-size:0.78rem; color:{theme.INK_SECONDARY}; margin:0.4rem 0 0.1rem;">'
               f'<span><span style="display:inline-block; width:0.7rem; height:0.7rem; border-radius:50%; background:{_MEASURED}; vertical-align:-1px;"></span> measured value</span>'
-              f'<span><span style="display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; border:2px solid {_FILLED}; vertical-align:-1px;"></span> filled value</span></div>')
+              f'<span><span style="display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; border:2px solid {_FILLED}; vertical-align:-1px;"></span> imputed value</span></div>')
     return (f'<div style="margin:0.2rem 0 0.6rem 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">{cards}</div>{legend}'
             f'<div style="font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.45;">{html.escape(_NOTE)}</div></div>')

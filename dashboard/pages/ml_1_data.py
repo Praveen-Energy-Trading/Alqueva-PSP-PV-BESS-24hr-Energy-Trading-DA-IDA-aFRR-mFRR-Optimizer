@@ -36,7 +36,7 @@ else:
     with right:
         ml_ui.table(m.iloc[half:], compact=True)
 
-st.subheader("Checking, cleaning and filling")
+st.subheader("Checking, cleaning and imputation")
 if gate is None:
     ml_ui.not_yet_run("the quality check")
 else:
@@ -60,7 +60,7 @@ if not cur.empty:
     c["series"] = c["series"].map(ml_data.series_label)
     c["hours"] = (c["hours"] / 24).round().astype(int)          # the length of each series in days
     ml_ui.table(c[["series", "hours", "errors_removed", "filled", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
-        "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours filled",
+        "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours imputed",
         "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
         "same_hour_earlier": "Same hour earlier"}))
     st.markdown(fill_legend.html_block(), unsafe_allow_html=True)
@@ -79,9 +79,9 @@ else:
         _rows.append({"Series": f"{name} ({d['unit']}, {r['resolution']})",
                       "Source": "Plant sensor" if key in ("ghi", "temperature") else "Guadiana inflow research dataset",
                       "Measured from - to": f"{_day(d['first'])} to {_day(d['last_measured'])}", "File ends": _day(d["last"]),
-                      "Measured": d["measured"], "Filled": d["filled"]})
-    ml_ui.table(pd.DataFrame(_rows), formats={"Measured": "%d", "Filled": "%d"}, stretch=True)
-    st.caption("These series come from files, not from a daily feed. After the last measured day the file holds filled values (a synthetic curve for the sensor series, "
+                      "Measured": d["measured"], "Imputed": d["filled"]})
+    ml_ui.table(pd.DataFrame(_rows), formats={"Measured": "%d", "Imputed": "%d"}, stretch=True)
+    st.caption("These series come from files, not from a daily feed. After the last measured day the file holds imputed values (a synthetic curve for the sensor series, "
                "the monthly mean for inflow). Only measured values are used as a test target.")
 
 st.subheader("Missing and empty days")
