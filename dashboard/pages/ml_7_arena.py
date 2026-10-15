@@ -32,7 +32,7 @@ board = board.sort_values("mae").reset_index(drop=True)
 best = board.iloc[0]
 pw = tabs["pairwise_dm"]
 ml_ui.cards([("Best algorithm", ml_data.model_label(best["model"])), ("Its MAE", f"{best['mae']:.3f} {ml_data.UNITS[target]}"),
-                    ("Hours compared", f"{int(best['n']):,}"), ("Pairs that differ (Holm, 5%)", f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "-")],
+                    ("Days compared", f"{round(best['n'] / 24):,}"), ("Pairs that differ (Holm, 5%)", f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "-")],
                    ncols=4, pre_formatted=True)
 
 st.subheader("Scoreboard")

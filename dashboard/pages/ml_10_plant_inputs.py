@@ -48,8 +48,9 @@ tile_html = "".join(
     f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600;">{_esc(k)}</div>'
     f'<div style="font-size:0.93rem; font-weight:600; color:{theme.INK_PRIMARY}; margin-top:0.1rem; overflow-wrap:anywhere;">{_esc(v)}</div></div>'
     for k, v, c in tiles)
+_days = (lambda n: round(n / 24)) if r["resolution"] == "hourly" else (lambda n: n)
 rows = [("Series", f"{r['name']} ({unit}), {r['resolution']}"), ("Inputs of the model", r["features"].replace("_", " ")),
-        ("History", f"development {r['dev_range'][0]} to {r['dev_range'][1]} ({r['n_dev']:,} {r['resolution']} values); test {r['test_range'][0]} to {r['test_range'][1]} ({r['n_test']:,})")]
+        ("History", f"development {r['dev_range'][0]} to {r['dev_range'][1]} ({_days(r['n_dev']):,} days); test {r['test_range'][0]} to {r['test_range'][1]} ({_days(r['n_test']):,} days)")]
 row_html = "".join(
     f'<div style="display:grid; grid-template-columns:8rem 1fr; gap:0.8rem; padding:0.42rem 0; border-top:1px solid {theme.GRIDLINE};">'
     f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; padding-top:0.15rem;">{_esc(k)}</div>'
@@ -62,7 +63,7 @@ st.markdown(f'<div style="border:1px solid {theme.GRIDLINE}; border-radius:14px;
 st.subheader("How good is it?")
 skill = r.get("skill_vs_yesterday")
 ml_ui.cards([("Error of the serving model (MAE)", f"{fmt(chosen['mae'])} {unit}"), (f"Best simple forecast ({best_simple_name.lower()})", f"{fmt(best_simple['mae'])} {unit}"),
-             ("Serving model against 'same time yesterday'", f"{100 * skill:+.1f}%" if skill is not None else "-")], ncols=3, pre_formatted=True)
+             ("Serving model against 'same time yesterday'", theme.pct(100 * skill, 1, signed=True) if skill is not None else "-")], ncols=3, pre_formatted=True)
 
 table = [{"Forecast": ml_data.MODEL_LABELS.get(m, m) + ("  (serving)" if m == selected else ""), "Kind": "Algorithm", "MAE": s_["mae"], "RMSE": s_["rmse"], "Bias": s_["bias"]}
          for m, s_ in r["models"].items()]

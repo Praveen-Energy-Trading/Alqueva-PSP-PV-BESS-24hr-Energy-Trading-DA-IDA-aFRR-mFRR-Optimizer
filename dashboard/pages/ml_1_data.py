@@ -14,8 +14,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Data and quality", "Every model starts from data that is downloaded and stored untouched, checked every day, "
-             "cleaned and completed. Every value that was filled is flagged.", step=0)
+ml_ui.header("Data and quality", "", step=0)
 ml_ui.tour_bar(1)
 
 manifest = ml_ui.cached(lambda: ml_data.pack("raw_manifest_summary"))()
@@ -46,29 +45,24 @@ else:
                 f"&nbsp; window {gate['window'][0]} to {gate['window'][1]}", unsafe_allow_html=True)
     for r in gate.get("reasons", []):
         st.markdown(f"- {ml_data.plain_text(r)}")
-    st.caption("The check stops a run only when there is too little real data to repair from, a feed has been silent for too long, or a stored file "
-               "no longer matches its checksum. Missing days are repaired, not blocked.")
+
 cur = ml_ui.cached(lambda: ml_data.pack("curation_summary"))()
 if not cur.empty:
     c = cur.copy()
-    c["filled_share"] = (100 * c["filled_share"]).round(1)
-    # days with a gap that were filled, from the quality gate's lines such as 'afrr_price: 1/2842 days missing (0.0%)' and 'ida_price session 2: ...'
-    import re
-    series_of = {"afrr_price": ["afrr_up", "afrr_dn"], "mfrr_price": ["mfrr_ap"], "imbalance_price": ["imb_short", "imb_long"], "xbid_price": ["xbid_pt"], "da_price": ["da_pt"]}
-    days_filled = {}
-    for line in (gate or {}).get("repairs", []):
-        hit = re.match(r"^(\w+?)(?: session (\d))?: (\d+)/(\d+) days missing \(([\d.]+)%\)", str(line))
-        if hit:
-            name, session, miss, _, share = hit.groups()
-            for key in ([f"ida{session}_pt"] if name == "ida_price" and session else series_of.get(name, [])):
-                days_filled[key] = f"{int(miss):,} ({float(share):.1f}%)"
-    c["days_filled"] = [days_filled.get(k, "0") for k in c["series"]]
+    # how the hours were filled, as the number of separate gaps (with the hours in brackets): 187 small gaps read faster than 213 hours
+    gaps = ml_ui.cached(lambda: ml_data.pack("curation_gaps"))()
+    if not gaps.empty:
+        method_column = {"straight line between the neighbours": "straight_line", "last value carried forward": "carried_forward",
+                         "day-ahead price plus the typical spread": "day_ahead_plus_spread", "same hour a week earlier": "same_hour_earlier"}
+        per = gaps.groupby(["series", "method"]).agg(n=("hours", "size"), h=("hours", "sum"))
+        for method, col in method_column.items():
+            c[col] = [f"{int(per.loc[(k, method), 'n']):,} gap{'' if int(per.loc[(k, method), 'n']) == 1 else 's'} ({int(per.loc[(k, method), 'h']):,} h)" if (k, method) in per.index else "0" for k in c["series"]]
     c["series"] = c["series"].map(ml_data.series_label)
-    st.markdown("**What was filled**")
-    ml_ui.table(c[["series", "hours", "errors_removed", "days_filled", "filled", "filled_share", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
-        "series": "Series", "hours": "Hours", "errors_removed": "Data errors removed", "days_filled": "Days with a gap, filled", "filled": "Hours filled", "filled_share": "Filled (%)",
+    c["hours"] = (c["hours"] / 24).round().astype(int)          # the length of each series in days
+    ml_ui.table(c[["series", "hours", "errors_removed", "filled", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
+        "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours filled",
         "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
-        "same_hour_earlier": "Same hour earlier"}), formats={"Filled (%)": "%.1f"})
+        "same_hour_earlier": "Same hour earlier"}))
     st.caption("A gap of up to three hours is bridged by a straight line; a longer one repeats the same hour a week earlier (or yesterday). "
                "Band prices are carried forward first. An intraday price that is missing, for example in an empty auction, becomes the day-ahead price "
                "plus the typical spread of that hour. Genuine price spikes and negative prices are kept.")
@@ -87,8 +81,8 @@ else:
         _rows.append({"Series": f"{name} ({d['unit']}, {r['resolution']})",
                       "Source": "Plant sensor" if key in ("ghi", "temperature") else "Guadiana inflow research dataset",
                       "Measured from - to": f"{_day(d['first'])} to {_day(d['last_measured'])}", "File ends": _day(d["last"]),
-                      "Measured": d["measured"], "Filled": d["filled"], "Filled (%)": 100.0 * d["filled"] / max(d["rows"], 1)})
-    ml_ui.table(pd.DataFrame(_rows), formats={"Filled (%)": "%.1f", "Measured": "%d", "Filled": "%d"}, stretch=True)
+                      "Measured": d["measured"], "Filled": d["filled"]})
+    ml_ui.table(pd.DataFrame(_rows), formats={"Measured": "%d", "Filled": "%d"}, stretch=True)
     st.caption("These series come from files, not from a daily feed. After the last measured day the file holds filled values (a synthetic curve for the sensor series, "
                "the monthly mean for inflow). Only measured values are used as a test target.")
 

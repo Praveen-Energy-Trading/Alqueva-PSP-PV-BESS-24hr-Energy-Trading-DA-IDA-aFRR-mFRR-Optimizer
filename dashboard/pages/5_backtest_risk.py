@@ -133,7 +133,12 @@ def _latest_run(gate: str, label: str):
 
 
 def _better_than(series: pd.Series, value: float) -> str:
-    return f"better than {100.0 * (series.dropna() < value).mean():.0f}% of the past days"
+    p = 100.0 * (series.dropna() < value).mean()
+    if p >= 100:
+        return "better than every past day"
+    if p == 0:
+        return "not better than any past day"
+    return f"better than {p:.1f}% of the past days" if (p < 0.5 or p >= 99.5) else f"better than {p:.0f}% of the past days"
 
 
 def _day_ahead(d: pd.DataFrame) -> None:
@@ -203,7 +208,7 @@ def _comparison(d: pd.DataFrame) -> None:
     groups = []
     for name, col, _, (gate, label) in parts:
         series = d[col].dropna()
-        rows = [("Share of the P&L", f"{100.0 * series.sum() / total:.1f}%"), ("Average per day", _eur(series.mean())),
+        rows = [("Share of the P&L", theme.pct(100.0 * series.sum() / total)), ("Average per day", _eur(series.mean())),
                 ("Best day", _eur(series.max())), ("Worst day", _eur(series.min()))]
         latest = _latest_run(gate, label)
         if latest:

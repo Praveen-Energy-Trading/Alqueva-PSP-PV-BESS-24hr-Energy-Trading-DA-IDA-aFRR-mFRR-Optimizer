@@ -73,7 +73,7 @@ else:
     s, ref = lk["locked_scores"], lk.get("reference_scores")
     gain = 1 - s["mae"] / ref["mae"] if ref else None
     ml_ui.cards([("Locked-year MAE", f"{s['mae']:.3f}"), ("Reference MAE", f"{ref['mae']:.3f}" if ref else "-"),
-                        ("Gain over the reference", f"{100 * gain:.1f}%" if gain is not None else "-"),
+                        ("Gain over the reference", theme.pct(100 * gain) if gain is not None else "-"),
                         ("Test against the reference (p)", f"{lk['dm_vs_reference']['p_value']:.2g}" if lk.get("dm_vs_reference") else "-")], ncols=4, pre_formatted=True)
     st.markdown(f"Window {lk['window'][0]} to {lk['window'][1]}; outcomes frozen by digest (lock status: {lk.get('lock_status')}); "
                 f"scored once, with code revision {lk['code']}.")
@@ -126,7 +126,7 @@ else:
             p = b["dm_champion_vs"].get(n, {}).get("p_value")
             rows.append({"Forecast": names.get(n, n), "MAE": sc["mae"], "RMSE": sc["rmse"],
                          "Champion's gain (%)": None if gain is None else round(100 * gain, 1), "p-value": ml_ui.fmt_p(p)})
-        st.markdown(f"**{title}** ({b['window'][0]} to {b['window'][1]}, {b['hours']:,} hours)")
+        st.markdown(f"**{title}** ({b['window'][0]} to {b['window'][1]}, {round(b['hours'] / 24):,} days)")
         ml_ui.table(pd.DataFrame(rows), formats={"MAE": "%.2f", "RMSE": "%.2f", "Champion's gain (%)": "%.1f"})
     if bm.get("locked") and bm["locked"].get("synthetic_days"):
         st.caption(f"The locked year includes {bm['locked']['synthetic_days']} artificial days; they are left out here for every forecast, because a forecast built on the day-ahead price would be flattered by them.")

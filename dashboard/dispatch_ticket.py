@@ -534,7 +534,7 @@ def render_pv_routing_card(pv: dict) -> str:
     curt_note = (
         ""                                                         # a day without curtailment needs no note
         if pv["total_curtailed_mwh"] <= 1e-6 else
-        f"{pv['total_curtailed_mwh']:.1f} MWh curtailed ({pv['curtailed_pct']:.1f}% of available) - cost &euro;{pv['curtailment_cost_eur']:.0f}."
+        f"{pv['total_curtailed_mwh']:.1f} MWh curtailed ({theme.pct(pv['curtailed_pct'])} of available) - cost &euro;{pv['curtailment_cost_eur']:.0f}."
     )
 
     return f'''

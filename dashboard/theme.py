@@ -56,6 +56,18 @@ SURFACE       = "#fcfcfb"
 FONT_FAMILY = "system-ui, -apple-system, 'Segoe UI', sans-serif"
 
 
+def pct(v, d: int = 1, signed: bool = False) -> str:
+    """A percentage for display. A value that is not zero never shows as 0.0% ("<0.1%" instead) and a value below 100 never shows as 100.0% (">99.9%")."""
+    if v is None or v != v:
+        return "-"
+    unit = 10.0 ** -d
+    if v != 0 and abs(v) < unit / 2:
+        return ("<" if v > 0 else ">-") + f"{unit:g}%"
+    if 100 - unit / 2 <= v < 100:
+        return f">{100 - unit:g}%"
+    return (f"{v:+.{d}f}" if signed else f"{v:.{d}f}") + "%"
+
+
 def rgba(hex_color: str, alpha: float) -> str:
     """'#1baf7a' -> 'rgba(27,175,122,0.15)'. Plotly's fillcolor rejects
     8-digit hex-with-alpha, so callers needing a translucent fill (e.g. area

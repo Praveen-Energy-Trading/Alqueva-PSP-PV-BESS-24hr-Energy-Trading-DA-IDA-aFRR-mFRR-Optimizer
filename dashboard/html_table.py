@@ -45,8 +45,14 @@ def _fmt_number(v, fmt: Optional[str]) -> str:
     if pd.isna(v):
         return "–"
     if fmt in (None, "%d"):
-        return f"{v:.0f}" if fmt == "%d" or float(v).is_integer() else f"{v:.2f}"
-    return fmt % v
+        if fmt == "%d" or float(v).is_integer():
+            return f"{v:.0f}"
+        fmt = "%.2f"
+    text = fmt % v
+    if v != 0 and float(text) == 0 and fmt.startswith("%.") and fmt.endswith("f"):          # a real value must not show as 0.00
+        floor = 10.0 ** -int(fmt[2:-1])
+        return f"<{floor:g}" if v > 0 else f">-{floor:g}"
+    return text
 
 
 def _auto_format(col: pd.Series) -> str:
