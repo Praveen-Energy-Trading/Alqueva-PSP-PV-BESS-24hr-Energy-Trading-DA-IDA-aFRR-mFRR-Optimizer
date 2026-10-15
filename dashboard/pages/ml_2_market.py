@@ -68,6 +68,46 @@ else:
     st.caption("The intraday markets start on 2024-06-13 in their current form. The spread is small and mean-reverting compared with the "
                "level of the price, which is why the intraday targets are modelled as a spread to the day-ahead price.")
 
+    st.subheader("How the day-ahead price level changed")
+    da = prices.set_index("date")["da_pt"].dropna() if "da_pt" in prices.columns else pd.Series(dtype=float)
+    if len(da) > 200:
+        from common_layer.market_analysis import breaks as _breaks
+        cfg_ma = ml_ui.cached(lambda: ml_data.config("market_analysis"))()
+        reg = ml_ui.cached(lambda: ml_data.config("market_regimes"))()
+        bt = cfg_ma.get("break_tests", {})
+        cuts = sorted(da.index[i] for i, _ in _breaks.binary_segmentation(da.to_numpy(), int(bt.get("max_data_breaks", 6)), int(bt.get("min_segment_days", 45))))
+        edges = [da.index.min()] + cuts + [da.index.max()]
+        label_of = {"gas_crisis_start": "Gas crisis begins", "iberian_exception": "Iberian gas-price cap starts", "ida_three_sessions": "Three intraday auctions replace six",
+                    "mari_live": "mFRR platform MARI goes live", "pt_isp_15min": "15-minute imbalance settlement", "iberian_blackout": "Iberian blackout",
+                    "sdac_15min": "15-minute day-ahead products", "afrr_national_rules": "New national aFRR rules", "price_floor_600": "Price floor lowered to -600 EUR/MWh"}
+        events = [{"id": e["id"], "date": pd.Timestamp(e["date"]), "text": label_of.get(e["id"], str(e.get("description", e["id"]))[:50])}
+                  for e in list(reg.get("events", [])) + list(cfg_ma.get("extra_events", [])) if e.get("kind") != "deadline"]
+        events = sorted([e for e in events if da.index.min() <= e["date"] <= da.index.max()], key=lambda e: e["date"])
+        monthly = da.resample("MS").mean()
+        top = float(max(monthly.max(), 100)) * 1.18
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=monthly.index + pd.Timedelta(days=14), y=monthly.values, mode="lines", name="Monthly average day-ahead price",
+                                 line=dict(color=theme.INK_MUTED, width=1.4), hovertemplate="%{y:,.0f} EUR/MWh"))
+        for k, (a, b) in enumerate(zip(edges, edges[1:])):
+            level = float(da[(da.index >= a) & (da.index <= b)].mean())
+            fig.add_trace(go.Scatter(x=[a, b], y=[level, level], mode="lines", line=dict(color=theme.RED, width=3), name="Average price level of a period (found from the data)",
+                                     legendgroup="level", showlegend=(k == 0), hovertemplate=f"average {level:,.0f} EUR/MWh<extra></extra>"))
+            fig.add_annotation(x=a + (b - a) / 2, y=level, text=f"<b>{level:,.0f}</b>", showarrow=False, yshift=12, font=dict(color=theme.RED, size=12))
+        for n, e in enumerate(events, 1):
+            fig.add_vline(x=e["date"], line=dict(color=theme.BLUE, width=1, dash="dot"))
+        fig.add_trace(go.Scatter(x=[e["date"] for e in events], y=[top * (0.93 if n % 2 else 0.84) for n in range(1, len(events) + 1)], mode="markers+text",
+                                 text=[str(n) for n in range(1, len(events) + 1)], textfont=dict(color="white", size=11),
+                                 marker=dict(color=theme.BLUE, size=20), name="Known market event (see the key below)",
+                                 customdata=[[e["text"], f"{e['date']:%d-%m-%Y}"] for e in events], hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra></extra>"))
+        theme.style_fig(fig, height=380, yaxis_title="EUR/MWh")
+        fig.update_yaxes(range=[0, top])
+        st.plotly_chart(fig, width="stretch")
+        left, right = st.columns(2)
+        half = (len(events) + 1) // 2
+        for col, part, offset in ((left, events[:half], 0), (right, events[half:], half)):
+            with col:
+                st.markdown("  \n".join(f"**{offset + i + 1}** &nbsp; {e['text']} ({e['date']:%d-%m-%Y})" for i, e in enumerate(part)))
+
 if profile.empty:
     ml_ui.not_yet_run("the price profile")
 else:
@@ -80,15 +120,3 @@ else:
     st.plotly_chart(theme.style_fig(fig, height=360, xaxis_title="hour of the local day", legend=False), width="stretch")
     st.caption("Average over all years. The midday trough of the day-ahead price in spring and summer is the solar effect; it is why hour and "
                "month are features and why a model must see the recent level.")
-
-st.subheader("From the full market analysis report")
-for name, cap in [("phase4_structural_breaks.png", "Structural breaks: the documented rule changes moved the level less than fuel and hydrology."),
-                  ("phase4_negative_prices.png", "Negative and non-positive hours by year (solar cannibalisation)."),
-                  ("phase4_autocorrelation.png", "Autocorrelation of the price and of its daily change."),
-                  ("phase4_market_correlations.png", "How the markets relate (hours where both exist)."),
-                  ("phase4_sample_size.png", "Effective sample size per target: how much history is still representative.")]:
-    p = ml_data.REPO_ROOT / "docs" / "forecasting" / "figures" / name
-    if p.exists():
-        with st.expander(cap):
-            ml_ui.figure(p)
-
