@@ -20,7 +20,6 @@ ml_ui.tour_bar(1)
 
 manifest = ml_ui.cached(lambda: ml_data.pack("raw_manifest_summary"))()
 gate = ml_ui.cached(lambda: ml_data.pack_json("quality_gate"))()
-qd = ml_ui.cached(lambda: ml_data.pack("quality_daily"))()
 status = ml_ui.cached(lambda: ml_data.pack("load_status_monthly"))()
 
 st.subheader("Data sources")
@@ -84,20 +83,6 @@ else:
     ml_ui.table(pd.DataFrame(_rows), formats={"Measured": "%d", "Filled": "%d"}, stretch=True)
     st.caption("These series come from files, not from a daily feed. After the last measured day the file holds filled values (a synthetic curve for the sensor series, "
                "the monthly mean for inflow). Only measured values are used as a test target.")
-
-st.subheader("Quality score over time")
-if qd.empty:
-    ml_ui.not_yet_run("the quality database")
-else:
-    ds = sorted(qd["dataset"].unique())
-    pick = st.multiselect("Datasets", ds, default=ds[:4], key="ml1_ds", format_func=ml_data.dataset_label)
-    fig = go.Figure()
-    for i, d in enumerate(pick):
-        x = qd[qd["dataset"] == d].groupby("delivery_date")["score"].mean().sort_index()
-        fig.add_trace(go.Scatter(x=x.index, y=x.rolling(14, min_periods=3).mean(), mode="lines", name=ml_data.dataset_label(d),
-                                 line=dict(color=theme.CATEGORICAL[i % len(theme.CATEGORICAL)], width=1.6)))
-    st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="score (14-day mean)"), width="stretch")
-    st.caption("The score describes the data as the sources published it, before cleaning and filling: a day with no data scores 0.")
 
 st.subheader("Missing and empty days")
 if status.empty:
