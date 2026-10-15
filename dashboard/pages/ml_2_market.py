@@ -59,8 +59,12 @@ else:
     fig = go.Figure()
     for i, c in enumerate([c for c in sp.columns if c != "date"]):
         fig.add_trace(go.Scatter(x=sp["date"], y=sp[c], mode="lines", name=c, line=dict(width=1.5, color=theme.CATEGORICAL[i % 8])))
-    fig.add_hline(y=0, line_color=theme.INK_MUTED, line_dash="dot")
-    st.plotly_chart(theme.style_fig(fig, height=300, yaxis_title="30-day mean of (price - day-ahead), EUR/MWh"), width="stretch")
+    fig.add_hline(y=0, line_color=theme.INK_MUTED, line_dash="dot", annotation_text="0 = day-ahead price", annotation_position="top left")
+    theme.style_fig(fig, height=300, yaxis_title="EUR/MWh vs day-ahead")
+    started = sp.dropna(how="all", subset=[c for c in sp.columns if c != "date"])["date"].min()          # the intraday markets start in mid-2024: no empty years on the left
+    if pd.notna(started):
+        fig.update_xaxes(range=[started, sp["date"].max()])
+    st.plotly_chart(fig, width="stretch")
     st.caption("The intraday markets start on 2024-06-13 in their current form. The spread is small and mean-reverting compared with the "
                "level of the price, which is why the intraday targets are modelled as a spread to the day-ahead price.")
 
