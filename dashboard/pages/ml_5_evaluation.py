@@ -71,10 +71,7 @@ if folds is not None and len(folds):
                "Red: locked test year. Change the sliders to see how the schedule changes the folds.")
 
 st.subheader("What is measured")
-ml_ui.table(__import__("pandas").DataFrame([
-    {"Metric": "SSE", "Meaning": "sum of squared errors"},
-    {"Metric": "MAE", "Meaning": "mean absolute error"},
-    {"Metric": "RMSE", "Meaning": "root mean squared error"}]))
+ml_ui.table(__import__("pandas").DataFrame([{"SSE": "sum of squared errors", "MAE": "mean absolute error", "RMSE": "root mean squared error"}]), stretch=True)
 
 st.subheader("Is a difference real? The Diebold-Mariano test, worked")
 st.markdown("The 24 hours of a day are strongly related, so the test uses **one loss difference per delivery day**, a variance that allows for "
