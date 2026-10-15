@@ -72,10 +72,9 @@ if folds is not None and len(folds):
 
 st.subheader("What is measured")
 ml_ui.table(__import__("pandas").DataFrame([
-    {"Metric": "SSE", "Meaning": "sum of squared errors", "Reads as": "dominated by the largest misses (spikes)"},
-    {"Metric": "MAE", "Meaning": "mean absolute error", "Reads as": "the typical miss in EUR/MWh"},
-    {"Metric": "RMSE", "Meaning": "root mean squared error", "Reads as": "typical miss, weighting big misses more"}]))
-st.caption("Always in price units, never on the transformed scale: a model trained on a transformed price is judged in euros.")
+    {"Metric": "SSE", "Meaning": "sum of squared errors"},
+    {"Metric": "MAE", "Meaning": "mean absolute error"},
+    {"Metric": "RMSE", "Meaning": "root mean squared error"}]))
 
 st.subheader("Is a difference real? The Diebold-Mariano test, worked")
 st.markdown("The 24 hours of a day are strongly related, so the test uses **one loss difference per delivery day**, a variance that allows for "
