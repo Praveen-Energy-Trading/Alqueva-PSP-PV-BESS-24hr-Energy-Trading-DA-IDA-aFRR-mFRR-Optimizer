@@ -14,8 +14,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Features", "Every feature is defined once, in a catalogue, and built by one function for training, evaluation and live "
-             "prediction. Whether a feature may be used for a target is derived from what it reads, not typed by hand.", step=3)
+ml_ui.header("Features", "", step=3)
 ml_ui.tour_bar(4)
 
 cat = ml_ui.cached(lambda: ml_data.config("feature_catalogue"))()
