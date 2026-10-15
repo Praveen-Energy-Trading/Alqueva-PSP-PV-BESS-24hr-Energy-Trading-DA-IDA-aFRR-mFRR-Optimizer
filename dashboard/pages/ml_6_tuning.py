@@ -14,7 +14,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Tuning lab", "Hyperparameters are searched inside the rolling backtest, never on the test period, with the same budget for "
+ml_ui.header("Tuning lab", "Hyperparameters are searched on validation blocks inside each training window, never on the locked test year, with the same budget for "
              "every algorithm. Every trial is kept, so the search itself can be inspected.", step=5)
 ml_ui.tour_bar(6)
 
@@ -32,8 +32,8 @@ ml_ui.cards([("Trials per algorithm and round", s["n_trials"]), ("Inner validati
 st.markdown("""
 **How the tuning is protected from leakage.** For every refit of the backtest only that refit's training window is used. Its latest 90 days form
 three inner validation blocks; each block is predicted by a model trained only on the days before it. A setting's score is the mean over the
-three blocks. The defaults are always trial 0, so a tuned model can never be worse than its default on the inner validation. The test days are
-never looked at. A median **pruner** stops a trial that is worse than the median after the first block.
+three blocks. The defaults are always trial 0, so a tuned model can never be worse than its default on the inner validation. The validation days
+of the backtest and the locked test year are never looked at. A median **pruner** stops a trial that is worse than the median after the first block.
 """)
 
 target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))

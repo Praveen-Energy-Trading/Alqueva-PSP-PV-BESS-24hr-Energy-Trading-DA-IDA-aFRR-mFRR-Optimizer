@@ -30,10 +30,33 @@ def d(x):
 
 
 dev, lk, sch = ev["development"], ev["locked_test"], ev["schedule"]
-ml_ui.table(__import__("pandas").DataFrame([{
-    "Development scoring": f"{dev['test_start']} to {dev['test_end']}", "Locked test year": f"{lk['start']} to {lk['end']}",
-    "Refit every": f"{sch['retrain_every_days']} days", "Training window": f"{sch['train_window_days']} days",
-    "Gap before the first test day": f"{sch['gap_days']} day"}]), stretch=True)
+tune = ml_ui.cached(lambda: ml_data.config("tuning"))().get("search", {})
+
+
+def _strip(parts, height="4.6rem") -> str:
+    """A row of coloured boxes, as wide as their number of days: (days, colour, title, small text)."""
+    boxes = "".join(
+        f'<div style="flex:{max(days, 1)} 1 0; min-width:0; background:{c}22; border:1.5px solid {c}; border-radius:10px; padding:0.45rem 0.7rem; min-height:{height}; overflow:hidden;">'
+        f'<div style="font-weight:600; font-size:0.9rem; color:{theme.INK_PRIMARY}; line-height:1.25;">{title}</div>'
+        f'<div style="font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.3; margin-top:0.15rem;">{small}</div></div>'
+        for days, c, title, small in parts)
+    return f'<div style="display:flex; gap:0.35rem; margin:0.2rem 0 0.5rem 0;">{boxes}</div>'
+
+
+_fmt = lambda x: f"{d(x):%d-%m-%Y}"
+_first, _vs, _ve, _ls, _le = dt.date(2020, 1, 1), d(dev["test_start"]), d(dev["test_end"]), d(lk["start"]), d(lk["end"])
+st.markdown('<div style="font-size:0.8rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:' + theme.INK_MUTED + ';">The whole history</div>'
+            + _strip([((_vs - _first).days, theme.BLUE, "Training history", f"{_fmt(_first)} to {_fmt(_vs - dt.timedelta(days=1))}<br>only used to fit models"),
+                      ((_ve - _vs).days + 1, theme.ORANGE, "Validation",
+                       f"{_fmt(_vs)} to {_fmt(_ve)}<br>rolling forecasts, refitted every {sch['retrain_every_days']} days; the algorithms are compared and the champion is chosen here"),
+                      ((_le - _ls).days + 1, theme.STATUS_CRITICAL, "Locked test", f"{_fmt(_ls)} to {_fmt(_le)}<br>read once, never used for any choice")]),
+            unsafe_allow_html=True)
+_win, _val, _gap, _step = int(sch["train_window_days"]), int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30)), int(sch["gap_days"]), int(sch["retrain_every_days"])
+st.markdown('<div style="font-size:0.8rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:' + theme.INK_MUTED + ';">Every refit</div>'
+            + _strip([(6, theme.BLUE, "Train", f"{_win - _val} days"),
+                      (3, theme.VIOLET, "Tuning validation", f"the last {_val} days of the window: the hyperparameters are chosen here"),
+                      (1, theme.INK_MUTED, "Gap", f"{_gap} day"),
+                      (2, theme.ORANGE, "Forecast", f"the next {_step} days")], height="3.4rem"), unsafe_allow_html=True)
 
 st.subheader("Rolling-origin folds")
 treat = st.radio("Treatment", ["Standard (day-ahead, aFRR)", "Limited evidence (IDA1-3, XBID)"], horizontal=True, key="ml5_treat")
@@ -67,7 +90,7 @@ if folds is not None and len(folds):
                              hoverinfo="text"))
     fig.update_yaxes(autorange="reversed", title_text="fold")
     st.plotly_chart(theme.style_fig(fig, height=420, legend=False), width="stretch")
-    st.caption(f"{len(folds)} folds, first test day {folds['test_start'].min()}, last {folds['test_end'].max()}. Blue: training window. Orange: test days. "
+    st.caption(f"{len(folds)} folds, first validation day {folds['test_start'].min()}, last {folds['test_end'].max()}. Blue: training window. Orange: validation days. "
                "Red: locked test year. Change the sliders to see how the schedule changes the folds.")
 
 st.subheader("What is measured")
