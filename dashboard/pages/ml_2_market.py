@@ -19,8 +19,7 @@ SERIES = {"da_pt": "Day-ahead (PT)", "ida1_pt": "IDA1", "ida2_pt": "IDA2", "ida3
           "afrr_up": "aFRR capacity up", "afrr_dn": "aFRR capacity down", "mfrr_ap": "mFRR activation price", "imb_short": "Imbalance (short)",
           "imb_long": "Imbalance (long)"}
 
-ml_ui.header("Market analysis", "Before modelling, the price series are looked at: level, shape of the day, structural breaks, and how the "
-             "markets relate. Every modelling choice later in the project traces back to something shown here.", step=1)
+ml_ui.header("Market analysis", "", step=1)
 ml_ui.tour_bar(2)
 
 prices = ml_ui.cached(lambda: ml_data.pack("prices_daily"))()
