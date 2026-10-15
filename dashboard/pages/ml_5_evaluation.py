@@ -122,6 +122,20 @@ else:
     st.caption("The algorithms are ahead of the naive forecasts, but with this few days the difference cannot be told from luck (p above 0.05). "
                "mFRR joins the full process when the windows are rolled forward and the history is long enough.")
 
+st.subheader("Plant inputs: solar irradiance, temperature, inflow")
+_pi = {k: ml_data.plant_input(k) for k, _, _ in ml_data.PLANT_INPUTS}
+if not any(_pi.values()):
+    ml_ui.not_yet_run("the plant input evaluation (tools/evaluate_plant_inputs.py)")
+else:
+    _g, _f = _pi.get("ghi"), _pi.get("inflow")
+    _ranges = "; ".join(f"{n}: test {r['test_range'][0]} to {r['test_range'][1]} ({r['n_test']:,} values)" for n, r in (("irradiance and temperature", _g), ("inflow", _f)) if r)
+    st.markdown(f"""
+- A **shorter protocol** than the price targets: a chronological split in which the **last twelve months are the test** ({_ranges}).
+- The algorithm is chosen by **walk-forward validation on the development part only**; the test year is read once.
+- All five algorithms and **three simple forecasts** (same time yesterday, same time a week earlier, the average of the month) are scored on the **same test values**.
+- Only **measured values are scored**. Filled values keep the lags continuous but are never a target.
+""")
+
 st.subheader("The locked year")
 st.markdown("""
 - The development window **ends before** the locked year starts, and the tools refuse any development run that touches it.

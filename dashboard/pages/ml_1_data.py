@@ -73,6 +73,25 @@ if not cur.empty:
                "Band prices are carried forward first. An intraday price that is missing, for example in an empty auction, becomes the day-ahead price "
                "plus the typical spread of that hour. Genuine price spikes and negative prices are kept.")
 
+st.subheader("Plant input series")
+_plant = [(key, name, ml_data.plant_input(key)) for key, name, _ in ml_data.PLANT_INPUTS]
+if not any(r for _, _, r in _plant):
+    ml_ui.not_yet_run("the plant input description (tools/evaluate_plant_inputs.py)")
+else:
+    _day = lambda iso: f"{iso[8:10]}‑{iso[5:7]}‑{iso[:4]}"          # dd-mm-yyyy with non-breaking hyphens, so a date never splits over two lines
+    _rows = []
+    for key, name, r in _plant:
+        d = (r or {}).get("data")
+        if not d:
+            continue
+        _rows.append({"Series": f"{name} ({d['unit']}, {r['resolution']})",
+                      "Source": "Plant sensor" if key in ("ghi", "temperature") else "Guadiana inflow research dataset",
+                      "Measured from - to": f"{_day(d['first'])} to {_day(d['last_measured'])}", "File ends": _day(d["last"]),
+                      "Measured": d["measured"], "Filled": d["filled"], "Filled (%)": 100.0 * d["filled"] / max(d["rows"], 1)})
+    ml_ui.table(pd.DataFrame(_rows), formats={"Filled (%)": "%.1f", "Measured": "%d", "Filled": "%d"}, stretch=True)
+    st.caption("These series come from files, not from a daily feed. After the last measured day the file holds filled values (a synthetic curve for the sensor series, "
+               "the monthly mean for inflow). Only measured values are used as a test target.")
+
 st.subheader("Quality score over time")
 if qd.empty:
     ml_ui.not_yet_run("the quality database")

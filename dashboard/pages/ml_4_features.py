@@ -96,3 +96,15 @@ should not be known replaced by noise. The two results must be identical. If a f
 the test fails. The same single builder serves training, evaluation and live prediction, so a feature cannot differ between them.
 """)
 
+st.subheader("Plant inputs")
+_rows = []
+for _key, _name, _ in ml_data.PLANT_INPUTS:
+    _r = ml_data.plant_input(_key)
+    if _r:
+        _rows.append({"Forecast": f"{_name} ({_r['unit']})", "Features": _r["features"].replace("_", " "), "Number": len(_r["features"].split(", "))})
+if _rows:
+    ml_ui.table(pd.DataFrame(_rows), stretch=True)
+    st.caption("Lags and rolling means end at the previous day, so nothing of the delivery day is read. The sensor forecasts add a clear-sky value and the calendar; "
+               "the inflow forecast adds the calendar only.")
+else:
+    ml_ui.not_yet_run("the plant input evaluation (tools/evaluate_plant_inputs.py)")

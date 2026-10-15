@@ -33,6 +33,7 @@ table.htab td.num {{ font-variant-numeric: tabular-nums; }}
 table.htab.stretch {{ width: 100% !important; }}
 table.htab.stretch th {{ padding: 3px 10px; line-height: 1.15; }}
 table.htab.stretch td {{ padding: 2px 10px; line-height: 1.2; }}
+table.htab.stretch td.txt {{ white-space: normal; }}
 .htab-wrap.stretch-wrap {{ margin: 0.1rem 0 0.4rem 0; }}
 table.htab tr:last-child td {{ border-bottom: none; }}
 table.htab th:last-child, table.htab td:last-child {{ border-right: none; }}

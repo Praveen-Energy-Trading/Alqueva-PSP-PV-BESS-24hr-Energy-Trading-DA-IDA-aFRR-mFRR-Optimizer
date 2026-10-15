@@ -41,20 +41,41 @@ def _thousands(t: pd.DataFrame, cols: list) -> pd.DataFrame:
     return t
 
 
-def _scorecard(groups: list) -> None:
-    """One tidy table of label / value rows under group headings: [(heading, [(label, value), ...]), ...]. Styled like the other tables of the dashboard."""
+def _scorecard(groups: list, min_height: int = 0) -> int:
+    """One tidy table of label / value rows under group headings: [(heading, [(label, value), ...]), ...]. Styled like the other tables of the dashboard.
+
+    Every row is one line of a fixed height (_ROW_PX): the text size follows the width of the table, so a row never wraps whatever the width of the
+    window, and the height of the table is known before it is drawn. The table is at least `min_height` pixels tall (its rows grow to fill it) so that
+    it is as tall as the chart beside it. Returns the height of the table in pixels, for that chart."""
     import html
     import html_table as ht
+    n_rows = sum(1 + len(rows) for _, rows in groups)
+    height = max(round(_ROW_PX * n_rows), min_height)
+    # the longest line (a heading, or a label and its value side by side) sets the text size that fits the width of the table
+    chars = max([len(str(h)) for h, _ in groups] + [len(str(label)) + len(str(value)) + 4 for _, rows in groups for label, value in rows])
     body = ""
     for heading, rows in groups:
         body += f'<tr><th colspan="2" class="sc-head">{html.escape(heading)}</th></tr>'
         body += "".join(f'<tr><td class="sc-label">{html.escape(label)}</td><td class="sc-value">{html.escape(str(value))}</td></tr>' for label, value in rows)
-    css = (f"<style>table.sc td.sc-label {{ text-align:left; color:{ht.INK_MUTED}; white-space:normal; padding-right:16px; }}"
-           f"table.sc td.sc-value {{ text-align:right; font-weight:600; color:{ht.INK}; white-space:normal; font-variant-numeric:tabular-nums; }}"
+    fit = f"max(11px, min(14px, calc((100cqw - 40px) / ({0.56 * chars:.2f}))))"
+    css = (f"<style>.sc-wrap {{ container-type: inline-size; width: 100%; }}"
+           f"table.sc td, table.sc th.sc-head {{ height: {_ROW_PX - 1}px; padding-top: 0; padding-bottom: 0; white-space: nowrap; font-size: {fit}; line-height: 1.1; }}"
+           f"table.sc td.sc-label {{ text-align:left; color:{ht.INK_MUTED}; padding-right:16px; }}"
+           f"table.sc td.sc-value {{ text-align:right; font-weight:600; color:{ht.INK}; font-variant-numeric:tabular-nums; }}"
            f"table.sc {{ width:100% !important; }}"
            f"table.sc th.sc-head {{ position:static; text-align:left; background:{ht.HEAD_BG}; color:{ht.INK}; font-weight:600; letter-spacing:0.02em; "
-           f"border-right:none; padding:8px 12px; }}</style>")
-    st.markdown(ht.CSS + css + f'<div class="htab-wrap" style="width:100%"><table class="htab sc"><tbody>{body}</tbody></table></div>', unsafe_allow_html=True)
+           f"border-right:none; padding-left:12px; padding-right:12px; }}</style>")
+    st.markdown(ht.CSS + css + f'<div class="htab-wrap sc-wrap"><table class="htab sc" style="height:{height}px"><tbody>{body}</tbody></table></div>', unsafe_allow_html=True)
+    return height
+
+
+_ROW_PX = 35
+
+
+def _split(height: int, gap: int = 16) -> tuple:
+    """Two stacked charts that together are `height` tall (the page puts `gap` pixels between them)."""
+    top = round((height - gap) * 0.52)
+    return top, height - gap - top
 
 
 def _section(title: str, definition: str) -> None:
@@ -116,9 +137,7 @@ def _better_than(series: pd.Series, value: float) -> str:
 
 
 def _day_ahead(d: pd.DataFrame) -> None:
-    _section("Day-ahead market",
-             "Energy sold the day before delivery, hour by hour, at the OMIE day-ahead price. It carries most of the plant's revenue. "
-             "Revenue is the plan from the optimiser valued at the price that really cleared.")
+    _section("Day-ahead market", "")
     s = d[DA_COL].dropna()
     best, worst = d.loc[s.idxmax()], d.loc[s.idxmin()]
     groups = [(f"Past days, valued at real prices ({len(s):,} days)",
@@ -129,20 +148,19 @@ def _day_ahead(d: pd.DataFrame) -> None:
     latest = _latest_run("DA", "Energy revenue")
     if latest:
         groups.append((f"Latest run, {latest[0]} (valued at forecast prices)", [("Day-ahead revenue", f"€{latest[1]:,.0f}"), ("Against the past days", _better_than(s, latest[1]))]))
-    table_col, chart_col = st.columns([5, 7])
+    table_col, chart_col = st.columns([1, 1])
     with table_col:
-        _scorecard(groups)
+        table_h = _scorecard(groups, min_height=430)
     with chart_col:
-        _bars_with_cumulative(d, DA_COL, "Day-ahead revenue", theme.COLOR_GEN, height=430)
+        _bars_with_cumulative(d, DA_COL, "Day-ahead revenue", theme.COLOR_GEN, height=table_h)
 
 
 def _intraday(d: pd.DataFrame) -> None:
     _section("Intraday markets (IDA1, IDA2, IDA3 and XBID)", "")
-    rows, gains = [], {}
+    rows = []
     for (name, col), (_, prev_col) in zip(GATES[1:], GATES[:-1]):
         both = d[["date", prev_col, col]].dropna()
         gain = both[col] - both[prev_col]
-        gains[name] = both["date"], gain
         row = {"Market": name, "Days with a price": len(both), "Average gain per day (EUR)": gain.mean(), "Days improved": int((gain > 0).sum()),
                "Share of days improved (%)": 100.0 * (gain > 0).mean()}
         latest = _latest_run(name, "Improvement vs committed")
@@ -152,24 +170,11 @@ def _intraday(d: pd.DataFrame) -> None:
     t = pd.DataFrame(rows)
     money = ["Average gain per day (EUR)"] + (["Latest run, forecast prices (EUR)"] if "Latest run, forecast prices (EUR)" in t.columns else [])
     ml_ui.table(_thousands(t, money), formats={"Share of days improved (%)": "%.0f"})
-    fig = go.Figure(go.Bar(x=t["Market"], y=t["Average gain per day (EUR)"], marker_color=[theme.COLOR_GEN if v >= 0 else theme.COLOR_PUMP for v in t["Average gain per day (EUR)"]],
-                           text=[_eur(v) for v in t["Average gain per day (EUR)"]], textposition="outside", name="Average gain per day"))
-    theme.style_fig(fig, height=320, yaxis_title="EUR per day", legend=False)
-    fig.update_yaxes(zerolinecolor=theme.INK_MUTED)
-    st.plotly_chart(fig, width="stretch")
     st.caption("XBID is backtested for its first window only")
-    fig2 = go.Figure()
-    for name, (dates, gain) in gains.items():
-        fig2.add_trace(go.Scatter(x=dates, y=gain.cumsum(), mode="lines", name=name))
-    theme.style_fig(fig2, height=320, yaxis_title="EUR, cumulative gain")
-    fig2.update_layout(hovermode="x unified")
-    st.plotly_chart(fig2, width="stretch")
 
 
 def _reserves(d: pd.DataFrame) -> None:
-    _section("Reserve markets (aFRR and mFRR capacity)",
-             "Balancing reserve is paid for being available, whether or not the grid operator calls on it. This page counts the capacity payment at the real REN "
-             "price; the payment for energy actually activated is not included.")
+    _section("Reserve markets (aFRR and mFRR capacity)", "")
     a, m = d[AFRR_COL].dropna(), d[MFRR_COL].dropna()
     groups = [("Past days, valued at the real REN price",
                [("aFRR capacity, average per day", _eur(a.mean())), ("mFRR capacity, average per day", _eur(m.mean())),
@@ -178,21 +183,20 @@ def _reserves(d: pd.DataFrame) -> None:
         latest = _latest_run(gate, "Capacity revenue")
         if latest:
             groups.append((f"{name}, latest run {latest[0]} (valued at forecast prices)", [("Capacity revenue", _eur(latest[1])), ("Against the past days", _better_than(series, latest[1]))]))
-    table_col, chart_col = st.columns([5, 7])
+    table_col, chart_col = st.columns([1, 1])
     with table_col:
-        _scorecard(groups)
+        table_h = _scorecard(groups, min_height=430)
     with chart_col:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=d["date"], y=d[AFRR_COL], name="aFRR capacity", marker_color=theme.COLOR_UP))
         fig.add_trace(go.Bar(x=d["date"], y=d[MFRR_COL], name="mFRR capacity", marker_color=theme.COLOR_PUMP))
-        theme.style_fig(fig, height=430, yaxis_title="EUR per day", barmode="stack")
+        theme.style_fig(fig, height=table_h, yaxis_title="EUR per day", barmode="stack")
         fig.update_layout(hovermode="x unified")
         st.plotly_chart(fig, width="stretch")
 
 
 def _comparison(d: pd.DataFrame) -> None:
-    _section("Comparing the markets",
-             "What each market contributed to the realised P&L (day-ahead energy at the real OMIE price plus aFRR and mFRR capacity at the real REN price). The intraday steps are left out because they re-value the same energy rather than add to it.")
+    _section("Comparing the markets", "")
     parts = [("Day-ahead energy", DA_COL, theme.COLOR_GEN, ("DA", "Energy revenue")), ("aFRR capacity", AFRR_COL, theme.COLOR_UP, ("AFRR", "Capacity revenue")),
              ("mFRR capacity", MFRR_COL, theme.COLOR_PUMP, ("MFRR", "Capacity revenue"))]
     total = d[TOTAL_COL].sum()
@@ -205,19 +209,21 @@ def _comparison(d: pd.DataFrame) -> None:
         if latest:
             rows.append((f"Latest run {latest[0]} (forecast prices)", _eur(latest[1])))
         groups.append((name, rows))
-    table_col, chart_col = st.columns([5, 7])
+    table_col, chart_col = st.columns([1, 1])
     with table_col:
-        _scorecard(groups)
+        table_h = _scorecard(groups, min_height=646)
+    top_h, bottom_h = _split(table_h)
     with chart_col:
         fig = go.Figure()
         for name, col, colour, _ in parts:
             fig.add_trace(go.Scatter(x=d["date"], y=d[col].fillna(0).cumsum(), mode="lines", stackgroup="one", name=name, line=dict(color=colour, width=1)))
-        theme.style_fig(fig, height=330, yaxis_title="EUR, cumulative")
+        theme.style_fig(fig, height=top_h, yaxis_title="EUR, cumulative")
         fig.update_layout(hovermode="x unified")
         st.plotly_chart(fig, width="stretch")
         fig2 = go.Figure(go.Bar(x=[p[0] for p in parts], y=[d[p[1]].mean() for p in parts], marker_color=[p[2] for p in parts],
                                 text=[_eur(d[p[1]].mean()) for p in parts], textposition="outside"))
-        theme.style_fig(fig2, height=300, yaxis_title="Average EUR per day", legend=False)
+        theme.style_fig(fig2, height=bottom_h, yaxis_title="Average EUR per day", legend=False)
+        fig2.update_yaxes(range=[0, 1.18 * max(d[p[1]].mean() for p in parts)])   # room above the tallest bar for its label
         st.plotly_chart(fig2, width="stretch")
 
 
@@ -245,8 +251,7 @@ def _today_pnl():
 
 
 def _risk(report: dict, d: pd.DataFrame) -> None:
-    _section("Portfolio risk (P&L distribution, VaR, CVaR and Monte Carlo)",
-             "How the daily P&L is spread over the backtest, how bad a bad day is, and where the latest run falls. P&L is day-ahead energy plus aFRR and mFRR capacity.")
+    _section("Portfolio risk (P&L distribution, VaR, CVaR and Monte Carlo)", "")
     pnl = d[TOTAL_COL].dropna().astype(float)
     section_rows: dict = {}
     section = None
@@ -285,23 +290,24 @@ def _risk(report: dict, d: pd.DataFrame) -> None:
             rows += [("Energy sold, day-ahead", e(split[0])), ("Energy bought for pumping", e(split[1])), ("Net energy value", e(split[0] - split[1]))]
         groups.append((f"Latest run, {day} (valued at forecast prices)", rows))
 
-    table_col, chart_col = st.columns([5, 7])
+    table_col, chart_col = st.columns([1, 1])
     with table_col:
-        _scorecard(groups)
+        table_h = _scorecard(groups, min_height=646)
+    top_h, bottom_h = _split(table_h)
     with chart_col:
         fig = go.Figure(go.Histogram(x=pnl, nbinsx=30, marker_color=theme.COLOR_GEN, name="Days"))
         for label, value, colour, where in (("VaR 95%", hist["VaR(95%)"], theme.COLOR_PUMP, "top right"), ("VaR 99%", hist["VaR(99%)"], theme.COLOR_DOWN, "top left"),
                                             ("Latest run", today[1] if today else None, theme.COLOR_PRICE, "top")):
             if value is not None:
                 fig.add_vline(x=value, line_dash="dash", line_color=colour, annotation_text=label, annotation_position=where)
-        theme.style_fig(fig, height=330, yaxis_title="Number of days", xaxis_title="Daily P&L (EUR)", legend=False)
+        theme.style_fig(fig, height=top_h, yaxis_title="Number of days", xaxis_title="Daily P&L (EUR)", legend=False)
         st.plotly_chart(fig, width="stretch")
         if any(v is not None for v in hist.values()):
             names = list(hist)
             fig2 = go.Figure()
             fig2.add_trace(go.Bar(x=[n.replace("(", " ").replace(")", "") for n in names], y=[hist[n] for n in names], name="Historical", marker_color=theme.COLOR_GEN))
             fig2.add_trace(go.Bar(x=[n.replace("(", " ").replace(")", "") for n in names], y=[mc[n] for n in names], name="Monte Carlo", marker_color=theme.COLOR_PUMP))
-            theme.style_fig(fig2, height=300, yaxis_title="P&L of the day (EUR)", barmode="group")
+            theme.style_fig(fig2, height=bottom_h, yaxis_title="P&L of the day (EUR)", barmode="group")
             st.plotly_chart(fig2, width="stretch")
 
 

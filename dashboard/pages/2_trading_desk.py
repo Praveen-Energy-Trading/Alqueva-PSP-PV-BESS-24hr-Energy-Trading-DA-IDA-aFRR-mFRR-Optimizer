@@ -10,25 +10,12 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+import column_labels
 import data
 import dispatch_ticket
 import ml_ui
 import theme
 
-
-def _mfrr_capacity_caption() -> str:
-    """Say how the mFRR capacity line is priced (config mfrr.capacity_payment)."""
-    try:
-        import yaml
-        cfg_path = Path(__file__).resolve().parents[2] / "config" / "market.yaml"
-        paid = bool(yaml.safe_load(cfg_path.read_text(encoding="utf-8"))["mfrr"]["capacity_payment"])
-    except Exception:
-        return ""
-    if paid:
-        return ("mFRR capacity is a **future-band scenario**: the daily mFRR band required "
-                "from Apr 2027 (MPGGS Ch. XVI), paid at the real aFRR band price. Today's "
-                "market pays no such band to a large generator.")
-    return "mFRR capacity is energy-only (band not paid), matching today's rules."
 
 st.title("💰 Trading Desk")
 
@@ -76,9 +63,6 @@ def _render() -> None:
     ]
     st.subheader("P&L Breakdown")
     components.html(dispatch_ticket.render_pnl_breakdown_card(total_pnl, pnl_lines), height=510)
-    _caption = _mfrr_capacity_caption()
-    if _caption:
-        st.caption(_caption)
 
     # ---------------------------------------------------------------------------
     # Real-price re-settlement: the SAME committed bid above, valued against
@@ -112,40 +96,21 @@ def _render() -> None:
 
     st.markdown("---")
 
-    left, right = st.columns([1, 1])
-    with left:
-        st.subheader("Revenue by product")
-        # Same 10 line items as the P&L Breakdown card above -- previously
-        # this lumped IDA1/IDA2/IDA3/XBID into one "IDA+XBID" bar, a coarser
-        # split than the card sitting right next to it for the same numbers.
-        wf_labels = [label for label, _, _ in pnl_lines] + ["Total P&L"]
-        wf_values = [value for _, value, _ in pnl_lines] + [total_pnl]
-        waterfall = go.Figure(go.Waterfall(
-            orientation="v",
-            measure=["relative"] * len(pnl_lines) + ["total"],
-            x=wf_labels,
-            y=wf_values,
-            connector={"line": {"color": theme.GRIDLINE}},
-            increasing=dict(marker=dict(color=theme.COLOR_GEN)),
-            decreasing=dict(marker=dict(color=theme.COLOR_DOWN)),
-            totals=dict(marker=dict(color=theme.COLOR_PRICE)),
-        ))
-        theme.style_fig(waterfall, height=420, legend=False)
-        waterfall.update_xaxes(tickangle=-35)
-        st.plotly_chart(waterfall, width="stretch")
-
-    with right:
-        st.subheader("Cumulative revenue through the day")
-        if "Cum_Rev_EUR" in dispatch.columns:
-            fig = go.Figure(go.Scatter(x=dispatch["Hour"], y=dispatch["Cum_Rev_EUR"],
-                                        mode="lines+markers", line=dict(width=3, color=theme.COLOR_GEN)))
-            theme.style_fig(fig, height=420, xaxis_title="Hour", yaxis_title="Cumulative EUR", legend=False)
-            st.plotly_chart(fig, width="stretch")
+    st.subheader("Cumulative revenue through the day")
+    if "Cum_Rev_EUR" in dispatch.columns:
+        fig = go.Figure(go.Scatter(x=dispatch["Hour"], y=dispatch["Cum_Rev_EUR"], name="Cumulative revenue",
+                                    mode="lines+markers", line=dict(width=3, color=theme.COLOR_GEN), hovertemplate="€%{y:,.0f}"))
+        theme.style_fig(fig, height=420, xaxis_title="Hour", yaxis_title="Cumulative EUR", legend=False)
+        # a vertical line that follows the cursor, with one hover box for the hour
+        fig.update_layout(hovermode="x unified")
+        fig.update_xaxes(hoverformat="d", showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED)
+        st.plotly_chart(fig, width="stretch")
 
     st.markdown("---")
 
     st.subheader("Per-gate trading decisions (DA / IDA1-3 / XBID)")
-    ml_ui.table(gates, fit=True)
+    # the position store holds one entry per quarter-hour (ISP 1-96); reports written before the column was renamed still say "Hours active"
+    ml_ui.table(gates.rename(columns={"Hours active": "Active quarter-hours (of 96)"}).drop(columns=["VWAP EUR/MWh"], errors="ignore"), fit=True, stretch=True)
 
     st.markdown("---")
 
@@ -153,11 +118,13 @@ def _render() -> None:
     # physical/delivery page) -- removed from here to avoid the same charts
     # appearing on two pages.
 
-    with st.expander("Full hourly dispatch table"):
-        ml_ui.table(dispatch, fit=True, height=500)
+    # a section of its own, not an expander: choosing a topic reruns the page and would fold an expander shut again
+    st.subheader("Hourly dispatch")
+    topic = st.segmented_control("Topic", list(column_labels.GROUPS), default="Market & position", key="desk_dispatch_topic", label_visibility="collapsed")
+    ml_ui.table(column_labels.topic(dispatch, topic or "Market & position"), fit=True, height=500)
 
     with st.expander("ISP-level reserve activation (96 x 15-min)"):
-        ml_ui.table(isp, fit=True, height=400)
+        ml_ui.table(column_labels.readable(isp), fit=True, height=400)
 
 
 _render()

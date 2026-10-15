@@ -198,6 +198,7 @@ pages = {
         st.Page("pages/ml_7_arena.py", title="Model arena", icon="🏟️"),
         st.Page("pages/ml_8_decision.py", title="Decision and locked test", icon="🏆"),
         st.Page("pages/ml_9_run.py", title="Run it: registry, monitoring, live", icon="🛰️"),
+        st.Page("pages/ml_10_plant_inputs.py", title="Plant inputs: PV and inflow", icon="☀️"),
     ],
 }
 pg = st.navigation(pages)

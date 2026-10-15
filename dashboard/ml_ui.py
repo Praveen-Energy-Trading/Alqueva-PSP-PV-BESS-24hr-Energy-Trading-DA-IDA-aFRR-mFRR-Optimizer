@@ -17,7 +17,7 @@ import theme
 PAGES = [("ml_1_data", "Data and quality"), ("ml_2_market", "Market analysis"),
          ("ml_3_formulation", "Problem formulation"), ("ml_4_features", "Features"), ("ml_5_evaluation", "Evaluation design"),
          ("ml_6_tuning", "Tuning lab"), ("ml_7_arena", "Model arena"), ("ml_8_decision", "Decision and locked test"),
-         ("ml_9_run", "Run it: registry, monitoring, live")]
+         ("ml_9_run", "Run it: registry, monitoring, live"), ("ml_10_plant_inputs", "Plant inputs: PV and inflow")]
 
 STATE_COLOR = {"done": theme.STATUS_GOOD, "partial": theme.STATUS_WARNING, "not run": theme.STATUS_NEUTRAL}
 
@@ -70,6 +70,16 @@ def table(df, compact: bool = False, height=None, formats: Optional[dict] = None
     if height is None and len(df) > 20:
         height = 520
     st.markdown(html_table.html_table(df, formats=formats, height=height, stretch=stretch), unsafe_allow_html=True)
+
+
+def table_halves(df, **kwargs) -> None:
+    """A long table as two halves side by side (less height, the width is used); each half is as wide as its column."""
+    half = (len(df) + 1) // 2
+    left, right = st.columns(2)
+    with left:
+        table(df.iloc[:half], stretch=True, **kwargs)
+    with right:
+        table(df.iloc[half:], stretch=True, **kwargs)
 
 
 def figure(path) -> None:

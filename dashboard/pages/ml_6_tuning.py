@@ -146,3 +146,4 @@ champion. Rerun with the guard, the Optuna experiment is **bit-identical** to th
 forecasts of the control are exactly that incident.
 """)
 
+st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are not part of this lab: they are not tuned here. Their five algorithms and three simple forecasts are compared on the Plant inputs page.")

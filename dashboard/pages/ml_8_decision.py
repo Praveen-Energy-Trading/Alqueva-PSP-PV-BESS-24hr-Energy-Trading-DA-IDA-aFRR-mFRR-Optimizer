@@ -133,3 +133,4 @@ else:
     st.caption("Reading it: a gain of 15% means the champion's mean absolute error is 15% lower. The naive forecasts are not tuned and not chosen, "
                "so they cannot be flattered by the selection; they cannot change the champion either.")
 
+st.caption("The plant inputs (solar irradiance, temperature, natural inflow) have no champion decision and no locked year: their serving model is chosen by walk-forward validation, and its held-out year is shown on the Plant inputs page.")

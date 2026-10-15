@@ -288,7 +288,7 @@ def _write_gate_decisions(wb: Workbook, delivery_date: str):
         ("IDA3", "Intraday auction 3 (SIDC)",    "D   10:00 CET"),
         ("XBID", "Continuous intraday (XBID)",   "D   H-1 rolling"),
     ]
-    headers = ["Gate", "Market description", "Gate close", "Hours active",
+    headers = ["Gate", "Market description", "Gate close", "Active quarter-hours (of 96)",
                "Net position MWh", "VWAP EUR/MWh", "Net revenue EUR"]
     _title_row(ws, f"Gate Decision Summary — {delivery_date}", len(headers))
     ws.append(headers)
@@ -303,7 +303,7 @@ def _write_gate_decisions(wb: Workbook, delivery_date: str):
         if not pos:
             ws.append([gate, desc, close, 0, 0.0, 0.0, 0.0])
             continue
-        hours_active = sum(1 for h, v in pos.items() if abs(v.get("volume_mwh", 0)) > 0.01)
+        quarters_active = sum(1 for h, v in pos.items() if abs(v.get("volume_mwh", 0)) > 0.01)
         total_mw = sum(v.get("volume_mwh", 0) for v in pos.values())
         # Volume-weighted average price (VWAP) — simple average understates if volumes vary by hour
         vwap_num = sum(abs(v.get("volume_mwh", 0)) * v.get("price_eur_mwh", 0) for v in pos.values())
@@ -311,7 +311,7 @@ def _write_gate_decisions(wb: Workbook, delivery_date: str):
         avg_p  = vwap_num / vwap_den if vwap_den > 1e-6 else 0.0
         revenue = sum(v.get("volume_mwh", 0) * v.get("price_eur_mwh", 0)
                       for v in pos.values())
-        ws.append([gate, desc, close, hours_active,
+        ws.append([gate, desc, close, quarters_active,
                    round(total_mw, 2), round(avg_p, 2), round(revenue, 2)])
 
     ws.freeze_panes = "A3"

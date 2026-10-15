@@ -2,7 +2,7 @@
 common_layer/optimisation_model/core_milp_builder.py + core_milp_solver.py.
 
 These are NOT data-driven - every equation, constant, and field name here is
-copied verbatim from the two source files (72 equations total, none
+copied verbatim from the two source files (80 equations total, none
 omitted). Nothing is fetched from ComponentStore/AuditStore, so there is no
 caching or refresh logic: this page explains the model's structure, not a
 day's result.
@@ -29,6 +29,8 @@ _CSS = """
 .eqwrap .sec-title { font-size: 14px; font-weight: 600; margin: 0 0 10px 0; text-align: center; }
 .eqwrap .sec-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; margin-bottom: 4px; }
 .eqwrap .card.wide { flex: 1 0 100%; max-width: 820px; }
+.eqwrap .sec-row.grid { align-items: stretch; margin-bottom: 12px; }
+.eqwrap .sec-row.grid .card { flex: 1 1 0; min-width: 0; max-width: 420px; justify-content: center; }
 .eqwrap .card { border-radius: 10px; padding: 8px 10px; display: inline-flex; flex-direction: column; align-items: center;
                 box-shadow: 0 2px 5px rgba(0,0,0,0.08); text-align: center; box-sizing: border-box; }
 .eqwrap .hdr { font-size: 10px; font-weight: 600; margin-bottom: 6px; white-space: normal; text-align: center;
@@ -67,7 +69,7 @@ _ARROW_MERGE = ('<div class="flow-arrow"><div class="connector"></div>'
                  '<span class="note">BESS (E) and PV (F) are built in parallel, both feed into the reservoir/net-position equations below</span></div>')
 
 # ---------------------------------------------------------------------------
-# Small helpers so 72 equations can be composed from parts instead of
+# Small helpers so 80 equations can be composed from parts instead of
 # hand-typed HTML each time.
 # ---------------------------------------------------------------------------
 
@@ -154,10 +156,13 @@ def section(title: str, section_key: str, cards_html: list[str]) -> str:
     """
     border, _bg, text = _SECTION_COLORS[section_key]
     box_cls = "sec-box hug" if len(cards_html) == 1 else "sec-box"
+    # a list inside `cards_html` is one row of its own (e.g. turbine | pump side by side); plain cards share one wrapping row
+    rows = cards_html if any(isinstance(c, list) for c in cards_html) else [cards_html]
+    rows_html = "".join(f'<div class="sec-row{" grid" if len(rows) > 1 else ""}">{"".join(r if isinstance(r, list) else [r])}</div>' for r in rows)
     return (
         f'<div class="{box_cls}" style="border-color:{border};">'
         f'<div class="sec-title" style="color:{text};">{title}</div>'
-        f'<div class="sec-row">{"".join(cards_html)}</div>'
+        f'{rows_html}'
         f'</div>'
     )
 
@@ -176,181 +181,241 @@ def _build_equations_content() -> str:
 
     # ---- A. Efficiency surface & geometry (12 equations) ----
     S.append(section("A &middot; Efficiency surface &amp; geometry", "A", [
-        card("1", "Turbine efficiency polynomial",
-             f'{sym("&eta;")} = {sym("c", sub="0")}+{sym("c", sub="1")}{"q&#770;"}+{sym("c", sub="2")}{"H&#770;"}'
-             f'+{sym("c", sub="3")}{"q&#770;"}{"H&#770;"}+{sym("c", sub="4")}{"q&#770;"}&sup2;+{sym("c", sub="5")}{"H&#770;"}&sup2;',
-             "6 fitted coefficients (not in the paper's table - modelled the same way as any other calibration constant)", "A"),
-        card("2", "Normalised flow",
-             f'{"q&#770;"} = ({sym("q", sub="f")} &minus; {sym("q", sub="f,min")}) / ({sym("q", sub="f,max")} &minus; {sym("q", sub="f,min")})',
-             "Maps the real flow grid point onto [0,1] for the polynomial above", "A"),
-        card("3", "Normalised head",
-             f'{"H&#770;"} = ({sym("H", sub="h")} &minus; {sym("H", sub="min")}) / ({sym("H", sub="max")} &minus; {sym("H", sub="min")})',
-             "Same idea, for the head grid point", "A"),
-        card("4", "Turbine power at a grid point",
-             f'{sym("&eta;", sub="table", sup="(TRB,f,h)")} &middot; &rho; &middot; g &middot; {sym("q", sub="f")} &middot; {sym("H", sub="h")} / {sym("3.6&times;10", sup="9")}',
-             "Real physics: power = efficiency &times; density &times; gravity &times; flow &times; head", "A"),
-        card("5", "Pump power at a grid point",
-             f'(1/{sym("&eta;", sub="table", sup="(PMP,f,h)")}) &middot; &rho; &middot; g &middot; {sym("q", sub="f")} &middot; {sym("H", sub="h")} / {sym("3.6&times;10", sup="9")}',
-             "Same physics, inverse efficiency since pumping consumes power", "A"),
-        card("6", "Pump minimum power",
-             f'{sym("P", sup="PMP", sub="min")} = {sym("P", sup="PMP", sub="rated")} &middot; ({sym("q", sup="PMP", sub="min")} / {sym("q", sup="PMP", sub="max")})',
-             "Scales the rated power down by the pump's real minimum flow ratio", "A"),
-        card("7", "Reservoir floor volume",
-             f'{sym("Q", sup="res", sub="min")}',
-             "The real minimum upper-reservoir volume, m&sup3; - the reference point head is measured from", "A"),
-        card("8", "Reservoir usable range",
-             f'&Delta;{sym("Q", sup="res")} = {sym("Q", sup="res", sub="max")} &minus; {sym("Q", sup="res", sub="min")}',
-             "The real usable volume band the plant can operate within", "A"),
-        card("9", "Head-volume gradient",
-             f'dH/dQ = ({sym("H", sub="max")} &minus; {sym("H", sub="min")}) / &Delta;{sym("Q", sup="res")}',
-             "Real bathymetric slope - how much head changes per m&sup3; of reservoir volume", "A"),
-        card("10", "MWh-per-volume constant",
-             f'&kappa; = {sym("P", sup="TRB", sub="rated")} / {sym("q", sup="TRB", sub="max")}',
-             "Converts a m&sup3; of water moved into MWh, used later in the water-value term", "A"),
-        card("11", "Turbine headroom cap",
-             f'{sym("P", sup="TRB,cap")} = {sym("P", sup="TRB", sub="rated")} &minus; FRR headroom',
-             "Rated capacity minus whatever FCR/FRR reserve is mandatorily withheld", "A"),
-        card("12", "Pump headroom cap",
-             f'{sym("P", sup="PMP,cap")} = {sym("P", sup="PMP", sub="rated")} &minus; FRR headroom',
-             "Same, for the pump direction", "A"),
+        [
+            card("1", "Turbine efficiency polynomial",
+                 f'{sym("&eta;")} = {sym("c", sub="0")}+{sym("c", sub="1")}{"q&#770;"}+{sym("c", sub="2")}{"H&#770;"}'
+                 f'+{sym("c", sub="3")}{"q&#770;"}{"H&#770;"}+{sym("c", sub="4")}{"q&#770;"}&sup2;+{sym("c", sub="5")}{"H&#770;"}&sup2;',
+                 "6 fitted coefficients (not in the paper's table - modelled the same way as any other calibration constant); each grid value is clipped to a realistic efficiency range", "A"),
+            card("2", "Normalised flow",
+                 f'{"q&#770;"} = ({sym("q", sub="f")} &minus; {sym("q", sub="f,min")}) / ({sym("q", sub="f,max")} &minus; {sym("q", sub="f,min")})',
+                 "Maps the real flow grid point onto [0,1] for the polynomial above", "A"),
+        ],
+        [
+            card("3", "Normalised head",
+                 f'{"H&#770;"} = ({sym("H", sub="h")} &minus; {sym("H", sub="min")}) / ({sym("H", sub="max")} &minus; {sym("H", sub="min")})',
+                 "Same idea, for the head grid point", "A"),
+            card("4", "Turbine power at a grid point",
+                 f'{sym("&eta;", sub="table", sup="(TRB,f,h)")} &middot; &rho; &middot; g &middot; {sym("q", sub="f")} &middot; {sym("H", sub="h")} / {sym("3.6&times;10", sup="9")}',
+                 "Real physics: power = efficiency &times; density &times; gravity &times; flow &times; head", "A"),
+        ],
+        [
+            card("5", "Pump power at a grid point",
+                 f'(1/{sym("&eta;", sub="table", sup="(PMP,f,h)")}) &middot; &rho; &middot; g &middot; {sym("q", sub="f")} &middot; {sym("H", sub="h")} / {sym("3.6&times;10", sup="9")}',
+                 "Same physics, inverse efficiency since pumping consumes power", "A"),
+            card("6", "Pump minimum power",
+                 f'{sym("P", sup="PMP", sub="min")} = {sym("P", sup="PMP", sub="rated")} &middot; ({sym("q", sup="PMP", sub="min")} / {sym("q", sup="PMP", sub="max")})',
+                 "Scales the rated power down by the pump's real minimum flow ratio", "A"),
+        ],
+        [
+            card("7", "Reservoir floor volume",
+                 f'{sym("Q", sup="res", sub="min")}',
+                 "The real minimum upper-reservoir volume, m&sup3; - the reference point head is measured from", "A"),
+            card("8", "Reservoir usable range",
+                 f'&Delta;{sym("Q", sup="res")} = {sym("Q", sup="res", sub="max")} &minus; {sym("Q", sup="res", sub="min")}',
+                 "The real usable volume band the plant can operate within", "A"),
+        ],
+        [
+            card("9", "Head-volume gradient",
+                 f'dH/dQ = ({sym("H", sub="max")} &minus; {sym("H", sub="min")}) / &Delta;{sym("Q", sup="res")}',
+                 "Real bathymetric slope - how much head changes per m&sup3; of reservoir volume", "A"),
+            card("10", "MWh-per-volume constant",
+                 f'&kappa; = {sym("P", sup="TRB", sub="rated")} / {sym("q", sup="TRB", sub="max")}',
+                 "Converts a m&sup3; of water moved into MWh, used later in the water-value term", "A"),
+        ],
+        [
+            card("11", "Turbine headroom cap",
+                 f'{sym("P", sup="TRB,cap")} = {sym("P", sup="TRB", sub="rated")} &minus; FRR headroom',
+                 "Rated capacity minus whatever FCR/FRR reserve is mandatorily withheld", "A"),
+            card("12", "Pump headroom cap",
+                 f'{sym("P", sup="PMP,cap")} = {sym("P", sup="PMP", sub="rated")} &minus; FRR headroom',
+                 "Same, for the pump direction", "A"),
+        ],
     ]))
 
     # ---- B. PSP unit commitment (12 equations) ----
     S.append(section("B &middot; PSP unit commitment", "B", [
-        card("13", "Mode exclusivity",
-             f'{sym("u", sup="TRB", sub="t")} + {sym("u", sup="PMP", sub="t")} &le; 1',
-             "A unit can turbine or pump, never both, in the same ISP", "B"),
-        card("14", "Turbine power upper bound",
-             f'{sym("P", sup=f"TRB{R}DA", sub="t")} &le; {sym("P", sup="TRB", sub="rated")} &middot; {sym("u", sup="TRB", sub="t")}',
-             "Power is zero unless the unit is committed on", "B"),
-        card("15", "Turbine power lower bound",
-             f'{sym("P", sup=f"TRB{R}DA", sub="t")} &ge; {sym("q", sup="TRB", sub="min")} &middot; {sym("u", sup="TRB", sub="t")}',
-             "Once committed, a real minimum stable output applies", "B"),
-        card("16", "Pump power upper bound",
-             f'{sym("P", sup=f"PMP{L}DA", sub="t")} &le; {sym("P", sup="PMP", sub="rated")} &middot; {sym("u", sup="PMP", sub="t")}',
-             "Same pattern, pumping direction", "B"),
-        card("17", "Pump power lower bound",
-             f'{sym("P", sup=f"PMP{L}DA", sub="t")} &ge; {sym("P", sup="PMP", sub="min")} &middot; {sym("u", sup="PMP", sub="t")}',
-             "Real minimum pump draw once committed", "B"),
-        card("18", "Turbine startup flag (t=first)",
-             f'{sym("y", sup="TRB,start", sub="t")} &ge; {sym("u", sup="TRB", sub="t")}',
-             "The first ISP of the horizon: coming on at all counts as a start", "B"),
-        card("19", "Turbine startup flag",
-             f'{sym("y", sup="TRB,start", sub="t")} &ge; {sym("u", sup="TRB", sub="t")} &minus; {sym("u", sup="TRB", sub="t-1")}',
-             "Flags a real transition from off to on", "B"),
-        card("20", "Pump startup flag (t=first)",
-             f'{sym("y", sup="PMP,start", sub="t")} &ge; {sym("u", sup="PMP", sub="t")}',
-             "Same idea, pumping", "B"),
-        card("21", "Pump startup flag",
-             f'{sym("y", sup="PMP,start", sub="t")} &ge; {sym("u", sup="PMP", sub="t")} &minus; {sym("u", sup="PMP", sub="t-1")}',
-             "Same idea, pumping", "B"),
-        card("22", "Minimum dwell window",
-             'W = max(1, round(min_mode_hours / &Delta;t))',
-             "Real minimum-run-time converted into a number of ISPs", "B"),
-        card("23", "Turbine minimum dwell",
-             f'{bigop(lim="&tau;&isin;window")}{sym("u", sup="TRB", sub="&tau;")} &ge; W &middot; {sym("y", sup="TRB,start", sub="t")}',
-             "Once started, a turbine must stay on for the real minimum-mode duration", "B"),
-        card("24", "Pump minimum dwell",
-             f'{bigop(lim="&tau;&isin;window")}{sym("u", sup="PMP", sub="&tau;")} &ge; W &middot; {sym("y", sup="PMP,start", sub="t")}',
-             "Same rule, pumping", "B"),
+        [
+            card("13", "Mode exclusivity",
+                 f'{sym("u", sup="TRB", sub="t")} + {sym("u", sup="PMP", sub="t")} &le; 1',
+                 "A unit can turbine or pump, never both, in the same ISP", "B"),
+            card("14", "Fixed-speed pump",
+                 f'{bigop(lim="h")}{sym("&omega;", sup="PMP", sub="f=f,max,h")} = {sym("u", sup="PMP", sub="t")}',
+                 "A fixed-speed pump runs only at its maximum flow point", "B"),
+        ],
+        [
+            card("15", "Turbine power upper bound",
+                 f'{sym("P", sup=f"TRB{R}DA", sub="t")} &le; {sym("P", sup="TRB", sub="rated")} &middot; {sym("u", sup="TRB", sub="t")}',
+                 "Power is zero unless the unit is committed on", "B"),
+            card("16", "Pump power upper bound",
+                 f'{sym("P", sup=f"PMP{L}DA", sub="t")} &le; {sym("P", sup="PMP", sub="rated")} &middot; {sym("u", sup="PMP", sub="t")}',
+                 "Same pattern, pumping direction", "B"),
+        ],
+        [
+            card("17", "Turbine power lower bound",
+                 f'{sym("P", sup=f"TRB{R}DA", sub="t")} &ge; {sym("P", sup="TRB", sub="min")} &middot; {sym("u", sup="TRB", sub="t")}',
+                 "Once committed, a real minimum stable output applies", "B"),
+            card("18", "Pump power lower bound",
+                 f'{sym("P", sup=f"PMP{L}DA", sub="t")} &ge; {sym("P", sup="PMP", sub="min")} &middot; {sym("u", sup="PMP", sub="t")}',
+                 "Real minimum pump draw once committed", "B"),
+        ],
+        [
+            card("19", "Turbine startup flag (t=first)",
+                 f'{sym("y", sup="TRB,start", sub="t")} &ge; {sym("u", sup="TRB", sub="t")} &minus; {sym("u", sup="TRB", sub="0")}',
+                 "The first ISP of the day: a start only if the unit was off at the end of yesterday", "B"),
+            card("20", "Pump startup flag (t=first)",
+                 f'{sym("y", sup="PMP,start", sub="t")} &ge; {sym("u", sup="PMP", sub="t")} &minus; {sym("u", sup="PMP", sub="0")}',
+                 "Same idea, pumping", "B"),
+        ],
+        [
+            card("21", "Turbine startup flag",
+                 f'{sym("y", sup="TRB,start", sub="t")} &ge; {sym("u", sup="TRB", sub="t")} &minus; {sym("u", sup="TRB", sub="t-1")}',
+                 "Flags a real transition from off to on", "B"),
+            card("22", "Pump startup flag",
+                 f'{sym("y", sup="PMP,start", sub="t")} &ge; {sym("u", sup="PMP", sub="t")} &minus; {sym("u", sup="PMP", sub="t-1")}',
+                 "Same idea, pumping", "B"),
+        ],
+        [
+            card("23", "Minimum dwell window",
+                 'W = max(1, round(min_mode_hours / &Delta;t))',
+                 "Real minimum-run-time converted into a number of ISPs", "B"),
+            card("24", "Minimum down window",
+                 f'{sym("W", sub="d")} = max(1, round(min_down_hours / &Delta;t))',
+                 "Real minimum off-time converted into a number of ISPs", "B"),
+        ],
+        [
+            card("25", "Turbine minimum dwell",
+                 f'{bigop(lim="&tau;&isin;window")}{sym("u", sup="TRB", sub="&tau;")} &ge; W &middot; {sym("y", sup="TRB,start", sub="t")}',
+                 "Once started, a turbine must stay on for the real minimum-mode duration", "B"),
+            card("26", "Turbine minimum down time",
+                 f'{bigop(lim="&tau;&isin;window")}(1 &minus; {sym("u", sup="TRB", sub="&tau;")}) &ge; |window| &middot; ({sym("u", sup="TRB", sub="t-1")} &minus; {sym("u", sup="TRB", sub="t")})',
+                 "A turbine that has just switched off stays off for the next W<sub>d</sub> ISPs", "B"),
+        ],
+        [
+            card("27", "Pump minimum dwell",
+                 f'{bigop(lim="&tau;&isin;window")}{sym("u", sup="PMP", sub="&tau;")} &ge; W &middot; {sym("y", sup="PMP,start", sub="t")}',
+                 "Same rule, pumping", "B"),
+            card("28", "Pump minimum down time",
+                 f'{bigop(lim="&tau;&isin;window")}(1 &minus; {sym("u", sup="PMP", sub="&tau;")}) &ge; |window| &middot; ({sym("u", sup="PMP", sub="t-1")} &minus; {sym("u", sup="PMP", sub="t")})',
+                 "Same rule, pumping", "B"),
+        ],
+        [
+            card("29/30", "Time already spent before midnight",
+                 f'{sym("u", sub="t")} = {sym("u", sub="0")} &nbsp; for t &le; max(0, L &minus; a)',
+                 "A unit already on (or off) for a ISPs at midnight keeps that status until its minimum time L is used up (turbines and pumps)", "B"),
+        ],
     ]))
 
     # ---- C. Head-volume geometry & McCormick linearisation (9 equations) ----
     S.append(section("C &middot; Head-volume geometry &amp; McCormick linearisation", "C", [
-        card("25", "Net head from volume",
+        card("31", "Net head from volume",
              f'{sym("H", sup="net", sub="t")} = {sym("H", sub="min")} + dH/dQ &middot; ({sym("Q", sup="res,up", sub="t")} &minus; {sym("Q", sup="res", sub="min")})',
              "Real hydraulic head is a linear function of how full the upper reservoir is", "C"),
-        card("26/27", "Turbine active-head bounds",
+        card("32/33", "Turbine active-head bounds",
              f'{sym("H&#770;", sup="TRB")} &isin; [{sym("H", sub="min", sup="safe")}, {sym("H", sub="max", sup="safe")}] &middot; {sym("u", sup="TRB", sub="t")}',
              "McCormick envelope keeping the linearised active head within the real safe operating range", "C"),
-        card("28/29", "Turbine active-head linking",
+        card("34/35", "Turbine active-head linking",
              f'{sym("H&#770;", sup="TRB")} &asymp; {sym("H", sup="net", sub="t")} when {sym("u", sup="TRB", sub="t")}=1',
              "Ties the active-head variable to the real net head only while the unit runs", "C"),
-        card("30/31/32/33", "Pump active-head (same pattern)",
-             f'{sym("H&#770;", sup="PMP")} - identical structure to 26&ndash;29, for {sym("u", sup="PMP", sub="t")}',
+        card("36/37/38/39", "Pump active-head (same pattern)",
+             f'{sym("H&#770;", sup="PMP")} - identical structure to 32&ndash;35, for {sym("u", sup="PMP", sub="t")}',
              "The same 4-constraint McCormick envelope, mirrored for pumping mode", "C"),
     ]))
 
     # ---- D. Omega interpolation (8 equations) ----
     S.append(section("D &middot; Omega - bilinear efficiency-surface interpolation", "D", [
-        card("34/35", "Interpolation weights sum to commitment",
+        card("40/41", "Interpolation weights sum to commitment",
              f'{bigop()}{sym("&omega;", sup="TRB")} = {sym("u", sup="TRB", sub="t")} &nbsp;&nbsp; (same for PMP)',
              "The grid weights for an off unit are forced to zero, on units sum to exactly 1", "D"),
-        card("36/37", "Power from the interpolated grid",
+        card("42/43", "Power from the interpolated grid",
              f'{sym("P", sup=f"TRB{R}DA", sub="t")} = {bigop()}{sym("&omega;", sup="TRB")} &middot; power({sym("q", sub="f")},{sym("H", sub="h")})',
              "Real dispatched power is a weighted blend of the pre-computed grid power values (same for pumping)", "D"),
-        card("38/39", "Flow from the interpolated grid",
+        card("44/45", "Flow from the interpolated grid",
              f'{sym("q", sup="TRB", sub="t")} = {bigop()}{sym("&omega;", sup="TRB")} &middot; {sym("q", sub="f")}',
              "The actual flow is the same weighted blend, over the flow axis (same for pumping)", "D"),
-        card("40/41", "Head consistency",
+        card("46/47", "Head consistency",
              f'{bigop()}{sym("&omega;", sup="TRB")} &middot; {sym("H", sub="h")} = {sym("H&#770;", sup="TRB")}',
              "Forces the interpolation weights to also reproduce the real active head (same for pumping)", "D"),
+        card("48/49", "Neighbouring grid points only (SOS2)",
+             f'{sym("&lambda;", sup="TRB", sub="h")} = {bigop(lim="f")}{sym("&omega;", sup="TRB", sub="f,h")}, &nbsp; {{&lambda;<sub>1</sub>, &hellip;, &lambda;<sub>5</sub>}} is SOS2',
+             "Keeps each unit's weights on one cell of the grid, so turbine power cannot be overstated (about 2.6% on a heavy day). Default: head axis, turbine only", "D"),
     ]))
 
     # ---- E. BESS (6 equations) ----
     S.append(section("E &middot; BESS", "E", [
-        card("42", "Charge/discharge exclusivity",
-             f'{sym("u", sup="BESS,ch", sub="t")} + {sym("u", sup="BESS,dis", sub="t")} &le; 1',
-             "The battery can charge or discharge, never both, in one ISP", "E"),
-        card("43", "Charge power cap",
-             f'{sym("P", sup=f"BESS{L}DA", sub="t")} + {sym("P", sup=f"PV{R}BESS", sub="t")} &le; {sym("P", sup="BESS", sub="rated")} &middot; {sym("u", sup="BESS,ch", sub="t")}',
-             "Grid-charging and PV-to-battery charging share the same rated power limit", "E"),
-        card("44", "Discharge power cap",
-             f'{sym("P", sup=f"BESS{R}DA", sub="t")} &le; {sym("P", sup="BESS", sub="rated")} &middot; {sym("u", sup="BESS,dis", sub="t")}',
-             "Real inverter power limit while discharging", "E"),
-        card("45", "PV-to-BESS flow cap",
-             f'{sym("P", sup=f"PV{R}BESS", sub="t")} &le; {sym("P", sup="BESS", sub="rated")}',
-             "PV charging the battery still can't exceed the battery's own rated power", "E"),
-        card("46", "State-of-charge balance",
-             f'{sym("E", sup="BESS", sub="t")} = {sym("E", sup="BESS", sub="t-1")} + {sym("&eta;", sub="ch")}&middot;chg&middot;&Delta;t &minus; dis&middot;&Delta;t/{sym("&eta;", sub="dis")}',
-             "Battery level next ISP = level now + charge in &minus; discharge out, each scaled by round-trip loss", "E"),
-        card("47/48", "SOC bounds",
-             f'{sym("E", sup="BESS", sub="min")} &le; {sym("E", sup="BESS", sub="t")} &le; {sym("E", sup="BESS", sub="max")}',
-             "The real battery can never go below its floor or above its cap", "E"),
+        [
+            card("50", "Charge/discharge exclusivity",
+                 f'{sym("u", sup="BESS,ch", sub="t")} + {sym("u", sup="BESS,dis", sub="t")} &le; 1',
+                 "The battery can charge or discharge, never both, in one ISP", "E"),
+            card("51", "Charge power cap",
+                 f'{sym("P", sup=f"BESS{L}DA", sub="t")} + {sym("P", sup=f"PV{R}BESS", sub="t")} &le; {sym("P", sup="BESS", sub="rated")} &middot; {sym("u", sup="BESS,ch", sub="t")}',
+                 "Grid-charging and PV-to-battery charging share the same rated power limit", "E"),
+        ],
+        [
+            card("52", "Discharge power cap",
+                 f'{sym("P", sup=f"BESS{R}DA", sub="t")} &le; {sym("P", sup="BESS", sub="rated")} &middot; {sym("u", sup="BESS,dis", sub="t")}',
+                 "Real inverter power limit while discharging", "E"),
+            card("53", "PV-to-BESS flow cap",
+                 f'{sym("P", sup=f"PV{R}BESS", sub="t")} &le; {sym("P", sup="BESS", sub="rated")}',
+                 "PV charging the battery still can't exceed the battery's own rated power", "E"),
+        ],
+        [
+            card("54", "State-of-charge balance",
+                 f'{sym("E", sup="BESS", sub="t")} = {sym("E", sup="BESS", sub="t-1")} + {sym("&eta;", sub="ch")}&middot;chg&middot;&Delta;t &minus; dis&middot;&Delta;t/{sym("&eta;", sub="dis")}',
+                 "Battery level next ISP = level now + charge in &minus; discharge out, each scaled by round-trip loss", "E"),
+            card("55/56", "SOC bounds",
+                 f'{sym("E", sup="BESS", sub="min")} &le; {sym("E", sup="BESS", sub="t")} &le; {sym("E", sup="BESS", sub="max")}',
+                 "The real battery can never go below its floor or above its cap", "E"),
+        ],
     ]))
 
     # ---- F. PV balance (1 equation) ----
     S.append(section("F &middot; PV balance", "F", [
-        card("49", "PV power split",
+        card("57", "PV power split",
              f'{sym("P", sup=f"PV{R}DA", sub="t")} + {sym("P", sup=f"PV{R}BESS", sub="t")} + {sym("P", sup="PV,curt", sub="t")} = {sym("P", sup="PV,avail", sub="t")}',
              "Every available PV MW is sold, routed to the battery, or curtailed - a real solver decision, not a fixed rule", "F"),
     ]))
 
     # ---- G. Reservoir constraints (7 equations) ----
     S.append(section("G &middot; Reservoir constraints", "G", [
-        card("50", "Upper reservoir balance",
-             f'{sym("Q", sup="res,up", sub="t")} = {sym("Q", sup="res,up", sub="t-1")} + ({sym("q", sup="nat")} + {sym("q", sup="PMP")} &minus; {sym("q", sup="TRB")} &minus; {sym("q", sup="spill")}) &middot; &Delta;t',
-             "Real water-volume bookkeeping: inflow and pumping add, turbining and spill remove", "G"),
-        card("51", "Lower reservoir balance",
-             f'{sym("Q", sup="res,low", sub="t")} = {sym("Q", sup="res,low", sub="t-1")} + ({sym("q", sup="TRB")} &minus; {sym("q", sup="PMP")}) &middot; &Delta;t',
-             "The tailrace reservoir mirrors the upper one, turbining fills it, pumping drains it", "G"),
-        card("52/53", "Upper reservoir bounds",
-             f'{sym("Q", sup="res", sub="min")} &le; {sym("Q", sup="res,up", sub="t")} &le; {sym("Q", sup="res", sub="max")}',
-             "The real physical volume band of the upper reservoir", "G"),
-        card("54/55", "Lower reservoir bounds",
-             f'{sym("Q", sup="res,low", sub="min")} &le; {sym("Q", sup="res,low", sub="t")} &le; {sym("Q", sup="res,low", sub="max")}',
-             "Same, for the lower reservoir", "G"),
-        card("56", "Terminal reservoir constraint",
-             f'{sym("Q", sup="res,up", sub="T-end")} &ge; {sym("Q", sup="res", sub="init")}',
-             "The plan can't end the horizon by draining the reservoir below where it started", "G",
-             wide=True),
+        [
+            card("58", "Upper reservoir balance",
+                 f'{sym("Q", sup="res,up", sub="t")} = {sym("Q", sup="res,up", sub="t-1")} + ({sym("q", sup="nat")} + {sym("q", sup="PMP")} &minus; {sym("q", sup="TRB")} &minus; {sym("q", sup="spill")}) &middot; &Delta;t',
+                 "Real water-volume bookkeeping: inflow and pumping add, turbining and spill remove", "G"),
+            card("59", "Lower reservoir balance",
+                 f'{sym("Q", sup="res,low", sub="t")} = {sym("Q", sup="res,low", sub="t-1")} + ({sym("q", sup="TRB")} &minus; {sym("q", sup="PMP")}) &middot; &Delta;t',
+                 "The tailrace reservoir mirrors the upper one, turbining fills it, pumping drains it", "G"),
+        ],
+        [
+            card("60/61", "Upper reservoir bounds",
+                 f'{sym("Q", sup="res", sub="min")} &le; {sym("Q", sup="res,up", sub="t")} &le; {sym("Q", sup="res", sub="max")}',
+                 "The real physical volume band of the upper reservoir", "G"),
+            card("62/63", "Lower reservoir bounds",
+                 f'{sym("Q", sup="res,low", sub="min")} &le; {sym("Q", sup="res,low", sub="t")} &le; {sym("Q", sup="res,low", sub="max")}',
+                 "Same, for the lower reservoir", "G"),
+        ],
+        [
+            card("64", "Terminal reservoir constraint",
+                 f'{sym("Q", sup="res,up", sub="T-end")} &ge; {sym("Q", sup="res", sub="init")}',
+                 "The plan can't end the horizon by draining the reservoir below where it started", "G",
+                 wide=True),
+        ],
     ]))
 
     # ---- H. Net position / energy balance (4 equations) ----
     S.append(section("H &middot; Net position balance", "H", [
-        card("57", "Net position identity",
+        card("65", "Net position identity",
              f'{bigop()}{sym("P", sup=f"{R}DA", sub="t")} = {bigop()}({sym("P", sup=f"TRB{R}DA", sub="t")} &minus; {sym("P", sup=f"PMP{L}DA", sub="t")}) '
              f'+ {sym("P", sup=f"PV{R}DA", sub="t")} + {sym("P", sup=f"BESS{R}DA", sub="t")} &minus; {sym("P", sup=f"BESS{L}DA", sub="t")}',
              "Every MW the plant puts on or takes off the grid, added up - holds for every single ISP", "H",
              legend=[(_TRB, "hydro turbine &minus; pump"), (_PV, "PV sold to market"), (_BESS, "BESS discharge &minus; charge")],
              wide=True),
-        card("58", "Generation headroom",
+        card("66", "Generation headroom",
              f'{bigop()}{sym("P", sup=f"{R}DA", sub="t")} &le; {sym("P", sup="TRB,cap")} &minus; {bigop()}{sym("P", sup=f"{R}uFRR")}',
              "Net export can't exceed generation capacity minus whatever aFRR/mFRR up-reserve is already awarded", "H"),
-        card("59", "Pumping headroom",
+        card("67", "Pumping headroom",
              f'{bigop()}{sym("P", sup=f"{R}DA", sub="t")} &ge; &minus;({sym("P", sup="PMP,cap")} &minus; {bigop()}{sym("P", sup=f"{R}dFRR")})',
              "Same idea in the pumping direction, against down-reserve headroom", "H"),
-        card("60", "IDA fixed-net lock",
+        card("68", "IDA fixed-net lock",
              f'{bigop()}{sym("P", sup=f"{R}DA", sub="t")} = {sym("P", sup="fixed")} &nbsp; <span class="rm" style="font-size:0.6em;">(IDA gates only)</span>',
              "ISPs already committed at an earlier gate are locked; only the remaining ISPs stay free variables", "H",
              wide=True),
@@ -358,25 +423,25 @@ def _build_equations_content() -> str:
 
     # ---- I. Objective (7 equations) ----
     S.append(section("I &middot; Objective - maximise revenue", "I", [
-        card("61", "Energy revenue",
+        card("69", "Energy revenue",
              f'{bigop(lim="t")}{sym("&lambda;", sup="DA", sub="t")} &middot; {sym("P", sup=f"{R}DA", sub="t")} &middot; &Delta;t',
              "Price &times; power sold, summed over every ISP", "I"),
-        card("62", "Water value",
+        card("70", "Water value",
              f'{sym("c", sub="water")} &middot; &kappa; &middot; ({sym("Q", sup="res,up", sub="T-end")} &minus; {sym("Q", sup="res", sub="init")})',
              "Credits (or penalises) ending the horizon with more (or less) stored water than at the start", "I"),
-        card("63", "PV curtailment penalty",
+        card("71", "PV curtailment penalty",
              f'{sym("c", sub="curt")} &middot; {bigop()}{sym("P", sup="PV,curt", sub="t")} &middot; &Delta;t',
              "Discourages wasting available solar power", "I"),
-        card("64", "BESS degradation cost",
+        card("72", "BESS degradation cost",
              f'{sym("c", sub="BESS")} &middot; {bigop()}(chg + {sym("P", sup=f"PV{R}BESS")} + dis) &middot; &Delta;t',
              "A real &euro;/MWh throughput cost applied to every MWh cycled through the battery", "I"),
-        card("65", "Spillage penalty",
+        card("73", "Spillage penalty",
              f'{sym("c", sub="spill")} &middot; {bigop()}{sym("q", sup="spill")} &middot; &Delta;t',
              "Penalises wasting water that could have generated revenue", "I"),
-        card("66", "Startup cost",
+        card("74", "Startup cost",
              f'{sym("c", sub="TRB")} &middot; {bigop()}{sym("y", sup="TRB,start")} + {sym("c", sub="PMP")} &middot; {bigop()}{sym("y", sup="PMP,start")}',
              "A real fixed cost charged every time a unit starts", "I"),
-        card("67", "Objective",
+        card("75", "Objective",
              'Z = max( revenue + water value &minus; curtailment &minus; degradation &minus; spillage &minus; startup )',
              "Solved once, jointly, across the whole horizon - every other equation on this page feeds into this single number", "I",
              wide=True),
@@ -384,18 +449,21 @@ def _build_equations_content() -> str:
 
     # ---- Solver: extraction (6 equations) ----
     S.append(section("J &middot; Solver extraction (core_milp_solver.py)", "S", [
-        card("68/69", "Accumulated energy revenue",
+        card("76/77", "Accumulated energy revenue",
              f'energy_rev += {sym("&lambda;", sup="DA", sub="t")} &middot; {sym("P", sup=f"{R}DA", sub="t")} &middot; &Delta;t',
-             "The same equation as #61, accumulated ISP by ISP as the solved schedule is read back out", "S"),
-        card("70", "Total charge power",
+             "The same equation as #69, accumulated ISP by ISP as the solved schedule is read back out", "S"),
+        card("78", "Total charge power",
              f'total_charge = {sym("P", sup=f"BESS{L}DA")} + {sym("P", sup=f"PV{R}BESS")}',
              "Grid-charging and PV-charging combined, for reporting", "S"),
-        card("71", "Power-weighted realised efficiency",
+        card("79", "Power-weighted realised efficiency",
              f'{sym("&eta;", sub="pw")} = {bigop()}&omega;&middot;&eta;&middot;qH / {bigop()}&omega;&middot;qH',
              "The actual efficiency the unit achieved, weighted by how much flow/head it really ran at (0 if no flow)", "S"),
-        card("72", "Binding constraint check",
+        card("80", "Binding constraint check",
              'binding = |slack| &lt; 1e&minus;6',
              "Flags which real constraints were actually active at the solved optimum, for diagnostics", "S"),
+        card("", "Two-stage solve",
+             '1&nbsp; solve without the SOS2 sets &nbsp;&rarr;&nbsp; 2&nbsp; fix every binary at its stage-1 value and re-solve with the SOS2 sets',
+             "About 8-10 s per gate instead of 60-120 s; turbine power overstatement falls from about +2.9% to +0.17%", "S", wide=True),
     ]))
 
     # Stitch sections together as a real flowchart: an arrow between each
@@ -423,7 +491,7 @@ _INPUTS = """
 </marker>
 </defs>
 <style>.f8{font-size:8px; font-family:monospace; fill:#2C2C2A;} .sec{font-size:12px; font-weight:500;} .tgt{font-size:8px; font-family:monospace; font-weight:700;}</style>
-<text x="450" y="18" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="500">Where every input value comes from - feeding the 72-equation model</text>
+<text x="450" y="18" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="500">Where every input value comes from - feeding the 80-equation model</text>
 
 <rect x="20" y="30" width="270" height="220" rx="8" fill="#F3FAF7" stroke="#0F6E56"/>
 <text x="32" y="48" class="sec" fill="#04342C">PSP unit config (static)</text>
@@ -435,6 +503,9 @@ _INPUTS = """
 <text x="32" y="122">min_mode_hours (dwell W)</text>
 <text x="32" y="136">n_units_turb / n_units_pump</text>
 <text x="32" y="150">FRR mandatory headroom</text>
+<text x="32" y="164">min_down_hours (down-time window W_d)</text>
+<text x="32" y="178">pump_fixed_speed, c_PMP (pump start cost)</text>
+<text x="32" y="192">unit on/off status and hours in it (day start)</text>
 </g>
 <text x="32" y="228" class="tgt" fill="#0F6E56">&#8594; sections A, B, H</text>
 
@@ -510,7 +581,7 @@ _INPUTS = """
 
 
 def equation_blocks_html() -> str:
-    """All 72 equations, real typeset HTML/CSS math (centered, no per-term
+    """All 80 equations, real typeset HTML/CSS math (centered, no per-term
     callouts - the finalized style), grouped by section in build order."""
     return build_equations_html()
 
@@ -1092,120 +1163,4 @@ function plcPlay() {{
   step();
 }}
 </script>
-"""
-
-
-_PLAIN_STEPS_CSS = """
-<style>
-.pls-wrap { font-family: 'Times New Roman', Times, serif; max-width: 700px; margin: 10px auto 0 auto; }
-.pls-step { border-radius: 14px; padding: 18px 24px 20px 24px; margin: 0 auto;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05);
-            background: #ffffff; border: 1px solid #eceae4; border-left: 4px solid; }
-.pls-step.aqua  { border-left-color: #1baf7a; }
-.pls-step.amber { border-left-color: #eda100; }
-.pls-head { display: flex; align-items: center; gap: 11px; margin: 0 0 12px 0; }
-.pls-badge { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center;
-             justify-content: center; font-size: 13px; font-weight: 700; color: #ffffff; }
-.pls-step.aqua  .pls-badge { background: #1baf7a; }
-.pls-step.amber .pls-badge { background: #eda100; }
-.pls-title { font-size: 16px; font-weight: 700; letter-spacing: 0.1px; margin: 0; }
-.pls-step.aqua  .pls-title { color: #0c6b4c; }
-.pls-step.amber .pls-title { color: #8a6100; }
-.pls-tag { font-size: 10.5px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
-           padding: 2px 9px; border-radius: 999px; margin-left: auto; }
-.pls-step.aqua  .pls-tag { background: rgba(27,175,122,0.13); color: #0c6b4c; }
-.pls-step.amber .pls-tag { background: rgba(237,161,0,0.15); color: #8a6100; }
-.pls-list { margin: 0; padding: 0; list-style: none; }
-.pls-list li { font-size: 13.5px; color: #33322f; line-height: 1.65; padding-left: 20px; position: relative; margin-bottom: 3px; }
-.pls-list li:last-child { margin-bottom: 0; }
-.pls-list li::before { content: '\\2192'; position: absolute; left: 0; top: 0; font-size: 12px; }
-.pls-step.aqua  .pls-list li::before { color: #1baf7a; }
-.pls-step.amber .pls-list li::before { color: #eda100; }
-.pls-arrow { text-align: center; margin: 2px 0; line-height: 1; }
-.pls-arrow svg { display: block; margin: 0 auto; }
-.pls-note { text-align: center; font-size: 12.5px; font-style: italic; color: #6b6a66; margin: 14px 0 6px 0; line-height: 1.6; }
-.pls-legend { text-align: center; font-size: 11.5px; color: #6b6a66; margin-top: 10px; padding-top: 10px;
-              border-top: 1px solid #eceae4; }
-.pls-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 5px 0 14px; vertical-align: middle; }
-.pls-legend .dot:first-child { margin-left: 0; }
-.pls-legend .dot.aqua { background: #1baf7a; }
-.pls-legend .dot.amber { background: #eda100; }
-</style>
-"""
-
-def _pls_arrow(color: str) -> str:
-    """A short colored connector between two step cards - a soft stem plus a
-    filled chevron head, tinted to the step it's leading into."""
-    return (f'<div class="pls-arrow"><svg width="20" height="30" viewBox="0 0 20 30">'
-            f'<line x1="10" y1="0" x2="10" y2="15" stroke="{color}" stroke-width="2" stroke-linecap="round"/>'
-            f'<path d="M3 14 L10 26 L17 14 Z" fill="{color}"/></svg></div>')
-
-
-def pipeline_steps_plain_html() -> str:
-    """DA/aFRR/mFRR/IDA1, one real step at a time, in plain language for a
-    first-time reader. Teal = actually runs Plant modeling & optimization
-    (DA, IDA1, and by extension IDA2/IDA3/XBID). Amber = a standalone sizing
-    formula that never calls the optimizer (aFRR, mFRR) - see
-    reserve_offer_builder.py::compute_price_aware_fraction and
-    afrr_offer_builder.py/mfrr_offer_builder.py for the real code this maps to."""
-    return _PLAIN_STEPS_CSS + f"""
-<div class="pls-wrap">
-  <div class="pls-step aqua">
-    <div class="pls-head">
-      <div class="pls-badge">1</div>
-      <div class="pls-title">DA gate</div>
-      <div class="pls-tag">Runs the optimizer</div>
-    </div>
-    <ul class="pls-list">
-      <li>Guess tomorrow's price, sunshine and river inflow</li>
-      <li>Run the optimizer to pick the best power plan, hour by hour</li>
-      <li>Lock in that plan: how many MW to sell, at what price</li>
-    </ul>
-  </div>
-  {_pls_arrow('#eda100')}
-  <div class="pls-step amber">
-    <div class="pls-head">
-      <div class="pls-badge">2</div>
-      <div class="pls-title">aFRR gate</div>
-      <div class="pls-tag">Quick rule</div>
-    </div>
-    <ul class="pls-list">
-      <li>Look at the power plan already locked in for tomorrow</li>
-      <li>Predict the standby price with a model trained on real REN/PICASSO prices back to 2019</li>
-      <li>Set aside some capacity as backup, using a quick rule</li>
-      <li>Save that backup amount, within the plant's physical limits</li>
-    </ul>
-  </div>
-  {_pls_arrow('#eda100')}
-  <div class="pls-step amber">
-    <div class="pls-head">
-      <div class="pls-badge">3</div>
-      <div class="pls-title">mFRR gate</div>
-      <div class="pls-tag">Quick rule</div>
-    </div>
-    <ul class="pls-list">
-      <li>Look at whatever capacity aFRR left free</li>
-      <li>Predict the standby price with a model trained on real REN/MARI prices back to 2024</li>
-      <li>Set aside more capacity as backup, using the same quick rule</li>
-      <li>Save that backup amount too, within the plant's physical limits</li>
-    </ul>
-  </div>
-  {_pls_arrow('#1baf7a')}
-  <div class="pls-step aqua">
-    <div class="pls-head">
-      <div class="pls-badge">4</div>
-      <div class="pls-title">IDA1 gate</div>
-      <div class="pls-tag">Runs the optimizer</div>
-    </div>
-    <ul class="pls-list">
-      <li>Look at the locked-in plan plus both backup amounts</li>
-      <li>Guess this round's price</li>
-      <li>Run the optimizer again, with less power now free to trade</li>
-      <li>Check if the extra money beats the cost of changing the plan</li>
-      <li>If yes, update the plan; if not, leave it as it is</li>
-    </ul>
-  </div>
-  <div class="pls-note">IDA2, IDA3 and XBID repeat step 4, exactly the same way,<br/>each with a fresh price guess and the plan from the round before</div>
-  <div class="pls-legend"><span class="dot aqua"></span>Runs the optimizer<span class="dot amber"></span>Quick rule, not the optimizer</div>
-</div>
 """

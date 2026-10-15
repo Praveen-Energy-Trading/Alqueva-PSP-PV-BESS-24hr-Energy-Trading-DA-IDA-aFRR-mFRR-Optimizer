@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 TARGETS = ("da_price", "afrr_cap_price", "afrr_dn_price", "ida1_price", "ida2_price", "ida3_price", "xbid_price", "mfrr_price")
-LABELS = {"da_price": "Day-ahead price", "afrr_cap_price": "aFRR capacity price (up)", "afrr_dn_price": "aFRR capacity price (down)", "ida1_price": "IDA1 price", "ida2_price": "IDA2 price",
+LABELS = {"pv_weather": "Solar irradiance and temperature (PV)", "reservoir_inflow": "Natural inflow", "da_price": "Day-ahead price", "afrr_cap_price": "aFRR capacity price (up)", "afrr_dn_price": "aFRR capacity price (down)", "ida1_price": "IDA1 price", "ida2_price": "IDA2 price",
           "ida3_price": "IDA3 price", "xbid_price": "XBID price", "mfrr_price": "mFRR price"}
 UNITS = {t: "EUR/MWh" for t in TARGETS} | {"afrr_cap_price": "EUR/MW/h", "afrr_dn_price": "EUR/MW/h"}
 MODEL_LABELS = {"decision_tree": "Decision tree", "random_forest": "Random forest", "gradient_boosting": "Gradient boosting",
@@ -202,6 +202,14 @@ def pack_json(name: str, root: Path = REPO_ROOT) -> Optional[dict]:
 def exploratory(target: str, root: Path = REPO_ROOT) -> Optional[dict]:
     """The exploratory result of a target whose history is too short for a decision (tools/explore_mfrr.py), or None."""
     return read_json(md(root) / "exploratory" / f"{target}.json")
+
+
+PLANT_INPUTS = [("ghi", "Solar irradiance", "pv_weather"), ("temperature", "Air temperature", "pv_weather"), ("inflow", "Natural inflow", "reservoir_inflow")]
+
+
+def plant_input(key: str, root: Path = REPO_ROOT) -> Optional[dict]:
+    """The held-out evaluation of a plant-input forecast (tools/evaluate_plant_inputs.py), or None."""
+    return read_json(md(root) / "plant_inputs" / f"{key}.json")
 
 
 # -------------------------------------------------------------------------------------------------- decisions and results

@@ -533,19 +533,20 @@ The pack (about 1 MB) holds the tuning trials, daily losses, locked-year forecas
 
 ## Outputs
 
-### 9 Production Figures — `figures/output/`, 600 DPI
+### 8 Figures — `figures/output/`, SVG
 
-| # | Filename | Description |
-|---|----------|-------------|
-| 1 | `fig01_dispatch_profile.png` | DA net position (MWh) + DA price (EUR/MWh) — bar + line overlay |
-| 2 | `fig02_soc_trajectory.png` | BESS state of charge (% of 2 MWh), 10 %/95 % bounds, step plot |
-| 3 | `fig03_revenue_waterfall.png` | Revenue by stream — DA, IDA+XBID, aFRR, mFRR, Imbalance — stacked bar |
-| 4 | `fig04_reserve_capacity.png` | aFRR + mFRR capacity offered (MW up/dn per hour), dual subplots |
-| 5 | `fig05_gate_position_comparison.png` | Position evolution DA → IDA1 → IDA2 → IDA3 → XBID — line plot |
-| 6 | `fig06_intraday_reoptimisation.png` | DA vs final committed position, IDA+XBID delta bar overlay |
-| 7 | `fig07_psp_dispatch.png` | PSP turbine / pump MW schedule vs DA price — bar + line |
-| 8 | `fig08_pv_bess_flow.png` | PV disposition (used / to-BESS / curtailed) + BESS power — dual subplots |
-| 9 | `ops_board.png` | 3×3 operations dashboard — dispatch, SoC, KPIs, positions, aFRR, mFRR, P&L |
+Written by `figures.generate(date)` at the end of every run and shown on the dashboard's Figures page. Text is converted to paths, so the figures look the same everywhere. A figure whose input is missing is skipped, never an error.
+
+| # | File | What it shows |
+|---|------|---------------|
+| 1 | `01_trading_day.svg` | When each market decides: day-ahead, aFRR and mFRR bands, IDA1-3, continuous intraday, then the delivery |
+| 2 | `02_day_plan.svg` | The solved day: day-ahead price, and the plant dispatch (turbines, PV, battery, pumps) it leads to |
+| 3 | `03_capacity_stack.svg` | How every MW is shared between energy and the aFRR/mFRR reserve held back, inside the plant's limits |
+| 4 | `04_water_and_battery.svg` | Both reservoirs, the battery and the head staying inside their limits |
+| 5 | `05_efficiency_surface.svg` | The turbine efficiency surface (flow against head) with the day's operating points |
+| 6 | `06_forecast_skill.svg` | Locked-test error of each price model against the reference model |
+| 7 | `07_revenue_sources.svg` | A year of revenue by source, from the backtest |
+| 8 | `08_risk.svg` | Distribution of the daily result, VaR and CVaR (history and Monte Carlo) |
 
 ### 5-Sheet Excel Report — `runtime/reports/daily_report_<date>.xlsx`
 
