@@ -117,27 +117,3 @@ else:
                      ("Diebold-Mariano p-value", f"{expl['dm_best_vs_best_naive']['p_value']:.2f}")], ncols=1, pre_formatted=True)
     st.caption("The algorithms are ahead of the naive forecasts, but with this few days the difference cannot be told from luck (p above 0.05). "
                "mFRR joins the full process when the windows are rolled forward and the history is long enough.")
-
-st.subheader("Plant inputs: solar irradiance, temperature, inflow")
-_pi = {k: ml_data.plant_input(k) for k, _, _ in ml_data.PLANT_INPUTS}
-if not any(_pi.values()):
-    ml_ui.not_yet_run("the plant input evaluation (tools/evaluate_plant_inputs.py)")
-else:
-    _g, _f = _pi.get("ghi"), _pi.get("inflow")
-    _ranges = "; ".join(f"{n}: test {r['test_range'][0]} to {r['test_range'][1]} ({r['n_test']:,} values)" for n, r in (("irradiance and temperature", _g), ("inflow", _f)) if r)
-    st.markdown(f"""
-- A **shorter protocol** than the price targets: a chronological split in which the **last twelve months are the test** ({_ranges}).
-- The algorithm is chosen by **walk-forward validation on the development part only**; the test year is read once.
-- All five algorithms and **three simple forecasts** (same time yesterday, same time a week earlier, the average of the month) are scored on the **same test values**.
-- Only **measured values are scored**. Filled values keep the lags continuous but are never a target.
-""")
-
-st.subheader("The locked year")
-st.markdown("""
-- The development window **ends before** the locked year starts, and the tools refuse any development run that touches it.
-- A final run must cover **exactly** the locked window and each algorithm may be scored on it **once**; every access is logged.
-- The outcomes of the locked year are **frozen** by digest, so a changed outcome stops the test.
-- Everything else (tuning, comparing, choosing the champion) uses the development window only.
-- The evaluation scores the values the markets published. The filled values of the data-cleaning step are used by the live pipeline, not for scoring.
-""")
-
