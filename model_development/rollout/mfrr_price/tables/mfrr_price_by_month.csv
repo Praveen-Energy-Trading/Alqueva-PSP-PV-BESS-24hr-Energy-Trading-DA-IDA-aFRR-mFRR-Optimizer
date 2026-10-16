@@ -1,0 +1,8 @@
+group,units,decision_tree,random_forest,gradient_boosting,xgboost,lightgbm,lowest_mae,winner,winner_share
+4,3,22.5841,23.4163,27.5729,24.4206,23.9679,decision_tree,decision_tree,0.6667
+5,31,23.9483,23.2060,23.1314,22.9169,22.6360,lightgbm,xgboost,0.2903
+6,30,47.8453,50.9953,45.7163,44.6424,50.0167,xgboost,xgboost,0.4000
+7,31,37.7014,33.6676,33.0814,33.2569,34.4470,gradient_boosting,xgboost,0.2903
+8,31,35.9862,36.6515,33.8320,34.3505,37.2044,gradient_boosting,lightgbm,0.2581
+9,30,33.5295,31.5000,32.1974,32.8478,32.5061,random_forest,lightgbm,0.2667
+10,11,35.4566,37.0042,36.6809,35.8297,38.8522,decision_tree,decision_tree,0.3636

@@ -23,6 +23,10 @@
     "data_digest": "0821e618800bb9fcc847c3c56404dee9f0d79b42a2b44b126f6419913f1f8c7c",
     "window": "2025-10-12..2026-10-11"
   },
+  "mfrr_price": {
+    "data_digest": "8cdd59ad98dc06f86edfdbaee4602c86266bb899770d2db4bd935bc672d605d0",
+    "window": "2025-10-12..2026-10-11"
+  },
   "xbid_price": {
     "data_digest": "079080a198014723072fd5caeefe173bea0368e0f26a5b55b667b6863199b325",
     "window": "2025-10-12..2026-10-11"

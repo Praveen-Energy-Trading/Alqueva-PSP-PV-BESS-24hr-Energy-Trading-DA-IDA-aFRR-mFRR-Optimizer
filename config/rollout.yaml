@@ -9,9 +9,13 @@
 #                      fewer training days before the first test day, an expanding training window, and a lower minimum number of
 #                      scored development days. The shorter evidence is labelled in every decision and report: tests have fewer
 #                      days, so only larger differences can be established.
-#   deferred           no data to run the process honestly (mFRR starts on 2024-11-27). The development window ends on
-#                      2025-10-11 and does not grow with time, so mFRR stays deferred until the windows are rolled forward
-#                      (a new locked period) with enough history.
+#   very_limited_evidence
+#                      for a target with still less history (mFRR starts on 2024-11-27): 150 training days before the first
+#                      validation day (the three tuning blocks of 30 days still leave 60 days to train on), an expanding
+#                      window and at least 120 scored development days. Every step of the process is run and nothing is
+#                      skipped; the evidence is small and the label on every decision and report says so.
+#   deferred           no data to run the process honestly. No target is deferred today; the treatment stays for a target whose
+#                      history is too short even for very_limited_evidence.
 #
 # The first test day of a limited_evidence target is the first day with `min_train_days` of history (computed from the data,
 # never chosen by hand). Locked-test outcome coverage is required to be at least the share of days with outcomes during
@@ -28,6 +32,10 @@ treatments:
     description: "short history: 180 training days before the first validation day, expanding window, at least 250 scored development days"
     schedule: {min_train_days: 180, train_window_days: null}
     selection: {min_days: 250}
+  very_limited_evidence:
+    description: "very short history: 150 training days before the first validation day, expanding window, at least 120 scored development days"
+    schedule: {min_train_days: 150, train_window_days: null}
+    selection: {min_days: 120}
   deferred:
     description: "not enough history to run the process honestly"
 
@@ -43,7 +51,4 @@ targets:
   ida2_price:     {treatment: limited_evidence, feature_set: baseline_v1}
   ida3_price:     {treatment: limited_evidence, feature_set: baseline_v1}
   xbid_price:     {treatment: limited_evidence, feature_set: baseline_e2_v1}
-  mfrr_price:
-    treatment: deferred
-    feature_set: baseline_e3_v1
-    reason: "history starts 2024-11-27; the development window (to 2025-10-11) allows about 135 scored days even with 180 training days, far below the 250 required"
+  mfrr_price:     {treatment: very_limited_evidence, feature_set: baseline_e3_v1}

@@ -28,7 +28,7 @@ def test_the_summary_lists_every_price_target_and_reads_decisions_and_locked_tes
     assert r.loc["da_price", "champion"] == "lightgbm" and r.loc["da_price", "locked_mae"] == 18.1 and r.loc["da_price", "registered"] == "v1"
     assert r.loc["ida1_price", "champion"] == "mean of xgboost, lightgbm" and r.loc["ida1_price", "tied"] == "xgboost, lightgbm"
     assert r.loc["xbid_price", "champion"] == "insufficient_evidence" and r.loc["afrr_cap_price", "champion"] == "-"
-    assert r.loc["mfrr_price", "treatment"] == "deferred" and r.loc["ida1_price", "treatment"] == "limited_evidence"
+    assert r.loc["mfrr_price", "treatment"] == "very_limited_evidence" and r.loc["ida1_price", "treatment"] == "limited_evidence"
     text = summary.render(df)
-    assert "| da_price | standard | 1015 | lightgbm | 17.400 | 1e-24 |" in text and "| mfrr_price | deferred |" in text
+    assert "| da_price | standard | 1015 | lightgbm | 17.400 | 1e-24 |" in text and "| mfrr_price | very_limited_evidence |" in text
     assert summary.render(df) == text                                                             # deterministic

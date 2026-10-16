@@ -1,0 +1,177 @@
+{
+  "best": "xgboost",
+  "champion": {
+    "members": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost"
+    ],
+    "method": "mean",
+    "type": "ensemble"
+  },
+  "champion_dev_loss": 34.03797378838344,
+  "combination": {
+    "accepted": true,
+    "mean_diff": 0.5149328155753051,
+    "members": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost"
+    ],
+    "method": "mean",
+    "p_value": 0.2386978815239014,
+    "statistic": 1.1825011393140192
+  },
+  "coverage": 1.0,
+  "n_days": 167,
+  "n_hours": 3921,
+  "parsimony": {
+    "mean_diff": -1.960362487493086,
+    "p_value": 0.019504021684229537,
+    "passed": true,
+    "reference": "decision_tree",
+    "statistic": -2.358676912345687,
+    "tested": true
+  },
+  "policy": {
+    "alpha": 0.05,
+    "average_method": "mean",
+    "candidates": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "complexity_order": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost",
+      "lightgbm"
+    ],
+    "metric": "mae",
+    "min_coverage": 0.99,
+    "min_days": 120,
+    "reference": "decision_tree",
+    "tie_break": "average"
+  },
+  "policy_digest": "0ceefc28a2aaad9d866850e5e4459b3ebc05b2dec1f7ad55c0ace3f8844fd0c1",
+  "ranking": [
+    {
+      "mae": 33.658027606988014,
+      "mean_loss": 33.52304097280813,
+      "model": "xgboost",
+      "rmse": 41.69154649132245,
+      "sse": 6815423.576494194
+    },
+    {
+      "mae": 33.70314028768171,
+      "mean_loss": 33.6227867898221,
+      "model": "gradient_boosting",
+      "rmse": 41.25452469892927,
+      "sse": 6673290.303695631
+    },
+    {
+      "mae": 35.167412850803366,
+      "mean_loss": 35.03852290919519,
+      "model": "random_forest",
+      "rmse": 43.19458859081363,
+      "sse": 7315693.907919747
+    },
+    {
+      "mae": 35.46852283167559,
+      "mean_loss": 35.316600124674515,
+      "model": "lightgbm",
+      "rmse": 44.19041429522008,
+      "sse": 7656900.237801693
+    },
+    {
+      "mae": 35.62916326039276,
+      "mean_loss": 35.48340346030122,
+      "model": "decision_tree",
+      "rmse": 43.70964476752103,
+      "sse": 7491200.072200987
+    }
+  ],
+  "reasons": [
+    "ranked by mean absolute loss on 167 days: xgboost, gradient_boosting, random_forest, lightgbm, decision_tree; best is xgboost",
+    "xgboost beats the reference decision_tree (DM statistic -2.36, p = 0.0195)",
+    "decision_tree, random_forest, gradient_boosting, xgboost cannot be told apart from xgboost (Holm over the comparisons with the best, alpha 0.05)",
+    "tie_break average: the mean of decision_tree, random_forest, gradient_boosting, xgboost is not worse than xgboost (mean loss difference +0.515, p = 0.239); it is the champion"
+  ],
+  "source": {
+    "run": "runtime/analysis/rollout/mfrr_price/tuned",
+    "schedule": {
+      "gap_days": 1,
+      "retrain_every_days": 30,
+      "train_window_days": null
+    },
+    "suffix": "_tuned",
+    "tuned": true,
+    "window": [
+      "2025-04-28",
+      "2025-10-11"
+    ]
+  },
+  "status": "chosen",
+  "target": "mfrr_price",
+  "tied": [
+    "decision_tree",
+    "random_forest",
+    "gradient_boosting",
+    "xgboost"
+  ],
+  "treatment": {
+    "label": "very short history: 150 training days before the first validation day, expanding window, at least 120 scored development days",
+    "name": "very_limited_evidence"
+  },
+  "versus_best": [
+    {
+      "best": "xgboost",
+      "best_loss": 33.52304097280813,
+      "distinguishable_from_best": false,
+      "mean_diff": 1.960362487493086,
+      "mean_loss": 35.48340346030122,
+      "model": "decision_tree",
+      "p_holm": 0.05851206505268861,
+      "p_value": 0.019504021684229537,
+      "statistic": 2.358676912345687
+    },
+    {
+      "best": "xgboost",
+      "best_loss": 33.52304097280813,
+      "distinguishable_from_best": false,
+      "mean_diff": 1.5154819363870602,
+      "mean_loss": 35.03852290919519,
+      "model": "random_forest",
+      "p_holm": 0.08740536466766782,
+      "p_value": 0.04370268233383391,
+      "statistic": 2.0324412903001856
+    },
+    {
+      "best": "xgboost",
+      "best_loss": 33.52304097280813,
+      "distinguishable_from_best": false,
+      "mean_diff": 0.09974581701397081,
+      "mean_loss": 33.6227867898221,
+      "model": "gradient_boosting",
+      "p_holm": 0.8067207081156599,
+      "p_value": 0.8067207081156599,
+      "statistic": 0.24504958399049717
+    },
+    {
+      "best": "xgboost",
+      "best_loss": 33.52304097280813,
+      "distinguishable_from_best": true,
+      "mean_diff": 1.7935591518663734,
+      "mean_loss": 35.316600124674515,
+      "model": "lightgbm",
+      "p_holm": 0.02691538080356407,
+      "p_value": 0.006728845200891017,
+      "statistic": 2.7444315474802905
+    }
+  ]
+}

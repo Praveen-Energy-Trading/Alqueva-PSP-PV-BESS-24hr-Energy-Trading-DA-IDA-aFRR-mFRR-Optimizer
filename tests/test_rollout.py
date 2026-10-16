@@ -42,7 +42,7 @@ def test_every_price_target_has_a_treatment_and_a_feature_set_that_exists():
     assert set(rollout.PRICE_TARGETS) <= set(R["targets"])
     assert {t: v["treatment"] for t, v in R["targets"].items()} == {
         "da_price": "standard", "afrr_cap_price": "standard", "afrr_dn_price": "standard", "ida1_price": "limited_evidence", "ida2_price": "limited_evidence",
-        "ida3_price": "limited_evidence", "xbid_price": "limited_evidence", "mfrr_price": "deferred"}
+        "ida3_price": "limited_evidence", "xbid_price": "limited_evidence", "mfrr_price": "very_limited_evidence"}
     sets = load_feature_sets()
     assert all(v["feature_set"] in sets for v in R["targets"].values())
 
@@ -69,7 +69,7 @@ def test_the_rollout_file_is_validated(tmp_path):
     import yaml
     bad = copy.deepcopy(R)
     bad["targets"]["ida1_price"]["treatment"] = "magic"
-    bad["targets"]["mfrr_price"].pop("reason")
+    bad["targets"]["mfrr_price"] = {"treatment": "deferred", "feature_set": "baseline_e3_v1"}          # deferred without a reason
     bad["targets"].pop("da_price")
     f = tmp_path / "r.yaml"
     f.write_text(yaml.safe_dump(bad))
@@ -107,10 +107,18 @@ def test_the_first_test_day_is_never_earlier_than_the_configured_start():
     assert eff["dev_start"] == "2022-08-01"                                 # the data would allow 2022-07-02; the configured day is later
 
 
-def test_a_deferred_target_is_refused_with_its_reason_and_costs_no_data_access():
+def test_mfrr_runs_the_whole_process_with_a_smaller_treatment():
     eff = rollout.effective("mfrr_price", BASE, POLICY, R)
+    assert eff["treatment"] == "very_limited_evidence" and not eff["deferred"]
+    assert eff["eval_cfg"]["schedule"]["min_train_days"] == 150 and eff["eval_cfg"]["schedule"]["train_window_days"] is None and eff["policy"]["min_days"] == 120
+
+
+def test_a_deferred_target_is_refused_with_its_reason_and_costs_no_data_access():
+    Rd = copy.deepcopy(R)                                                          # the deferral mechanism, exercised on a target that is deferred in this copy
+    Rd["targets"]["mfrr_price"] = {"treatment": "deferred", "feature_set": "baseline_e3_v1", "reason": "history starts 2024-11-27; too short"}
+    eff = rollout.effective("mfrr_price", BASE, POLICY, Rd)
     assert eff["deferred"] and "2024-11-27" in eff["reasons"][0] and eff["treatment"] == "deferred"
-    with_data = rollout.effective("mfrr_price", base_for(), POLICY, R, AsOfView(synthetic_panel(300), FORM, "mfrr_price"))
+    with_data = rollout.effective("mfrr_price", base_for(), POLICY, Rd, AsOfView(synthetic_panel(300), FORM, "mfrr_price"))
     assert with_data["deferred"] and not with_data["blocked"]
 
 
@@ -152,14 +160,8 @@ def test_the_locked_preflight_uses_the_floor_and_the_policy_of_the_target(tmp_pa
     assert "outcomes_present" in {c["check"] for c in short["checks"] if not c["ok"]}
 
 
-def test_the_decision_tools_refuse_a_deferred_target_and_the_status_table_lists_every_target():
-    r = subprocess.run([sys.executable, os.path.join(_REPO, "tools", "evaluate_forecaster.py"), "--target", "mfrr_price", "--no-register"],
-                       capture_output=True, text=True, cwd=_REPO, stdin=subprocess.DEVNULL)
-    assert r.returncode == 2 and "cannot be evaluated (deferred)" in r.stdout and "2024-11-27" in r.stdout
-    r = subprocess.run([sys.executable, os.path.join(_REPO, "tools", "select_champion.py"), "--run", ".", "--target", "mfrr_price"],
-                       capture_output=True, text=True, cwd=_REPO, stdin=subprocess.DEVNULL)
-    assert r.returncode != 0 and "mfrr_price is deferred" in (r.stderr + r.stdout)
+def test_the_status_table_lists_every_target():
     r = subprocess.run([sys.executable, os.path.join(_REPO, "tools", "run_rollout.py"), "--status"], capture_output=True, text=True, cwd=_REPO,
                        stdin=subprocess.DEVNULL)
-    assert r.returncode == 0 and all(t in r.stdout for t in rollout.PRICE_TARGETS) and "deferred" in r.stdout
-    assert "limited_evidence" in r.stdout and "baseline_e2_v1" in r.stdout
+    assert r.returncode == 0 and all(t in r.stdout for t in rollout.PRICE_TARGETS)
+    assert "limited_evidence" in r.stdout and "very_limited_evidence" in r.stdout and "baseline_e2_v1" in r.stdout

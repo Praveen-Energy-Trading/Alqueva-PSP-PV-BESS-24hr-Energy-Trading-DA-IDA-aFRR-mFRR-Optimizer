@@ -37,20 +37,23 @@ tune = ml_ui.cached(lambda: ml_data.config("tuning"))().get("search", {})
 _fmt = lambda x: f"{pd.Timestamp(x):%d-%m-%Y}"
 _val = int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30))          # the last days of every training window, where the settings are chosen
 
+st.subheader("Every target goes through every step")
+ml_ui.table(ml_ui.cached(ml_data.process_table)(), stretch=True, nowrap=True)
+
 st.subheader("How the data is split")
-treat = st.radio("Treatment", ["Standard (day-ahead, aFRR)", "Limited evidence (IDA1-3, XBID)"], horizontal=True, key="ml5_treat")
-limited = treat.startswith("Limited")
-lim = roll.get("treatments", {}).get("limited_evidence", {}).get("schedule", {})
+treat = st.radio("Evidence", ["Full (day-ahead, aFRR)", "Limited (IDA1-3, XBID)", "Very limited (mFRR)"], horizontal=True, key="ml5_treat")
+tkey = {"Full": "standard", "Limited": "limited_evidence", "Very": "very_limited_evidence"}[treat.split()[0]]
+tr_cfg = roll.get("treatments", {}).get(tkey, {}).get("schedule", {})
+first_data = {"standard": dt.date(2020, 1, 1), "limited_evidence": dt.date(2024, 6, 13), "very_limited_evidence": dt.date(2024, 11, 27)}[tkey]       # where each group's prices begin
 c1, c2, c3 = st.columns(3)
 every = c1.slider("Refit every (days)", 7, 90, int(sch["retrain_every_days"]), key="ml5_every")
 window_opts = ["rolling 730 days", "rolling 365 days", "expanding"]
-default_w = 2 if limited else 0
-w = c2.selectbox("Training window", window_opts, index=default_w, key=f"ml5_win_{limited}")
-min_train = 180 if limited else int(sch["min_train_days"])
+default_w = 0 if tkey == "standard" else 2
+w = c2.selectbox("Training window", window_opts, index=default_w, key=f"ml5_win_{tkey}")
+min_train = int(tr_cfg.get("min_train_days", sch["min_train_days"]))
 c3.metric("Minimum training days", min_train)
 schedule = {"retrain_every_days": every, "gap_days": int(sch["gap_days"]), "min_train_days": min_train,
             "train_window_days": None if w == "expanding" else int(w.split()[1])}
-first_data = dt.date(2024, 6, 13) if limited else dt.date(2020, 1, 1)
 start = max(d(dev["test_start"]), first_data + dt.timedelta(days=min_train + schedule["gap_days"] + 1))
 try:
     folds = ml_data.folds_for(first_data, start, d(dev["test_end"]), schedule)
@@ -122,7 +125,7 @@ if folds is not None and len(folds):
     ys, ye = n + 0.8, n + 4.4
     strips = [(start0, v0, BLUE, 0.7, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - one_day)}<br>used only for learning and tuning"),
               (v0, v1, ORANGE, 1.0, "white", f"<b>Validation period</b> &nbsp;{_fmt(v0)} to {_fmt(v1 - one_day)}<br>all the orange validation forecasts together<br>"
-                                              "the algorithms are compared and the champion is chosen"),
+                                              "algorithms compared, champion chosen"),
               (l0, l1, RED, 1.0, "white", f"<b>Locked test</b><br>{_fmt(l0)} to {_fmt(l1 - one_day)}<br>scored once: the final result")]
     for x0, x1, c, op, tc, txt in strips:
         pill(x0 + pd.Timedelta(days=1.5), x1 - pd.Timedelta(days=1.5), ys, ye, c, op, r_px=8)
@@ -171,25 +174,3 @@ else:
                             ("DM statistic", f"{res['statistic']:.2f}"), ("p-value", f"{res['p_value']:.2g}")], ncols=4, pre_formatted=True)
         st.caption("Negative differences (blue) mean the champion was better that day. A statistic far from zero with a small p-value means the "
                    "difference is unlikely to be luck; many pairwise comparisons are corrected with the Holm method on the next pages.")
-
-st.subheader("A short history: mFRR")
-expl = ml_data.exploratory("mfrr_price")
-if not expl:
-    ml_ui.not_yet_run("the mFRR exploration")
-else:
-    st.info(f"Exploratory, not a decision. mFRR prices start on 27-11-2024, so only {expl['scored_days']} days can be scored against the {expl['required_days']} the "
-            "evidence rule requires. Nothing is tuned, no champion is chosen and the locked year is not read.")
-    sc = expl["scores"]
-    rows = [(n, sc[n]) for n in sorted([n for n in sc if n not in expl["naive_lags_days"]], key=ml_data.model_index)]
-    rows += [(n, sc[n]) for n in expl["naive_lags_days"]]
-    names = {"naive_week": "Naive: same hour a week earlier", "naive_3days": "Naive: same hour three days earlier"}
-    t = __import__("pandas").DataFrame([{"Forecast": names.get(n, ml_data.MODEL_LABELS.get(n, ml_data.pretty(n))), "MAE (EUR/MWh)": s_["mae"], "RMSE (EUR/MWh)": s_["rmse"]} for n, s_ in rows])
-    c_left, c_right = st.columns([3, 2])
-    with c_left:
-        ml_ui.table(t, formats={"MAE (EUR/MWh)": "%.1f", "RMSE (EUR/MWh)": "%.1f"})
-    with c_right:
-        ml_ui.cards([("Days scored", f"{expl['scored_days']} of {expl['required_days']} required"),
-                     ("Best algorithm over the best naive", f"{theme.pct(100 * expl['gain_of_best_over_best_naive'])} lower MAE"),
-                     ("Diebold-Mariano p-value", f"{expl['dm_best_vs_best_naive']['p_value']:.2f}")], ncols=1, pre_formatted=True)
-    st.caption("The algorithms are ahead of the naive forecasts, but with this few days the difference cannot be told from luck (p above 0.05). "
-               "mFRR joins the full process when the windows are rolled forward and the history is long enough.")
