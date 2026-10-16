@@ -197,7 +197,7 @@ pages = {
         st.Page("pages/ml_6_tuning.py", title="Tuning lab", icon="🎛️"),
         st.Page("pages/ml_7_arena.py", title="Model arena", icon="🏟️"),
         st.Page("pages/ml_8_decision.py", title="Decision and locked test", icon="🏆"),
-        st.Page("pages/ml_9_run.py", title="Run it: registry, monitoring, live", icon="🛰️"),
+        st.Page("pages/ml_9_run.py", title="Run it: monitoring, live", icon="🛰️"),
         st.Page("pages/ml_10_plant_inputs.py", title="Plant inputs: PV and inflow", icon="☀️"),
     ],
 }

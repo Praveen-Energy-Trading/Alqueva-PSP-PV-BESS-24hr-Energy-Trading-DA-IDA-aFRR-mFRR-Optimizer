@@ -17,7 +17,7 @@ import theme
 PAGES = [("ml_1_data", "Data and quality"), ("ml_2_market", "Market analysis"),
          ("ml_3_formulation", "Problem formulation"), ("ml_4_features", "Features"), ("ml_5_evaluation", "Evaluation design"),
          ("ml_6_tuning", "Tuning lab"), ("ml_7_arena", "Model arena"), ("ml_8_decision", "Decision and locked test"),
-         ("ml_9_run", "Run it: registry, monitoring, live"), ("ml_10_plant_inputs", "Plant inputs: PV and inflow")]
+         ("ml_9_run", "Run it: monitoring, live"), ("ml_10_plant_inputs", "Plant inputs: PV and inflow")]
 
 STATE_COLOR = {"done": theme.STATUS_GOOD, "partial": theme.STATUS_WARNING, "not run": theme.STATUS_NEUTRAL}
 
