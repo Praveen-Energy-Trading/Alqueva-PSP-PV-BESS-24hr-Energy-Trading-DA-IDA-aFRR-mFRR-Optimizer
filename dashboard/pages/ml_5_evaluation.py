@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -33,32 +34,10 @@ dev, lk, sch = ev["development"], ev["locked_test"], ev["schedule"]
 tune = ml_ui.cached(lambda: ml_data.config("tuning"))().get("search", {})
 
 
-def _strip(parts, height="4.6rem") -> str:
-    """A row of coloured boxes, as wide as their number of days: (days, colour, title, small text)."""
-    boxes = "".join(
-        f'<div style="flex:{max(days, 1)} 1 0; min-width:0; background:{c}22; border:1.5px solid {c}; border-radius:10px; padding:0.45rem 0.7rem; min-height:{height}; overflow:hidden;">'
-        f'<div style="font-weight:600; font-size:0.9rem; color:{theme.INK_PRIMARY}; line-height:1.25;">{title}</div>'
-        f'<div style="font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.3; margin-top:0.15rem;">{small}</div></div>'
-        for days, c, title, small in parts)
-    return f'<div style="display:flex; gap:0.35rem; margin:0.2rem 0 0.5rem 0;">{boxes}</div>'
+_fmt = lambda x: f"{pd.Timestamp(x):%d-%m-%Y}"
+_val = int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30))          # the last days of every training window, where the settings are chosen
 
-
-_fmt = lambda x: f"{d(x):%d-%m-%Y}"
-_first, _vs, _ve, _ls, _le = dt.date(2020, 1, 1), d(dev["test_start"]), d(dev["test_end"]), d(lk["start"]), d(lk["end"])
-st.markdown('<div style="font-size:0.8rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:' + theme.INK_MUTED + ';">The whole history</div>'
-            + _strip([((_vs - _first).days, theme.BLUE, "Training history", f"{_fmt(_first)} to {_fmt(_vs - dt.timedelta(days=1))}<br>only used to fit models"),
-                      ((_ve - _vs).days + 1, theme.ORANGE, "Validation",
-                       f"{_fmt(_vs)} to {_fmt(_ve)}<br>rolling forecasts, refitted every {sch['retrain_every_days']} days; the algorithms are compared and the champion is chosen here"),
-                      ((_le - _ls).days + 1, theme.STATUS_CRITICAL, "Locked test", f"{_fmt(_ls)} to {_fmt(_le)}<br>read once, never used for any choice")]),
-            unsafe_allow_html=True)
-_win, _val, _gap, _step = int(sch["train_window_days"]), int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30)), int(sch["gap_days"]), int(sch["retrain_every_days"])
-st.markdown('<div style="font-size:0.8rem; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:' + theme.INK_MUTED + ';">Every refit</div>'
-            + _strip([(6, theme.BLUE, "Train", f"{_win - _val} days"),
-                      (3, theme.VIOLET, "Tuning validation", f"the last {_val} days of the window: the hyperparameters are chosen here"),
-                      (1, theme.INK_MUTED, "Gap", f"{_gap} day"),
-                      (2, theme.ORANGE, "Forecast", f"the next {_step} days")], height="3.4rem"), unsafe_allow_html=True)
-
-st.subheader("Rolling-origin folds")
+st.subheader("How the data is split")
 treat = st.radio("Treatment", ["Standard (day-ahead, aFRR)", "Limited evidence (IDA1-3, XBID)"], horizontal=True, key="ml5_treat")
 limited = treat.startswith("Limited")
 lim = roll.get("treatments", {}).get("limited_evidence", {}).get("schedule", {})
@@ -79,19 +58,40 @@ except ValueError as e:
     st.error(str(e))
     folds = None
 if folds is not None and len(folds):
+    n = len(folds)
+    v0 = pd.Timestamp(folds["test_start"].min())                                    # the first validation day of this schedule
+    start0 = pd.Timestamp(folds["train_start"].min())                               # the first day any refit trains on
     fig = go.Figure()
-    for _, f in folds.iterrows():
-        y = int(f["fold"])
-        fig.add_shape(type="rect", x0=f["train_start"], x1=f["train_end"], y0=y - 0.4, y1=y + 0.4, fillcolor=theme.BLUE, opacity=0.55, line_width=0)
-        fig.add_shape(type="rect", x0=f["test_start"], x1=f["test_end"] + dt.timedelta(days=1), y0=y - 0.4, y1=y + 0.4, fillcolor=theme.ORANGE, line_width=0)
-    fig.add_shape(type="rect", x0=d(lk["start"]), x1=d(lk["end"]), y0=-1, y1=len(folds), fillcolor=theme.STATUS_CRITICAL, opacity=0.18, line_width=0)
-    fig.add_trace(go.Scatter(x=folds["test_start"], y=folds["fold"], mode="markers", marker=dict(opacity=0), showlegend=False,
-                             text=[f"fold {r.fold}: trained {r.train_start} to {r.train_end} ({r.train_days} days), forecasts {r.test_start} to {r.test_end}" for r in folds.itertuples()],
-                             hoverinfo="text"))
-    fig.update_yaxes(autorange="reversed", title_text="fold")
-    st.plotly_chart(theme.style_fig(fig, height=420, legend=False), width="stretch")
-    st.caption(f"{len(folds)} folds, first validation day {folds['test_start'].min()}, last {folds['test_end'].max()}. Blue: training window. Orange: validation days. "
-               "Red: locked test year. Change the sliders to see how the schedule changes the folds.")
+    fig.add_trace(go.Scatter(x=folds["test_start"], y=folds["fold"], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
+    zones = [(start0, v0, theme.BLUE, "Training history", "only used to fit"),
+             (v0, pd.Timestamp(dev["test_end"]) + pd.Timedelta(days=1), theme.ORANGE, "Validation", "algorithms compared,<br>champion chosen"),
+             (pd.Timestamp(lk["start"]), pd.Timestamp(lk["end"]) + pd.Timedelta(days=1), theme.STATUS_CRITICAL, "Locked test", "read once")]
+    for x0, x1, c, title, sub in zones:
+        fig.add_shape(type="rect", x0=x0, x1=x1, y0=-0.8, y1=n + 0.2, fillcolor=c, opacity=0.07, line_width=0, layer="below")
+        fig.add_annotation(x=x0 + (x1 - x0) / 2, y=-1.0, text=f"<b>{title}</b><br><span style='font-size:11px'>{_fmt(x0)} to {_fmt(x1 - pd.Timedelta(days=1))}<br>{sub}</span>",
+                           showarrow=False, font=dict(color=c, size=13), yanchor="bottom")
+    for f in folds.itertuples():
+        y = int(f.fold)
+        t_end = pd.Timestamp(f.train_end) + pd.Timedelta(days=1)
+        split = max(t_end - pd.Timedelta(days=_val), pd.Timestamp(f.train_start))
+        fig.add_shape(type="rect", x0=f.train_start, x1=split, y0=y - 0.38, y1=y + 0.38, fillcolor=theme.BLUE, opacity=0.55, line_width=0)
+        fig.add_shape(type="rect", x0=split, x1=t_end, y0=y - 0.38, y1=y + 0.38, fillcolor=theme.VIOLET, opacity=0.85, line_width=0)
+        fig.add_shape(type="rect", x0=f.test_start, x1=pd.Timestamp(f.test_end) + pd.Timedelta(days=1), y0=y - 0.38, y1=y + 0.38, fillcolor=theme.ORANGE, line_width=0)
+    fig.add_trace(go.Scatter(x=folds["train_end"], y=folds["fold"], mode="markers", marker=dict(opacity=0), showlegend=False,
+                             text=[f"refit {r.fold}: trains on {_fmt(r.train_start)} to {_fmt(r.train_end)} ({r.train_days} days), tunes on its last {_val} days, "
+                                   f"forecasts {_fmt(r.test_start)} to {_fmt(r.test_end)}" for r in folds.itertuples()], hoverinfo="text"))
+    for name, c in (("Train", theme.BLUE), (f"Tuning validation: the last {_val} days of the window", theme.VIOLET), ("Forecast of that refit (scored)", theme.ORANGE)):
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(size=11, color=c, symbol="square"), name=name))
+    theme.style_fig(fig, height=580, xaxis_title=None)
+    fig.update_yaxes(autorange=False, range=[n + 0.2, -6.4], showgrid=False, zeroline=False, showticklabels=False)
+    fig.update_xaxes(type="date", range=[start0, pd.Timestamp(lk["end"]) + pd.Timedelta(days=20)], showgrid=False)
+    fig.add_annotation(x=0.005, y=0.02, xref="paper", yref="paper", text=f"{n} refits, one per row, every {every} days", showarrow=False, xanchor="left", yanchor="bottom",
+                       font=dict(size=11, color=theme.INK_MUTED))
+    fig.update_layout(legend=dict(orientation="h", y=-0.07, x=0.5, xanchor="center"), margin=dict(t=10, b=10, l=10, r=10))
+    st.plotly_chart(fig, width="stretch")
+    st.caption(f"Each row is one refit: the model trains on the blue part, its settings are chosen on the violet part (the last {_val} days of the window, in blocks that were "
+               f"predicted by a model trained only before them), and the orange days after a gap of {schedule['gap_days']} day are forecast and scored. "
+               "The red year is the locked test. Change the sliders to see how the schedule changes the refits.")
 
 st.subheader("What is measured")
 ml_ui.table(__import__("pandas").DataFrame([{"SSE": "sum of squared errors", "MAE": "mean absolute error", "RMSE": "root mean squared error"}]), stretch=True)
