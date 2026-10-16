@@ -67,54 +67,69 @@ if folds is not None and len(folds):
     train_label = f"{win - _val} days" if win else "all earlier days"
     # one colour, one meaning: blue = the days a model learns from, violet = the days its settings are tuned on, orange = the days it forecasts and is scored on, red = the locked year
     BLUE, VIOLET, ORANGE, RED, MUTED = theme.BLUE, theme.VIOLET, theme.ORANGE, theme.STATUS_CRITICAL, theme.INK_MUTED
+    span = (l1 + pd.Timedelta(days=20)) - start0
+    px_day = 1150.0 / span.days                                                     # about 1150 px of plot: used only to round the corners by a few pixels
+
+    def pill(x0, x1, y0, y1, color, opacity=1.0, r_px=3.0, row_px=12.5):
+        """A rounded bar as a path (the axis is a date axis: x in milliseconds since 1970)."""
+        ms = lambda ts: pd.Timestamp(ts).value / 1e6
+        xa, xb = ms(x0), ms(x1)
+        rx = min(r_px / px_day * 86400000.0, (xb - xa) / 2)
+        ry = min(r_px / row_px, (y1 - y0) / 2)
+        path = (f"M {xa + rx},{y0} L {xb - rx},{y0} Q {xb},{y0} {xb},{y0 + ry} L {xb},{y1 - ry} Q {xb},{y1} {xb - rx},{y1} "
+                f"L {xa + rx},{y1} Q {xa},{y1} {xa},{y1 - ry} L {xa},{y0 + ry} Q {xa},{y0} {xa + rx},{y0} Z")
+        fig.add_shape(type="path", path=path, fillcolor=color, opacity=opacity, line_width=0)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=folds["test_start"], y=folds["fold"], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-    # ---- the rows: one refit each, in the same four parts
+    one_day = pd.Timedelta(days=1)
+    # ---- the rows: one refit each, in the same four parts; the first row, the one that is named, at full strength
     for f in folds.itertuples():
         y = int(f.fold)
-        t_end = pd.Timestamp(f.train_end) + pd.Timedelta(days=1)
+        first_row = y == int(folds["fold"].min())
+        t_end = pd.Timestamp(f.train_end) + one_day
         split = max(t_end - pd.Timedelta(days=_val), pd.Timestamp(f.train_start))
-        fig.add_shape(type="rect", x0=f.train_start, x1=split, y0=y - 0.38, y1=y + 0.38, fillcolor=BLUE, opacity=0.55, line_width=0)
-        fig.add_shape(type="rect", x0=split, x1=t_end, y0=y - 0.38, y1=y + 0.38, fillcolor=VIOLET, opacity=0.85, line_width=0)
-        fig.add_shape(type="rect", x0=f.test_start, x1=pd.Timestamp(f.test_end) + pd.Timedelta(days=1), y0=y - 0.38, y1=y + 0.38, fillcolor=ORANGE, line_width=0)
+        k = 1.0 if first_row else 0.72
+        pill(f.train_start, split - pd.Timedelta(hours=10), y - 0.34, y + 0.34, BLUE, 0.62 * k if not first_row else 0.75)
+        pill(split + pd.Timedelta(hours=10), t_end - pd.Timedelta(hours=10), y - 0.34, y + 0.34, VIOLET, 0.9 * k)
+        pill(f.test_start, pd.Timestamp(f.test_end) + one_day, y - 0.34, y + 0.34, ORANGE, k)
     fig.add_trace(go.Scatter(x=folds["train_end"], y=folds["fold"], mode="markers", marker=dict(opacity=0), showlegend=False,
                              text=[f"refit {r.fold}: trains on {_fmt(r.train_start)} to {_fmt(r.train_end)} ({r.train_days} days), tunes on its last {_val} days, "
                                    f"forecasts {_fmt(r.test_start)} to {_fmt(r.test_end)}" for r in folds.itertuples()], hoverinfo="text"))
     # ---- the first row is named part by part, on the row itself
     f0 = folds.iloc[0]
-    e0 = pd.Timestamp(f0["train_end"]) + pd.Timedelta(days=1)
+    e0 = pd.Timestamp(f0["train_end"]) + one_day
     s0 = max(e0 - pd.Timedelta(days=_val), pd.Timestamp(f0["train_start"]))
     mid = lambda a_, b_: a_ + (b_ - a_) / 2
     top = -0.42
-    span = (l1 + pd.Timedelta(days=20)) - start0
     x_train = min(max(pd.Timestamp(f0["train_start"]) + (s0 - pd.Timestamp(f0["train_start"])) * 0.35, start0 + span * 0.08), s0 - pd.Timedelta(days=2))      # a label is 150-200 px wide: keep it off the left edge
     # two label levels: the lower one holds training, the gap and the forecast, the upper one the tuning; every label sits above the part it names
     callouts = [(x_train, 0, -46, BLUE, f"<b>Training · {train_label}</b><br>the model learns here"),
                 (mid(s0, e0), 0, -90, VIOLET, f"<b>Tuning · last {_val} days of the window</b><br>its settings are chosen here"),
                 (e0, 24, -46, MUTED, f"{gap} day gap"),
-                (mid(pd.Timestamp(f0["test_start"]), pd.Timestamp(f0["test_end"]) + pd.Timedelta(days=1)), 150, -46, ORANGE,
+                (mid(pd.Timestamp(f0["test_start"]), pd.Timestamp(f0["test_end"]) + one_day), 150, -46, ORANGE,
                  f"<b>Validation forecast · {step} days</b><br>forecast, then scored")]
-    for x, ax, ay, c, txt in callouts:
-        fig.add_annotation(x=x, y=top, ax=ax, ay=ay, axref="pixel", ayref="pixel", text=txt, showarrow=True, arrowhead=0, arrowwidth=1, arrowcolor=c, font=dict(size=12, color=c),
-                           yanchor="bottom", standoff=1, align="center")
+    for x, ax, ay, c, txt in callouts:                                             # tags: a thin border in the colour of the part they name, a dot where the line meets it
+        fig.add_annotation(x=x, y=top, ax=ax, ay=ay, axref="pixel", ayref="pixel", text=txt, showarrow=True, arrowhead=3, arrowsize=0.9, arrowwidth=1, arrowcolor=c,
+                           font=dict(size=12, color=c), yanchor="bottom", standoff=1, align="center", bgcolor="white", bordercolor=c, borderwidth=1, borderpad=4)
     # ---- the three periods, under the rows: what happens in each, and where the results come from
     ys, ye = n + 0.8, n + 4.4
-    strips = [(start0, v0, BLUE, 0.55, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - pd.Timedelta(days=1))}<br>used only for learning"),
-              (v0, v1, ORANGE, 0.95, "white", f"<b>Validation period</b> &nbsp;{_fmt(v0)} to {_fmt(v1 - pd.Timedelta(days=1))}<br>all the orange validation forecasts together<br>"
-                                               "the algorithms are compared and the champion is chosen"),
-              (l0, l1, RED, 0.95, "white", f"<b>Locked test</b><br>{_fmt(l0)} to {_fmt(l1 - pd.Timedelta(days=1))}<br>scored once: the final result")]
+    strips = [(start0, v0, BLUE, 0.7, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - one_day)}<br>used only for learning"),
+              (v0, v1, ORANGE, 1.0, "white", f"<b>Validation period</b> &nbsp;{_fmt(v0)} to {_fmt(v1 - one_day)}<br>all the orange validation forecasts together<br>"
+                                              "the algorithms are compared and the champion is chosen"),
+              (l0, l1, RED, 1.0, "white", f"<b>Locked test</b><br>{_fmt(l0)} to {_fmt(l1 - one_day)}<br>scored once: the final result")]
     for x0, x1, c, op, tc, txt in strips:
-        fig.add_shape(type="rect", x0=x0, x1=x1, y0=ys, y1=ye, fillcolor=c, opacity=op, line_width=0)
+        pill(x0 + pd.Timedelta(days=1.5), x1 - pd.Timedelta(days=1.5), ys, ye, c, op, r_px=7, row_px=12.5)
         fig.add_annotation(x=mid(x0, x1), y=(ys + ye) / 2, text=txt, showarrow=False, font=dict(size=11, color=tc), align="center")
     for x in (v0, l0):                                                              # where one period ends and the next begins
-        fig.add_shape(type="line", x0=x, x1=x, y0=-0.6, y1=ys, line=dict(color=MUTED, width=1, dash="dot"))
-    fig.add_annotation(x=l0 + (l1 - l0) / 2, y=n / 2, text="no refit trains on<br>or tunes on this year", showarrow=False, font=dict(size=12, color=RED))
+        fig.add_shape(type="line", x0=x, x1=x, y0=-0.6, y1=ys - 0.2, line=dict(color="#c4c2b9", width=1, dash="dot"))
+    fig.add_annotation(x=l0 + (l1 - l0) / 2, y=n / 2, text="<i>no refit trains on<br>or tunes on this year</i>", showarrow=False, font=dict(size=12, color=RED))
     fig.add_annotation(x=l1, y=-10.2, xanchor="right", yanchor="top", text=f"{n} refits, one row each, a new one every {step} days ↓", showarrow=False, font=dict(size=12, color=MUTED))
-    theme.style_fig(fig, height=int((n + 16.5) * 12.5 + 40), xaxis_title=None, legend=False)          # 12.5 px a row whatever the number of rows, so the labels keep their places
+    theme.style_fig(fig, height=int((n + 16.5) * 12.5 + 66), xaxis_title=None, legend=False)          # 12.5 px a row whatever the number of rows, so the labels keep their places
     fig.update_yaxes(autorange=False, range=[n + 5.0, -11.5], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True)
-    fig.update_xaxes(type="date", range=[start0, l1 + pd.Timedelta(days=20)], showgrid=False)
-    fig.update_layout(margin=dict(t=8, b=10, l=10, r=10))
+    fig.update_xaxes(type="date", range=[start0, l1 + pd.Timedelta(days=20)], showgrid=False, dtick="M12", tickformat="%Y", ticks="outside", ticklen=4, tickcolor="#c4c2b9",
+                     tickfont=dict(size=11, color=MUTED), showline=False)
+    fig.update_layout(margin=dict(t=8, b=34, l=10, r=10))
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 st.subheader("What is measured")
