@@ -81,8 +81,8 @@ features:
   - {id: dar_vol_pt_sell_d0,    group: market_result, kind: series_value, params: {col: da_vol_pt_sell,    day_offset: 0}, version: 1, description: "Portuguese sales, day D"}
 
   # ------------------------------------------------ other markets: earlier auctions of the day, and lags
-  - {id: ida1_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA1 minus day-ahead, day D (known after the IDA1 result)"}
-  - {id: ida2_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida2_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA2 minus day-ahead, day D (known after the IDA2 result)"}
+  - {id: ida1_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA1 minus day-ahead, day D (known after the IDA1 price is published)"}
+  - {id: ida2_spread_d0,    group: cross_market, kind: series_spread, params: {col: ida2_pt, base_col: da_pt, day_offset: 0},  version: 1, description: "IDA2 minus day-ahead, day D (known after the IDA2 price is published)"}
   - {id: ida1_spread_lag1d, group: cross_market, kind: series_spread, params: {col: ida1_pt, base_col: da_pt, day_offset: -1}, version: 1, description: "IDA1 minus day-ahead, same hour yesterday"}
   - {id: ida2_spread_lag1d, group: cross_market, kind: series_spread, params: {col: ida2_pt, base_col: da_pt, day_offset: -1}, version: 1, description: "IDA2 minus day-ahead, same hour yesterday"}
   - {id: ida3_spread_lag2d, group: cross_market, kind: series_spread, params: {col: ida3_pt, base_col: da_pt, day_offset: -2}, version: 1, description: "IDA3 minus day-ahead, same hour two days ago"}

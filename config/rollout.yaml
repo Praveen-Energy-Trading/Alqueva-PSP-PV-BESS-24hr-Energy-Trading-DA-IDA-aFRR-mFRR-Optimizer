@@ -25,7 +25,7 @@ treatments:
   standard:
     description: "evidence rules unchanged"
   limited_evidence:
-    description: "short history: 180 training days before the first test day, expanding window, at least 250 scored development days"
+    description: "short history: 180 training days before the first validation day, expanding window, at least 250 scored development days"
     schedule: {min_train_days: 180, train_window_days: null}
     selection: {min_days: 250}
   deferred:

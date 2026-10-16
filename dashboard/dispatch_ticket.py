@@ -1007,7 +1007,7 @@ def render_da_vs_activation_card(dv: dict) -> str:
       {_hover_tooltip_div().replace('dt-hover-tooltip"', 'dt-hover-tooltip" id="da2-top-tooltip"')}
       {_axes(len(isps), x0, x1, 1400, 90, [(zero_y1 - half_h1, f"+{da_max:.0f}"), (zero_y1, "0"), (zero_y1 + half_h1, f"&minus;{da_max:.0f}")], "MW", show_x=False)}
     </div>
-    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asked for right then (separate, real-time) &middot; MW per quarter-hour</p>
+    <p style="font-size:13.5px; color:{theme.INK_MUTED}; margin:8px 0 2px; font-weight:500;">2. Extra power the grid asks for in real time (simulated, separate from the plan) &middot; MW per quarter-hour</p>
     <div style="position:relative; height:78px; margin:18px 0 42px 44px;">
       <svg viewBox="0 0 1400 90" preserveAspectRatio="none" style="width:100%; height:100%; display:block;">{_yline(x0, 0, 90)}
         <line x1="{x0}" y1="{zero_y2}" x2="{x1}" y2="{zero_y2}" stroke="{theme.GRIDLINE}" stroke-width="1"/>
@@ -1735,7 +1735,7 @@ def render_fcr_dispatch_card(fcr: dict) -> str:
 
     <div class="fcrd-chart-block" data-fcrd='{payload_json}'>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:6px 0 2px;">
-      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Frequency deviation (mHz, top) and plant response (MW, bottom) per 30-second tick, {n:,} ticks</span>
+      <span style="font-size:13.5px; color:{theme.INK_MUTED}; font-weight:500;">Simulated frequency deviation (mHz, top) and plant response (MW, bottom) per 30-second tick, {n:,} ticks</span>
       <button class="gt-replay" onclick="dtFcrdReplay(this)">&#9654; Replay</button>
     </div>
     <div style="position:relative; height:{total_h*0.72:.0f}px;">
