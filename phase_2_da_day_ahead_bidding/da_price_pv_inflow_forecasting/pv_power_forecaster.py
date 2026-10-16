@@ -2,9 +2,12 @@
 pv_power_forecaster.py — hourly PV availability for the Alqueva floating array.
 
 Methodology:
-    1. Load pv_training_data_from_2015.xlsx (Alqueva plant on-site sensors: GHI W/m² + T_amb °C)
-         GHI   <- Alqueva plant pyranometer (surface solar irradiance)
-         T_amb <- Alqueva plant ambient temperature sensor
+    1. Load pv_training_data_from_2015.xlsx (ERA5 reanalysis of the Alqueva site, hourly UTC: GHI W/m² + T_amb °C; built by
+       tools/build_pv_history_from_era5.py. It is a reanalysis, not an on-site measurement.)
+         GHI   <- ERA5 surface solar irradiance (shortwave radiation)
+         T_amb <- ERA5 air temperature at 2 m
+       The forecast of delivery_date is the numerical weather forecast of Open-Meteo when there is one (common_layer/data_layer/weather_forecast.py);
+       steps 2 to 6 below are the fallback model used without it.
     2. Gap fill: any missing dates between last Excel row and yesterday are filled
        with synthetic clear-sky GHI (Bird model × mean cloud factor) and seasonal
        T_amb — no external API needed, pure physics + climatology
@@ -161,7 +164,15 @@ def _forecast_ghi_tamb(delivery_date: str) -> tuple[Dict[int, float], Dict[int, 
     the plant's on-site sensor feed is hourly, so this is the real ceiling
     of resolution the cloud/temperature correction itself can honestly
     reach; sub-hourly GHI variation comes from real clear-sky physics on
-    top of this (see forecast_pv_available_isp)."""
+    top of this (see forecast_pv_available_isp).
+
+    The numerical weather forecast comes first when there is one (common_layer/data_layer/weather_forecast.py): evaluated as of 11:00 on D-1 against
+    the reanalysis it halves the error of the best model built on past observations (model_development/plant_inputs/*_weather.json), and the
+    algorithms add nothing on top of it. Without a forecast (offline, or a day the archive does not cover) the model below is the fallback."""
+    from common_layer.data_layer import weather_forecast
+    nwp = weather_forecast.forecast(delivery_date)
+    if nwp is not None:
+        return nwp
     _fill_gaps(delivery_date)
 
     df        = _load_history()

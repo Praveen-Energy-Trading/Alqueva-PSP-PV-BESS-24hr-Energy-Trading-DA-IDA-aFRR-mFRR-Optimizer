@@ -214,6 +214,11 @@ def plant_input(key: str, root: Path = REPO_ROOT) -> Optional[dict]:
     return read_json(md(root) / "plant_inputs" / f"{key}.json")
 
 
+def weather_eval(key: str, root: Path = REPO_ROOT) -> Optional[dict]:
+    """The as-of-decision-time evaluation of the weather forecast against the algorithms (tools/evaluate_weather_forecast.py), or None."""
+    return read_json(md(root) / "plant_inputs" / f"{key}_weather.json")
+
+
 # -------------------------------------------------------------------------------------------------- decisions and results
 def decisions(root: Path = REPO_ROOT) -> Dict[str, dict]:
     out = {}

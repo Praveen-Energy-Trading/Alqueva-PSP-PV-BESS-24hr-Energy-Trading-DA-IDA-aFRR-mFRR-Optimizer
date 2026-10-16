@@ -114,7 +114,7 @@ def main():
         print(f"  Avg realised revenue: unavailable (no real OMIE price coverage "
               f"in this date range)")
     _price = f"{res.avg_price_mae:.2f} EUR/MWh" if res.avg_price_mae is not None else "unavailable"
-    _pv = f"{res.avg_pv_mae:.4f} MW ({res.n_pv_measured_days} day(s) with measured plant irradiance)" if res.avg_pv_mae is not None else "unavailable"
+    _pv = f"{res.avg_pv_mae:.4f} MW ({res.n_pv_measured_days} day(s) with reanalysed irradiance)" if res.avg_pv_mae is not None else "unavailable"
     print(f"  Avg price MAE (real prices): {_price}   Avg PV MAE: {_pv}")
     print(f"  Real-aFRR-capacity days: {res.n_real_afrr_days}/{res.n_days}   "
           f"Real-mFRR-capacity days: {res.n_real_mfrr_days}/{res.n_days}")

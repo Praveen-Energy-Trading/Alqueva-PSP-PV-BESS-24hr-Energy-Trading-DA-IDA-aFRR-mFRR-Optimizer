@@ -5,7 +5,7 @@ For each delivery day it:
   * assembles the same DA inputs the live pipeline would,
   * probes MILP solve quality (feasible? objective? checker pass?),
   * scores DA price forecast accuracy vs REAL archived OMIE prices
-    (real_omie_price()) and PV accuracy vs the PV the MEASURED plant
+    (real_omie_price()) and PV accuracy vs the PV the ERA5 reanalysed
     irradiance and temperature imply (real_pv_available()). A day without a
     real value has no accuracy figure ("unavailable"); no synthetic "actual" is
     created and no synthetic prices fill gaps in the history. Every row says
@@ -83,7 +83,7 @@ class BacktestResult:
     avg_objective_eur: float = 0.0
     avg_solve_sec: float = 0.0
     avg_price_mae: Optional[float] = None    # real-price days only
-    avg_pv_mae: Optional[float] = None       # measured-PV days only
+    avg_pv_mae: Optional[float] = None       # days with reanalysed irradiance only
     n_pv_measured_days: int = 0
     avg_realised_revenue_eur: Optional[float] = None   # real-price days only
     avg_realised_afrr_capacity_eur: Optional[float] = None
@@ -379,7 +379,7 @@ def _backtest_one_day(date: str, cfg: AppConfig) -> dict:
         "price_mae": round(pm.mae, 2) if pm is not None else None, "price_rmse": round(pm.rmse, 2) if pm is not None else None,
         "pv_mae": round(vm.mae, 4) if vm is not None else None, "note": q.note,
         "price_actual_source": price_actual_source,
-        "pv_actual_source": "PLANT_SENSOR" if vm is not None else "unavailable",
+        "pv_actual_source": "ERA5_REANALYSIS" if vm is not None else "unavailable",
         "realised_revenue_eur": realised_revenue_eur,
         "realised_price_source": "OMIE_LIVE" if real_price is not None else "unavailable",
         "realised_afrr_capacity_eur": realised_afrr_capacity_eur,

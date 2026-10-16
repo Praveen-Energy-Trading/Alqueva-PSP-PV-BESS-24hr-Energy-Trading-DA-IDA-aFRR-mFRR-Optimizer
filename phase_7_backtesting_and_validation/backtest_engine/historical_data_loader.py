@@ -12,10 +12,11 @@ Two sources, used deliberately differently -- never conflated:
     refreshed; a genuinely future date (or an unrefreshed gap) has no real
     row and real_omie_price() returns None rather than padding with a
     synthetic value silently mixed in.
-  - PV: real_pv_available() turns the MEASURED plant irradiance and air
-    temperature (the PLANT_SENSOR rows of the PV workbook) into MW with the
-    plant's own PV model. Days without a full day of measured rows return None
-    and are left out of the PV accuracy; nothing is simulated.
+  - PV: real_pv_available() turns the ERA5 REANALYSIS of irradiance and air
+    temperature (the ERA5_REANALYSIS rows of the PV workbook: what the atmosphere
+    did, not an on-site measurement) into MW with the plant's own PV model. Days
+    without a full day of such rows return None and are left out of the PV
+    accuracy; nothing is simulated.
 No synthetic "actual" is created by the backtest any more: a day without a real
 value has no accuracy figure ("unavailable"), never a perturbed copy of the forecast.
 """
@@ -99,15 +100,15 @@ def date_range(start_date: str, n_days: int) -> List[str]:
 
 _PV_EXCEL_PATH = os.path.join(_FORECASTER_DIR, "pv_training_data_from_2015.xlsx")
 _PV_SHEET = "PV_Weather_2015_2026"
-_MEASURED_PV_SOURCES = ("PLANT_SENSOR",)
+_MEASURED_PV_SOURCES = ("ERA5_REANALYSIS",)
 _NOCT_C = 45.0                                   # the same cell-temperature rule as the PV forecaster (IEC 61215)
 _pv_cache: dict = {}
 
 
 def real_pv_available(delivery_date: str, isps: List[int], pv_cfg) -> Optional[Dict[int, float]]:
-    """{isp: MW the plant could have produced} from the MEASURED irradiance and air temperature of delivery_date, or None.
+    """{isp: MW the plant could have produced} from the reanalysed (ERA5) irradiance and air temperature of delivery_date, or None.
 
-    Uses only rows whose source is a plant sensor and only when all 24 hours of the day are measured. The hourly value applies to
+    Uses only reanalysis rows and only when all 24 hours of the day are present. The hourly value applies to
     its four quarter-hours (the sensor cannot resolve finer)."""
     mtime = os.path.getmtime(_PV_EXCEL_PATH) if os.path.isfile(_PV_EXCEL_PATH) else None
     if mtime is None:

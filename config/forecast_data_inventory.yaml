@@ -101,18 +101,18 @@ sources:
 
   - id: pv_weather_history
     status: in_use
-    provider: "unknown (file labelled PLANT_SENSOR)"
-    content: "Hourly global horizontal irradiance GHI (W/m2) and ambient temperature (C), Alqueva"
-    access: {method: "static Excel file, no downloader in the code", url: none, auth: none}
+    provider: "Open-Meteo archive API serving the ERA5 reanalysis (Copernicus / ECMWF); replaced the unverified PLANT_SENSOR file on 2026-10-16"
+    content: "Hourly global horizontal irradiance GHI (W/m2) and ambient temperature (C), Alqueva site, UTC; a reanalysis, not an on-site measurement"
+    access: {method: "tools/fetch_open_meteo.py --reanalysis, then tools/build_pv_history_from_era5.py", url: "https://archive-api.open-meteo.com/v1/archive", auth: none}
     resolution: ["hourly"]
-    publication: "none: there is no live feed; recent days are filled by a synthetic generator (_fill_gaps)"
-    history: {start: "2015-01-01", end: "2026-06-30 (real); 2026-07-01 to 2027-03-14 synthetic"}
+    publication: "ERA5 is published with a delay of about five days; the last days before today are filled by a synthetic generator (_fill_gaps), labelled SYNTHETIC"
+    history: {start: "2015-01-01", end: "2026-10-09 (reanalysis); later days synthetic only when the fallback model runs"}
     live_feed: false
-    loader: "none (phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/pv_power_forecaster.py only reads and gap-fills)"
+    loader: "tools/fetch_open_meteo.py --reanalysis (download) and tools/build_pv_history_from_era5.py (workbook); pv_power_forecaster.py reads and gap-fills"
     stored_in: ["pv_training_data_from_2015.xlsx"]
-    licence: {status: unverified, note: "origin unknown, so the licence is unknown"}
-    cost: unknown
-    rate_limits: n/a
+    licence: {status: to_check, note: "Open-Meteo: free for non-commercial use with attribution; ERA5 (Copernicus): free with attribution; check the terms before commercial use"}
+    cost: free
+    rate_limits: "fair-use limits of the free Open-Meteo API (a full history is a handful of requests)"
     vintage: no
     used_by: [pv_weather]
     owner: "project owner (Praveen)"
@@ -285,7 +285,7 @@ sources:
 # -----------------------------------------------------------------------------
 findings:
   D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no live feed: the real data end on 2026-06-30 and every later row is synthetic or climatology, so recent training history and the PV 'actuals' are not real"}
-  D2: {severity: medium, fix_in_phase: 2,  summary: "PV weather history has unknown provenance (label PLANT_SENSOR for 2015 onward cannot be literal); replace or validate against NASA POWER or PVGIS/CAMS, and start archiving weather forecasts with their issue time"}
+  D2: {severity: medium, fix_in_phase: 2,  summary: "PV weather history had unknown provenance (label PLANT_SENSOR for 2015 onward cannot be literal; in 2025 it matches a weather-model forecast to within 1 W/m2 of spread). RESOLVED 2026-10-16: replaced by the ERA5 reanalysis (Open-Meteo) and archiving of the two-day-old weather forecast as issued (model_development/plant_inputs)"}
   D3: {severity: medium, fix_in_phase: 2,  summary: "REN data come from the website's internal API with a static key and no published terms or service level; build a monitored loader with a stored raw copy"}
   D4: {severity: medium, fix_in_phase: 2,  summary: "No fundamentals are collected (load, wind and solar forecasts, gas, carbon, reservoir levels); the free candidates are ENTSO-E (token), ESIOS (token), REN Data Hub, NASA POWER, PVGIS/CAMS"}
   D5: {severity: medium, fix_in_phase: 2,  summary: "Stored files force 24 (or 96) slots per day, so daylight-saving days with 23 or 25 hours are not represented as such; raw downloads are not kept, so the fix needs a rebuild from the source"}

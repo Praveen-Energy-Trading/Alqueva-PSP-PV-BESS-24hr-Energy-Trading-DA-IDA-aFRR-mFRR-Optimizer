@@ -2222,14 +2222,13 @@
  },
  "data": {
   "first": "2015-01-01",
-  "last": "2027-03-14",
-  "rows": 106944,
-  "measured": 100776,
-  "filled": 6168,
-  "last_measured": "2026-06-30",
+  "last": "2026-10-09",
+  "rows": 103200,
+  "measured": 103200,
+  "filled": 0,
+  "last_measured": "2026-10-09",
   "sources": {
-   "PLANT_SENSOR": 100776,
-   "SYNTHETIC": 6168
+   "ERA5_REANALYSIS": 103200
   },
   "columns": [
    "GHI"
