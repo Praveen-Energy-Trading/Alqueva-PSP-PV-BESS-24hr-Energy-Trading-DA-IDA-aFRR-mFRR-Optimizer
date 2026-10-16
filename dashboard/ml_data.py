@@ -270,6 +270,28 @@ def champion_short(c: Optional[dict]) -> str:
     return f"Average of {len(c['members'])} algorithms" if c["type"] == "ensemble" else model_label(c["model"])
 
 
+def locked_real_only(target: str, root: Path = REPO_ROOT) -> Optional[dict]:
+    """The locked year of a target that has artificial outcome days (IDA1), on the REAL days only: champion and reference MAE, the gain, and the
+    Diebold-Mariano test of the champion against the reference (the framework's own function, one loss difference per real day). None for a target without them."""
+    lk = locked_results(root).get(target)
+    if not lk or not lk.get("synthetic_fill"):
+        return None
+    ro = lk.get("real_only") or {}
+    out = {"mae": ro["champion"]["mae"], "reference_mae": (ro.get("reference") or {}).get("mae"), "days_left_out": len(lk["synthetic_fill"]["days"]), "p_value": None}
+    out["gain"] = 1 - out["mae"] / out["reference_mae"] if out["reference_mae"] else None
+    lf = pack("locked_forecasts", root)
+    if not lf.empty and target in set(lf["target"]):
+        from common_layer.forecast_evaluation import metrics
+        from common_layer.forecast_evaluation.dm import diebold_mariano
+        x = lf[lf["target"] == target].copy()
+        x["local_date"] = [d.toordinal() for d in pd.to_datetime(x["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.date]
+        x = x[~x["local_date"].isin({pd.Timestamp(d).toordinal() for d in lk["synthetic_fill"]["days"]})]
+        a = metrics.add_error_columns(x.rename(columns={"champion": "y_pred"})[["y_true", "y_pred", "local_date"]].dropna())
+        b = metrics.add_error_columns(x.rename(columns={"reference": "y_pred"})[["y_true", "y_pred", "local_date"]].dropna())
+        out["p_value"] = float(diebold_mariano(a, b, lk.get("loss", "absolute"), 7, "hln")["p_value"])
+    return out
+
+
 def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
     """One row per target: treatment, development days, champion, development MAE, locked MAE (from the decision and locked files)."""
     rollout = config("rollout", root)
@@ -278,6 +300,7 @@ def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
     for t in TARGETS:
         spec = rollout.get("targets", {}).get(t, {})
         dec, loc = d.get(t), lk.get(t)
+        real = locked_real_only(t, root) if loc else None            # a target with artificial outcome days is shown on its real days only
         ref = None
         if dec and dec.get("ranking"):
             ref = next((r["mean_loss"] for r in dec["ranking"] if r["model"] == dec["policy"]["reference"]), None)
@@ -285,9 +308,9 @@ def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
                      "dev_days": dec.get("n_days") if dec else None, "champion": champion_text(dec.get("champion")) if dec and dec.get("champion") else None,
                      "champion_short": champion_short(dec.get("champion")) if dec and dec.get("champion") else "–",
                      "dev_mae": dec.get("champion_dev_loss") if dec else None, "reference_dev_mae": ref,
-                     "locked_mae": loc["locked_scores"]["mae"] if loc else None,
-                     "locked_reference_mae": (loc.get("reference_scores") or {}).get("mae") if loc else None,
-                     "locked_p_vs_reference": (loc.get("dm_vs_reference") or {}).get("p_value") if loc else None,
+                     "locked_mae": (real["mae"] if real else loc["locked_scores"]["mae"]) if loc else None,
+                     "locked_reference_mae": (real["reference_mae"] if real else (loc.get("reference_scores") or {}).get("mae")) if loc else None,
+                     "locked_p_vs_reference": (real["p_value"] if real else (loc.get("dm_vs_reference") or {}).get("p_value")) if loc else None,
                      "locked_vs_dev": loc["loss_ratio_locked_over_dev"] if loc else None, "unit": UNITS[t],
                      "reason": spec.get("reason") if spec.get("treatment") == "deferred" else None})
     df = pd.DataFrame(rows)

@@ -228,3 +228,15 @@ def test_the_pages_still_open_when_the_pack_and_runtime_are_missing(tmp_path, mo
     for page in ("ml_1_data.py", "ml_6_tuning.py", "ml_9_run.py"):
         at = AppTest.from_file(str(REPO / "dashboard" / "pages" / page), default_timeout=60).run()
         assert not at.exception, (page, [e.value for e in at.exception])
+
+
+def test_a_target_with_days_without_a_published_price_is_shown_on_its_real_days_only():
+    """IDA1 has 44 locked days on which the auction published no price: its locked headline is the real-days score, and only IDA1 has such days."""
+    lk = ml_data.locked_results()["ida1_price"]
+    r = ml_data.locked_real_only("ida1_price")
+    assert r["days_left_out"] == len(lk["synthetic_fill"]["days"]) == 44
+    assert r["mae"] == lk["real_only"]["champion"]["mae"] and r["mae"] > lk["locked_scores"]["mae"]          # the filled days had flattered the headline
+    assert r["reference_mae"] == lk["real_only"]["reference"]["mae"] and 0 < r["gain"] < 0.1
+    assert r["p_value"] is not None and lk["dm_vs_reference"]["p_value"] < r["p_value"] < 0.05                 # still significant on real days, less strongly
+    assert all(ml_data.locked_real_only(t) is None for t in ml_data.TARGETS if t != "ida1_price")
+

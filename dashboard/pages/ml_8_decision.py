@@ -71,10 +71,17 @@ if lk is None:
     ml_ui.not_yet_run(f"the locked test of {ml_data.label(target)}")
 else:
     s, ref = lk["locked_scores"], lk.get("reference_scores")
-    gain = 1 - s["mae"] / ref["mae"] if ref else None
-    ml_ui.cards([("Locked-year MAE", f"{s['mae']:.3f}"), ("Reference MAE", f"{ref['mae']:.3f}" if ref else "-"),
-                        ("Gain over the reference", theme.pct(100 * gain) if gain is not None else "-"),
-                        ("Test against the reference (p)", f"{lk['dm_vs_reference']['p_value']:.2g}" if lk.get("dm_vs_reference") else "-")], ncols=4, pre_formatted=True)
+    real = ml_ui.cached(ml_data.locked_real_only)(target)                   # a target with days the auction published no price: the cards use the real days only
+    if real:
+        gain = real["gain"]
+        ml_ui.cards([("Locked-year MAE (real days)", f"{real['mae']:.3f}"), ("Reference MAE (real days)", f"{real['reference_mae']:.3f}" if real["reference_mae"] else "-"),
+                     ("Gain over the reference", theme.pct(100 * gain) if gain is not None else "-"),
+                     ("Test against the reference (p)", f"{real['p_value']:.2g}" if real["p_value"] is not None else "-")], ncols=4, pre_formatted=True)
+    else:
+        gain = 1 - s["mae"] / ref["mae"] if ref else None
+        ml_ui.cards([("Locked-year MAE", f"{s['mae']:.3f}"), ("Reference MAE", f"{ref['mae']:.3f}" if ref else "-"),
+                            ("Gain over the reference", theme.pct(100 * gain) if gain is not None else "-"),
+                            ("Test against the reference (p)", f"{lk['dm_vs_reference']['p_value']:.2g}" if lk.get("dm_vs_reference") else "-")], ncols=4, pre_formatted=True)
     st.markdown(f"Window {lk['window'][0]} to {lk['window'][1]}; outcomes frozen by digest (lock status: {lk.get('lock_status')}); "
                 f"scored once, with code revision {lk['code']}.")
     if lk["loss_ratio_locked_over_dev"] < 0.8 or lk["loss_ratio_locked_over_dev"] > 1.25:
@@ -83,9 +90,9 @@ else:
     else:
         st.caption(f"Locked-year loss against development loss: {lk['loss_ratio_locked_over_dev']:.2f}.")
     if lk.get("synthetic_fill"):
-        sf, ro = lk["synthetic_fill"], lk["real_only"]
-        st.error(f"{len(sf['days'])} of the locked days have ARTIFICIAL outcomes ({sf['method']}); they are not real prices. On real days only: champion MAE "
-                 f"{ro['champion']['mae']:.3f}" + (f", reference {ro['reference']['mae']:.3f}." if "reference" in ro else "."))
+        sf = lk["synthetic_fill"]
+        st.info(f"On {len(sf['days'])} days of the locked year the auction published no price (an empty result or a failed download). They are left out of every number above; "
+                "the frozen test data holds the day-ahead price on those days, and the scores that include them are in the locked-test report.")
     if lk.get("members"):
         mm = pd.DataFrame([{"Forecaster": k, **v} for k, v in lk["members"].items()])
         with st.expander("The other algorithms scored in the same locked run (reported, not used for any choice)"):
@@ -129,7 +136,7 @@ else:
         st.markdown(f"**{title}** ({b['window'][0]} to {b['window'][1]}, {round(b['hours'] / 24):,} days)")
         ml_ui.table(pd.DataFrame(rows), formats={"MAE": "%.2f", "RMSE": "%.2f", "Champion's gain (%)": "%.1f"})
     if bm.get("locked") and bm["locked"].get("synthetic_days"):
-        st.caption(f"The locked year includes {bm['locked']['synthetic_days']} artificial days; they are left out here for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
+        st.caption(f"The locked year has {bm['locked']['synthetic_days']} days on which the auction published no price; they are left out here for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
     st.caption("Reading it: a gain of 15% means the champion's mean absolute error is 15% lower. The naive forecasts are not tuned and not chosen, "
                "so they cannot be flattered by the selection; they cannot change the champion either.")
 

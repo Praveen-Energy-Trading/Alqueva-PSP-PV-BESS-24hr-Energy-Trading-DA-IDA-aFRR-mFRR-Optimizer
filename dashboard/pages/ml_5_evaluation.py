@@ -95,6 +95,7 @@ if folds is not None and len(folds):
 
 st.subheader("What is measured")
 ml_ui.table(__import__("pandas").DataFrame([{"SSE": "sum of squared errors", "MAE": "mean absolute error", "RMSE": "root mean squared error"}]), stretch=True)
+st.caption("MAE is lowest for the median, so the forecasts are median-type: the typical price, not the expected price, which a spike lifts.")
 
 st.subheader("Is a difference real? The Diebold-Mariano test, worked")
 st.markdown("The 24 hours of a day are strongly related, so the test uses **one loss difference per delivery day**, a variance that allows for "
