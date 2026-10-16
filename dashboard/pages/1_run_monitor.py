@@ -108,9 +108,9 @@ def _render() -> None:
         "Delivery date (DD-MM-YYYY, or 'auto' for tomorrow)", value="auto",
         disabled=runner_state["running"],
     )
-    synthetic = col2.toggle("Synthetic data", value=False, disabled=runner_state["running"],
-                             help="Off = live OMIE/REN fetch with synthetic fallback (production mode). "
-                                  "On = fully synthetic, no network calls (fast backtest mode).")
+    synthetic = col2.toggle("Offline demo (synthetic data)", value=False, disabled=runner_state["running"],
+                             help="Off = downloads the latest OMIE and REN data; an input whose download fails falls back to synthetic values, "
+                                  "and a warning is logged. On = no downloads at all: missing history is filled with synthetic values (fast demo mode).")
     col3.write("")
     col3.write("")
 

@@ -17,9 +17,11 @@ requests>=2.31        # live OMIE / REN data loaders (live mode only)
 # walk-forward-CV comparison across all three; lazily imported per-model so
 # any one being absent only breaks that model's candidacy, not the whole
 # pipeline, but all three are required for the full model-selection sweep.
-scikit-learn>=1.4     # RandomForestRegressor baseline
-xgboost>=2.0
-lightgbm>=4.3
+# The fitted champions are stored as pickles (model_development, runtime/models) and a pickle must be loaded by the same library
+# version that saved it, so these three are pinned to the versions the champions were fitted with.
+scikit-learn==1.8.0   # decision tree, random forest, gradient boosting
+xgboost==3.4.0
+lightgbm==4.6.0
 
 # Test suite (tests/, pytest.ini-style discovery via conftest.py).
 pytest>=8.0

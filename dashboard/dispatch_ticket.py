@@ -1512,10 +1512,10 @@ def render_afrr_dispatch_card(dv: dict, act: dict | None = None) -> str:
               border-radius:12px; padding:0.8rem 1.1rem; width:100%; box-sizing:border-box;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
       <span style="font-size:14px; color:{theme.INK_SECONDARY}; font-weight:500;">Reserve delivery</span>
-      <span style="background:{theme.STATUS_GOOD}22; color:{theme.STATUS_GOOD}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Real ACE-driven activation</span>
+      <span style="background:{theme.STATUS_WARNING}33; color:{theme.INK_SECONDARY}; font-size:13px; padding:3px 10px; border-radius:6px; font-weight:500;">Simulated ACE signal (no grid telemetry)</span>
     </div>
     <div style="font-size:20px; font-weight:500; color:{theme.INK_PRIMARY}; margin-bottom:2px;">{product} dispatch</div>
-    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 8px;">Area-wide ACE signal - Alqueva delivers only its own contracted share, not the full response.</p>
+    <p style="font-size:12.5px; color:{theme.INK_SECONDARY}; margin:0 0 8px;">Simulated area-wide ACE signal, not grid data - Alqueva delivers only its own contracted share, not the full response.</p>
     {stats_html}
 
     <div class="afrrd-chart-block" data-afrrd='{payload_json}'>
