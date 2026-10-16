@@ -30,9 +30,7 @@ table.htab td {{ padding: 6px 10px; border-bottom: 1px solid {GRID}; border-righ
 table.htab td.txt {{ white-space: nowrap; }}
 table.htab td.long {{ white-space: normal; min-width: 260px; max-width: 460px; text-align: left; }}
 table.htab td.num {{ font-variant-numeric: tabular-nums; }}
-table.htab.stretch {{ width: 100% !important; }}
-table.htab.stretch th {{ padding: 3px 10px; line-height: 1.15; }}
-table.htab.stretch td {{ padding: 2px 10px; line-height: 1.2; }}
+table.htab.stretch {{ width: 100% !important; }}          /* a stretched table keeps the row size of every other table */
 table.htab.stretch td.txt {{ white-space: normal; }}
 table.htab.stretch td.long {{ min-width: 140px; }}
 table.htab.nowrap td {{ white-space: nowrap !important; }}

@@ -64,7 +64,7 @@ if not cur.empty:
     ml_ui.table(c[["series", "hours", "errors_removed", "filled", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
         "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours imputed",
         "straight_line": "Straight line: gaps (hours)", "carried_forward": "Carried forward: gaps (hours)", "day_ahead_plus_spread": "Day-ahead price + spread: gaps (hours)",
-        "same_hour_earlier": "Same hour earlier: gaps (hours)"}), height=178, stretch=True, nowrap=True)      # about five rows visible, the rest scrolls under a fixed header
+        "same_hour_earlier": "Same hour earlier: gaps (hours)"}), height=238, stretch=True, nowrap=True)      # about five rows visible, the rest scrolls under a fixed header
     st.markdown(fill_legend.html_block(), unsafe_allow_html=True)
 
 st.subheader("Plant input series")
