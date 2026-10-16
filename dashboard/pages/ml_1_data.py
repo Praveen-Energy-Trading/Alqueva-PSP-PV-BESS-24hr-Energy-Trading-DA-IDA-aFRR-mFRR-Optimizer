@@ -77,12 +77,12 @@ else:
         if not d:
             continue
         _rows.append({"Series": f"{name} ({d['unit']}, {r['resolution']})",
-                      "Source": "ERA5 reanalysis (Open-Meteo)" if key in ("ghi", "temperature") else "Guadiana inflow research dataset",
+                      "Source": "ERA5 reanalysis, then recent days (Open-Meteo)" if key in ("ghi", "temperature") else "Guadiana inflow research dataset",
                       "Measured from - to": f"{_day(d['first'])} to {_day(d['last_measured'])}", "File ends": _day(d["last"]),
                       "Measured": d["measured"], "Imputed": d["filled"]})
     ml_ui.table(pd.DataFrame(_rows), formats={"Measured": "%d", "Imputed": "%d"}, stretch=True)
-    st.caption("These series come from files, not from a daily feed. After the last measured day the file holds imputed values (a synthetic clear-sky curve for irradiance and temperature, "
-               "the monthly mean for inflow). Only measured values are used as a test target.")
+    st.caption("Irradiance and temperature are downloaded (the reanalysis, then the newest complete days); inflow comes from a file. Where a day is missing the file holds imputed values "
+               "(a synthetic clear-sky curve for today's irradiance and temperature, the monthly mean for inflow). Only measured values are used as a test target.")
 
 st.subheader("Missing and empty days")
 if status.empty:

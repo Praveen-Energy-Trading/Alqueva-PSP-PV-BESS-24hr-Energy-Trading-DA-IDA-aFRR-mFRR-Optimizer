@@ -115,4 +115,4 @@ else:
     st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="daily MAE, smoothed"), width="stretch")
     st.caption("The errors of all algorithms rise and fall together over time, which is why the tests compare them on paired daily losses.")
 
-st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are compared on their own page, against three simple forecasts.")
+st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are compared on their own page, against simple forecasts and, for irradiance and temperature, the weather forecast.")

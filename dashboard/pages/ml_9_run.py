@@ -136,4 +136,4 @@ st.subheader("Engineering")
 ml_ui.cards([("Automated tests", f"{facts.get('test_functions', '-')} in {facts.get('test_files', '-')} files"), ("Framework modules", facts.get("framework_modules", "-")),
                     ("Command-line tools", facts.get("tools", "-")), ("Configuration files", facts.get("config_files", "-"))], ncols=4, pre_formatted=True)
 
-st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are not registered as champions and are not monitored here: their forecasters are retrained daily on the full history.")
+st.caption("The plant inputs are not registered as champions and are not monitored here: irradiance and temperature come from the weather forecast, and the inflow forecaster is retrained daily on the full history.")

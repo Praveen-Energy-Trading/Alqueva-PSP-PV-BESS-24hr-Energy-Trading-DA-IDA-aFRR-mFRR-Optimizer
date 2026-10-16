@@ -46,7 +46,7 @@ if d is None:
 st.subheader(f"Decision for {ml_data.label(target)}")
 st.markdown(f"**Champion: {ml_data.champion_text(d['champion'])}**  &nbsp; ({d['n_days']} development days; treatment: {d.get('treatment', {}).get('name', 'standard').replace('_', ' ')})")
 if d.get("treatment", {}).get("name") == "limited_evidence":
-    st.warning("Limited evidence: " + d["treatment"]["label"] + ". With about 300 days only larger differences can be established, so ties are common.")
+    st.warning("Limited evidence: " + d["treatment"]["label"].replace("first test day", "first validation day") + ". With about 300 days only larger differences can be established, so ties are common.")
 for i, reason in enumerate(d["reasons"], 1):
     st.markdown(f"{i}. {ml_data.humanize(reason)}")
 l, r = st.columns(2)
@@ -140,4 +140,4 @@ else:
     st.caption("Reading it: a gain of 15% means the champion's mean absolute error is 15% lower. The naive forecasts are not tuned and not chosen, "
                "so they cannot be flattered by the selection; they cannot change the champion either.")
 
-st.caption("The plant inputs (solar irradiance, temperature, natural inflow) have no champion decision and no locked year: their serving model is chosen by walk-forward validation, and its held-out year is shown on the Plant inputs page.")
+st.caption("The plant inputs (solar irradiance, temperature, natural inflow) have no champion decision and no locked year: irradiance and temperature are served by the weather forecast and inflow by a model chosen by walk-forward validation; the held-out year is shown on the Plant inputs page.")

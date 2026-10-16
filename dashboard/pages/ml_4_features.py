@@ -88,7 +88,8 @@ for _key, _name, _ in ml_data.PLANT_INPUTS:
         _rows.append({"Forecast": f"{_name} ({_r['unit']})", "Features": _r["features"].replace("_", " "), "Number": len(_r["features"].split(", "))})
 if _rows:
     ml_ui.table(pd.DataFrame(_rows), stretch=True)
-    st.caption("Lags and rolling means end at the previous day, so nothing of the delivery day is read. The sensor forecasts add a clear-sky value and the calendar; "
-               "the inflow forecast adds the calendar only.")
+    st.caption("Irradiance and temperature are taken from the weather forecast; these are the features of the fallback model used without it. Its lags and rolling means "
+               "end at the same hour yesterday, which is later than what is observed at 11:00 on the day before (see the Plant inputs page). It adds a clear-sky value and "
+               "the calendar; the inflow forecast adds the calendar only.")
 else:
     ml_ui.not_yet_run("the plant input evaluation (tools/evaluate_plant_inputs.py)")

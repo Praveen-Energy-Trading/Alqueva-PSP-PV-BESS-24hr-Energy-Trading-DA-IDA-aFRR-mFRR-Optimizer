@@ -34,7 +34,7 @@ def interview_mode() -> bool:
 
 def sidebar_controls() -> None:
     st.sidebar.toggle("Interview mode", key="ml_interview_mode",
-                      help="Shows a tour bar to step through the nine pages.")
+                      help="Shows a tour bar to step through the pages.")
 
 
 def header(title: str, subtitle: str, step: Optional[int] = None) -> None:
@@ -116,7 +116,7 @@ def target_picker(key: str = "ml_target", targets: Iterable[str] = ml_data.TARGE
 
 
 def tour_bar(step: int) -> None:
-    """In interview mode: previous and next buttons through the nine pages."""
+    """In interview mode: previous and next buttons through the pages."""
     if not interview_mode():
         return
     c1, c2, c3 = st.columns([1, 6, 1])
