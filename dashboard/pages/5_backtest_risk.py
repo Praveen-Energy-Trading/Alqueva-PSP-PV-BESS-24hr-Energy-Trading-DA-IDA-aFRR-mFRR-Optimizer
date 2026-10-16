@@ -57,7 +57,7 @@ def _scorecard(groups: list, min_height: int = 0) -> int:
     for heading, rows in groups:
         body += f'<tr><th colspan="2" class="sc-head">{html.escape(heading)}</th></tr>'
         body += "".join(f'<tr><td class="sc-label">{html.escape(label)}</td><td class="sc-value">{html.escape(str(value))}</td></tr>' for label, value in rows)
-    fit = f"max(11px, min(14px, calc((100cqw - 40px) / ({0.56 * chars:.2f}))))"
+    fit = f"max(11px, min(0.86rem, calc((100cqw - 40px) / ({0.56 * chars:.2f}))))"          # never larger than the font of every other table; smaller only when the width needs it
     css = (f"<style>.sc-wrap {{ container-type: inline-size; width: 100%; }}"
            f"table.sc td, table.sc th.sc-head {{ height: {_ROW_PX - 1}px; padding-top: 0; padding-bottom: 0; white-space: nowrap; font-size: {fit}; line-height: 1.1; }}"
            f"table.sc td.sc-label {{ text-align:left; color:{ht.INK_MUTED}; padding-right:16px; }}"
