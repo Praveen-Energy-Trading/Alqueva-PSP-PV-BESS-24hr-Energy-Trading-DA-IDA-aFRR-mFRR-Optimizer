@@ -114,19 +114,25 @@ if folds is not None and len(folds):
                            font=dict(size=12, color=c), yanchor="bottom", standoff=1, align="center", bgcolor="white", bordercolor=c, borderwidth=1, borderpad=4)
     # ---- the three periods, under the rows: what happens in each, and where the results come from
     ys, ye = n + 0.8, n + 4.4
-    strips = [(start0, v0, BLUE, 0.7, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - one_day)}<br>used only for learning"),
+    strips = [(start0, v0, BLUE, 0.7, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - one_day)}<br>used only for learning and tuning"),
               (v0, v1, ORANGE, 1.0, "white", f"<b>Validation period</b> &nbsp;{_fmt(v0)} to {_fmt(v1 - one_day)}<br>all the orange validation forecasts together<br>"
                                               "the algorithms are compared and the champion is chosen"),
               (l0, l1, RED, 1.0, "white", f"<b>Locked test</b><br>{_fmt(l0)} to {_fmt(l1 - one_day)}<br>scored once: the final result")]
     for x0, x1, c, op, tc, txt in strips:
         pill(x0 + pd.Timedelta(days=1.5), x1 - pd.Timedelta(days=1.5), ys, ye, c, op, r_px=7, row_px=12.5)
         fig.add_annotation(x=mid(x0, x1), y=(ys + ye) / 2, text=txt, showarrow=False, font=dict(size=11, color=tc), align="center")
+    # the tuning days are not a period of their own: the last days before each forecast, so they move with every refit and lie in the training and the validation period alike
+    t0 = min(max(pd.Timestamp(r.train_end) + one_day - pd.Timedelta(days=_val), pd.Timestamp(r.train_start)) for r in folds.itertuples())
+    t1 = max(pd.Timestamp(r.train_end) + one_day for r in folds.itertuples())
+    pill(t0, t1, ye + 0.7, ye + 3.6, VIOLET, 0.9, r_px=7)
+    fig.add_annotation(x=mid(t0, t1), y=ye + 2.15, align="center", showarrow=False, font=dict(size=11, color="white"),
+                       text=f"<b>Tuning days of all refits together</b> &nbsp;{_fmt(t0)} to {_fmt(t1 - one_day)}<br>always the {_val} days just before a forecast: they move with every refit, so they are not one period")
     for x in (v0, l0):                                                              # where one period ends and the next begins
         fig.add_shape(type="line", x0=x, x1=x, y0=-0.6, y1=ys - 0.2, line=dict(color="#c4c2b9", width=1, dash="dot"))
     fig.add_annotation(x=l0 + (l1 - l0) / 2, y=n / 2, text="<i>no refit trains on<br>or tunes on this year</i>", showarrow=False, font=dict(size=12, color=RED))
     fig.add_annotation(x=l1, y=-10.2, xanchor="right", yanchor="top", text=f"{n} refits, one row each, a new one every {step} days ↓", showarrow=False, font=dict(size=12, color=MUTED))
-    theme.style_fig(fig, height=int((n + 16.5) * 12.5 + 66), xaxis_title=None, legend=False)          # 12.5 px a row whatever the number of rows, so the labels keep their places
-    fig.update_yaxes(autorange=False, range=[n + 5.0, -11.5], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True)
+    theme.style_fig(fig, height=int((n + 19.9) * 12.5 + 66), xaxis_title=None, legend=False)          # 12.5 px a row whatever the number of rows, so the labels keep their places
+    fig.update_yaxes(autorange=False, range=[n + 8.4, -11.5], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True)
     fig.update_xaxes(type="date", range=[start0, l1 + pd.Timedelta(days=20)], showgrid=False, dtick="M12", tickformat="%Y", ticks="outside", ticklen=4, tickcolor="#c4c2b9",
                      tickfont=dict(size=11, color=MUTED), showline=False)
     fig.update_layout(margin=dict(t=8, b=34, l=10, r=10))
