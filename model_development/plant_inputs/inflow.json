@@ -1536,14 +1536,14 @@
  },
  "data": {
   "first": "2015-01-01",
-  "last": "2026-12-21",
-  "rows": 4373,
+  "last": "2026-10-16",
+  "rows": 4307,
   "measured": 4199,
-  "filled": 174,
+  "filled": 108,
   "last_measured": "2026-06-30",
   "sources": {
    "Alqueva Reservoir Inflow - Guadiana River Research Dataset": 4199,
-   "Alqueva Reservoir Inflow - Monthly Climatology (gap-fill)": 174
+   "Alqueva Reservoir Inflow - Monthly Climatology (gap-fill)": 108
   },
   "columns": [
    "inflow_m3h"

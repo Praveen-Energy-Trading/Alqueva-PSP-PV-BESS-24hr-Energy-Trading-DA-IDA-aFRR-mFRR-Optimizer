@@ -69,3 +69,13 @@ def test_dates_stated_in_the_inventory_match_the_data_files():
     inf = pd.read_excel(os.path.join(root, base, "inflow_training_data_from_2015.xlsx"))
     inf["Date"] = pd.to_datetime(inf["Date"])
     assert inf.loc[~inf.source.str.contains("Climatology"), "Date"].max() == pd.Timestamp("2026-06-30")
+
+
+def test_no_training_workbook_holds_a_day_after_today():
+    """A forecast for tomorrow is made from data up to today: the two plant-input workbooks once carried placeholder rows months into the future."""
+    import datetime as dt
+    import os
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "phase_2_da_day_ahead_bidding", "da_price_pv_inflow_forecasting")
+    for name in ("pv_training_data_from_2015.xlsx", "inflow_training_data_from_2015.xlsx"):
+        df = pd.read_excel(os.path.join(base, name))
+        assert pd.to_datetime(df["Date"]).max() <= pd.Timestamp(dt.date.today()), name
