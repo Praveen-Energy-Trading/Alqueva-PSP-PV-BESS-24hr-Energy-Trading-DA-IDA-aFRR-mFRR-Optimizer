@@ -45,8 +45,10 @@ if d is None:
 
 st.subheader(f"Decision for {ml_data.label(target)}")
 st.markdown(f"**Champion: {ml_data.champion_text(d['champion'])}**  &nbsp; ({d['n_days']} development days; treatment: {d.get('treatment', {}).get('name', 'standard').replace('_', ' ')})")
-if d.get("treatment", {}).get("name") == "limited_evidence":
-    st.warning("Limited evidence: " + d["treatment"]["label"].replace("first test day", "first validation day") + ". With about 300 days only larger differences can be established, so ties are common.")
+_tn = d.get("treatment", {}).get("name")
+if _tn in ("limited_evidence", "very_limited_evidence"):
+    st.warning(("Very limited evidence: " if _tn == "very_limited_evidence" else "Limited evidence: ") + d["treatment"]["label"].replace("first test day", "first validation day")
+               + f". With {d['n_days']} development days only larger differences can be established, so ties are common.")
 for i, reason in enumerate(d["reasons"], 1):
     st.markdown(f"{i}. {ml_data.humanize(reason)}")
 l, r = st.columns(2)
