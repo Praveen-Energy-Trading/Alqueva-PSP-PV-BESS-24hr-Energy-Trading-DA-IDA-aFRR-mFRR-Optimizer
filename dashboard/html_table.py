@@ -35,6 +35,7 @@ table.htab.stretch th {{ padding: 3px 10px; line-height: 1.15; }}
 table.htab.stretch td {{ padding: 2px 10px; line-height: 1.2; }}
 table.htab.stretch td.txt {{ white-space: normal; }}
 table.htab.stretch td.long {{ min-width: 140px; }}
+table.htab.nowrap td {{ white-space: nowrap !important; }}
 .htab-wrap.stretch-wrap {{ margin: 0.1rem 0 0.4rem 0; }}
 table.htab tr:last-child td {{ border-bottom: none; }}
 table.htab th:last-child, table.htab td:last-child {{ border-right: none; }}
@@ -70,7 +71,7 @@ def _header(text) -> str:
     return html.escape(str(text)).replace("_", "_<wbr>")
 
 
-def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optional[int] = None, stretch: bool = False) -> str:
+def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optional[int] = None, stretch: bool = False, nowrap: bool = False) -> str:
     formats = formats or {}
     heads, numeric, long_text = [], [], []
     for c in df.columns:
@@ -94,7 +95,7 @@ def html_table(df: pd.DataFrame, formats: Optional[dict] = None, height: Optiona
     style = f' style="max-height:{int(height)}px"' if height else ""
     if stretch:                                                         # the table takes the full width: its columns share the room
         style = ' style="width:100%' + (f'; max-height:{int(height)}px' if height else "") + '"'
-    table_class = "htab stretch" if stretch else "htab"
+    table_class = ("htab stretch" if stretch else "htab") + (" nowrap" if nowrap else "")        # nowrap: every cell on one line, so every row has the same height
     wrap_class = "htab-wrap stretch-wrap" if stretch else "htab-wrap"
     return (CSS + f'<div class="{wrap_class}"{style}><table class="{table_class}"><thead><tr>' + "".join(heads) + "</tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")

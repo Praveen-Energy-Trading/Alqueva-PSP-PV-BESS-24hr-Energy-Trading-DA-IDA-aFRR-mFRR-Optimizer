@@ -62,14 +62,14 @@ def cards(items, ncols: int = 4, pre_formatted: bool = False) -> None:
     theme.metric_cards(items, ncols=ncols, pre_formatted=True)
 
 
-def table(df, compact: bool = False, height=None, formats: Optional[dict] = None, wrap: bool = False, fit: bool = True, stretch: bool = False) -> None:
+def table(df, compact: bool = False, height=None, formats: Optional[dict] = None, wrap: bool = False, fit: bool = True, stretch: bool = False, nowrap: bool = False) -> None:
     """A table whose columns are as wide as their content and whose headers wrap onto two or more lines (see html_table.py). Numbers are
     right-aligned with a sensible number of decimals, a missing value is a dash; a table of more than 20 rows scrolls inside a frame, a
     shorter one shows every row. `stretch` makes the table as wide as the page. `compact`, `wrap` and `fit` are kept for the callers and no longer change anything."""
     import html_table
     if height is None and len(df) > 20:
         height = 520
-    st.markdown(html_table.html_table(df, formats=formats, height=height, stretch=stretch), unsafe_allow_html=True)
+    st.markdown(html_table.html_table(df, formats=formats, height=height, stretch=stretch, nowrap=nowrap), unsafe_allow_html=True)
 
 
 def table_halves(df, **kwargs) -> None:

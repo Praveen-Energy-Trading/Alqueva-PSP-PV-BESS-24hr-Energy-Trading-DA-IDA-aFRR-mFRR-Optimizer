@@ -56,13 +56,15 @@ if not cur.empty:
                          "day-ahead price plus the typical spread": "day_ahead_plus_spread", "same hour a week earlier": "same_hour_earlier"}
         per = gaps.groupby(["series", "method"]).agg(n=("hours", "size"), h=("hours", "sum"))
         for method, col in method_column.items():
-            c[col] = [f"{int(per.loc[(k, method), 'n']):,} gap{'' if int(per.loc[(k, method), 'n']) == 1 else 's'} ({int(per.loc[(k, method), 'h']):,} h)" if (k, method) in per.index else "0" for k in c["series"]]
+            c[col] = [f"{int(per.loc[(k, method), 'n']):,} ({int(per.loc[(k, method), 'h']):,})" if (k, method) in per.index else "–" for k in c["series"]]       # gaps (hours)
     c["series"] = c["series"].map(ml_data.series_label)
     c["hours"] = (c["hours"] / 24).round().astype(int)          # the length of each series in days
+    for col in ("hours", "errors_removed", "filled"):
+        c[col] = c[col].map(lambda v: f"{int(v):,}")
     ml_ui.table(c[["series", "hours", "errors_removed", "filled", "straight_line", "carried_forward", "day_ahead_plus_spread", "same_hour_earlier"]].rename(columns={
         "series": "Series", "hours": "Days", "errors_removed": "Data errors removed", "filled": "Hours imputed",
-        "straight_line": "Straight line", "carried_forward": "Carried forward", "day_ahead_plus_spread": "Day-ahead price + spread",
-        "same_hour_earlier": "Same hour earlier"}))
+        "straight_line": "Straight line: gaps (hours)", "carried_forward": "Carried forward: gaps (hours)", "day_ahead_plus_spread": "Day-ahead price + spread: gaps (hours)",
+        "same_hour_earlier": "Same hour earlier: gaps (hours)"}), height=178, stretch=True, nowrap=True)      # about five rows visible, the rest scrolls under a fixed header
     st.markdown(fill_legend.html_block(), unsafe_allow_html=True)
 
 st.subheader("Plant input series")
