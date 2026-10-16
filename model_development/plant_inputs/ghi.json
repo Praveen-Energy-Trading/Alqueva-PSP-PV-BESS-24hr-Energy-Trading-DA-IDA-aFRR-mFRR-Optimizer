@@ -2222,13 +2222,14 @@
  },
  "data": {
   "first": "2015-01-01",
-  "last": "2026-10-09",
-  "rows": 103200,
-  "measured": 103200,
+  "last": "2026-10-15",
+  "rows": 103344,
+  "measured": 103344,
   "filled": 0,
-  "last_measured": "2026-10-09",
+  "last_measured": "2026-10-15",
   "sources": {
-   "ERA5_REANALYSIS": 103200
+   "ERA5_REANALYSIS": 103200,
+   "OPEN_METEO_RECENT": 144
   },
   "columns": [
    "GHI"

@@ -121,5 +121,5 @@ imputation:
 provenance:
   market_default: live
   external:
-    pv_weather:  {live_until: "2026-10-09", after: synthetic, note: "ERA5 reanalysis (not an on-site measurement) to about a week ago; later rows are synthetic gap fill"}
+    pv_weather:  {live_until: "2026-10-15", after: synthetic, note: "ERA5 reanalysis (not an on-site measurement) to 2026-10-09, then the recent days as they happened to yesterday; later rows are synthetic gap fill"}
     inflow:      {live_until: "2026-06-30", after: synthetic, note: "static file; later rows are climatology"}

@@ -100,9 +100,9 @@ def forecast_pv_available(hours: List[int], delivery_date: str,
 def _fill_gaps(delivery_date: str) -> None:
     """Fill pv_training_data Excel with synthetic weather up to yesterday.
 
-    Plant sensor feed has a publication lag — real data not available for recent
-    dates. Gap is filled with clear-sky GHI × mean cloud factor and seasonal
-    T_amb. Idempotent: already-filled dates are skipped.
+    The reanalysis behind the history is published with a lag of about five days. The newest complete days are taken from the recent-days data of
+    Open-Meteo (source OPEN_METEO_RECENT: real weather as it happened). Only the days that cannot be had that way (today, or the service is
+    unreachable) are filled with clear-sky GHI × mean cloud factor and seasonal T_amb, labelled SYNTHETIC. Idempotent: filled dates are skipped.
     """
     target_dt = pd.Timestamp(delivery_date)
     yesterday = pd.Timestamp(fill_end_date(target_dt))  # day before delivery, never past today
@@ -125,7 +125,16 @@ def _fill_gaps(delivery_date: str) -> None:
         pass
 
     new_rows = []
+    from common_layer.data_layer import weather_forecast
+    real = weather_forecast.recent(missing[0], missing[-1])           # the newest days as they happened (the reanalysis is published late); synthetic only for what is left
+    real_days = set() if real is None else set(pd.to_datetime(real["datetime"]).dt.normalize())
+    if real is not None:
+        for _, rr in real.iterrows():
+            new_rows.append({"Date": pd.Timestamp(rr["datetime"]).normalize(), "Hour": int(rr["Hour"]), "GHI": float(rr["GHI"]), "T_amb": float(rr["T_amb"]),
+                             "source": "OPEN_METEO_RECENT"})
     for dt in missing:
+        if pd.Timestamp(dt).normalize() in real_days:
+            continue
         month = dt.month
         t_amb_mean = _seasonal_tamb(month)
         for h in range(1, 25):

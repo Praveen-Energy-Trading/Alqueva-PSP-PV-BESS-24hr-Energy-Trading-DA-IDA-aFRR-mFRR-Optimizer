@@ -59,13 +59,15 @@ def test_uncovered_forecast_is_reported():
 
 
 def test_dates_stated_in_the_inventory_match_the_data_files():
-    """The end of the PV reanalysis (2026-10-09, when the workbook was last built) and of the real inflow data (2026-06-30) is the factual basis of finding D1."""
+    """The end of the PV reanalysis (2026-10-09, when the workbook was last built), the recent days after it and the end of the real inflow data (2026-06-30) are the factual basis of finding D1."""
     base = "phase_2_da_day_ahead_bidding/da_price_pv_inflow_forecasting/"
     import os
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pv = pd.read_excel(os.path.join(root, base, "pv_training_data_from_2015.xlsx"))
     pv["Date"] = pd.to_datetime(pv["Date"])
-    assert pv.loc[pv.source != "SYNTHETIC", "Date"].max() == pd.Timestamp("2026-10-09")
+    assert pv.loc[pv.source == "ERA5_REANALYSIS", "Date"].max() == pd.Timestamp("2026-10-09")
+    assert set(pv["source"]) <= {"ERA5_REANALYSIS", "OPEN_METEO_RECENT", "SYNTHETIC"}
+    assert pv.loc[pv.source == "OPEN_METEO_RECENT", "Date"].min() > pd.Timestamp("2026-10-09")                # the recent days only ever come after the reanalysis
     inf = pd.read_excel(os.path.join(root, base, "inflow_training_data_from_2015.xlsx"))
     inf["Date"] = pd.to_datetime(inf["Date"])
     assert inf.loc[~inf.source.str.contains("Climatology"), "Date"].max() == pd.Timestamp("2026-06-30")

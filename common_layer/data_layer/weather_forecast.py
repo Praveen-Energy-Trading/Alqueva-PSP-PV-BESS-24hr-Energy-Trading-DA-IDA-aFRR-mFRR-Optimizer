@@ -10,6 +10,9 @@ For a delivery day D the forecast is taken, in this order:
   3. None. The caller then falls back to its own method.
 
 Hours are UTC, numbered 1..24 like the PV workbook (hour h covers h-1:00 to h:00 UTC). Irradiance is clipped at 0.
+
+recent() is different: it returns the newest COMPLETE days of weather as it happened (the analysis of the weather model), for the days between the end of
+the reanalysis (published with a delay of about five days) and today. It is real data, not a forecast and not a synthetic curve.
 """
 from __future__ import annotations
 
@@ -73,6 +76,38 @@ def live(delivery_date: str, timeout: float = 20.0) -> Optional[Forecast]:
         return None
     _live_cache[str(day)] = out
     return out
+
+
+def recent(start_date, end_date=None, timeout: float = 30.0) -> Optional[pd.DataFrame]:
+    """Complete days of weather as it happened, from start_date up to end_date (default: yesterday), or None if they cannot be had.
+
+    Columns: datetime (naive UTC), Hour (1..24), GHI (W/m2), T_amb (degC). Only days with all 24 hours of both quantities are returned, and never today
+    or later (a day that has not finished is not data). The source is the recent-days data of Open-Meteo's forecast service (at most 90 days back)."""
+    today = dt.date.today()
+    start = dt.date.fromisoformat(str(start_date)[:10])
+    end = min(dt.date.fromisoformat(str(end_date)[:10]) if end_date else today - dt.timedelta(days=1), today - dt.timedelta(days=1))
+    if end < start or (today - start).days > 90:
+        return None
+    try:
+        import requests
+        for attempt in range(3):
+            r = requests.get(LIVE_URL, params=dict(latitude=LAT, longitude=LON, hourly="shortwave_radiation,temperature_2m", timezone="UTC",
+                                                   past_days=(today - start).days, forecast_days=1), timeout=timeout)
+            if r.status_code == 200 and "hourly" in r.json():
+                break
+        r.raise_for_status()
+        h = pd.DataFrame(r.json()["hourly"])
+    except Exception:
+        return None
+    h["datetime"] = pd.to_datetime(h["time"])
+    h["date"] = h["datetime"].dt.date
+    h = h[(h["date"] >= start) & (h["date"] <= end)].dropna(subset=["shortwave_radiation", "temperature_2m"])
+    full = h.groupby("date")["datetime"].transform("count") == 24
+    h = h[full]
+    if h.empty:
+        return None
+    return pd.DataFrame({"datetime": h["datetime"].to_numpy(), "Hour": h["datetime"].dt.hour.to_numpy() + 1, "GHI": h["shortwave_radiation"].clip(lower=0).round(1).to_numpy(),
+                         "T_amb": h["temperature_2m"].round(2).to_numpy()}).reset_index(drop=True)
 
 
 def forecast(delivery_date: str, allow_live: bool = True) -> Optional[Forecast]:

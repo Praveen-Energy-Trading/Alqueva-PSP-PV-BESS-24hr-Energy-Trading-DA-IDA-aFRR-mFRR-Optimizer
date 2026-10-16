@@ -105,8 +105,8 @@ sources:
     content: "Hourly global horizontal irradiance GHI (W/m2) and ambient temperature (C), Alqueva site, UTC; a reanalysis, not an on-site measurement"
     access: {method: "tools/fetch_open_meteo.py --reanalysis, then tools/build_pv_history_from_era5.py", url: "https://archive-api.open-meteo.com/v1/archive", auth: none}
     resolution: ["hourly"]
-    publication: "ERA5 is published with a delay of about five days; the last days before today are filled by a synthetic generator (_fill_gaps), labelled SYNTHETIC"
-    history: {start: "2015-01-01", end: "2026-10-09 (reanalysis); later days synthetic only when the fallback model runs"}
+    publication: "ERA5 is published with a delay of about five days; the newest complete days come from Open-Meteo's recent-days data (labelled OPEN_METEO_RECENT); only what remains (today) is filled by a synthetic generator (_fill_gaps), labelled SYNTHETIC"
+    history: {start: "2015-01-01", end: "2026-10-09 (reanalysis); 2026-10-10 to yesterday: recent days as they happened (OPEN_METEO_RECENT); today: synthetic gap fill only when the fallback model runs"}
     live_feed: false
     loader: "tools/fetch_open_meteo.py --reanalysis (download) and tools/build_pv_history_from_era5.py (workbook); pv_power_forecaster.py reads and gap-fills"
     stored_in: ["pv_training_data_from_2015.xlsx"]
@@ -284,7 +284,7 @@ sources:
 # Findings of the Phase 1 data audit
 # -----------------------------------------------------------------------------
 findings:
-  D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no scheduled live feed: the PV reanalysis ends about a week before the run (2026-10-09 when last built) and later rows are synthetic; the inflow real data end on 2026-06-30 and every later row is climatology"}
+  D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no scheduled live feed: the PV reanalysis ends about a week before the run (2026-10-09 when last built) and the newer days come from the recent-days data; the inflow real data end on 2026-06-30 and every later row is climatology"}
   D2: {severity: medium, fix_in_phase: 2,  summary: "PV weather history had unknown provenance (label PLANT_SENSOR for 2015 onward cannot be literal; in 2025 it matches a weather-model forecast to within 1 W/m2 of spread). RESOLVED 2026-10-16: replaced by the ERA5 reanalysis (Open-Meteo) and archiving of the two-day-old weather forecast as issued (model_development/plant_inputs)"}
   D3: {severity: medium, fix_in_phase: 2,  summary: "REN data come from the website's internal API with a static key and no published terms or service level; build a monitored loader with a stored raw copy"}
   D4: {severity: medium, fix_in_phase: 2,  summary: "No fundamentals are collected (load, wind and solar forecasts, gas, carbon, reservoir levels); the free candidates are ENTSO-E (token), ESIOS (token), REN Data Hub, NASA POWER, PVGIS/CAMS"}

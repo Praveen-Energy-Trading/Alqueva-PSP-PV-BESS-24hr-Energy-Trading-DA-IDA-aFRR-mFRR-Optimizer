@@ -4,6 +4,7 @@ fetch_open_meteo.py - archived numerical weather forecasts (as issued) for the A
     python tools/fetch_open_meteo.py                       # forecasts as issued, 2022-01-01 up to yesterday
     python tools/fetch_open_meteo.py --start 2024-01-01 --out model_development/plant_inputs/open_meteo_forecasts.csv.gz
     python tools/fetch_open_meteo.py --reanalysis          # what happened: ERA5 reanalysis, 2015-01-01 up to about a week ago
+    python tools/fetch_open_meteo.py --recent              # the newest complete days, which the reanalysis has not reached yet (after --reanalysis)
 
 What is stored, per hour (UTC): the forecast of global horizontal irradiance (W/m2) and air temperature at 2 m (degC) that the weather
 model had ONE and TWO days before the hour (the `previous_day1` / `previous_day2` fields). They are forecasts as they were issued, not
@@ -77,11 +78,25 @@ def fetch_era5(start: dt.date, end: dt.date) -> pd.DataFrame:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--reanalysis", action="store_true", help="store the ERA5 reanalysis (what happened) instead of the forecasts")
+    ap.add_argument("--recent", action="store_true", help="store the newest complete days (after the end of the stored reanalysis) from the recent-days data")
     ap.add_argument("--start", default=None)
     ap.add_argument("--end", default=None)
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     folder = os.path.join(_REPO, "model_development", "plant_inputs")
+    if a.recent:
+        sys.path.insert(0, _REPO)
+        from common_layer.data_layer import weather_forecast
+        era = pd.read_csv(os.path.join(folder, "era5_alqueva.csv.gz"), parse_dates=["datetime_utc"])
+        start = era["datetime_utc"].max().date() + dt.timedelta(days=1)
+        df = weather_forecast.recent(start)
+        out_path = a.out or os.path.join(folder, "open_meteo_recent.csv.gz")
+        if df is None:
+            print("no complete recent days could be had; nothing written")
+            return 1
+        df.rename(columns={"datetime": "datetime_utc", "GHI": "ghi", "T_amb": "tamb"})[["datetime_utc", "ghi", "tamb"]].to_csv(out_path, index=False, compression="gzip")
+        print(f"wrote {out_path}: {len(df):,} hours, {df['datetime'].min()} to {df['datetime'].max()}")
+        return 0
     if a.reanalysis:
         start = dt.date.fromisoformat(a.start or "2015-01-01")
         end = dt.date.fromisoformat(a.end) if a.end else dt.date.today() - dt.timedelta(days=7)         # ERA5 is published with a delay of about five days
