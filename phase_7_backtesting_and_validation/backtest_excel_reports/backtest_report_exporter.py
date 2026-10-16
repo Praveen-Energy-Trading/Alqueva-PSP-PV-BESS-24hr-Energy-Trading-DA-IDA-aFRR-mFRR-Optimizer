@@ -96,8 +96,8 @@ def export_backtest(start_date: str, result: BacktestResult,
         ("Avg realised daily P&L, real prices (DA energy + aFRR/mFRR capacity, EUR)",
          round(result.risk.mean_pnl_eur, 2) if result.risk is not None else "unavailable"),
         ("Avg solve (s)", round(result.avg_solve_sec, 3)),
-        ("Avg price MAE (EUR/MWh)", round(result.avg_price_mae, 2)),
-        ("Avg PV MAE (MW) — PV actual always synthetic", round(result.avg_pv_mae, 4)),
+        ("Avg price MAE (EUR/MWh), real-price days", round(result.avg_price_mae, 2) if result.avg_price_mae is not None else "unavailable"),
+        ("Avg PV MAE (MW), days with measured plant irradiance", round(result.avg_pv_mae, 4) if result.avg_pv_mae is not None else "unavailable"),
         ("NOTE — out of scope", "Activation/imbalance revenue excluded: activated MW is "
          "always internally-simulated (no real REN/SCADA telemetry loader exists), so "
          "it cannot meet the real-price x real-quantity standard used above. Days OMIE "

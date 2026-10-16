@@ -12,10 +12,12 @@ Two sources, used deliberately differently -- never conflated:
     refreshed; a genuinely future date (or an unrefreshed gap) has no real
     row and real_omie_price() returns None rather than padding with a
     synthetic value silently mixed in.
-  - Everything else (PV) has no real-data source anywhere in this project
-    (no generation-telemetry loader exists) and stays on
-    realised_from_forecast()'s synthetic perturbation, labelled as such by
-    every caller.
+  - PV: real_pv_available() turns the MEASURED plant irradiance and air
+    temperature (the PLANT_SENSOR rows of the PV workbook) into MW with the
+    plant's own PV model. Days without a full day of measured rows return None
+    and are left out of the PV accuracy; nothing is simulated.
+No synthetic "actual" is created by the backtest any more: a day without a real
+value has no accuracy figure ("unavailable"), never a perturbed copy of the forecast.
 """
 from __future__ import annotations
 
@@ -93,6 +95,44 @@ _ida_price_cache: Dict[str, pd.DataFrame] = {}
 def date_range(start_date: str, n_days: int) -> List[str]:
     start = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
     return [(start + dt.timedelta(days=i)).isoformat() for i in range(n_days)]
+
+
+_PV_EXCEL_PATH = os.path.join(_FORECASTER_DIR, "pv_training_data_from_2015.xlsx")
+_PV_SHEET = "PV_Weather_2015_2026"
+_MEASURED_PV_SOURCES = ("PLANT_SENSOR",)
+_NOCT_C = 45.0                                   # the same cell-temperature rule as the PV forecaster (IEC 61215)
+_pv_cache: dict = {}
+
+
+def real_pv_available(delivery_date: str, isps: List[int], pv_cfg) -> Optional[Dict[int, float]]:
+    """{isp: MW the plant could have produced} from the MEASURED irradiance and air temperature of delivery_date, or None.
+
+    Uses only rows whose source is a plant sensor and only when all 24 hours of the day are measured. The hourly value applies to
+    its four quarter-hours (the sensor cannot resolve finer)."""
+    mtime = os.path.getmtime(_PV_EXCEL_PATH) if os.path.isfile(_PV_EXCEL_PATH) else None
+    if mtime is None:
+        return None
+    if _pv_cache.get("mtime") != mtime:
+        df = pd.read_excel(_PV_EXCEL_PATH, sheet_name=_PV_SHEET)
+        df.columns = [c.strip() for c in df.columns]
+        hour_col = next(c for c in df.columns if "hour" in c.lower())
+        ghi_col = next(c for c in df.columns if c.upper().startswith("GHI"))
+        tamb_col = next(c for c in df.columns if c.upper().startswith("T_AMB"))
+        df = df.rename(columns={hour_col: "Hour", ghi_col: "GHI", tamb_col: "T_amb"})
+        df["Date"] = pd.to_datetime(df["Date"])
+        _pv_cache.update(mtime=mtime, df=df)
+    df = _pv_cache["df"]
+    rows = df[(df["Date"] == pd.Timestamp(delivery_date)) & (df["source"].isin(_MEASURED_PV_SOURCES))]
+    rows = rows.drop_duplicates("Hour").set_index("Hour")
+    if len(rows) < 24 or rows[["GHI", "T_amb"]].isna().any().any():
+        return None
+    from common_layer.physical_plant_models import PVModel
+    model = PVModel(pv_cfg, year=pd.Timestamp(delivery_date).year)
+    hourly = {}
+    for h in range(1, 25):
+        ghi, t_amb = float(rows.at[h, "GHI"]), float(rows.at[h, "T_amb"])
+        hourly[h] = round(model.production_mw(ghi, t_amb + ((_NOCT_C - 20.0) / 800.0) * ghi), 4)
+    return {isp: hourly[min((isp - 1) // 4 + 1, 24)] for isp in isps}
 
 
 def realised_from_forecast(forecast: Dict[int, float], delivery_date: str,

@@ -4,12 +4,12 @@ backtest_runner.py — replay the optimiser over a span of days.
 For each delivery day it:
   * assembles the same DA inputs the live pipeline would,
   * probes MILP solve quality (feasible? objective? checker pass?),
-  * scores DA price forecast accuracy vs REAL archived OMIE prices where
-    available (real_omie_price()), falling back to the synthetic perturbation
-    (realised_from_forecast()) only for dates with no real coverage -- PV
-    always uses the synthetic series, since no real generation-telemetry
-    source exists anywhere in this project. Every row is labelled with which
-    kind of "actual" it used (price_actual_source), never silently mixed.
+  * scores DA price forecast accuracy vs REAL archived OMIE prices
+    (real_omie_price()) and PV accuracy vs the PV the MEASURED plant
+    irradiance and temperature imply (real_pv_available()). A day without a
+    real value has no accuracy figure ("unavailable"); no synthetic "actual" is
+    created and no synthetic prices fill gaps in the history. Every row says
+    which actual it used (price_actual_source, pv_actual_source).
   * re-settles the already-solved, already-committed DA bid
     (gate_results.net_position_mw -- fixed by the forecast-based solve, NOT
     re-optimized) against the REAL price, producing realised_revenue_eur --
@@ -54,7 +54,7 @@ from phase_4b_mfrr_manual_frequency_reserve.mfrr_reserve_offer_builder.mfrr_offe
     build_mfrr_offers,
 )
 from phase_7_backtesting_and_validation.backtest_engine.historical_data_loader import (
-    date_range, realised_from_forecast, real_omie_price, real_ren_capacity_price,
+    date_range, real_omie_price, real_pv_available, real_ren_capacity_price,
     real_ida_price,
 )
 from phase_7_backtesting_and_validation.forecast_and_model_validation.price_forecast_validator import (
@@ -82,8 +82,9 @@ class BacktestResult:
     n_real_mfrr_days: int = 0            # days with genuine REN_LIVE mFRR coverage (also needs aFRR real)
     avg_objective_eur: float = 0.0
     avg_solve_sec: float = 0.0
-    avg_price_mae: float = 0.0
-    avg_pv_mae: float = 0.0
+    avg_price_mae: Optional[float] = None    # real-price days only
+    avg_pv_mae: Optional[float] = None       # measured-PV days only
+    n_pv_measured_days: int = 0
     avg_realised_revenue_eur: Optional[float] = None   # real-price days only
     avg_realised_afrr_capacity_eur: Optional[float] = None
     avg_realised_mfrr_capacity_eur: Optional[float] = None
@@ -269,21 +270,16 @@ def backtest_one_day(date: str, cfg: AppConfig) -> dict:
 
 
 def _backtest_one_day(date: str, cfg: AppConfig) -> dict:
-    inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True)
+    inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True, fill_gap_synthetic=False)
     q = check_solution_quality(inputs, cfg)
 
     hours = list(inputs["da_prices"].keys())
     real_price = real_omie_price(date, hours)
-    if real_price is not None:
-        price_actual = real_price
-        price_actual_source = "OMIE_LIVE"
-    else:
-        price_actual = realised_from_forecast(inputs["da_prices"], date, 0.10, "px")
-        price_actual_source = "synthetic"
-
-    pv_actual = realised_from_forecast(inputs["pv_available_mw"], date, 0.15, "pv")
-    pm = error_metrics(inputs["da_prices"], price_actual)
-    vm = validate_pv(inputs["pv_available_mw"], pv_actual)
+    # Accuracy is scored against REAL outcomes only: a day without one has no figure ("unavailable"), never a perturbed copy of the forecast.
+    pm = error_metrics(inputs["da_prices"], real_price) if real_price is not None else None
+    price_actual_source = "OMIE_LIVE" if real_price is not None else "unavailable"
+    pv_actual = real_pv_available(date, list(inputs["pv_available_mw"].keys()), cfg.plant.pv)
+    vm = validate_pv(inputs["pv_available_mw"], pv_actual) if pv_actual is not None else None
 
     # Real re-settlement: value the ALREADY-COMMITTED DA bid (fixed by the
     # forecast-based solve, not re-optimized) against the real price.
@@ -380,10 +376,10 @@ def _backtest_one_day(date: str, cfg: AppConfig) -> dict:
     row = {
         "date": date, "feasible": q.feasible, "checker_pass": q.checker_passed,
         "objective_eur": round(q.objective_eur, 2), "solve_sec": round(q.solve_time_sec, 3),
-        "price_mae": round(pm.mae, 2), "price_rmse": round(pm.rmse, 2),
-        "pv_mae": round(vm.mae, 4), "note": q.note,
+        "price_mae": round(pm.mae, 2) if pm is not None else None, "price_rmse": round(pm.rmse, 2) if pm is not None else None,
+        "pv_mae": round(vm.mae, 4) if vm is not None else None, "note": q.note,
         "price_actual_source": price_actual_source,
-        "pv_actual_source": "synthetic",
+        "pv_actual_source": "PLANT_SENSOR" if vm is not None else "unavailable",
         "realised_revenue_eur": realised_revenue_eur,
         "realised_price_source": "OMIE_LIVE" if real_price is not None else "unavailable",
         "realised_afrr_capacity_eur": realised_afrr_capacity_eur,
@@ -429,8 +425,8 @@ def summarize_rows(rows: List[dict]) -> BacktestResult:
     if rows:
         res.avg_objective_eur = sum(r["objective_eur"] for r in rows) / len(rows)
         res.avg_solve_sec = sum(r["solve_sec"] for r in rows) / len(rows)
-        res.avg_price_mae = sum(r["price_mae"] for r in rows) / len(rows)
-        res.avg_pv_mae = sum(r["pv_mae"] for r in rows) / len(rows)
+    res.avg_price_mae, _ = _avg("price_mae")
+    res.avg_pv_mae, res.n_pv_measured_days = _avg("pv_mae")
     res.avg_realised_revenue_eur, res.n_real_price_days = _avg("realised_revenue_eur")
     res.avg_realised_afrr_capacity_eur, res.n_real_afrr_days = _avg("realised_afrr_capacity_eur")
     res.avg_realised_mfrr_capacity_eur, res.n_real_mfrr_days = _avg("realised_mfrr_capacity_eur")
@@ -540,7 +536,7 @@ def run_stochastic_risk_comparison(
     cvar_realised: List[float] = []
 
     for date in date_range(start_date, n_days):
-        inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True)
+        inputs, _ = _assemble_inputs(date, cfg, use_synthetic=True, fill_gap_synthetic=False)
         hours = list(inputs["da_prices"].keys())
         real_price = real_omie_price(date, hours)
         if real_price is None:

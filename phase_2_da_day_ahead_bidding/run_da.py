@@ -80,7 +80,7 @@ def _expand_hourly_to_isp(hourly: dict, day, hours: list) -> dict:
     return out
 
 
-def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool) -> tuple[dict, str]:
+def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool, fill_gap_synthetic: bool = True) -> tuple[dict, str]:
     """Build the optimisation input bundle at real ISP (15-min MTU) resolution,
     matching MIBEL's actual settlement/commitment granularity since
     2025-10-01. Returns (inputs, price_source)."""
@@ -94,12 +94,13 @@ def _assemble_inputs(delivery_date: str, cfg: AppConfig, use_synthetic: bool) ->
     if not use_synthetic:
         update_training_data(delivery_date, zone="PT")
         update_isp_training_data(delivery_date, zone="PT")
-    else:
+    elif fill_gap_synthetic:
         # Fill any historical gap with synthetic prices so lag features are valid.
         from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.omie_da_price_loader import (
             _fill_synthetic_gap,
         )
         _fill_synthetic_gap(delivery_date, zone="PT")
+    # else: offline and no synthetic prices (the backtest): the forecaster uses the real history it has
 
     # Step 2 — ML forecaster trains on updated history, predicts delivery_date
     # at true ISP resolution (real GHI-physics-scaled PV, real quarter-hour

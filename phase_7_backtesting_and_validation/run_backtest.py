@@ -99,7 +99,8 @@ def main():
         print(f"  {r['date']:<12} {str(r['feasible']):>5} {str(r['checker_pass']):>4} "
               f"{r['objective_eur']:>12,.0f} {realised_str} {src_str:>4} "
               f"{r['solve_sec']:>8.3f} "
-              f"{r['price_mae']:>7.2f} {r['pv_mae']:>7.3f}")
+              f"{(format(r['price_mae'], '.2f') if r['price_mae'] is not None else '--'):>7} "
+              f"{(format(r['pv_mae'], '.3f') if r['pv_mae'] is not None else '--'):>7}")
     print("  " + "-" * 64)
     print(f"  Feasible: {res.n_feasible}/{res.n_days}   "
           f"Checker pass: {res.n_checker_pass}/{res.n_days}   "
@@ -112,9 +113,9 @@ def main():
     else:
         print(f"  Avg realised revenue: unavailable (no real OMIE price coverage "
               f"in this date range)")
-    print(f"  Avg price MAE: {res.avg_price_mae:.2f} EUR/MWh   "
-          f"Avg PV MAE: {res.avg_pv_mae:.4f} MW  (PV actuals always synthetic — "
-          f"no real generation-telemetry source exists in this project)")
+    _price = f"{res.avg_price_mae:.2f} EUR/MWh" if res.avg_price_mae is not None else "unavailable"
+    _pv = f"{res.avg_pv_mae:.4f} MW ({res.n_pv_measured_days} day(s) with measured plant irradiance)" if res.avg_pv_mae is not None else "unavailable"
+    print(f"  Avg price MAE (real prices): {_price}   Avg PV MAE: {_pv}")
     print(f"  Real-aFRR-capacity days: {res.n_real_afrr_days}/{res.n_days}   "
           f"Real-mFRR-capacity days: {res.n_real_mfrr_days}/{res.n_days}")
     if res.avg_realised_afrr_capacity_eur is not None:
