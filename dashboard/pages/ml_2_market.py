@@ -40,12 +40,19 @@ else:
     for i, s in enumerate(pick):
         y = sub[s].rolling(smooth, min_periods=1).mean() if smooth > 1 else sub[s]
         fig.add_trace(go.Scatter(x=sub["date"], y=y, mode="lines", name=SERIES[s], line=dict(width=1.5, color=theme.CATEGORICAL[i % 8])))
+    shown = 0
     for j, p in enumerate(periods):
         a, b = pd.Timestamp(p["start"]), pd.Timestamp(p["end"])
         if b >= pd.Timestamp(rng[0]) and a <= pd.Timestamp(rng[1]) and a.year < 2099:
             fig.add_vrect(x0=max(a, pd.Timestamp(rng[0])), x1=min(b, pd.Timestamp(rng[1])), fillcolor=theme.CATEGORICAL[j % 8], opacity=0.06,
-                          line_width=0, annotation_text=p["id"].replace("_", " "), annotation_position="top left", annotation_font_size=9)
-    st.plotly_chart(theme.style_fig(fig, height=380, yaxis_title="EUR/MWh (EUR/MW/h for aFRR)"), width="stretch")
+                          line_width=0, annotation_text=p["id"].replace("_", " "), annotation_position="top left", annotation_font_size=9,
+                          annotation_yshift=-13 * (shown % 2))                     # neighbouring labels on two levels, so short bands do not overprint each other
+            shown += 1
+    theme.style_fig(fig, height=380, yaxis_title="EUR/MWh (EUR/MW/h for aFRR)")
+    starts = [sub.loc[sub[s].notna(), "date"].min() for s in pick if sub[s].notna().any()]
+    if starts:                                                                      # the axis starts at the first value of the chosen series, not at the first day of any series
+        fig.update_xaxes(range=[min(starts), sub["date"].max()])
+    st.plotly_chart(fig, width="stretch")
     st.caption("Shaded bands are the market regimes (the gas crisis, the Iberian gas-price cap, the April 2025 "
                "blackout, the move to 15-minute day-ahead products). They are used to test for structural breaks and to describe results by regime.")
 
