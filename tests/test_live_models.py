@@ -45,8 +45,9 @@ def register(db, target="da_price", model="lightgbm"):
 
 
 # ------------------------------------------------------------------------------------------------ the modes
-def test_every_switchable_target_starts_as_legacy_so_nothing_changes_until_it_is_switched():
-    assert live.load_modes() == {t: "legacy" for t in live.SWITCHABLE}
+def test_only_the_targets_where_the_champion_beat_the_legacy_model_are_switched_on():
+    """model_development/old_vs_new: the champion is significantly better for IDA1-3 and aFRR; day-ahead (a tie) and XBID (not significant) stay legacy."""
+    assert live.load_modes() == {t: ("legacy" if t in ("da_price", "xbid_price") else "auto") for t in live.SWITCHABLE}
 
 
 def test_the_mode_file_is_validated_and_the_environment_can_override_it(tmp_path, monkeypatch):
@@ -228,6 +229,7 @@ def test_both_aFRR_sides_from_champions_do_not_run_the_legacy_model(monkeypatch)
 
 def test_the_legacy_aFRR_forecaster_is_unchanged_when_nothing_is_switched_and_a_short_champion_is_not_used(monkeypatch):
     m = importlib.import_module(AFRR_MOD)
+    monkeypatch.setenv("LIVE_MODELS_MODE", "legacy")                                                       # the legacy path, whatever the file says
     monkeypatch.setattr(m, "_model_forecast", lambda h, d, cap: ({1: 7.0}, {1: 8.0}))
     assert m.forecast_afrr_cap_prices([1], "2022-08-20", 250.0) == ({1: 7.0}, {1: 8.0})                    # default: both legacy
     monkeypatch.setattr(live, "champion_prices", lambda tgt, hours, *a, **k: {1: 5.0})                      # misses hour 2
@@ -249,6 +251,16 @@ def test_old_against_new_scores_both_on_the_same_hours_and_tests_the_difference(
     del old[D0 + 5], old[D0 + 6]                                                  # days the legacy forecaster did not produce
     r2 = old_new.compare(new, old)
     assert r2["days"] == days - 2 and r2["new"]["sse"] < r["new"]["sse"]
+
+
+def test_old_against_new_lines_the_legacy_hours_up_by_hour_of_day_for_a_target_that_covers_only_some_hours():
+    days = 30
+    new = make({"x": 3.0}, days=days, seed=1)["x"]
+    new = new[new["local_hour"] >= 12]                                            # like IDA3: hours 12-23 only
+    old = {D0 + d: {h + 1: (1000.0 if h == 12 else 100.0) for h in range(24)} for d in range(days)}         # a marked value at local hour 12 (hour 13 of the day) only
+    table = old_new.old_table(new, old)
+    assert len(table) == days * 12
+    assert (table.loc[table["local_hour"] == 12, "y_pred"] == 1000.0).all() and (table.loc[table["local_hour"] > 12, "y_pred"] == 100.0).all()
 
 
 def test_old_against_new_reports_a_legacy_forecaster_that_is_better():

@@ -73,7 +73,7 @@ def main() -> int:
     old = {}
     for day in days:
         D = dt.date.fromordinal(day)
-        hours = list(range(1, 1 + int((new["local_date"] == day).sum())))
+        hours = sorted(int(h) + 1 for h in new.loc[new["local_date"] == day, "local_hour"])          # the hours the champion forecasts that day (IDA3: 12-24)
         if spread:
             base = view.truth_day(D)[view.spec["base"]].to_numpy()
             old[day] = legacy(hours, str(D), {h: float(base[h - 1]) for h in hours})

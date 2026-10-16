@@ -22,7 +22,7 @@ from common_layer.forecast_evaluation.dm import diebold_mariano
 def old_table(new_pred: pd.DataFrame, old_prices: Dict[int, Dict[int, float]]) -> pd.DataFrame:
     """The legacy forecasts laid out like the champion's table: same hours, same outcomes, y_pred from the legacy forecaster."""
     out = new_pred[["y_true", "local_date", "local_hour"]].copy()
-    pos = new_pred.groupby("local_date").cumcount().to_numpy() + 1                 # hour 1, 2, ... of the delivery day
+    pos = new_pred["local_hour"].to_numpy().astype(int) + 1                        # the hour of the delivery day (a target may cover only some hours, e.g. 12-24)
     out["y_pred"] = [old_prices.get(int(d), {}).get(int(h), np.nan) for d, h in zip(new_pred["local_date"], pos)]
     out["fold"] = 0
     return metrics.add_error_columns(out.dropna(subset=["y_true", "y_pred"]))

@@ -20,9 +20,9 @@ version: 1
 
 targets:
   da_price:   {mode: legacy}
-  ida1_price: {mode: legacy}
-  ida2_price: {mode: legacy}
-  ida3_price: {mode: legacy}
+  ida1_price: {mode: auto}
+  ida2_price: {mode: auto}
+  ida3_price: {mode: auto}
   xbid_price: {mode: legacy}
-  afrr_cap_price: {mode: legacy}
-  afrr_dn_price: {mode: legacy}
+  afrr_cap_price: {mode: auto}
+  afrr_dn_price: {mode: auto}
