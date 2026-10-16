@@ -18,7 +18,11 @@ The clean zone keeps what the sources published. `curate` turns the hourly panel
 
 Every filled value is flagged (`Curated.imputed`), every removed error too (`Curated.errors`), and `Curated.log` lists
 each filled gap with the method used. Except for the straight line over a short gap, a value is only ever filled from
-earlier values.
+earlier values (tests/test_data_curation.py::test_only_the_straight_line_looks_at_a_value_after_the_gap).
+
+Look-ahead: the straight line uses the first real value after a gap of 1-3 hours. A live run never has a later value, so it cannot matter there. In a
+replay it matters only for a gap that ends at the cut between two days, where that value would lie beyond the cut: measured on the whole history
+(2026-10-16), 6 hours of the mFRR series, none in any price series. The evaluation of the price models uses the panel without filling.
 """
 from __future__ import annotations
 

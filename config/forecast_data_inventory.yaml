@@ -110,7 +110,7 @@ sources:
     live_feed: false
     loader: "tools/fetch_open_meteo.py --reanalysis (download) and tools/build_pv_history_from_era5.py (workbook); pv_power_forecaster.py reads and gap-fills"
     stored_in: ["pv_training_data_from_2015.xlsx"]
-    licence: {status: to_check, note: "Open-Meteo: free for non-commercial use with attribution; ERA5 (Copernicus): free with attribution; check the terms before commercial use"}
+    licence: {status: unverified, note: "Open-Meteo: free for non-commercial use with attribution; ERA5 (Copernicus): free with attribution; check the terms before commercial use"}
     cost: free
     rate_limits: "fair-use limits of the free Open-Meteo API (a full history is a handful of requests)"
     vintage: no
@@ -284,7 +284,7 @@ sources:
 # Findings of the Phase 1 data audit
 # -----------------------------------------------------------------------------
 findings:
-  D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no live feed: the real data end on 2026-06-30 and every later row is synthetic or climatology, so recent training history and the PV 'actuals' are not real"}
+  D1: {severity: high,   fix_in_phase: 2,  summary: "PV weather and inflow have no scheduled live feed: the PV reanalysis ends about a week before the run (2026-10-09 when last built) and later rows are synthetic; the inflow real data end on 2026-06-30 and every later row is climatology"}
   D2: {severity: medium, fix_in_phase: 2,  summary: "PV weather history had unknown provenance (label PLANT_SENSOR for 2015 onward cannot be literal; in 2025 it matches a weather-model forecast to within 1 W/m2 of spread). RESOLVED 2026-10-16: replaced by the ERA5 reanalysis (Open-Meteo) and archiving of the two-day-old weather forecast as issued (model_development/plant_inputs)"}
   D3: {severity: medium, fix_in_phase: 2,  summary: "REN data come from the website's internal API with a static key and no published terms or service level; build a monitored loader with a stored raw copy"}
   D4: {severity: medium, fix_in_phase: 2,  summary: "No fundamentals are collected (load, wind and solar forecasts, gas, carbon, reservoir levels); the free candidates are ENTSO-E (token), ESIOS (token), REN Data Hub, NASA POWER, PVGIS/CAMS"}

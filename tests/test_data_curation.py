@@ -157,3 +157,40 @@ def test_the_curated_panel_option_and_the_outputs(tmp_path):
     c = cu.curate(panel(da_pt=da), CFG)
     paths = cu.write_outputs(c, str(tmp_path))
     assert pd.read_csv(paths["summary"])["filled"].iloc[0] == 10 and len(pd.read_csv(paths["gaps"])) == 1
+
+
+# ----------------------------------------------------------------------------------------------------------- look-ahead
+def _changed_after(series: pd.Series, first: int, delta: float) -> pd.Series:
+    out = series.copy()
+    out.iloc[first:] = out.iloc[first:] + delta
+    return out
+
+
+def test_only_the_straight_line_looks_at_a_value_after_the_gap():
+    """Every other rule repeats earlier values, so what a gap is filled with cannot depend on anything published after it; the straight line over a
+    gap of 1-3 hours does depend on the first real value after the gap. In a replay that value may lie beyond the forecast cut (measured: 6 hours of
+    the mFRR series in the whole history, none in a price series), which is why the evaluation of the price models uses the panel without filling."""
+    da = hourly()
+    short = da.copy()
+    short.iloc[500:502] = np.nan                                                      # 2 hours: a straight line
+    a = cu.curate(panel(da_pt=short)).panel["da_pt"]
+    b = cu.curate(panel(da_pt=_changed_after(short, 502, 40.0))).panel["da_pt"]
+    assert a.iloc[501] != b.iloc[501]                                                 # it moved with the next real value
+
+    long = da.copy()
+    long.iloc[500:506] = np.nan                                                       # 6 hours: the same hour a week earlier
+    a = cu.curate(panel(da_pt=long)).panel["da_pt"]
+    b = cu.curate(panel(da_pt=_changed_after(long, 506, 40.0))).panel["da_pt"]
+    assert a.iloc[500:506].equals(b.iloc[500:506])
+
+    band = hourly(1, 5.0)
+    band.iloc[500:520] = np.nan                                                       # a band price: the last value carried forward
+    a = cu.curate(panel(afrr_up=band)).panel["afrr_up"]
+    b = cu.curate(panel(afrr_up=_changed_after(band, 520, 3.0))).panel["afrr_up"]
+    assert a.iloc[500:520].equals(b.iloc[500:520])
+
+    ida = da + hourly(2, 0.0) / 10
+    ida.iloc[500:506] = np.nan                                                        # an intraday price: the day-ahead price plus the typical spread
+    a = cu.curate(panel(da_pt=da, ida1_pt=ida)).panel["ida1_pt"]
+    b = cu.curate(panel(da_pt=da, ida1_pt=_changed_after(ida, 506, 25.0))).panel["ida1_pt"]
+    assert a.iloc[500:506].equals(b.iloc[500:506])

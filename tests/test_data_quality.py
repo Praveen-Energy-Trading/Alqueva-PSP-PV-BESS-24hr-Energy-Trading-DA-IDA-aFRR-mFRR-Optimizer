@@ -295,12 +295,12 @@ def test_imputation_never_uses_the_future():
 
 # --------------------------------------------------------------- provenance
 def test_provenance_labels_and_training_filter():
-    assert provenance.label("pv_weather", dt.date(2026, 6, 30), CFG) == "live"
-    assert provenance.label("pv_weather", dt.date(2026, 7, 1), CFG) == "synthetic"
+    assert provenance.label("pv_weather", dt.date(2026, 10, 9), CFG) == "live"                 # the ERA5 reanalysis runs to about a week ago
+    assert provenance.label("pv_weather", dt.date(2026, 10, 10), CFG) == "synthetic"
     assert provenance.label("inflow", dt.date(2026, 9, 1), CFG) == "synthetic"
     assert provenance.label("da_price", dt.date(2026, 9, 1), CFG) == "live"
-    df = pd.DataFrame({"delivery_date": ["2026-06-30", "2026-07-01"], "ghi": [1.0, 2.0]})
+    df = pd.DataFrame({"delivery_date": ["2026-10-09", "2026-10-10"], "ghi": [1.0, 2.0]})
     lab = provenance.label_frame(df, "pv_weather", cfg=CFG)
-    assert provenance.trainable(lab)["delivery_date"].tolist() == ["2026-06-30"]
+    assert provenance.trainable(lab)["delivery_date"].tolist() == ["2026-10-09"]
     with pytest.raises(KeyError):
         provenance.trainable(df)
