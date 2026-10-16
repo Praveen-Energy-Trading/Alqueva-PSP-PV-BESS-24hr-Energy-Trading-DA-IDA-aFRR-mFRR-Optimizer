@@ -36,7 +36,7 @@ if policy:
 else:
     ml_ui.not_yet_run("the selection policy")
 
-targets = [t for t in ml_data.TARGETS if t != "mfrr_price"]
+targets = list(ml_data.TARGETS)
 target = ml_ui.target_picker(targets=targets)
 d, lk = decisions.get(target), locked.get(target)
 if d is None:
@@ -118,11 +118,11 @@ if not bm:
     ml_ui.not_yet_run(f"the naive benchmark of {ml_data.label(target)}")
 else:
     st.markdown("A decision tree shows what the extra algorithms buy. A **naive forecast** shows whether machine learning is worth having at all: "
-                "it needs no model. *Seasonal naive* is yesterday's price for delivery days Tuesday to Friday and last week's for Saturday to Monday; "
-                "*yesterday* and *last week* are the two simple versions of it. For the intraday targets, which are modelled as a spread to the day-ahead "
+                "it needs no model. *Seasonal naive* is the latest day's price (yesterday for most targets, two days back for XBID, three for mFRR, because that is the latest price known when the forecast is made) for delivery days Tuesday to Friday and last week's for Saturday to Monday; "
+                "*latest day* and *last week* are the two simple versions of it. For the intraday targets, which are modelled as a spread to the day-ahead "
                 "price, the naive forecasts add the earlier spread to the day-ahead price, and *day-ahead price, no spread* simply says the intraday price "
                 "equals the day-ahead price. All are scored on exactly the same hours as the champion.")
-    names = {"champion": "Champion", "reference": "Decision tree", "base_price": "Day-ahead price, no spread", "naive_seasonal": "Seasonal naive", "naive_day": "Naive: yesterday", "naive_week": "Naive: last week"}
+    names = {"champion": "Champion", "reference": "Decision tree", "base_price": "Day-ahead price, no spread", "naive_seasonal": "Seasonal naive", "naive_day": "Naive: latest day available", "naive_week": "Naive: last week"}
     for stage, title in (("development", "Development window"), ("locked", "Locked year")):
         b = bm.get(stage)
         if not b:

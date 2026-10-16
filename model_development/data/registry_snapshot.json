@@ -54,6 +54,15 @@
     "version": 1
    }
   ],
+  "mfrr_price": [
+   {
+    "promoted_utc": "2026-10-16T08:45:45.526631+00:00",
+    "retired_utc": null,
+    "source": "mfrr_price.json",
+    "status": "active",
+    "version": 1
+   }
+  ],
   "xbid_price": [
    {
     "promoted_utc": "2026-10-12T18:56:25.010956+00:00",
@@ -189,6 +198,24 @@
    "event": "artifact_fitted",
    "id": 21,
    "target": "xbid_price",
+   "version": 1
+  },
+  {
+   "event": "initial_promotion",
+   "id": 22,
+   "target": "mfrr_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 23,
+   "target": "mfrr_price",
+   "version": 1
+  },
+  {
+   "event": "artifact_fitted",
+   "id": 24,
+   "target": "mfrr_price",
    "version": 1
   }
  ],
@@ -494,6 +521,30 @@
    "source": "run_locked_test",
    "stage": "final",
    "target": "xbid_price",
+   "window_end": "2026-10-11",
+   "window_start": "2025-10-12"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "caa4de9e963f",
+   "source": "evaluate_forecaster",
+   "stage": "dev",
+   "target": "mfrr_price",
+   "window_end": "2025-10-11",
+   "window_start": "2025-04-28"
+  },
+  {
+   "attempts": 1,
+   "kind": "evaluation",
+   "notes": "",
+   "reproduced": null,
+   "run_key": "36d3e67eaecc",
+   "source": "run_locked_test",
+   "stage": "final",
+   "target": "mfrr_price",
    "window_end": "2026-10-11",
    "window_start": "2025-10-12"
   }

@@ -1,19 +1,19 @@
 {
  "parts": {
-  "curation_gaps": 1699,
+  "curation_gaps": 1703,
   "curation_summary": 12,
-  "daily_loss": 29659,
+  "daily_loss": 30828,
   "facts": 5,
-  "feature_availability": 670,
+  "feature_availability": 580,
   "load_status_monthly": 468,
-  "locked_forecasts": 54741,
+  "locked_forecasts": 63434,
   "price_profile": 2016,
-  "prices_daily": 2842,
+  "prices_daily": 2843,
   "quality_daily": 12254,
   "raw_manifest_summary": 8,
-  "registry_runs": 24,
-  "trials": 5952,
-  "tuning_log": 160
+  "registry_runs": 26,
+  "trials": 6138,
+  "tuning_log": 165
  },
  "skipped": []
 }

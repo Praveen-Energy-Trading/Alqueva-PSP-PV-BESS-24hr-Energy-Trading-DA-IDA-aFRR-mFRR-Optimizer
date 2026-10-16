@@ -1,22 +1,20 @@
 {
   "latest_days": {
-    "afrr_price": "2026-10-11",
-    "da_price": "2026-10-12",
-    "ida_price": "2026-10-10",
-    "imbalance_price": "2026-10-07",
-    "mfrr_price": "2026-10-11",
-    "xbid_price": "2026-10-11"
+    "afrr_price": "2026-10-12",
+    "da_price": "2026-10-13",
+    "ida_price": "2026-10-12",
+    "imbalance_price": "2026-10-10",
+    "mfrr_price": "2026-10-12",
+    "xbid_price": "2026-10-12"
   },
   "passed": true,
   "reasons": [],
   "repairs": [
-    "afrr_price: 1/2842 days missing (0.0%), filled by the data curation",
-    "ida_price session 1: 64/852 days missing (7.5%), filled by the data curation",
-    "ida_price session 2: 17/852 days missing (2.0%), filled by the data curation",
-    "ida_price session 3: 13/852 days missing (1.5%), filled by the data curation",
-    "imbalance_price: 7/2842 days missing (0.2%), filled by the data curation",
-    "mfrr_price: 1/685 days missing (0.1%), filled by the data curation",
-    "xbid_price: 2/852 days missing (0.2%), filled by the data curation"
+    "ida_price session 1: 63/852 days missing (7.4%), filled by the data curation",
+    "ida_price session 2: 16/852 days missing (1.9%), filled by the data curation",
+    "ida_price session 3: 12/852 days missing (1.4%), filled by the data curation",
+    "imbalance_price: 4/2842 days missing (0.1%), filled by the data curation",
+    "xbid_price: 1/852 days missing (0.1%), filled by the data curation"
   ],
   "today": "2026-10-13",
   "window": [

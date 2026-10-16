@@ -82,7 +82,7 @@ omie_da,2026-08,loaded,31
 omie_da,2026-09,loaded,30
 omie_da,2026-10,loaded,10
 omie_da,2026-10,not_published,1
-omie_da,2026-10,unchanged,2
+omie_da,2026-10,unchanged,3
 omie_ida1,2024-06,empty_publication,1
 omie_ida1,2024-06,loaded,17
 omie_ida1,2024-07,empty_publication,2
@@ -135,7 +135,7 @@ omie_ida1,2026-08,not_published,2
 omie_ida1,2026-09,empty_publication,4
 omie_ida1,2026-09,loaded,26
 omie_ida1,2026-10,empty_publication,2
-omie_ida1,2026-10,loaded,7
+omie_ida1,2026-10,loaded,8
 omie_ida1,2026-10,not_published,2
 omie_ida1,2026-10,unchanged,1
 omie_ida2,2024-06,loaded,17
@@ -177,7 +177,7 @@ omie_ida2,2026-08,empty_publication,2
 omie_ida2,2026-08,loaded,28
 omie_ida2,2026-08,not_published,1
 omie_ida2,2026-09,loaded,30
-omie_ida2,2026-10,loaded,9
+omie_ida2,2026-10,loaded,10
 omie_ida2,2026-10,not_published,2
 omie_ida2,2026-10,unchanged,1
 omie_ida3,2024-06,empty_publication,1
@@ -216,7 +216,7 @@ omie_ida3,2026-07,loaded,31
 omie_ida3,2026-08,loaded,30
 omie_ida3,2026-08,not_published,1
 omie_ida3,2026-09,loaded,30
-omie_ida3,2026-10,loaded,9
+omie_ida3,2026-10,loaded,10
 omie_ida3,2026-10,not_published,2
 omie_ida3,2026-10,unchanged,1
 omie_xbid,2024-06,loaded,18
@@ -249,7 +249,7 @@ omie_xbid,2026-07,loaded,31
 omie_xbid,2026-08,loaded,31
 omie_xbid,2026-09,loaded,30
 omie_xbid,2026-10,loaded,10
-omie_xbid,2026-10,unchanged,1
+omie_xbid,2026-10,unchanged,2
 ren_afrr,2019-01,loaded,31
 ren_afrr,2019-02,loaded,28
 ren_afrr,2019-03,loaded,31
@@ -343,7 +343,7 @@ ren_afrr,2026-06,loaded,30
 ren_afrr,2026-07,loaded,31
 ren_afrr,2026-08,loaded,31
 ren_afrr,2026-09,loaded,30
-ren_afrr,2026-10,loaded,9
+ren_afrr,2026-10,loaded,10
 ren_afrr,2026-10,unchanged,2
 ren_imbalance,2019-01,loaded,31
 ren_imbalance,2019-02,loaded,28
@@ -440,8 +440,8 @@ ren_imbalance,2026-06,loaded,30
 ren_imbalance,2026-07,loaded,31
 ren_imbalance,2026-08,loaded,31
 ren_imbalance,2026-09,loaded,30
-ren_imbalance,2026-10,failed,4
-ren_imbalance,2026-10,loaded,7
+ren_imbalance,2026-10,failed,2
+ren_imbalance,2026-10,loaded,10
 ren_mfrr,2024-11,loaded,4
 ren_mfrr,2024-12,loaded,31
 ren_mfrr,2025-01,loaded,31
@@ -466,4 +466,4 @@ ren_mfrr,2026-07,loaded,31
 ren_mfrr,2026-08,loaded,31
 ren_mfrr,2026-09,loaded,30
 ren_mfrr,2026-10,loaded,10
-ren_mfrr,2026-10,unchanged,1
+ren_mfrr,2026-10,unchanged,2

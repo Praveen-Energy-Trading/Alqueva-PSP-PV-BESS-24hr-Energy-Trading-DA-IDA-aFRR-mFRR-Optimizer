@@ -19,7 +19,7 @@ ml_ui.header("Model arena", "Five tree algorithms are compared on the same days,
              "algorithms' settings are never compared, only their out-of-sample errors.", step=6)
 ml_ui.tour_bar(7)
 
-targets = [t for t in ml_data.TARGETS if t != "mfrr_price"]
+targets = list(ml_data.TARGETS)
 target = ml_ui.target_picker(targets=targets)
 tabs = ml_ui.cached(ml_data.comparison_tables)(target)
 daily = ml_ui.cached(lambda: ml_data.pack("daily_loss"))()

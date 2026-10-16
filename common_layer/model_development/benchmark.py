@@ -16,8 +16,9 @@ For the intraday targets, which are modelled as a spread to the day-ahead price 
 the day-ahead price plus the naive spread, so it has the same information as the algorithms; one more, `base_price`, forecasts no
 spread at all (the intraday price equals the day-ahead price), which is the plain "no change" forecast of an intraday market.
 
-All use only prices that are known when the forecast is made (the gate rules of the information set already require the previous
-day's outcomes), so they are fair competitors. They are scored on the SAME hours as the champion, and the champion is tested against
+All use only prices that are known when the forecast is made: a lag is never shorter than the number of days between the delivery day
+and the latest outcome of the target's own series that the information set allows (one day for most targets, two for XBID, three for
+mFRR), so they are fair competitors. "The previous day" below therefore means the latest day available. They are scored on the SAME hours as the champion, and the champion is tested against
 each with the Diebold-Mariano test used everywhere else. The benchmark never takes part in the choice of a champion and never changes
 one; it is reported next to the result. A naive forecast has nothing to fit, so scoring it on the locked window consumes nothing.
 """
@@ -60,10 +61,11 @@ def naive_prediction(view: AsOfView, pred: pd.DataFrame, lag_days: Optional[int]
     """The naive forecast, in price units, for every row of a prediction table (needs local_date and local_hour): the modelled quantity
     of the same local hour `lag_days` earlier (None: the weekday-aware seasonal naive), plus the base price of the row for a spread
     target (zero for a level target). NaN where that earlier value is missing. In the hour that occurs twice at the clock change the
-    two values are averaged."""
+    two values are averaged. The lag is at least the number of days the information set keeps back the target's own series."""
+    min_lag = max(1, -int(view.offsets.get(view.spec["series"], -1)))
     by_day: Dict[int, pd.Series] = {}
     for o in sorted(set(int(x) for x in pred["local_date"])):
-        t = view.truth_day(dt.date.fromordinal(o - lag_for(o, lag_days)))
+        t = view.truth_day(dt.date.fromordinal(o - max(lag_for(o, lag_days), min_lag)))
         by_day[o] = view.modelled(t).groupby(t["local_hour"]).mean() if len(t) else pd.Series(dtype=float)
     vals = [by_day[int(o)].get(int(h), np.nan) for o, h in zip(pred["local_date"], pred["local_hour"])]
     return pd.Series(vals, index=pred.index, dtype=float) + base_prices(view, pred)

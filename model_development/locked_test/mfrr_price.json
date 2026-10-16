@@ -1,0 +1,71 @@
+{
+  "champion": {
+    "members": [
+      "decision_tree",
+      "random_forest",
+      "gradient_boosting",
+      "xgboost"
+    ],
+    "method": "mean",
+    "type": "ensemble"
+  },
+  "champion_forecaster": "ensemble_mean",
+  "code": "403ca1f",
+  "data_digest": "8cdd59ad98dc06f86edfdbaee4602c86266bb899770d2db4bd935bc672d605d0",
+  "dev_loss": 34.03797378838344,
+  "dm_vs_reference": {
+    "mean_diff": -2.084679139704675,
+    "mean_loss_a": 44.51489427626179,
+    "mean_loss_b": 46.59957341596647,
+    "n_days": 365.0,
+    "p_value": 4.367684239120149e-06,
+    "statistic": -4.663712316607003
+  },
+  "lock_status": "verified",
+  "locked_loss": 44.51489427626179,
+  "locked_scores": {
+    "coverage": 1.0,
+    "mae": 44.48119857466731,
+    "n": 8693.0,
+    "rmse": 62.94488378426647,
+    "sse": 34442173.624386564
+  },
+  "loss": "absolute",
+  "loss_ratio_locked_over_dev": 1.3078009447041157,
+  "members": {
+    "decision_tree_tuned": {
+      "mae": 46.55555363990833,
+      "rmse": 65.2207603024792,
+      "sse": 36977827.66454996
+    },
+    "gradient_boosting_tuned": {
+      "mae": 44.796334640578536,
+      "rmse": 63.69470006054442,
+      "sse": 35267629.793773025
+    },
+    "random_forest_tuned": {
+      "mae": 44.437386557099884,
+      "rmse": 62.969924496388835,
+      "sse": 34469582.62266636
+    },
+    "xgboost_tuned": {
+      "mae": 43.97889695385533,
+      "rmse": 62.4341722432645,
+      "sse": 33885538.83315818
+    }
+  },
+  "reference": "decision_tree_tuned",
+  "reference_scores": {
+    "coverage": 1.0,
+    "mae": 46.55555363990833,
+    "n": 8693.0,
+    "rmse": 65.2207603024792,
+    "sse": 36977827.66454996
+  },
+  "target": "mfrr_price",
+  "variant": "tuned",
+  "window": [
+    "2025-10-12",
+    "2026-10-11"
+  ]
+}
