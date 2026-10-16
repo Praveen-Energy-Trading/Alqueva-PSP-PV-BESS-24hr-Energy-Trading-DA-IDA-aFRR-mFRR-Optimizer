@@ -20,7 +20,7 @@ ml_ui.tour_bar(10)
 
 labels = {key: name for key, name, _ in ml_data.PLANT_INPUTS}
 choice = st.selectbox("Forecast", [key for key, _, _ in ml_data.PLANT_INPUTS], format_func=lambda k: labels[k], key="ml10_choice")
-r = ml_ui.cached(lambda c=choice: ml_data.plant_input(c))()
+r = ml_ui.cached(ml_data.plant_input)(choice)                  # the choice is an argument, so each forecast has its own cache entry
 if not r:
     ml_ui.not_yet_run(f"the {labels[choice].lower()} evaluation (tools/evaluate_plant_inputs.py)")
     st.stop()
@@ -51,6 +51,13 @@ tile_html = "".join(
 _days = (lambda n: round(n / 24)) if r["resolution"] == "hourly" else (lambda n: n)
 rows = [("Series", f"{r['name']} ({unit}), {r['resolution']}"), ("Inputs of the model", r["features"].replace("_", " ")),
         ("History", f"development {r['dev_range'][0]} to {r['dev_range'][1]} ({_days(r['n_dev']):,} days); test {r['test_range'][0]} to {r['test_range'][1]} ({_days(r['n_test']):,} days)")]
+_d = r.get("data") or {}
+_dmy = lambda x: f"{str(x)[8:10]}-{str(x)[5:7]}-{str(x)[:4]}"
+if _d:
+    _src = "Plant sensor" if choice in ("ghi", "temperature") else "Guadiana inflow research dataset"
+    _kind = "synthetic" if choice in ("ghi", "temperature") else "monthly means (climatology)"
+    rows.append(("Data", f"{_src}, measured {_dmy(_d['first'])} to {_dmy(_d['last_measured'])} ({_d['measured']:,} values). "
+                         f"The {_d['filled']:,} later rows are {_kind} and are never scored."))
 row_html = "".join(
     f'<div style="display:grid; grid-template-columns:8rem 1fr; gap:0.8rem; padding:0.42rem 0; border-top:1px solid {theme.GRIDLINE};">'
     f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; padding-top:0.15rem;">{_esc(k)}</div>'
@@ -73,8 +80,10 @@ nd = 0 if unit == "m³/h" else 2
 ml_ui.table(df.rename(columns={"MAE": f"MAE ({unit})", "RMSE": f"RMSE ({unit})", "Bias": f"Bias ({unit})"}),
             formats={f"MAE ({unit})": f"%.{nd}f", f"RMSE ({unit})": f"%.{nd}f", f"Bias ({unit})": f"%.{nd}f"}, stretch=True)
 if best_simple["mae"] < chosen["mae"]:
-    st.info(f"On the held-out year the simple forecast '{best_simple_name.lower()}' has a lower MAE ({fmt(best_simple['mae'])} {unit}) than the serving model "
-            f"({fmt(chosen['mae'])} {unit}). All forecasts are scored on the same test values; only measured values are scored.")
+    st.info(f"On the held-out year the serving model does not beat the simple forecast '{best_simple_name.lower()}': its MAE is {fmt(chosen['mae'])} {unit} "
+            f"against {fmt(best_simple['mae'])} {unit}. All forecasts are scored on the same test values; only measured values are scored.\n\n"
+            "Two limits on these numbers. **1.** Both use yesterday's full day as an input, but at 11:00 on the day before only observations up to about 10:00 exist "
+            "(the rule of the forecast catalogue), so both scores are optimistic. **2.** The origin of the measured history is not independently verified.")
 
 # ---------------------------------------------------------------------------------------------------------------- charts
 st.subheader("Forecast against measured")
