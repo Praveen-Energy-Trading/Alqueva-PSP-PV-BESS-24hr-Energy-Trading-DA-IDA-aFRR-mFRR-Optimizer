@@ -218,7 +218,7 @@ ydt = oy + 2.0
 _head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"{ml_data.label(target)}, its latest tuning round · every square is a trial that was kept ({len(trials):,} in all)", two=True)
 _leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
 _note(ft, 6, ydt + 1.1, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
-xs0, xs1 = 130, 1000
+xs0, xs1 = 190, 1000
 cw = (xs1 - xs0) / n_t
 bh, pitch = 0.42, 0.52
 y = ydt + 1.75
@@ -232,6 +232,7 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
         d = d[d["tuned_at"] == d["tuned_at"].max()].sort_values("trial")
         if method == "tpe":
             _note(ft, 0, y + bh / 2, f"<b>{ml_data.model_label(mdl)}</b>", size=12, anchor="left")
+            _note(ft, xs0 - 6, y + bh / 2, "TPE", size=10, color=MUTED, anchor="right")                   # the first row of an algorithm is the smart search, the second the control
             n_pr_all += int(d["pruned"].sum())
         else:
             _note(ft, 0, y + bh / 2, "↳ random control", size=10, color=MUTED, anchor="left")
