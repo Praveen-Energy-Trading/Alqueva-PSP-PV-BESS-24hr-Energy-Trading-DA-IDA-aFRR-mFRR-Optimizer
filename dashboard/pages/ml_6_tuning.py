@@ -649,13 +649,8 @@ if not io.empty:
 
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
-_all = _sum[_sum["target"] == "all"].iloc[0]
-_saved_card = (f"<div style='display:flex; align-items:center; gap:1.1rem; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.7rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-               f"<div style='font-size:1.7rem; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{100 * _all['saved']:.0f}%</div>"
-               f"<div style='line-height:1.45;'><div style='font-size:0.95rem; font-weight:600; color:{theme.INK_PRIMARY};'>fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</div>"
-               f"<div style='font-size:0.8rem; color:{theme.INK_SECONDARY};'>a stopped trial skips 2 of its 3 block fits</div></div></div>")
 _section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
-st.markdown(f"<div style='margin-bottom:1rem;'>{_saved_card}</div>", unsafe_allow_html=True)
+_line("<b>fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b> · a stopped trial skips 2 of its 3 block fits")
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
