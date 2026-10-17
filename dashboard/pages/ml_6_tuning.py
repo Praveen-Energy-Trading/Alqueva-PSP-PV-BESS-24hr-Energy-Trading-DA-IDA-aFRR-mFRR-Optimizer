@@ -75,6 +75,25 @@ def _pill(fig, x0, x1, y0, y1, color, opacity=1.0, r_px=4.0):
                         f"L {x0 + rx},{y1} Q {x0},{y1} {x0},{y1 - ry} L {x0},{y0 + ry} Q {x0},{y0} {x0 + rx},{y0} Z"))
 
 
+CARD_LINE = "#e3e1d9"
+CARD_X0, CARD_X1 = -12, X_END + 12                                                    # the cards reach a little beyond the content
+
+
+def _card(y0, y1, r_px=10.0):
+    """A white rounded card with a thin border, drawn under everything else."""
+    rx, ry = r_px / px_day, r_px / ROW
+    x0, x1 = CARD_X0, CARD_X1
+    SH.append(dict(type="path", fillcolor="#ffffff", line=dict(color=CARD_LINE, width=1), layer="below",
+                   path=(f"M {x0 + rx},{y0} L {x1 - rx},{y0} Q {x1},{y0} {x1},{y0 + ry} L {x1},{y1 - ry} Q {x1},{y1} {x1 - rx},{y1} "
+                         f"L {x0 + rx},{y1} Q {x0},{y1} {x0},{y1 - ry} L {x0},{y0 + ry} Q {x0},{y0} {x0 + rx},{y0} Z")))
+
+
+def _head(y, num, title, sub_="", two=False):
+    """The header of a section: a number, a bold title, and a muted line of explanation."""
+    AN.append(dict(x=6, y=y, xanchor="left", yanchor="middle", showarrow=False, align="left", font=dict(size=14, color=INK),
+                   text=f"<b style='font-size:17px;color:{NEUTRAL}'>{num}</b>&nbsp; <b>{title}</b>" + (f"{'<br>' if two else ' &nbsp;'}<span style='font-size:12px;color:{MUTED}'>{sub_}</span>" if sub_ else "")))
+
+
 def _note(fig, x, y, text, size=12, color=INK, anchor="center", **kw):
     _annot(x=x, y=y, xanchor=anchor, showarrow=False, text=text, font=dict(size=size, color=color), **kw)
 
@@ -88,7 +107,8 @@ ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
 legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L}) &nbsp;&nbsp; "
           f"<span style='color:{ORANGE}'>■</span> the refit's forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
-_note(ft, 0, -1.55, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle")
+_head(-2.55, "①", "Tuning only looks inside the refit's own window", "so a setting is never judged on days it could have learned from")
+_note(ft, 6, -1.6, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle")
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
 _pill(ft, 0, body, 0, rh, BLUE, 0.62)
@@ -124,10 +144,11 @@ _note(ft, win + 144 + (X_END - win - 144) / 2, ysn + rh / 2, "locked<br>test yea
 _note(ft, win - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
 _shape(type="line", x0=win + 0.5, x1=win + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
 _note(ft, win - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
+_card(-3.15, ysn + rh + 0.6)
 
 # ---- 4. the route of one setting
-yr = ysn + rh + 0.95
-_note(ft, 0, yr, "<b>The route of one trial</b> &nbsp;<span style='color:%s'>(one trial = one candidate setting of the algorithm)</span>" % MUTED, size=13, anchor="left")
+yr = ysn + rh + 1.9
+_head(yr, "②", "The route of one trial", "one trial = one candidate setting of the algorithm")
 cy, nh = yr + 1.5, 1.0
 def _node(x0, x1, label, badges=()):
     _pill(ft, x0, x1, cy - nh / 2, cy + nh / 2, NEUTRAL, 0.10, r_px=6)
@@ -165,14 +186,15 @@ _note(ft, 75, oy, "<b>trial 0</b>", size=12, color="white")
 _note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left")
 
 # ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
-ydt = oy + 1.3
-_note(ft, 0, ydt + 0.3, f"<b>The same budget for every algorithm: up to {n_t} trials each</b><br><span style='color:{MUTED}'>{ml_data.label(target)}, its latest tuning round &nbsp;·&nbsp; every square is a trial that was kept ({len(trials):,} in all)</span>", size=13, anchor="left", align="left")
+_card(yr - 0.7, oy + 0.8)
+ydt = oy + 2.0
+_head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"{ml_data.label(target)}, its latest tuning round · every square is a trial that was kept ({len(trials):,} in all)", two=True)
 _leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
-_note(ft, 0, ydt + 1.25, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
+_note(ft, 6, ydt + 1.1, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
 xs0, xs1 = 130, 1000
 cw = (xs1 - xs0) / n_t
 bh, pitch = 0.42, 0.52
-y = ydt + 1.85
+y = ydt + 1.75
 n_pr_all = 0
 combos_dt = math.prod(len(v) for v in cfg["space"].get("decision_tree", {}).values()) if cfg.get("space") else 0
 for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
@@ -211,12 +233,13 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
 yd_end = y
 
 # ---- 6. how often: a tuning round every 180 days, a refit every 30
-yt = yd_end + 0.55
-_note(ft, 0, yt, "<b>When it happens</b>", size=13, anchor="left")
+_card(ydt - 0.7, yd_end + 0.05)
+yt = yd_end + 1.15
+_head(yt, "④", "When it happens", f"a tuning round every {retune} days, a refit every {refit}")
 n_rounds, span_d = 4, 3 * retune
 x0s, x1s = 130, 985
 per_day = (x1s - x0s) / span_d
-yb = yt + 0.7
+yb = yt + 1.05
 for k in range(3):                                                                   # the settings of one round serve every refit until the next
     _pill(ft, x0s + k * retune * per_day, x0s + (k + 1) * retune * per_day - 3, yb, yb + 2.0, VIOLET, 0.09 + 0.05 * (k % 2), r_px=6)
 for d_ in range(0, span_d, refit):
@@ -229,10 +252,11 @@ _note(ft, 0, yb + 1.52, "<b>refit</b>", size=12, color=BLUE, anchor="left")
 _note(ft, x0s + 14, yb + 0.5, f"every {retune} days: a new search", size=11, color=VIOLET, anchor="left")
 _note(ft, x0s + 14, yb + 1.0, f"{retune // refit} refits use its settings", size=11, color=MUTED, anchor="left")
 _note(ft, x0s + 14, yb + 1.95, f"a refit every {refit} days", size=11, color=BLUE, anchor="left", yanchor="top")
-end = yb + 2.4
-theme.style_fig(ft, height=int((end + 2.3) * ROW + 12), xaxis_title=None, legend=False)
-ft.update_yaxes(autorange=False, range=[end, -2.3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
-ft.update_xaxes(range=[-4, X_END], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
+_card(yt - 0.7, yb + 2.55)
+end = yb + 2.85
+theme.style_fig(ft, height=int((end + 3.3) * ROW + 12), xaxis_title=None, legend=False)
+ft.update_yaxes(autorange=False, range=[end, -3.3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
+ft.update_xaxes(range=[CARD_X0 - 3, CARD_X1 + 3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
 ft.update_layout(margin=dict(t=2, b=2, l=10, r=10))
 ft.layout.shapes = SH                                                                   # replace (not merge with) the axis line the theme added
 ft.layout.annotations = AN
@@ -248,22 +272,6 @@ ml_ui.table(pd.DataFrame([{"Setting": k.replace("_", " "), "Values": ", ".join(_
 import math
 st.caption(f"{math.prod(len(v) for v in space.values()):,} combinations. With 40 trials the large spaces are searched thinly (Optuna steers toward good "
            "regions); the decision tree's 25 combinations are searched exhaustively.")
-
-st.markdown("##### The formulas: the learning rules the search chooses between, and the scores that judge the result")
-ml_ui.table(pd.DataFrame([
-    {"": "Learning rule", "Name": "Squared error (L2)", "Formula": "e²", "Example: errors 1, 2 and 30": "the miss of 30 costs 900",
-     "Library names, and the score it goes with": "regression · reg:squarederror · squared_error. Goes with SSE, MSE and RMSE"},
-    {"": "Learning rule", "Name": "Absolute error (L1)", "Formula": "|e|", "Example: errors 1, 2 and 30": "the miss of 30 costs 30",
-     "Library names, and the score it goes with": "regression_l1 · reg:absoluteerror · absolute_error. Goes with MAE"},
-    {"": "Learning rule", "Name": "Huber", "Formula": "½e² if |e| ≤ δ, else δ(|e| − ½δ)", "Example: errors 1, 2 and 30": "the miss of 30 costs 29.5 (δ = 1, for the example only)",
-     "Library names, and the score it goes with": "huber (XGBoost: the smooth pseudo-Huber, reg:pseudohubererror). No score of its own"},
-    {"": "Score", "Name": "SSE", "Formula": "Σ e²", "Example: errors 1, 2 and 30": "905", "Library names, and the score it goes with": "sum of squared errors"},
-    {"": "Score", "Name": "MSE", "Formula": "(1/n) Σ e²", "Example: errors 1, 2 and 30": "301.7", "Library names, and the score it goes with": "mean squared error"},
-    {"": "Score", "Name": "RMSE", "Formula": "√MSE", "Example: errors 1, 2 and 30": "17.4", "Library names, and the score it goes with": "back in the unit of the price (€/MWh)"},
-    {"": "Score", "Name": "MAE", "Formula": "(1/n) Σ |e|", "Example: errors 1, 2 and 30": "11", "Library names, and the score it goes with": "the score the tuning uses to compare settings"},
-]), stretch=True)
-st.caption("e = actual price − forecast. A learning rule is what the model minimises while it learns, so it is one of the choices being tuned; a score judges the finished forecast. "
-           "The two need not match: here every setting is scored with MAE, whichever rule trained the model.")
 
 st.subheader("Every trial of one tuning round")
 m = tt[tt["model"] == model]
@@ -341,7 +349,7 @@ else:
             rf.add_trace(go.Heatmap(x=list(range(len(va))), y=list(range(len(vb))), z=quality, zmin=0, zmax=1, showscale=False, xgap=3, ygap=3, hoverinfo="skip",
                                     colorscale=[[0, "#f7f5ee"], [1, GOLD]]), row=i, col=j + 1)
             fin, stop = part[~part["pruned"].astype(bool)], part[part["pruned"].astype(bool)]
-            for sub_, sym, col_, sz in ((fin, "circle", T_DONE, 10), (stop, "x", T_STOP, 11)):
+            for sub_, sym, col_, sz in ((fin, "circle", T_DONE, 12), (stop, "x", T_STOP, 13)):
                 if len(sub_):
                     rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]],
                                             y=[vb.index(str(p.get(kb))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]], mode="markers", showlegend=False,
@@ -351,7 +359,7 @@ else:
             if len(win_):
                 p = win_["params_d"].iloc[0]
                 rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka)))], y=[vb.index(str(p.get(kb)))], mode="markers", showlegend=False, hoverinfo="skip",
-                                        marker=dict(symbol="star", size=22, color=T_WIN, line=dict(color="white", width=1.5))), row=i, col=j + 1)
+                                        marker=dict(symbol="star", size=27, color=T_WIN, line=dict(color="white", width=1.5))), row=i, col=j + 1)
     # the result: the best score found so far, averaged over the tuning rounds
     curves = {k_: ml_data.best_so_far(da[da["search"] == k_]) for k_ in ("tpe", "random")}
     ends_ = {}
@@ -379,12 +387,16 @@ else:
     rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], showgrid=False, row=1, col=4)
     rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=False, row=1, col=4)
     rf.update_xaxes(range=[0, 104], showticklabels=False, showgrid=False, row=2, col=4)
+    for i in (1, 2):                                                                  # room for the labels inside the card
+        rf.update_xaxes(domain=[0.75, 0.985], row=i, col=4)
     rf.update_yaxes(showgrid=False, tickfont=dict(size=13), automargin=True, row=2, col=4)
     for i in (1, 2):                                                                  # the label column has no axes
         rf.update_xaxes(visible=False, row=i, col=1)
         rf.update_yaxes(visible=False, row=i, col=1)
-    rf.update_layout(margin=dict(t=126, b=70, l=10, r=10))
-    rf.layout.shapes = tuple(sh for sh in rf.layout.shapes if sh.xref not in ("x domain", "x5 domain"))          # no axis line in the label column
+    rf.update_layout(margin=dict(t=100, b=70, l=10, r=10))
+    _cards = [dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.16, y1=1.095, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
+              for x0_, x1_ in ((-0.004, 0.682), (0.686, 1.004))]
+    rf.layout.shapes = tuple(sh for sh in rf.layout.shapes if sh.xref not in ("x domain", "x5 domain")) + tuple(_cards)          # no axis line in the label column
     dom = {(1, 1): "x domain", (1, 2): "x2 domain", (1, 3): "x3 domain", (1, 4): "x4 domain", (2, 1): "x5 domain", (2, 2): "x6 domain", (2, 3): "x7 domain", (2, 4): "x8 domain"}
     # row labels and column titles
     for (i, j), title in (((1, 2), "first 10 trials"), ((1, 3), f"the other {n_t - 1 - n_early} trials"), ((1, 4), "result: best score so far")):
@@ -398,12 +410,44 @@ else:
     rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x4", yref="y4", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
                       text=f"random <b>{ends_['random'][1]:.3f}</b>")
     rf.add_annotation(x=0, y=1.0, xref="x4", yref="y4", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
-    rf.add_annotation(x=0, y=1.0, yshift=84, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
+    rf.add_annotation(x=0, y=1.0, yshift=58, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
                       text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp;&nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp;&nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp;&nbsp; "
                            f"<span style='color:{T_WIN}'>★</span> the best one found<br><span style='color:{theme.INK_MUTED}'>every cell is one combination of {ka.replace('_', ' ')} and {kb.replace('_', ' ')}</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
     st.caption(f"The same {n_t} trials for each search, latest tuning round on the maps; the result and the work are averaged over all rounds. Day-ahead price only: the control was not run for the other targets."
                + (" This algorithm's grid is small, so both searches try every cell." if rc_model == "decision_tree" else ""))
+
+    # ---- the formulas of this algorithm's learning rules (row 1) and the scores that judge a forecast (row 2)
+    rule_raw = [str(v) for k_, vs in sp_.items() if k_ in RULE_SETTINGS for v in vs]
+    fixed = not rule_raw                                                                # trees and forests: squared error only, nothing to choose
+    rule_raw = rule_raw or ["squared_error"]
+    CARD = {"squared error (L2)": ("Squared error (L2)", "e²", "900", "follows spikes: big misses dominate"),
+            "absolute error (L1)": ("Absolute error (L1)", "|e|", "30", "follows the typical day"),
+            "Huber": ("Huber", "½e² if |e| ≤ δ,  else δ(|e| − ½δ)", "29.5", "squared if small, absolute if big (δ = 1 here)"),
+            "pseudo-Huber": ("Pseudo-Huber", "δ²(√(1 + (e/δ)²) − 1)", "29.0", "a smooth Huber (δ = 1 here)")}
+    st.markdown(f"##### The learning rules of {ml_data.model_label(rc_model)} <span style='font-weight:400; color:{theme.INK_MUTED}; font-size:0.85rem'>&nbsp; e = actual price − forecast"
+                + (" &nbsp;·&nbsp; trees and forests always split on squared error: nothing to choose" if fixed else "") + "</span>", unsafe_allow_html=True)
+    FONT = "'Cambria Math', 'STIX Two Math', 'Times New Roman', serif"
+    cards = ""
+    for raw in rule_raw:
+        title, formula, cost, note = CARD[OBJECTIVE_NAME.get(raw, raw)]
+        cards += (f"<div style='flex:1 1 0; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.85rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+                  f"<div style='display:flex; justify-content:space-between; align-items:baseline;'><span style='font-size:1.08rem; font-weight:700; color:{theme.INK_PRIMARY};'>{title}</span>"
+                  f"<span style='font-family:ui-monospace,Consolas,monospace; font-size:0.74rem; color:{theme.INK_MUTED}; background:#f4f3ef; border-radius:6px; padding:0.1rem 0.45rem;'>{raw}</span></div>"
+                  f"<div style='font-family:{FONT}; font-size:1.45rem; color:{theme.INK_PRIMARY}; background:#f8f7f3; border-radius:8px; padding:0.55rem 0.8rem; margin:0.6rem 0 0.6rem; line-height:1.3; white-space:nowrap; overflow:hidden;'>{formula}</div>"
+                  f"<div style='font-size:0.88rem; color:{theme.INK_SECONDARY};'>a miss of 30 costs <b style='font-size:1.35rem; color:{theme.INK_PRIMARY};'>{cost}</b></div>"
+                  f"<div style='font-size:0.76rem; color:{theme.INK_MUTED}; margin-top:0.1rem;'>{note}</div></div>")
+    width = "100%" if len(rule_raw) > 1 else "34%"
+    st.markdown(f"<div style='display:flex; gap:0.7rem; align-items:stretch; width:{width};'>{cards}</div>", unsafe_allow_html=True)
+    SCORES = [("SSE", "Σ e²", "905", "sum of squared errors"), ("MSE", "(1/n) Σ e²", "301.7", "mean squared error"), ("RMSE", "√MSE", "17.4", "back in €/MWh"),
+              ("MAE", "(1/n) Σ |e|", "11", "the score the tuning compares settings by")]
+    st.markdown(f"<div style='font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; margin:1.1rem 0 0.5rem;'>The scores that judge a finished forecast &nbsp;·&nbsp; for the errors 1, 2 and 30</div>"
+                "<div style='display:flex; gap:0.6rem;'>" + "".join(
+                    f"<div style='flex:1 1 0; min-width:0; background:{'#fff7e6' if n == 'MAE' else '#ffffff'}; border:1px solid {'#eda100' if n == 'MAE' else '#e3e1d9'}; border-radius:12px; padding:0.7rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+                    f"<div style='display:flex; justify-content:space-between; align-items:baseline;'><span style='font-weight:700; font-size:0.98rem; color:{theme.INK_PRIMARY};'>{n}</span>"
+                    f"<span style='font-size:1.15rem; font-weight:700; color:{theme.INK_PRIMARY};'>{v}</span></div>"
+                    f"<div style='font-size:0.95rem; color:{theme.INK_SECONDARY}; margin-top:0.1rem;'>{f}</div>"
+                    f"<div style='font-size:0.72rem; color:{theme.INK_MUTED}; margin-top:0.15rem;'>{d}</div></div>" for n, f, v, d in SCORES) + "</div>", unsafe_allow_html=True)
 
 st.subheader("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
