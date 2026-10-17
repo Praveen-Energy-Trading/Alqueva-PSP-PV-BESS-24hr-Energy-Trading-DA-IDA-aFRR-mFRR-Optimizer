@@ -282,45 +282,6 @@ st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
-_section("Search space", "every combination of settings the search may try")
-model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
-space = cfg["space"].get(model, {})
-ml_ui.table(pd.DataFrame([{"Setting": ml_data.setting_label(k), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
-n_comb = math.prod(len(v) for v in space.values())
-_line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
-      f"With {int(cfg['search']['n_trials'])} trials the space is searched thinly: TPE steers toward the good regions."))
-
-_section("Every trial of one tuning round", "one dot per trial, scored on all 3 blocks; below the dotted line beats the defaults")
-m = tt[tt["model"] == model]
-rounds = sorted(m["tuned_at"].unique())
-rnd = st.select_slider("Round (training window ends)", rounds, value=rounds[-1], key="ml6_round")
-r = m[m["tuned_at"] == rnd].sort_values("trial")
-ok = r[~r["pruned"].astype(bool) & ~r["is_default"].astype(bool) & r["score"].notna()]
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=ok["trial"], y=ok["rel"], mode="markers", name="trial", marker=dict(color=theme.BLUE, size=8),
-                         text=ok["params"].map(lambda p: _std_text(ml_data.plain_params(p))), hovertemplate="trial %{x}<br>relative score %{y:.3f}<br>%{text}<extra></extra>"))
-best = r[r["selected"].astype(bool)]
-fig.add_trace(go.Scatter(x=best["trial"], y=best["rel"], mode="markers", name="chosen", marker=dict(color=theme.YELLOW, size=15, symbol="star", line=dict(width=1, color="black"))))
-dflt = r[r["is_default"].astype(bool)]
-fig.add_trace(go.Scatter(x=dflt["trial"], y=dflt["rel"], mode="markers", name="defaults", marker=dict(color="black", size=11, symbol="diamond")))
-fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
-st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="score / score of the defaults (below 1 is better)", xaxis_title="trial"), width="stretch")
-npruned = int(r["pruned"].astype(bool).sum())
-_line(f"<b>{len(r)}</b> trials &nbsp;·&nbsp; <b>{npruned}</b> stopped after block 3 (not shown) &nbsp;·&nbsp; <b>{int(r['duplicate'].astype(bool).sum())}</b> repeated an earlier setting "
-      "&nbsp;·&nbsp; ★ the one chosen: the best mean score over the three blocks")
-
-_section("What moves the score", "boxes that sit apart: that setting matters &nbsp;·&nbsp; overlapping boxes: it hardly matters &nbsp;·&nbsp; every non-default trial of every round")
-exp = tt[(tt["model"] == model) & ~tt["is_default"].astype(bool) & tt["rel"].notna()]
-if len(exp):
-    keys = sorted({k for p in exp["params_d"] for k in p})
-    k = st.selectbox("Setting", keys, key="ml6_setting", format_func=ml_data.setting_label)
-    vals = exp["params_d"].map(lambda p: str(p.get(k, "")))
-    fig = go.Figure()
-    for i, v in enumerate(sorted(vals.unique())):
-        fig.add_trace(go.Box(y=exp.loc[vals == v, "rel"], name=_std(v) if k in RULE_SETTINGS else v, marker_color=theme.CATEGORICAL[i % 8], boxpoints="all", jitter=0.4, pointpos=0))
-    fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
-    st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="score / defaults", legend=False), width="stretch")
-
 _section("Random control and TPE, from scratch (day-ahead price)")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, "da_price")
 if da["search"].nunique() < 2:
@@ -462,6 +423,45 @@ else:
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>{ml_data.model_label(rc_model)} rules</span>{chips}</div>"
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
                 f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
+
+_section("Search space", "every combination of settings the search may try")
+model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
+space = cfg["space"].get(model, {})
+ml_ui.table(pd.DataFrame([{"Setting": ml_data.setting_label(k), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
+n_comb = math.prod(len(v) for v in space.values())
+_line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
+      f"With {int(cfg['search']['n_trials'])} trials the space is searched thinly: TPE steers toward the good regions."))
+
+_section("Every trial of one tuning round", "one dot per trial, scored on all 3 blocks; below the dotted line beats the defaults")
+m = tt[tt["model"] == model]
+rounds = sorted(m["tuned_at"].unique())
+rnd = st.select_slider("Round (training window ends)", rounds, value=rounds[-1], key="ml6_round")
+r = m[m["tuned_at"] == rnd].sort_values("trial")
+ok = r[~r["pruned"].astype(bool) & ~r["is_default"].astype(bool) & r["score"].notna()]
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=ok["trial"], y=ok["rel"], mode="markers", name="trial", marker=dict(color=theme.BLUE, size=8),
+                         text=ok["params"].map(lambda p: _std_text(ml_data.plain_params(p))), hovertemplate="trial %{x}<br>relative score %{y:.3f}<br>%{text}<extra></extra>"))
+best = r[r["selected"].astype(bool)]
+fig.add_trace(go.Scatter(x=best["trial"], y=best["rel"], mode="markers", name="chosen", marker=dict(color=theme.YELLOW, size=15, symbol="star", line=dict(width=1, color="black"))))
+dflt = r[r["is_default"].astype(bool)]
+fig.add_trace(go.Scatter(x=dflt["trial"], y=dflt["rel"], mode="markers", name="defaults", marker=dict(color="black", size=11, symbol="diamond")))
+fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
+st.plotly_chart(theme.style_fig(fig, height=330, yaxis_title="score / score of the defaults (below 1 is better)", xaxis_title="trial"), width="stretch")
+npruned = int(r["pruned"].astype(bool).sum())
+_line(f"<b>{len(r)}</b> trials &nbsp;·&nbsp; <b>{npruned}</b> stopped after block 3 (not shown) &nbsp;·&nbsp; <b>{int(r['duplicate'].astype(bool).sum())}</b> repeated an earlier setting "
+      "&nbsp;·&nbsp; ★ the one chosen: the best mean score over the three blocks")
+
+_section("What moves the score", "boxes that sit apart: that setting matters &nbsp;·&nbsp; overlapping boxes: it hardly matters &nbsp;·&nbsp; every non-default trial of every round")
+exp = tt[(tt["model"] == model) & ~tt["is_default"].astype(bool) & tt["rel"].notna()]
+if len(exp):
+    keys = sorted({k for p in exp["params_d"] for k in p})
+    k = st.selectbox("Setting", keys, key="ml6_setting", format_func=ml_data.setting_label)
+    vals = exp["params_d"].map(lambda p: str(p.get(k, "")))
+    fig = go.Figure()
+    for i, v in enumerate(sorted(vals.unique())):
+        fig.add_trace(go.Box(y=exp.loc[vals == v, "rel"], name=_std(v) if k in RULE_SETTINGS else v, marker_color=theme.CATEGORICAL[i % 8], boxpoints="all", jitter=0.4, pointpos=0))
+    fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
+    st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="score / defaults", legend=False), width="stretch")
 
 _section("What the search chose, round by round", "the chosen setting changes from round to round: no single tuned setting is 'the' best one")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
