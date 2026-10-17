@@ -264,24 +264,52 @@ if len(exp):
     st.caption("All non-default trials of all rounds for this algorithm, by the value of the chosen setting. Differences between boxes show what the "
                "setting does; overlapping boxes show it hardly matters.")
 
-st.subheader("Optuna against random search (day-ahead price, same budget)")
+st.subheader("Is the smart search worth it? TPE against a random control (day-ahead price)")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, "da_price")
 if da["search"].nunique() < 2:
     ml_ui.not_yet_run("the random-search control")
 else:
+    from plotly.subplots import make_subplots
     curves = {s_: ml_data.best_so_far(da[da["search"] == s_]) for s_ in ("tpe", "random")}
     ms = ml_data.ordered_models(da["model"].unique())
-    cols = st.columns(len(ms))
-    for col, mm in zip(cols, ms):
-        with col:
-            fig = go.Figure()
-            for name, c, colr in (("Optuna (TPE)", curves["tpe"], theme.BLUE), ("random", curves["random"], theme.ORANGE)):
-                cc = c[c["model"] == mm]
-                fig.add_trace(go.Scatter(x=cc["trial"], y=cc["best_rel"], mode="lines", name=name, line=dict(color=colr, width=2)))
-            st.markdown(f"**{ml_data.model_label(mm)}**")
-            st.plotly_chart(theme.style_fig(fig, height=230, legend=False), width="stretch")
-    st.caption("Best score so far (relative to the defaults) as trials are used, averaged over the six tuning rounds. After 40 trials the two searches "
-               "are about equal (LightGBM 0.916 with Optuna against 0.919 with random search); Optuna's pruner saved 34% to 40% of the fits.")
+    nbk = int(s["n_blocks"])
+    rf = make_subplots(rows=2, cols=len(ms), row_heights=[0.68, 0.32], vertical_spacing=0.2, horizontal_spacing=0.03, subplot_titles=[ml_data.model_label(m) for m in ms])
+    lo_y = min(float(c["best_rel"].min()) for c in curves.values()) - 0.012
+    gains, saved, gaps = [], [], []
+    for j, mm in enumerate(ms, start=1):
+        ends = {}
+        for key, name, colr, dash, wd in (("random", "random control", theme.INK_MUTED, "dash", 2.2), ("tpe", "TPE (smart search)", theme.INK_PRIMARY, "solid", 2.8)):
+            cc = curves[key][curves[key]["model"] == mm].sort_values("trial")
+            rf.add_trace(go.Scatter(x=cc["trial"], y=cc["best_rel"], mode="lines", name=name, line=dict(color=colr, width=wd, dash=dash), showlegend=False,
+                                    hovertemplate=name + ": %{y:.3f} after trial %{x}<extra></extra>"), row=1, col=j)
+            ends[key] = float(cc["best_rel"].iloc[-1])
+        rf.add_hline(y=1.0, line=dict(color=theme.INK_MUTED, width=1, dash="dot"), row=1, col=j)
+        gains.append(1 - ends["tpe"]); gaps.append(abs(ends["tpe"] - ends["random"]))
+        tp = da[(da["search"] == "tpe") & (da["model"] == mm)]
+        sv = float(tp["pruned"].sum()) * (nbk - 1) / nbk / max(len(tp), 1)                # a stopped trial skips the other blocks
+        saved.append(sv)
+        rf.add_trace(go.Bar(x=["fits saved"], y=[100 * sv], marker_color=T_STOP, showlegend=False, text=[f"{100 * sv:.0f}%"], textposition="outside", hoverinfo="skip"), row=2, col=j)
+        rf.add_annotation(x=0.5, y=lo_y + 0.004, xref=f"x{j if j > 1 else ''} domain", yref=f"y{j if j > 1 else ''}", showarrow=False, font=dict(size=11, color=theme.INK_SECONDARY),
+                          text=f"after 40: <b>{ends['tpe']:.3f}</b> vs {ends['random']:.3f}", yanchor="bottom")
+    theme.style_fig(rf, height=470, legend=False)
+    rf.update_yaxes(range=[lo_y, 1.01], showticklabels=False, row=1)
+    rf.update_yaxes(range=[0, 48], showticklabels=False, showgrid=False, row=2)
+    rf.update_xaxes(showticklabels=False, row=2)
+    rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], ticktext=["0", str(n_t - 1)], row=1)
+    rf.update_yaxes(showticklabels=True, tickformat=".2f", row=1, col=1)
+    rf.update_yaxes(showticklabels=True, ticksuffix="%", row=2, col=1)
+    rf.update_layout(margin=dict(t=116, b=10, l=50, r=10))
+    for a_ in rf.layout.annotations[:len(ms)]:
+        a_.update(font=dict(size=13, color=theme.INK_PRIMARY))
+    rf.add_annotation(x=0, y=1.0, yshift=58, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, align="left", font=dict(size=12, color=theme.INK_SECONDARY),
+                      text=f"<b style='color:{theme.INK_PRIMARY}'>━━</b> TPE, smart search (stops weak trials) &nbsp;&nbsp; <b style='color:{theme.INK_MUTED}'>╍╍</b> random control (blind draws) &nbsp;&nbsp; "
+                           f"<span style='color:{theme.INK_MUTED}'>┈┈</span> the defaults<br>"
+                           f"<span style='color:{theme.INK_MUTED}'>top: best score so far, over 40 trials (1.00 = defaults, lower is better) &nbsp;·&nbsp; bottom: fits saved by stopping early</span>")
+    st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
+    st.caption(f"Both searches end within {max(gaps):.3f} of each other, relative to the defaults: at this budget the smart search finds about the same improvement "
+               f"({100 * min(gains):.0f}% to {100 * max(gains):.0f}% lower error than the defaults) as random guessing. What it saves is work: it stops weak trials after block 3 and "
+               f"skips {100 * min(v for v in saved if v):.0f}% to {100 * max(saved):.0f}% of the fits (the decision tree's small grid is searched exhaustively, so nothing is stopped). "
+               "Scores are averaged over the six tuning rounds.")
 
 st.subheader("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
