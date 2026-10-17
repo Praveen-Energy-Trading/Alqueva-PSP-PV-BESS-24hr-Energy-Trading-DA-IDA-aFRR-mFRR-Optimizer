@@ -44,7 +44,7 @@ What to say on each page, the likely follow-up question with its answer, and the
 
 ## ml_5_evaluation: Evaluation design
 
-**What to say.** I fixed the scoring contract first: a rolling origin that refits as the live system would, a gap so training never touches the day before the first forecast, and a final year that is locked and scored once. Differences between models are tested on daily losses with a variance that allows for autocorrelation, not read off a single number.
+**What to say.** I fixed the scoring contract first: a rolling origin that refits as the live system would, a gap so training never touches the day before the first forecast, and a final year that is locked and scored once.
 
 **Likely question.** Why not cross-validation with random folds?
 
@@ -64,7 +64,7 @@ What to say on each page, the likely follow-up question with its answer, and the
 
 ## ml_7_arena: Model arena
 
-**What to say.** I compare algorithms by their out-of-sample errors on the same days, never by their settings: each is tuned with the same budget and then scored the same way. For every pair I test whether the difference is real, and I correct for the number of pairs, because with ten pairs one will look significant by chance.
+**What to say.** I compare algorithms by their out-of-sample errors on the same days, never by their settings: each is tuned with the same budget and then scored the same way. For every pair I test whether the difference is real, on one loss difference per day with a variance that allows for autocorrelation, not read off a single number, and I correct for the number of pairs, because with ten pairs one will look significant by chance.
 
 **Likely question.** How do you compare a decision tree and LightGBM when they have different hyperparameters?
 
