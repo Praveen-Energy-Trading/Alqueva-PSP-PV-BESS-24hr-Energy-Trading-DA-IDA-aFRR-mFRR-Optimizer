@@ -63,13 +63,21 @@ if trials.empty or not cfg:
 target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))
 s = cfg["search"]
 ev = ml_ui.cached(lambda: ml_data.config("evaluation"))()
-win, L, nb, gap = int(ev["schedule"]["train_window_days"]), int(s["validation_days"]), int(s["n_blocks"]), int(s.get("gap_days", 1))
+L, nb, gap = int(s["validation_days"]), int(s["n_blocks"]), int(s.get("gap_days", 1))
+_log = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe")]
+expanding = ml_data.config("rollout").get("targets", {}).get(target, {}).get("treatment", "standard") != "standard"        # short histories train on every day they have
+win, win_end = int(ev["schedule"]["train_window_days"]), None                        # a rolling window has the length it is configured with
+if len(_log):
+    win_end = pd.Timestamp(_log["tuned_at"].max())
+    if expanding:                                                                    # an expanding window is as long as the days the latest round had: the latest block's training + that block + the gap
+        win = int(_log[_log["tuned_at"] == _log["tuned_at"].max()]["inner_train_days"].median()) + L + gap
 n_t, retune, refit = int(s["n_trials"]), int(s["retune_every_days"]), int(ev["schedule"]["retrain_every_days"])
 BLUE, VIOLET, ORANGE, AQUA, RED, MUTED, INK = theme.BLUE, theme.VIOLET, theme.ORANGE, theme.AQUA, theme.STATUS_CRITICAL, theme.INK_MUTED, theme.INK_PRIMARY
 GREY = "#d9d7cf"
 T_DEF, T_DONE, T_STOP, T_WIN, NEUTRAL = "#3d3c39", "#8791ab", theme.MAGENTA, theme.GREEN, "#6b6a64"
 ROW = 34.0                                                                           # pixels per row: the labels keep their places whatever the content
-X_END = win + 280                                                                    # room on the right for the labels and the days tuning never looks at
+X_END = 1010                                                                         # the width of the figure in its own units
+DAY = X_END / (1.402 * win)                                                          # units per day: the window always fills the same share, the rest is room for the labels
 px_day = 1150.0 / X_END
 
 
@@ -120,48 +128,50 @@ def _arrow(fig, x0, y0, x1, y1, color=MUTED):
 
 
 body = win - nb * L                                                                  # the days before the tuning blocks
+xw = win * DAY                                                                       # where the window ends, in units
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
 legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L}) &nbsp;&nbsp; "
           f"<span style='color:{ORANGE}'>■</span> the refit's forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
-_head(-2.55, "①", "Tuning only looks inside the refit's own window", "so a setting is never judged on days it could have learned from")
+_head(-2.8, "①", "Tuning only looks inside the refit's own window",
+      f"{ml_data.label(target)} · latest tuning round" + (f", window ending {pd.Timestamp(win_end):%d-%m-%Y}" if win_end is not None else "") + (f" · expanding window: all {win} days it has" if expanding else f" · rolling {win}-day window"), two=True)
 _note(ft, 6, -1.6, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle")
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
-_pill(ft, 0, body, 0, rh, BLUE, 0.62)
-_pill(ft, body + 0.6, win, 0, rh, VIOLET, 0.9)
+_pill(ft, 0, body * DAY, 0, rh, BLUE, 0.62)
+_pill(ft, body * DAY + 0.6, xw, 0, rh, VIOLET, 0.9)
 for k in range(1, nb):                                                               # the block boundaries inside the tuning days
-    _shape(type="line", x0=body + k * L, x1=body + k * L, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
-_pill(ft, win + gap, win + gap + 30, 0, rh, ORANGE, 1.0)
-_note(ft, 8, rh / 2, f"<b>One refit: its own {win}-day window</b> &nbsp;·&nbsp; {body} days of training", anchor="left", align="left")
+    _shape(type="line", x0=(body + k * L) * DAY, x1=(body + k * L) * DAY, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
+_pill(ft, xw + 1, xw + 1 + 30 * DAY, 0, rh, ORANGE, 1.0)
+_note(ft, 8, rh / 2, f"<b>One refit</b> &nbsp;·&nbsp; {body} days of training", anchor="left", align="left")
 for k in range(nb):
-    _note(ft, body + k * L + L / 2, rh / 2, f"<b>{k + 1}</b>", color="white")
-_note(ft, win + gap + 36, rh / 2, "the refit's forecast days", color=ORANGE, anchor="left")
+    _note(ft, (body + k * L + L / 2) * DAY, rh / 2, f"<b>{k + 1}</b>", color="white")
+_note(ft, xw + 1 + 30 * DAY + 10, rh / 2, "forecast days", color=ORANGE, anchor="left")
 # ---- 2. the tuning rounds: each block is predicted by a model that has seen only the days before it
 for k in range(1, nb + 1):
     y0 = 1.55 + (k - 1) * 1.0
     b0 = body + (k - 1) * L                                                          # first day of block k
     tr_days = b0 - gap
-    _pill(ft, 0, tr_days, y0, y0 + rh, BLUE, 0.62)
-    _pill(ft, b0, b0 + L, y0, y0 + rh, VIOLET, 0.9)
+    _pill(ft, 0, tr_days * DAY, y0, y0 + rh, BLUE, 0.62)
+    _pill(ft, b0 * DAY, (b0 + L) * DAY, y0, y0 + rh, VIOLET, 0.9)
     if b0 + L < win:
-        _pill(ft, b0 + L + 0.6, win, y0, y0 + rh, GREY, 0.8)
-    _note(ft, 8, y0 + rh / 2, f"<b>Round {k}</b> &nbsp;·&nbsp; a model trains on the {tr_days} days before block {k}", anchor="left", align="left")
-    _note(ft, b0 + L / 2, y0 + rh / 2, f"<b>{k}</b>", color="white")
-    _note(ft, win + gap + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
+        _pill(ft, (b0 + L) * DAY + 0.6, xw, y0, y0 + rh, GREY, 0.8)
+    _note(ft, 8, y0 + rh / 2, f"<b>Round {k}</b> &nbsp;·&nbsp; trains on {tr_days} days", anchor="left", align="left")
+    _note(ft, (b0 + L / 2) * DAY, y0 + rh / 2, f"<b>{k}</b>", color="white")
+    _note(ft, xw + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
-_note(ft, win + gap + 36, ys + 0.25, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
+_note(ft, xw + 36, ys + 0.25, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
       align="left", bgcolor="white", bordercolor=VIOLET, borderwidth=1, borderpad=6)
 # ---- 3. the days tuning never looks at, and where they start
 ysn = ys + 1.25
-_pill(ft, win + gap, win + 140, ysn, ysn + rh, ORANGE, 0.35)
-_pill(ft, win + 144, X_END, ysn, ysn + rh, RED, 0.3)
-_note(ft, win + 70, ysn + rh / 2, "backtest<br>validation", size=11)
-_note(ft, win + 144 + (X_END - win - 144) / 2, ysn + rh / 2, "locked<br>test year", size=11, color=RED)
-_note(ft, win - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
-_shape(type="line", x0=win + 0.5, x1=win + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
-_note(ft, win - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
-_card(-3.15, ysn + rh + 0.6)
+_pill(ft, xw + 1, xw + 130, ysn, ysn + rh, ORANGE, 0.35)
+_pill(ft, xw + 134, X_END, ysn, ysn + rh, RED, 0.3)
+_note(ft, xw + 65, ysn + rh / 2, "backtest<br>validation", size=11)
+_note(ft, xw + 134 + (X_END - xw - 134) / 2, ysn + rh / 2, "locked<br>test year", size=11, color=RED)
+_note(ft, xw - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
+_shape(type="line", x0=xw + 0.5, x1=xw + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
+_note(ft, xw - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
+_card(-3.5, ysn + rh + 0.6)
 
 # ---- 4. the route of one setting
 yr = ysn + rh + 1.9
@@ -271,8 +281,8 @@ _note(ft, x0s + 14, yb + 1.0, f"{retune // refit} refits use its settings", size
 _note(ft, x0s + 14, yb + 1.95, f"a refit every {refit} days", size=11, color=BLUE, anchor="left", yanchor="top")
 _card(yt - 0.7, yb + 2.55)
 end = yb + 2.85
-theme.style_fig(ft, height=int((end + 3.3) * ROW + 12), xaxis_title=None, legend=False)
-ft.update_yaxes(autorange=False, range=[end, -3.3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
+theme.style_fig(ft, height=int((end + 3.65) * ROW + 12), xaxis_title=None, legend=False)
+ft.update_yaxes(autorange=False, range=[end, -3.65], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
 ft.update_xaxes(range=[CARD_X0 - 3, CARD_X1 + 3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
 ft.update_layout(margin=dict(t=2, b=2, l=10, r=10))
 ft.layout.shapes = SH                                                                   # replace (not merge with) the axis line the theme added
