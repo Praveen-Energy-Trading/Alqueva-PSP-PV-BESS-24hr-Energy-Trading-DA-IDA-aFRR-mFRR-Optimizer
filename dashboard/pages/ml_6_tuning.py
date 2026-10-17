@@ -650,20 +650,11 @@ if not io.empty:
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
 _all = _sum[_sum["target"] == "all"].iloc[0]
-_top = [k_ for k_ in sorted(_keys5, key=lambda x_: -_eta.get(x_, 0))][:4] if _eta else _keys5[:4]
-_usual = []
-for k_ in _top:
-    c_ = _ch["tpe"][k_].most_common(1)
-    if c_:
-        _usual.append(f"{ml_data.setting_label(k_)} {_opt(k_, c_[0][0])}")
-_tiles = [(f"{_all['inner']:.1f}% → {_all['outer']:.1f}%", "gain over the defaults: on the blocks it was chosen on, then on the days that followed (mean of the targets)"),
-          (f"{abs(_all['difference']):.3f}", "gap between TPE and the random control" + (" (TPE slightly better): the smart search ends about level with blind guessing" if _all["difference"] < 0 else ": the smart search ends level with blind guessing")),
-          (f"{100 * _all['saved']:.0f}%", "of the fits TPE skips by stopping weak trials after block 3: the same result for less work"),
-          ("a region, not a point", f"the usual choice for {ml_data.model_label(model)}: " + (" · ".join(_usual) if _usual else "see ⑤") + "; it changes from round to round")]
-_tl = "".join(f"<div style='flex:1 1 0; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.8rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-              f"<div style='font-size:{'1.7rem' if j_ < 3 else '1.25rem'}; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{big_}</div>"
-              f"<div style='font-size:0.78rem; color:{theme.INK_SECONDARY}; margin-top:0.3rem; line-height:1.4;'>{cap_}</div></div>" for j_, (big_, cap_) in enumerate(_tiles))
-_section("The outcome", "what tuning gave, in four numbers, and the same comparison for every target", num="⑦")
+_tiles = [(f"{100 * _all['saved']:.0f}%", "of the fits TPE skips by stopping weak trials after block 3: the same result for less work")]
+_tl = "".join(f"<div style='flex:0 1 24rem; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.8rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+              f"<div style='font-size:1.7rem; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{big_}</div>"
+              f"<div style='font-size:0.78rem; color:{theme.INK_SECONDARY}; margin-top:0.3rem; line-height:1.4;'>{cap_}</div></div>" for big_, cap_ in _tiles)
+_section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
 st.markdown(f"<div style='display:flex; gap:0.7rem; align-items:stretch; margin-bottom:1rem;'>{_tl}</div>", unsafe_allow_html=True)
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
