@@ -215,7 +215,7 @@ _note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left
 # ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
 _card(yr - 0.7, oy + 0.8)
 ydt = oy + 2.0
-_head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"{ml_data.label(target)}, its latest tuning round · every square is a trial that was kept ({len(trials):,} in all)", two=True)
+_head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"TPE = Tree-structured Parzen Estimator, Optuna's smart search · {ml_data.label(target)}, latest round · each square = one trial ({len(trials):,} logged)", two=True)
 _leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored (darker = lower error)"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
 _note(ft, 6, ydt + 1.1, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
 xs0, xs1 = 190, 905                                                                  # the right-hand end of the rows is kept for each row's best score
