@@ -416,8 +416,8 @@ else:
                       text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
                            f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = one combination of the axes</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
-    st.caption(f"The same {n_t} trials for each search, latest tuning round on the maps; the result and the work are averaged over all rounds. Day-ahead price only: the control was not run for the other targets."
-               + (" This algorithm's grid is small, so both searches try every cell." if rc_model == "decision_tree" else ""))
+    if rc_model == "decision_tree":
+        st.caption("This algorithm's grid is small, so both searches try every cell.")
 
     # ---- the formulas of this algorithm's learning rules (row 1) and the scores that judge a forecast (row 2)
     rule_raw = [str(v) for k_, vs in sp_.items() if k_ in RULE_SETTINGS for v in vs]
