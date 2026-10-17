@@ -36,6 +36,7 @@ if w and "daily" in w:                                         # irradiance and 
     _d = w["data"]
     _rows = [("Series", f"{w['target']} ({_unit}), hourly"),
              ("Inputs", "the numerical weather forecast of the site; without it, a model on past observations and clear-sky physics"),
+             ("Without the forecast", (lambda p: f"the model uses {p['features'].replace('_', ' ')}. Its lags and rolling means end at the same hour yesterday, which is later than what is observed at 11:00 on the day before." if p else "-")(ml_data.plant_input(choice))),
              ("Truth", f"{_d['source']}, {_dmy(_d['first'])} to {_dmy(_d['last'])}. A reanalysis, not an on-site measurement; the weather forecasts are archived from {_dmy(_d['forecast_first'])}."),
              ("Test", f"the last twelve months, {_dmy(w['test_range'][0])} to {_dmy(w['test_range'][1])} ({w['n_test']:,} hours), judged as of 11:00 on the day before: "
                       "no observation of the last hours before the delivery day is used by anything below")]

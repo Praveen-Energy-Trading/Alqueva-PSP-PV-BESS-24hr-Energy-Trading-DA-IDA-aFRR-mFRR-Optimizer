@@ -136,4 +136,12 @@ st.subheader("Engineering")
 ml_ui.cards([("Automated tests", f"{facts.get('test_functions', '-')} in {facts.get('test_files', '-')} files"), ("Framework modules", facts.get("framework_modules", "-")),
                     ("Command-line tools", facts.get("tools", "-")), ("Configuration files", facts.get("config_files", "-"))], ncols=4, pre_formatted=True)
 
+st.subheader("A numerical failure, found and guarded")
+st.markdown("""
+In the random-search control, one tuned XGBoost with an outlier-robust loss (pseudo-Huber) went wrong in one fold (April 2023) and predicted prices up to
+5e21: a boosted model can leave the range of the prices it was trained on. The guard limits every forecast to the range of the training prices plus a
+margin, in training, in the tuning validation and in the live champion. Rerun with the guard, the Optuna experiment is **bit-identical** to the first run
+(no forecast was ever limited), and the 720 limited forecasts of the control are exactly that incident.
+""")
+
 st.caption("The plant inputs are not registered as champions and are not monitored here: irradiance and temperature come from the weather forecast, and the inflow forecaster is retrained daily on the full history.")

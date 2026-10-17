@@ -137,13 +137,4 @@ if target == "da_price":
             st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
             st.caption("No single setting dominates: at most 36% (tree depth) and typically 10% to 22%.")
 
-st.subheader("A numerical failure, found and guarded")
-st.markdown("""
-In the random-search control, one tuned XGBoost with the **pseudo-Huber objective** diverged in one fold (April 2023) and predicted prices up to
-5e21: a boosted model can leave the range of its training outcomes, and the transform is inverted with `sinh`. The fix limits every forecast, in
-transformed space, to the range of the training outcomes plus a margin of one unit, in training, in the tuning validation and in the served
-champion. Rerun with the guard, the Optuna experiment is **bit-identical** to the first run (no forecast was ever limited), and the 720 limited
-forecasts of the control are exactly that incident.
-""")
-
 st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are not part of this lab: they are not tuned here. Their algorithms are compared with simple forecasts (and, for irradiance and temperature, with the weather forecast) on the Plant inputs page.")

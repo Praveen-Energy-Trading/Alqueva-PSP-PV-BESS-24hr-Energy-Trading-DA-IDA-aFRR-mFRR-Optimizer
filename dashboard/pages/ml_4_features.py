@@ -76,17 +76,3 @@ else:
         reason=lambda x: x["reason"].map(ml_data.plain_text))
     with st.expander(f"Why {len(bad)} features are unavailable for {ml_data.label(target)}"):
         ml_ui.table(bad.assign(feature=bad["feature"].map(fname)).rename(columns={"feature": "Feature", "reason": "Reason"}))
-
-st.subheader("Plant inputs")
-_rows = []
-for _key, _name, _ in ml_data.PLANT_INPUTS:
-    _r = ml_data.plant_input(_key)
-    if _r:
-        _rows.append({"Forecast": f"{_name} ({_r['unit']})", "Features": _r["features"].replace("_", " "), "Number": len(_r["features"].split(", "))})
-if _rows:
-    ml_ui.table(pd.DataFrame(_rows), stretch=True)
-    st.caption("Irradiance and temperature are taken from the weather forecast; these are the features of the fallback model used without it. Its lags and rolling means "
-               "end at the same hour yesterday, which is later than what is observed at 11:00 on the day before (see the Plant inputs page). It adds a clear-sky value and "
-               "the calendar; the inflow forecast adds the calendar only.")
-else:
-    ml_ui.not_yet_run("the plant input evaluation (tools/evaluate_plant_inputs.py)")
