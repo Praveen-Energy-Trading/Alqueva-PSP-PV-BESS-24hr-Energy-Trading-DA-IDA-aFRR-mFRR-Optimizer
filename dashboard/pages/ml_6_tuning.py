@@ -376,11 +376,11 @@ else:
                         text=[f"{100 * (1 - saved):.0f}%", "100%"], textposition="inside", textfont=dict(color="white", size=14), hoverinfo="skip"), row=2, col=4)
     if saved > 0:
         rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}% saved"],
-                            textposition="inside", textfont=dict(color="white", size=13), hoverinfo="skip"), row=2, col=4)
+                            textposition="inside", textangle=0, constraintext="none", textfont=dict(color="white", size=13), hoverinfo="skip"), row=2, col=4)
     theme.style_fig(rf, height=560, legend=False, barmode="stack")
     for i in (1, 2):
         for j in (1, 2):
-            rf.update_xaxes(tickvals=list(range(len(va))), ticktext=[_std(v) if ka in RULE_SETTINGS else v for v in va], range=[-0.6, len(va) - 0.4], showgrid=False, zeroline=False,
+            rf.update_xaxes(tickvals=list(range(len(va))), ticktext=[_std(v).replace(" (", "<br>(") if ka in RULE_SETTINGS else v for v in va], tickangle=0, range=[-0.6, len(va) - 0.4], showgrid=False, zeroline=False,
                             showticklabels=(i == 2), tickfont=dict(size=11), row=i, col=j + 1)
             rf.update_yaxes(tickvals=list(range(len(vb))), ticktext=[_std(v) if kb in RULE_SETTINGS else v for v in vb], range=[-0.6, len(vb) - 0.4], showgrid=False, zeroline=False,
                             showticklabels=(j == 1), tickfont=dict(size=11), row=i, col=j + 1)
@@ -425,29 +425,26 @@ else:
             "absolute error (L1)": ("Absolute error (L1)", "|e|", "30", "follows the typical day"),
             "Huber": ("Huber", "½e² if |e| ≤ δ,  else δ(|e| − ½δ)", "29.5", "squared if small, absolute if big (δ = 1 here)"),
             "pseudo-Huber": ("Pseudo-Huber", "δ²(√(1 + (e/δ)²) − 1)", "29.0", "a smooth Huber (δ = 1 here)")}
-    st.markdown(f"##### The learning rules of {ml_data.model_label(rc_model)} <span style='font-weight:400; color:{theme.INK_MUTED}; font-size:0.85rem'>&nbsp; e = actual price − forecast"
-                + (" &nbsp;·&nbsp; trees and forests always split on squared error: nothing to choose" if fixed else "") + "</span>", unsafe_allow_html=True)
-    FONT = "'Cambria Math', 'STIX Two Math', 'Times New Roman', serif"
-    cards = ""
-    for raw in rule_raw:
-        title, formula, cost, note = CARD[OBJECTIVE_NAME.get(raw, raw)]
-        cards += (f"<div style='flex:1 1 0; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.85rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-                  f"<div style='display:flex; justify-content:space-between; align-items:baseline;'><span style='font-size:1.08rem; font-weight:700; color:{theme.INK_PRIMARY};'>{title}</span>"
-                  f"<span style='font-family:ui-monospace,Consolas,monospace; font-size:0.74rem; color:{theme.INK_MUTED}; background:#f4f3ef; border-radius:6px; padding:0.1rem 0.45rem;'>{raw}</span></div>"
-                  f"<div style='font-family:{FONT}; font-size:1.45rem; color:{theme.INK_PRIMARY}; background:#f8f7f3; border-radius:8px; padding:0.55rem 0.8rem; margin:0.6rem 0 0.6rem; line-height:1.3; white-space:nowrap; overflow:hidden;'>{formula}</div>"
-                  f"<div style='font-size:0.88rem; color:{theme.INK_SECONDARY};'>a miss of 30 costs <b style='font-size:1.35rem; color:{theme.INK_PRIMARY};'>{cost}</b></div>"
-                  f"<div style='font-size:0.76rem; color:{theme.INK_MUTED}; margin-top:0.1rem;'>{note}</div></div>")
-    width = "100%" if len(rule_raw) > 1 else "34%"
-    st.markdown(f"<div style='display:flex; gap:0.7rem; align-items:stretch; width:{width};'>{cards}</div>", unsafe_allow_html=True)
     SCORES = [("SSE", "Σ e²", "905", "sum of squared errors"), ("MSE", "(1/n) Σ e²", "301.7", "mean squared error"), ("RMSE", "√MSE", "17.4", "back in €/MWh"),
               ("MAE", "(1/n) Σ |e|", "11", "the score the tuning compares settings by")]
-    st.markdown(f"<div style='font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; margin:1.1rem 0 0.5rem;'>The scores that judge a finished forecast &nbsp;·&nbsp; for the errors 1, 2 and 30</div>"
-                "<div style='display:flex; gap:0.6rem;'>" + "".join(
-                    f"<div style='flex:1 1 0; min-width:0; background:{'#fff7e6' if n == 'MAE' else '#ffffff'}; border:1px solid {'#eda100' if n == 'MAE' else '#e3e1d9'}; border-radius:12px; padding:0.7rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-                    f"<div style='display:flex; justify-content:space-between; align-items:baseline;'><span style='font-weight:700; font-size:0.98rem; color:{theme.INK_PRIMARY};'>{n}</span>"
-                    f"<span style='font-size:1.15rem; font-weight:700; color:{theme.INK_PRIMARY};'>{v}</span></div>"
-                    f"<div style='font-size:0.95rem; color:{theme.INK_SECONDARY}; margin-top:0.1rem;'>{f}</div>"
-                    f"<div style='font-size:0.72rem; color:{theme.INK_MUTED}; margin-top:0.15rem;'>{d}</div></div>" for n, f, v, d in SCORES) + "</div>", unsafe_allow_html=True)
+    # two thin rows of chips, for reference only: the learning rules of this algorithm, and the scores
+    FONT = "'Cambria Math', 'STIX Two Math', 'Times New Roman', serif"
+    CHIP = "display:inline-flex; align-items:baseline; gap:0.45rem; background:#fff; border:1px solid #e3e1d9; border-radius:999px; padding:0.18rem 0.8rem; font-size:0.85rem; white-space:nowrap;"
+    LAB = f"font-size:0.66rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; min-width:5.2rem;"
+    chips = "".join(
+        f"<span style='{CHIP}' title='{raw} · {note}'><b style='color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][0]}</b>"
+        f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][1]}</span>"
+        f"</span>"
+        for raw, note in ((r_, CARD[OBJECTIVE_NAME.get(r_, r_)][3]) for r_ in rule_raw))
+    if fixed:
+        chips += f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>trees and forests always split on squared error</span>"
+    score_chips = "".join(
+        f"<span style='{CHIP}{'background:#fff7e6; border-color:#eda100;' if n == 'MAE' else ''}' title='{d}'><b style='color:{theme.INK_PRIMARY};'>{n}</b>"
+        f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{f}</span></span>" for n, f, v, d in SCORES)
+    st.markdown(f"<div style='display:flex; flex-direction:column; gap:0.35rem; margin:0.1rem 0 0.6rem;'>"
+                f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>{ml_data.model_label(rc_model)} rules</span>{chips}</div>"
+                f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
+                f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
 st.subheader("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
