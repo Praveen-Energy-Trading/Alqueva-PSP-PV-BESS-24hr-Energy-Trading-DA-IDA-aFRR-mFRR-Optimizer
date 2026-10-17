@@ -103,13 +103,21 @@ PHRASES = {"da_price": "day-ahead prices", "ida_price": "intraday auction prices
            "weather_forecast": "weather forecasts", "fundamentals_forecast": "fundamentals forecasts"}
 
 
+SETTING_LABEL = {"n_estimators": "number of trees"}                                  # a setting of the tree algorithms, in the words of the page
+
+
+def setting_label(key) -> str:
+    """The name of a setting as the dashboard shows it ('number of trees', 'max depth')."""
+    return SETTING_LABEL.get(str(key), str(key).replace("_", " "))
+
+
 def plain_text(text) -> str:
     """A sentence from the data pack with column and source identifiers replaced by plain words."""
     import re
     s = re.sub(r",? ?read from config/\S+", "", str(text))
     for k in sorted(PHRASES, key=len, reverse=True):
         s = re.sub(r"\b" + re.escape(k) + r"\b", PHRASES[k], s)
-    return re.sub(r"\b[a-z]+(?:_[a-z0-9]+)+\b", lambda m: m.group(0).replace("_", " "), s)
+    return re.sub(r"\b[a-z]+(?:_[a-z0-9]+)+\b", lambda m: setting_label(m.group(0)), s)
 
 
 def plain_params(p) -> str:
@@ -119,7 +127,7 @@ def plain_params(p) -> str:
         d = ast.literal_eval(p) if isinstance(p, str) else dict(p)
     except (ValueError, SyntaxError):
         return str(p)
-    return ", ".join(f"{str(k).replace('_', ' ')} {v}" for k, v in d.items())
+    return ", ".join(f"{setting_label(k)} {v}" for k, v in d.items())
 
 
 def repair_cards(repairs) -> list:

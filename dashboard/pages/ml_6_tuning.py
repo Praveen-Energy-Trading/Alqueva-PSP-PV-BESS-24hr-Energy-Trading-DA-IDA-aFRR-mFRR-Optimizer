@@ -268,7 +268,7 @@ models = ml_data.ordered_models(tt["model"].unique())
 st.subheader("Search space")
 model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
 space = cfg["space"].get(model, {})
-ml_ui.table(pd.DataFrame([{"Setting": k.replace("_", " "), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
+ml_ui.table(pd.DataFrame([{"Setting": ml_data.setting_label(k), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
 import math
 st.caption(f"{math.prod(len(v) for v in space.values()):,} combinations. With 40 trials the large spaces are searched thinly (Optuna steers toward good "
            "regions); the decision tree's 25 combinations are searched exhaustively.")
@@ -281,7 +281,7 @@ r = m[m["tuned_at"] == rnd].sort_values("trial")
 ok = r[~r["pruned"].astype(bool) & ~r["is_default"].astype(bool) & r["score"].notna()]
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=ok["trial"], y=ok["rel"], mode="markers", name="trial", marker=dict(color=theme.BLUE, size=8),
-                         text=ok["params"], hovertemplate="trial %{x}<br>relative score %{y:.3f}<br>%{text}<extra></extra>"))
+                         text=ok["params"].map(lambda p: _std_text(ml_data.plain_params(p))), hovertemplate="trial %{x}<br>relative score %{y:.3f}<br>%{text}<extra></extra>"))
 best = r[r["selected"].astype(bool)]
 fig.add_trace(go.Scatter(x=best["trial"], y=best["rel"], mode="markers", name="chosen", marker=dict(color=theme.YELLOW, size=15, symbol="star", line=dict(width=1, color="black"))))
 dflt = r[r["is_default"].astype(bool)]
@@ -296,7 +296,7 @@ st.subheader("What moves the score")
 exp = tt[(tt["model"] == model) & ~tt["is_default"].astype(bool) & tt["rel"].notna()]
 if len(exp):
     keys = sorted({k for p in exp["params_d"] for k in p})
-    k = st.selectbox("Setting", keys, key="ml6_setting", format_func=lambda x: x.replace("_", " "))
+    k = st.selectbox("Setting", keys, key="ml6_setting", format_func=ml_data.setting_label)
     vals = exp["params_d"].map(lambda p: str(p.get(k, "")))
     fig = go.Figure()
     for i, v in enumerate(sorted(vals.unique())):
@@ -387,9 +387,9 @@ else:
                             showgrid=False, zeroline=False, showticklabels=(j == 1), tickfont=dict(size=11), row=i, col=j)
         rf.update_xaxes(domain=[R0, R1], row=i, col=3)
     for j in (1, 2):
-        rf.update_xaxes(title_text=ka.replace('_', ' '), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=4, row=2, col=j)
+        rf.update_xaxes(title_text=ml_data.setting_label(ka), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=4, row=2, col=j)
     for i in (1, 2):
-        rf.update_yaxes(title_text=kb.replace('_', ' '), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=2, row=i, col=1)
+        rf.update_yaxes(title_text=ml_data.setting_label(kb), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=2, row=i, col=1)
     rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], showgrid=False, row=1, col=3)
     rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=True, tickformat='.2f', nticks=4, tickfont=dict(size=10), row=1, col=3)
     rf.update_xaxes(range=[0, 104], showticklabels=False, showgrid=False, row=2, col=3)
@@ -479,7 +479,7 @@ if target == "da_price":
             fig = go.Figure()
             for mm in ml_data.ordered_models(top["model"].unique()):
                 x = top[top["model"] == mm]
-                fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {str(s_).replace('_', ' ')}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
+                fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {ml_data.setting_label(s_)}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
                                      marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
