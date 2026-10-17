@@ -292,22 +292,6 @@ def locked_real_only(target: str, root: Path = REPO_ROOT) -> Optional[dict]:
     return out
 
 
-def process_table(root: Path = REPO_ROOT) -> pd.DataFrame:
-    """One row per price target: how much evidence its data gives and which steps of the process it has been through (from the decision and locked-test files)."""
-    r = config("rollout", root).get("targets", {})
-    dec, lk = decisions(root), locked_results(root)
-    names = {"standard": "Full", "limited_evidence": "Limited", "very_limited_evidence": "Very limited", "deferred": "Deferred"}
-    rows = []
-    for t in TARGETS:
-        d = dec.get(t)
-        done = bool(d)                                              # a decision exists only after the tuned evaluation and the algorithm comparison
-        rows.append({"Target": label(t), "Evidence": names.get(r.get(t, {}).get("treatment"), "–"),
-                     "Training": "✓" if done else "–", "Tuning": "✓" if done else "–",
-                     "Validation": f"✓ {int(d['n_days']):,} days" if done and d.get("n_days") else "–",
-                     "Champion": "✓" if d and d.get("champion") else "–", "Locked test": "✓" if t in lk else "–"})
-    return pd.DataFrame(rows)
-
-
 def results_table(root: Path = REPO_ROOT) -> pd.DataFrame:
     """One row per target: treatment, development days, champion, development MAE, locked MAE (from the decision and locked files)."""
     rollout = config("rollout", root)

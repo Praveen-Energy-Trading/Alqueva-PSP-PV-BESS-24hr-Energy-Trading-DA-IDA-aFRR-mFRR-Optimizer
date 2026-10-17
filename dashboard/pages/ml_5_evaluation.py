@@ -37,21 +37,18 @@ tune = ml_ui.cached(lambda: ml_data.config("tuning"))().get("search", {})
 _fmt = lambda x: f"{pd.Timestamp(x):%d-%m-%Y}"
 _val = int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30))          # the last days of every training window, where the settings are chosen
 
-st.subheader("Every target goes through every step")
-ml_ui.table(ml_ui.cached(ml_data.process_table)(), stretch=True, nowrap=True)
-
 st.subheader("How the data is split")
-treat = st.radio("Evidence", ["Full (day-ahead, aFRR)", "Limited (IDA1-3, XBID)", "Very limited (mFRR)"], horizontal=True, key="ml5_treat")
+c_evid, c_win = st.columns([2, 1])
+treat = c_evid.radio("Evidence", ["Full (day-ahead, aFRR)", "Limited (IDA1-3, XBID)", "Very limited (mFRR)"], horizontal=True, key="ml5_treat")
 tkey = {"Full": "standard", "Limited": "limited_evidence", "Very": "very_limited_evidence"}[treat.split()[0]]
 tr_cfg = roll.get("treatments", {}).get(tkey, {}).get("schedule", {})
 first_data = {"standard": dt.date(2020, 1, 1), "limited_evidence": dt.date(2024, 6, 13), "very_limited_evidence": dt.date(2024, 11, 27)}[tkey]       # where each group's prices begin
-c1, c2, c3 = st.columns(3)
+c1, _, _ = st.columns(3)
 every = c1.slider("Refit every (days)", 7, 90, int(sch["retrain_every_days"]), key="ml5_every")
 window_opts = ["rolling 730 days", "rolling 365 days", "expanding"]
 default_w = 0 if tkey == "standard" else 2
-w = c2.selectbox("Training window", window_opts, index=default_w, key=f"ml5_win_{tkey}")
+w = c_win.selectbox("Training window", window_opts, index=default_w, key=f"ml5_win_{tkey}")
 min_train = int(tr_cfg.get("min_train_days", sch["min_train_days"]))
-c3.metric("Minimum training days", min_train)
 schedule = {"retrain_every_days": every, "gap_days": int(sch["gap_days"]), "min_train_days": min_train,
             "train_window_days": None if w == "expanding" else int(w.split()[1])}
 start = max(d(dev["test_start"]), first_data + dt.timedelta(days=min_train + schedule["gap_days"] + 1))
@@ -139,12 +136,12 @@ if folds is not None and len(folds):
     for x in (v0, l0):                                                              # where one period ends and the next begins
         fig.add_shape(type="line", x0=x, x1=x, y0=-0.6, y1=ys - 0.2, line=dict(color="#c4c2b9", width=1, dash="dot"))
     fig.add_annotation(x=l0 + (l1 - l0) / 2, y=n / 2, text="<i>no refit trains on<br>or tunes on this year</i>", showarrow=False, font=dict(size=12, color=RED))
-    fig.add_annotation(x=l1, y=-10.2, xanchor="right", yanchor="top", text=f"{n} refits, one row each, a new one every {step} days ↓", showarrow=False, font=dict(size=11, color=MUTED), bgcolor="#eef1f8", bordercolor="#d5dcec", borderwidth=1, borderpad=5)
-    theme.style_fig(fig, height=int((n + 20.6) * 14 + 66), xaxis_title=None, legend=False)          # 14 px a row whatever the number of rows, so the labels keep their places
-    fig.update_yaxes(autorange=False, range=[n + 9.1, -11.5], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
+    fig.add_annotation(x=l1, y=-10.1, xanchor="right", yanchor="top", text=f"{n} refits, one row each, a new one every {step} days ↓", showarrow=False, font=dict(size=11, color=MUTED), bgcolor="#eef1f8", bordercolor="#d5dcec", borderwidth=1, borderpad=5)
+    theme.style_fig(fig, height=int((n + 19.5) * 14 + 60), xaxis_title=None, legend=False)          # 14 px a row whatever the number of rows, so the labels keep their places
+    fig.update_yaxes(autorange=False, range=[n + 9.1, -10.4], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
     fig.update_xaxes(type="date", range=[start0, l1 + pd.Timedelta(days=20)], showgrid=False, dtick="M12", tickformat="%Y", ticks="outside", ticklen=4, tickcolor="#c4c2b9",
                      tickfont=dict(size=11, color=MUTED), showline=False)
-    fig.update_layout(margin=dict(t=8, b=34, l=10, r=10))
+    fig.update_layout(margin=dict(t=2, b=34, l=10, r=10))
     fig.layout.shapes = tuple(sh for sh in fig.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1 == 0))          # no dark axis line down the left: the rows need none
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
