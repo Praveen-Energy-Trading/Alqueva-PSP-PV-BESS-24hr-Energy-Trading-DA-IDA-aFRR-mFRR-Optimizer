@@ -400,7 +400,8 @@ def dm_example(daily: pd.DataFrame, target: str, a: str = "champion", b: str = "
     cfg = config("evaluation").get("comparison", {})
     r = diebold_mariano(table(x), table(y), "absolute", int(cfg.get("hac_lags", 7)), cfg.get("small_sample", "hln"))
     diff = (x.loc[common, loss] - y.loc[common, loss]).rename("difference")
-    return {"statistic": r["statistic"], "p_value": r["p_value"], "mean_diff": r["mean_diff"], "n_days": int(r["n_days"]), "differences": diff.reset_index()}
+    return {"statistic": r["statistic"], "p_value": r["p_value"], "mean_diff": r["mean_diff"], "n_days": int(r["n_days"]), "differences": diff.reset_index(),
+            "losses": pd.DataFrame({"date": list(common), "a": x.loc[common, loss].to_numpy(), "b": y.loc[common, loss].to_numpy()})}
 
 
 # ------------------------------------------------------------------------------------------------------------ tuning
