@@ -637,10 +637,15 @@ if not io.empty:
     _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
     g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the tuning blocks", marker_color=theme.VIOLET))
-    fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
-    fig.update_xaxes(tickangle=-25)
-    st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
+    _xl = [ml_data.model_label(x).replace(" ", "<br>", 1) for x in g["model"]]
+    for nm_, col_, key_ in (("on the tuning blocks", theme.VIOLET, "inner_gain"), ("on the days that followed", theme.ORANGE, "outer_gain")):
+        fig.add_trace(go.Bar(x=_xl, y=100 * g[key_], name=nm_, marker_color=col_, text=[f"{v_:.1f}%" for v_ in 100 * g[key_]], textposition="outside", cliponaxis=False,
+                             textfont=dict(size=12, color=col_), hoverinfo="skip"))
+    theme.style_fig(fig, height=330, yaxis_title="MAE gain over defaults (%)", barmode="group")
+    fig.update_xaxes(tickangle=0)
+    fig.update_yaxes(range=[min(0.0, float(100 * g[["inner_gain", "outer_gain"]].min().min()) * 1.3), float(100 * g[["inner_gain", "outer_gain"]].max().max()) * 1.15])
+    fig.update_layout(legend=dict(orientation="h", x=0, y=1.1, xanchor="left", yanchor="bottom"), margin=dict(t=30))
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
