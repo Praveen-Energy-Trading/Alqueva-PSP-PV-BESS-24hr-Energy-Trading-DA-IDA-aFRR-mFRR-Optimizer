@@ -650,12 +650,12 @@ if not io.empty:
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
 _all = _sum[_sum["target"] == "all"].iloc[0]
-_tiles = [(f"{100 * _all['saved']:.0f}%", "of the fits TPE skips by stopping weak trials after block 3: the same result for less work")]
-_tl = "".join(f"<div style='flex:0 1 24rem; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.8rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-              f"<div style='font-size:1.7rem; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{big_}</div>"
-              f"<div style='font-size:0.78rem; color:{theme.INK_SECONDARY}; margin-top:0.3rem; line-height:1.4;'>{cap_}</div></div>" for big_, cap_ in _tiles)
+_saved_card = (f"<div style='display:flex; align-items:center; gap:1.1rem; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.7rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+               f"<div style='font-size:1.7rem; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{100 * _all['saved']:.0f}%</div>"
+               f"<div style='line-height:1.45;'><div style='font-size:0.95rem; font-weight:600; color:{theme.INK_PRIMARY};'>fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</div>"
+               f"<div style='font-size:0.8rem; color:{theme.INK_SECONDARY};'>a stopped trial skips 2 of its 3 block fits</div></div></div>")
 _section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
-st.markdown(f"<div style='display:flex; gap:0.7rem; align-items:stretch; margin-bottom:1rem;'>{_tl}</div>", unsafe_allow_html=True)
+st.markdown(f"<div style='margin-bottom:1rem;'>{_saved_card}</div>", unsafe_allow_html=True)
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
