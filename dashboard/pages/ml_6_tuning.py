@@ -299,7 +299,7 @@ tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
 _section(f"Random control and TPE · {ml_data.label(target)}", num="④")
-model = st.selectbox("Algorithm (for this section and for the ones below)", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
+model = st.selectbox("Algorithm", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, target)
 has_rnd = "random" in set(da["search"])                                              # the control was run for the day-ahead price only
 if da.empty:
@@ -526,9 +526,8 @@ _what = (f"every combination is tried: {n_comb} + the defaults = {n_comb + 1} tr
 _line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied) · {_what}")
 
 # ---- 6. it changes from round to round, and the gain afterwards is smaller
-_section(f"It changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>",
-         "no single tuned setting is 'the' best one, and choosing the best of 40 on the same blocks flatters it", num="⑥")
-_mini("What the search chose, round by round", "under each gain: inner MAE of the defaults, then of the chosen setting")
+_section(f"It changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑥")
+_mini("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
     import ast
