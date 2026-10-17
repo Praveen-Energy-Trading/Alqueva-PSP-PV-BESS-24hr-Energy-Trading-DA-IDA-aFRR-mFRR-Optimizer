@@ -526,28 +526,25 @@ imp = ml_data.target_evidence("importance", target, "importance_random_search")
 if io.empty and imp.empty:
     _line(f"The two evidence charts (the gain when choosing against the gain afterwards, and what each setting explains) are not built for {ml_data.label(target)} yet.")
 else:
-    l, r_ = st.columns(2)
-    with l:
-        _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
-        if not io.empty:
-            g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
-            fig = go.Figure()
-            fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the tuning blocks", marker_color=theme.VIOLET))
-            fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
-            fig.update_xaxes(tickangle=-25)
-            st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
-    with r_:
-        if not imp.empty:
-            top = imp.sort_values("eta2", ascending=False).groupby("model").head(3)
-            _best = top.sort_values("eta2", ascending=False).iloc[0]
-            _mini("How much of the score each setting explains", f"{'no single setting dominates' if _best['eta2'] < 0.5 else 'one setting stands out'}: at most <b>{100 * _best['eta2']:.0f}%</b> ({ml_data.setting_label(_best['setting'])}), "
-                  f"typically <b>{100 * top['eta2'].quantile(0.25):.0f}%</b> to <b>{100 * top['eta2'].quantile(0.75):.0f}%</b> (random-search trials)")
-            fig = go.Figure()
-            for mm in ml_data.ordered_models(top["model"].unique()):
-                x = top[top["model"] == mm]
-                fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {ml_data.setting_label(s_)}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
-                                     marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
-            fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
+    if not io.empty:
+        _section("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
+        g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the tuning blocks", marker_color=theme.VIOLET))
+        fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
+        fig.update_xaxes(tickangle=-25)
+        st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
+    if not imp.empty:
+        top = imp.sort_values("eta2", ascending=False).groupby("model").head(3)
+        _best = top.sort_values("eta2", ascending=False).iloc[0]
+        _section("How much of the score each setting explains", f"{'no single setting dominates' if _best['eta2'] < 0.5 else 'one setting stands out'}: at most <b>{100 * _best['eta2']:.0f}%</b> ({ml_data.setting_label(_best['setting'])}), "
+              f"typically <b>{100 * top['eta2'].quantile(0.25):.0f}%</b> to <b>{100 * top['eta2'].quantile(0.75):.0f}%</b> (random-search trials)")
+        fig = go.Figure()
+        for mm in ml_data.ordered_models(top["model"].unique()):
+            x = top[top["model"] == mm]
+            fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {ml_data.setting_label(s_)}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
+                                 marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
+        fig.update_yaxes(autorange="reversed")
+        st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
 
 _line("The plant inputs (solar irradiance, temperature, natural inflow) are not tuned here; their comparison is on the Plant inputs page.")
