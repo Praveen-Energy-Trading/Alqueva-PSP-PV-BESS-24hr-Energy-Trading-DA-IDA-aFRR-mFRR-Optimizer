@@ -605,16 +605,31 @@ if len(_ir):
     for y_, a_, b_ in zip(_yy, _gi, _go):
         sf.add_shape(type="line", x0=a_, x1=b_, y0=y_, y1=y_, line=dict(color="#c9c7bf", width=2.5), layer="below")
     sf.add_shape(type="line", xref="paper", x0=0, x1=1, y0=len(_ir) - 0.25, y1=len(_ir) - 0.25, line=dict(color="#e3e1d9", width=1))
-    for nm_, xs_, col_ in (("on the tuning blocks (the best of the trials)", _gi, theme.VIOLET), ("on the days that followed", _go, theme.ORANGE)):
+    for nm_, xs_, col_ in (("on the tuning blocks", _gi, theme.VIOLET), ("on the days that followed", _go, theme.ORANGE)):
         sf.add_trace(go.Scatter(x=xs_, y=_yy, mode="markers+text", name=nm_, text=[f"{v_:+.1f}%" for v_ in xs_], textposition=[("middle right" if (g_ >= o_) == (col_ == theme.VIOLET) else "middle left") for g_, o_ in zip(_gi, _go)],
                                 textfont=dict(size=10, color=col_), cliponaxis=False, hoverinfo="skip",
                                 marker=dict(size=[12] * len(_ir) + [16], color=col_, line=dict(color="white", width=1.5))))
     _mini(f"Round by round · {ml_data.model_label(model)}")
+    _cl, _cr = st.columns([5, 4], gap="medium")
     theme.style_fig(sf, height=int(52 * len(_yy)) + 70, xaxis_title="MAE gain over the defaults (%)")
-    sf.update_xaxes(zeroline=False, showgrid=False)
+    sf.update_xaxes(zeroline=False, showgrid=False, range=[min(0.0, min(_gi + _go)) - 2.6, max(_gi + _go) + 2.6])
     sf.update_yaxes(tickmode="array", tickvals=_yy, ticktext=[f"<b>{x_}</b>" if x_.startswith("mean") else x_ for x_ in _lab], autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
     sf.update_layout(margin=dict(t=30, b=40, l=130, r=40), legend=dict(orientation="h", x=0, y=1.0 + 18 / (52 * len(_yy) + 70), xanchor="left", yanchor="bottom"))
-    st.plotly_chart(sf, width="stretch", config={"displayModeBar": False})
+    with _cl:
+        st.plotly_chart(sf, width="stretch", config={"displayModeBar": False})
+    _fmt = lambda v_: f"{v_:.2f}" if v_ >= 0 else f"({v_:.2f})"                                                          # noqa: E731
+    _calc = lambda vs_: " + ".join(_fmt(v_) for v_ in vs_) + f" ) ÷ {len(vs_)}"                                          # noqa: E731
+    _mi, _mo = _gi[-1], _go[-1]
+    _row2 = lambda col_, name_, vs_, m_: (f"<div style='padding:0.45rem 0; border-bottom:1px solid #eeede8;'><div style='font-weight:600; color:{theme.INK_PRIMARY};'><span style='color:{col_};'>●</span> {name_}</div>"   # noqa: E731
+                                          f"<div style='margin-top:0.15rem;'>( {_calc(vs_)} = <b style='font-size:1.05rem; color:{col_};'>{m_:.2f}</b></div></div>")
+    with _cr:
+        st.markdown(
+            f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.84rem; color:{theme.INK_SECONDARY};'>"
+            f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① the mean of the {len(_ir)} rounds</div>"
+            + _row2(theme.VIOLET, "on the tuning blocks", _gi[:-1], _mi) + _row2(theme.ORANGE, "on the days that followed", _go[:-1], _mo)
+            + f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.6rem;'>② the gap between the two bars below</div>"
+            f"<div style='display:flex; align-items:baseline; justify-content:space-between; gap:0.6rem; margin-top:0.1rem;'><span>{_mi:.2f} − {_mo:.2f} =</span>"
+            f"<b style='font-size:1.5rem; line-height:1.1; color:{theme.INK_PRIMARY};'>{_mi - _mo:.2f} points lost</b></div></div>", unsafe_allow_html=True)
 
 if not io.empty:
     _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
