@@ -1,6 +1,7 @@
 """ML Lifecycle 6 - Tuning lab: nested time-aware tuning, every trial, Optuna against random search, what the search found."""
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -14,8 +15,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Tuning lab", "Hyperparameters are searched on validation blocks inside each training window, never on the locked test year, with the same budget for "
-             "every algorithm. Every trial is kept, so the search itself can be inspected.", step=5)
+ml_ui.header("Tuning lab", "", step=5)
 ml_ui.tour_bar(6)
 
 cfg = ml_ui.cached(lambda: ml_data.config("tuning"))()
@@ -36,20 +36,31 @@ X_END = win + 280                                                               
 px_day = 1150.0 / X_END
 
 
+SH, AN = [], []                                                                      # shapes and annotations, handed to the figure once at the end
+
+
+def _shape(**kw):
+    SH.append(kw)
+
+
+def _annot(**kw):
+    AN.append(kw)
+
+
 def _pill(fig, x0, x1, y0, y1, color, opacity=1.0, r_px=4.0):
     """A rounded bar as a path; x in days of the window, y in rows."""
     rx, ry = min(r_px / px_day, (x1 - x0) / 2), min(r_px / ROW, (y1 - y0) / 2)
-    fig.add_shape(type="path", fillcolor=color, opacity=opacity, line_width=0,
+    _shape(type="path", fillcolor=color, opacity=opacity, line_width=0,
                   path=(f"M {x0 + rx},{y0} L {x1 - rx},{y0} Q {x1},{y0} {x1},{y0 + ry} L {x1},{y1 - ry} Q {x1},{y1} {x1 - rx},{y1} "
                         f"L {x0 + rx},{y1} Q {x0},{y1} {x0},{y1 - ry} L {x0},{y0 + ry} Q {x0},{y0} {x0 + rx},{y0} Z"))
 
 
 def _note(fig, x, y, text, size=12, color=INK, anchor="center", **kw):
-    fig.add_annotation(x=x, y=y, xanchor=anchor, showarrow=False, text=text, font=dict(size=size, color=color), **kw)
+    _annot(x=x, y=y, xanchor=anchor, showarrow=False, text=text, font=dict(size=size, color=color), **kw)
 
 
 def _arrow(fig, x0, y0, x1, y1, color=MUTED):
-    fig.add_annotation(x=x1, y=y1, ax=x0, ay=y0, axref="x", ayref="y", showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.6, arrowcolor=color, text="")
+    _annot(x=x1, y=y1, ax=x0, ay=y0, axref="x", ayref="y", showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.6, arrowcolor=color, text="")
 
 
 body = win - nb * L                                                                  # the days before the tuning blocks
@@ -63,7 +74,7 @@ rh = 0.8
 _pill(ft, 0, body, 0, rh, BLUE, 0.62)
 _pill(ft, body + 0.6, win, 0, rh, VIOLET, 0.9)
 for k in range(1, nb):                                                               # the block boundaries inside the tuning days
-    ft.add_shape(type="line", x0=body + k * L, x1=body + k * L, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
+    _shape(type="line", x0=body + k * L, x1=body + k * L, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
 _pill(ft, win + gap, win + gap + 30, 0, rh, ORANGE, 1.0)
 _note(ft, 8, rh / 2, f"<b>One refit: its own {win}-day window</b> &nbsp;·&nbsp; {body} days of training, then {nb * L} tuning days in {nb} blocks of {L}", anchor="left", align="left")
 for k in range(nb):
@@ -91,7 +102,7 @@ _pill(ft, win + 144, X_END, ysn, ysn + rh, RED, 0.3)
 _note(ft, win + 70, ysn + rh / 2, "the backtest's validation<br>days", size=11)
 _note(ft, win + 144 + (X_END - win - 144) / 2, ysn + rh / 2, "the locked test year", size=11, color=RED)
 _note(ft, win - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
-ft.add_shape(type="line", x0=win + 0.5, x1=win + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
+_shape(type="line", x0=win + 0.5, x1=win + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
 _note(ft, win - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
 
 # ---- 4. the route of one setting
@@ -111,9 +122,9 @@ _node(205, 385, VIOLET, "latest block", badges=(nb,))
 _arrow(ft, 152, cy, 203, cy)
 _arrow(ft, 387, cy, 425, cy)
 dx, dh = 545, 0.85
-ft.add_shape(type="path", fillcolor=ORANGE, opacity=0.16, line_width=0,
+_shape(type="path", fillcolor=ORANGE, opacity=0.16, line_width=0,
              path=f"M {dx - 120},{cy} L {dx},{cy - dh} L {dx + 120},{cy} L {dx},{cy + dh} Z")
-ft.add_shape(type="path", fillcolor="rgba(0,0,0,0)", line=dict(color=ORANGE, width=1.5),
+_shape(type="path", fillcolor="rgba(0,0,0,0)", line=dict(color=ORANGE, width=1.5),
              path=f"M {dx - 120},{cy} L {dx},{cy - dh} L {dx + 120},{cy} L {dx},{cy + dh} Z")
 _note(ft, dx, cy, "worse than<br>the median?", size=11)
 _arrow(ft, dx + 122, cy, 700, cy)
@@ -134,22 +145,31 @@ _pill(ft, 0, 150, oy - 0.45, oy + 0.45, BLUE, 0.9, r_px=6)
 _note(ft, 75, oy, "<b>trial 0: defaults</b>", size=12, color="white")
 _note(ft, 165, oy, "scored first, never stopped", size=11, color=MUTED, anchor="left")
 
-# ---- 5. the trials of one real round, TPE and the random control
+# ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
 ydt = oy + 1.3
-mdl = "lightgbm" if "lightgbm" in set(trials["model"]) else sorted(set(trials["model"]))[0]
-strips = []
-for method, name in (("tpe", "TPE"), ("random", "random control")):
-    d = trials[(trials["target"] == "da_price") & (trials["model"] == mdl) & (trials["search"] == method)]
-    if not d.empty:
+_note(ft, 0, ydt, f"<b>The same budget for every algorithm: up to {n_t} trials each</b> &nbsp;<span style='color:{MUTED}'>(day-ahead price, the latest round; every square is a trial that was kept, {len(trials):,} in all targets and rounds)</span>", size=13, anchor="left")
+xs0, xs1 = 130, 840
+cw = (xs1 - xs0) / n_t
+bh, pitch = 0.42, 0.52
+y = ydt + 0.8
+n_pr_all = 0
+combos_dt = math.prod(len(v) for v in cfg["space"].get("decision_tree", {}).values()) if cfg.get("space") else 0
+for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
+    for method, tag in (("tpe", ""), ("random", "random")):
+        d = trials[(trials["target"] == "da_price") & (trials["model"] == mdl) & (trials["search"] == method)]
+        if d.empty:
+            continue
         d = d[d["tuned_at"] == d["tuned_at"].max()].sort_values("trial")
-        strips.append((name, d))
-if strips:
-    _note(ft, 0, ydt, f"<b>The {n_t} trials of one real round</b> &nbsp;<span style='color:{MUTED}'>(day-ahead price, {ml_data.model_label(mdl)}, one of the {len(trials):,} trials logged)</span>", size=13, anchor="left")
-    xs0, xs1 = 130, 840
-    cw = (xs1 - xs0) / n_t
-    for si, (name, d) in enumerate(strips):
-        y0 = ydt + 0.75 + si * 1.15
-        _note(ft, 0, y0 + 0.35, f"<b>{name}</b>", size=12, anchor="left")
+        if method == "tpe":
+            _note(ft, 0, y + bh / 2, f"<b>{ml_data.model_label(mdl)}</b>", size=12, anchor="left")
+            n_pr_all += int(d["pruned"].sum())
+        else:
+            _note(ft, 0, y + bh / 2, "↳ random control", size=10, color=MUTED, anchor="left")
+        used = set(int(t) for t in d["trial"])
+        for i in range(n_t):
+            x0 = xs0 + i * cw
+            if i not in used:                                                         # a slot of the budget that was not needed
+                _shape(type="rect", x0=x0, x1=x0 + cw - 3, y0=y, y1=y + bh, line=dict(color="#c9c7be", width=1, dash="dot"), fillcolor="rgba(0,0,0,0)")
         for r in d.itertuples():
             x0 = xs0 + int(r.trial) * cw
             if bool(r.is_default):
@@ -160,15 +180,17 @@ if strips:
                 col, mark = ORANGE, "×"
             else:
                 col, mark = VIOLET, ""
-            _pill(ft, x0, x0 + cw - 3, y0, y0 + 0.7, col, 0.9 if col != VIOLET else 0.75, r_px=3)
+            _pill(ft, x0, x0 + cw - 3, y, y + bh, col, 0.9 if col != VIOLET else 0.75, r_px=2)
             if mark:
-                _note(ft, x0 + (cw - 3) / 2, y0 + 0.36, f"<b>{mark}</b>", size=12, color="white")
-    n_pr = int(strips[0][1]["pruned"].sum())
-    for i, (col, txt) in enumerate(((BLUE, "defaults (trial 0)"), (VIOLET, "scored on all blocks"), (ORANGE, f"stopped early ({n_pr})"), (AQUA, "the winner"))):
-        _note(ft, 868, ydt + 0.85 + i * 0.5, f"<span style='color:{col}'>■</span> {txt}", size=11, color=theme.INK_SECONDARY, anchor="left")
-    yd_end = ydt + 0.75 + len(strips) * 1.15
-else:
-    yd_end = ydt
+                _note(ft, x0 + (cw - 3) / 2, y + bh / 2, f"<b>{mark}</b>", size=10, color="white")
+        if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
+            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"its whole grid ({combos_dt} settings) is already tried", size=10, color=MUTED)
+        y += pitch
+    y += 0.2
+for i, (col, txt) in enumerate(((BLUE, "defaults (trial 0)"), (VIOLET, "scored on all blocks"), (ORANGE, "stopped early"), (AQUA, "the winner"))):
+    _note(ft, 868, ydt + 0.95 + i * 0.5, f"<span style='color:{col}'>■</span> {txt}", size=11, color=theme.INK_SECONDARY, anchor="left")
+_note(ft, 868, ydt + 0.95 + 4 * 0.5, "<span style='color:#c9c7be'>▫</span> trial not needed", size=11, color=theme.INK_SECONDARY, anchor="left")
+yd_end = y
 
 # ---- 6. how often: a tuning round every 180 days, a refit every 30
 yt = yd_end + 0.55
@@ -194,7 +216,8 @@ theme.style_fig(ft, height=int((end + 2.3) * ROW + 12), xaxis_title=None, legend
 ft.update_yaxes(autorange=False, range=[end, -2.3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
 ft.update_xaxes(range=[-4, X_END], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
 ft.update_layout(margin=dict(t=2, b=2, l=10, r=10))
-ft.layout.shapes = tuple(sh for sh in ft.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1 and sh.y0 != -0.55))
+ft.layout.shapes = SH                                                                   # replace (not merge with) the axis line the theme added
+ft.layout.annotations = AN
 st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 
 target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))
