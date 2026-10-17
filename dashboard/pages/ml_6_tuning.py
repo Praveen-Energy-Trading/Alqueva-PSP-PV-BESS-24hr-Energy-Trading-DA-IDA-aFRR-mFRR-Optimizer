@@ -216,9 +216,23 @@ _note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left
 _card(yr - 0.7, oy + 0.8)
 ydt = oy + 2.0
 _head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"{ml_data.label(target)}, its latest tuning round · every square is a trial that was kept ({len(trials):,} in all)", two=True)
-_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
+_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored (darker = lower error)"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
 _note(ft, 6, ydt + 1.1, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
-xs0, xs1 = 190, 1000
+xs0, xs1 = 190, 905                                                                  # the right-hand end of the rows is kept for each row's best score
+_dg = ml_ui.cached(ml_data.prepared_trials)(trials, target)                           # every search of this target, with the score relative to the defaults
+_fin = _dg.loc[~_dg["pruned"].astype(bool) & ~_dg["is_default"].astype(bool) & _dg["rel"].notna(), "rel"]
+_lo, _hi = (float(_fin.min()), max(float(_fin.quantile(0.95)), float(_fin.min()) + 0.02)) if len(_fin) else (0.9, 1.1)
+
+
+def _shade(rel):
+    """The colour of a finished trial: the lower its error (relative to the defaults), the darker."""
+    u = min(max((_hi - float(rel)) / (_hi - _lo), 0.0), 1.0) if pd.notna(rel) else 0.5
+    a_, b_ = (211, 216, 228), (84, 100, 134)
+    return "#%02x%02x%02x" % tuple(round(x + (y_ - x) * u) for x, y_ in zip(a_, b_))
+
+
+_hx, _hy, _ht = [], [], []                                                           # what a square says when the pointer is on it
+_note(ft, xs1 + 10, ydt + 1.45, "best score · stopped", size=9, color=MUTED, anchor="left")
 cw = (xs1 - xs0) / n_t
 bh, pitch = 0.42, 0.52
 y = ydt + 1.75
@@ -226,7 +240,7 @@ n_pr_all = 0
 combos_dt = math.prod(len(v) for v in cfg["space"].get("decision_tree", {}).values()) if cfg.get("space") else 0
 for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
     for method, tag in (("tpe", ""), ("random", "random")):
-        d = trials[(trials["target"] == target) & (trials["model"] == mdl) & (trials["search"] == method)]
+        d = _dg[(_dg["model"] == mdl) & (_dg["search"] == method)]
         if d.empty:
             continue
         d = d[d["tuned_at"] == d["tuned_at"].max()].sort_values("trial")
@@ -250,15 +264,23 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
             elif bool(r.pruned):
                 col, mark = T_STOP, "×"
             else:
-                col, mark = T_DONE, ""
+                col, mark = _shade(r.rel), ""
             _pill(ft, x0, x0 + cw - 3, y, y + bh, col, 0.95, r_px=2)
             if mark:
                 _note(ft, x0 + (cw - 3) / 2, y + bh / 2, f"<b>{mark}</b>", size=10, color="white")
+            state = ("the defaults" if bool(r.is_default) else "the winner of this search" if bool(r.selected) else "stopped after block 3" if bool(r.pruned) else "scored on all 3 blocks")
+            _hx.append(x0 + (cw - 3) / 2)
+            _hy.append(y + bh / 2)
+            _ht.append(f"<b>{ml_data.model_label(mdl)} · {'TPE' if method == 'tpe' else 'random control'}</b><br>trial {int(r.trial)} · {state}<br>"
+                       + (f"score {float(r.rel):.3f} of the defaults<br>" if pd.notna(r.rel) else "") + (_std_text(ml_data.plain_params(r.params)) if not bool(r.is_default) else "default settings"))
+        _done = d[~d["pruned"].astype(bool) & d["rel"].notna()]
+        _note(ft, xs1 + 10, y + bh / 2, f"<b>{float(_done['rel'].min()):.3f}</b> · {int(d['pruned'].sum())}" + ("✕" if method == "tpe" else ""), size=10, color=theme.INK_SECONDARY, anchor="left")
         if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
             _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"whole grid ({combos_dt} combinations) already tried", size=10, color=MUTED)
         y += pitch
     y += 0.2
 yd_end = y
+ft.add_trace(go.Scatter(x=_hx, y=_hy, mode="markers", marker=dict(size=13, opacity=0), text=_ht, hoverinfo="text", showlegend=False))
 
 # ---- 6. how often: a tuning round every 180 days, a refit every 30
 _card(ydt - 0.7, yd_end + 0.05)
