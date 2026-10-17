@@ -25,6 +25,7 @@ if trials.empty or not cfg:
     ml_ui.not_yet_run("the tuning trials (data pack)")
     st.stop()
 
+target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))
 s = cfg["search"]
 ev = ml_ui.cached(lambda: ml_data.config("evaluation"))()
 win, L, nb, gap = int(ev["schedule"]["train_window_days"]), int(s["validation_days"]), int(s["n_blocks"]), int(s.get("gap_days", 1))
@@ -66,8 +67,8 @@ def _arrow(fig, x0, y0, x1, y1, color=MUTED):
 body = win - nb * L                                                                  # the days before the tuning blocks
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-legend = (f"<span style='color:{BLUE}'>■</span> days a model learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> days it is scored on &nbsp;&nbsp; "
-          f"<span style='color:{ORANGE}'>■</span> the refit's own forecast days &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> later days, not used by that round")
+legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L}) &nbsp;&nbsp; "
+          f"<span style='color:{ORANGE}'>■</span> the refit's forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
 _note(ft, 0, -1.55, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle")
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
@@ -76,10 +77,10 @@ _pill(ft, body + 0.6, win, 0, rh, VIOLET, 0.9)
 for k in range(1, nb):                                                               # the block boundaries inside the tuning days
     _shape(type="line", x0=body + k * L, x1=body + k * L, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
 _pill(ft, win + gap, win + gap + 30, 0, rh, ORANGE, 1.0)
-_note(ft, 8, rh / 2, f"<b>One refit: its own {win}-day window</b> &nbsp;·&nbsp; {body} days of training, then {nb * L} tuning days in {nb} blocks of {L}", anchor="left", align="left")
+_note(ft, 8, rh / 2, f"<b>One refit: its own {win}-day window</b> &nbsp;·&nbsp; {body} days of training", anchor="left", align="left")
 for k in range(nb):
     _note(ft, body + k * L + L / 2, rh / 2, f"<b>{k + 1}</b>", color="white")
-_note(ft, win + gap + 36, rh / 2, "the refit forecasts these days", color=ORANGE, anchor="left")
+_note(ft, win + gap + 36, rh / 2, "the refit's forecast days", color=ORANGE, anchor="left")
 # ---- 2. the tuning rounds: each block is predicted by a model that has seen only the days before it
 for k in range(1, nb + 1):
     y0 = 1.55 + (k - 1) * 1.0
@@ -91,16 +92,16 @@ for k in range(1, nb + 1):
         _pill(ft, b0 + L + 0.6, win, y0, y0 + rh, GREY, 0.8)
     _note(ft, 8, y0 + rh / 2, f"<b>Round {k}</b> &nbsp;·&nbsp; a model trains on the {tr_days} days before block {k}", anchor="left", align="left")
     _note(ft, b0 + L / 2, y0 + rh / 2, f"<b>{k}</b>", color="white")
-    _note(ft, win + gap + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: the pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
+    _note(ft, win + gap + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
-_note(ft, win + gap + 36, ys + 0.25, "<b>score of a setting</b> =<br>the average of " + ", ".join(f"error {k}" for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
+_note(ft, win + gap + 36, ys + 0.25, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
       align="left", bgcolor="white", bordercolor=VIOLET, borderwidth=1, borderpad=6)
 # ---- 3. the days tuning never looks at, and where they start
 ysn = ys + 1.25
 _pill(ft, win + gap, win + 140, ysn, ysn + rh, ORANGE, 0.35)
 _pill(ft, win + 144, X_END, ysn, ysn + rh, RED, 0.3)
-_note(ft, win + 70, ysn + rh / 2, "the backtest's validation<br>days", size=11)
-_note(ft, win + 144 + (X_END - win - 144) / 2, ysn + rh / 2, "the locked test year", size=11, color=RED)
+_note(ft, win + 70, ysn + rh / 2, "backtest<br>validation", size=11)
+_note(ft, win + 144 + (X_END - win - 144) / 2, ysn + rh / 2, "locked<br>test year", size=11, color=RED)
 _note(ft, win - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
 _shape(type="line", x0=win + 0.5, x1=win + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
 _note(ft, win - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
@@ -140,23 +141,25 @@ _pill(ft, 925, X_END, cy - nh / 2, cy + nh / 2, VIOLET, 0.9, r_px=6)
 _note(ft, (925 + X_END) / 2, cy, "<b>score</b>", size=12, color="white")
 _arrow(ft, (925 + X_END) / 2, cy + nh / 2 + 0.02, (925 + X_END) / 2, oy - 0.45, color=AQUA)
 _pill(ft, 880, X_END, oy - 0.45, oy + 0.45, AQUA, 0.9, r_px=6)
-_note(ft, (880 + X_END) / 2, oy, "<b>lowest score wins</b>", size=12, color="white")
+_note(ft, (880 + X_END) / 2, oy, "<b>best score</b>", size=12, color="white")
 _pill(ft, 0, 150, oy - 0.45, oy + 0.45, BLUE, 0.9, r_px=6)
-_note(ft, 75, oy, "<b>trial 0: defaults</b>", size=12, color="white")
-_note(ft, 165, oy, "scored first, never stopped", size=11, color=MUTED, anchor="left")
+_note(ft, 75, oy, "<b>trial 0</b>", size=12, color="white")
+_note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left")
 
 # ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
 ydt = oy + 1.3
-_note(ft, 0, ydt, f"<b>The same budget for every algorithm: up to {n_t} trials each</b> &nbsp;<span style='color:{MUTED}'>(day-ahead price, the latest round; every square is a trial that was kept, {len(trials):,} in all targets and rounds)</span>", size=13, anchor="left")
-xs0, xs1 = 130, 840
+_note(ft, 0, ydt + 0.3, f"<b>The same budget for every algorithm: up to {n_t} trials each</b><br><span style='color:{MUTED}'>{ml_data.label(target)}, its latest tuning round &nbsp;·&nbsp; every square is a trial that was kept ({len(trials):,} in all)</span>", size=13, anchor="left", align="left")
+_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((BLUE, "defaults (trial 0)"), (VIOLET, "scored on all blocks"), (ORANGE, "stopped early"), (AQUA, "the winner"), ("#c9c7be", "trial not needed")))
+_note(ft, 0, ydt + 1.25, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
+xs0, xs1 = 130, 1000
 cw = (xs1 - xs0) / n_t
 bh, pitch = 0.42, 0.52
-y = ydt + 0.8
+y = ydt + 1.85
 n_pr_all = 0
 combos_dt = math.prod(len(v) for v in cfg["space"].get("decision_tree", {}).values()) if cfg.get("space") else 0
 for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
     for method, tag in (("tpe", ""), ("random", "random")):
-        d = trials[(trials["target"] == "da_price") & (trials["model"] == mdl) & (trials["search"] == method)]
+        d = trials[(trials["target"] == target) & (trials["model"] == mdl) & (trials["search"] == method)]
         if d.empty:
             continue
         d = d[d["tuned_at"] == d["tuned_at"].max()].sort_values("trial")
@@ -184,12 +187,9 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
             if mark:
                 _note(ft, x0 + (cw - 3) / 2, y + bh / 2, f"<b>{mark}</b>", size=10, color="white")
         if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
-            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"its whole grid ({combos_dt} settings) is already tried", size=10, color=MUTED)
+            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"whole grid ({combos_dt} settings) already tried", size=10, color=MUTED)
         y += pitch
     y += 0.2
-for i, (col, txt) in enumerate(((BLUE, "defaults (trial 0)"), (VIOLET, "scored on all blocks"), (ORANGE, "stopped early"), (AQUA, "the winner"))):
-    _note(ft, 868, ydt + 0.95 + i * 0.5, f"<span style='color:{col}'>■</span> {txt}", size=11, color=theme.INK_SECONDARY, anchor="left")
-_note(ft, 868, ydt + 0.95 + 4 * 0.5, "<span style='color:#c9c7be'>▫</span> trial not needed", size=11, color=theme.INK_SECONDARY, anchor="left")
 yd_end = y
 
 # ---- 6. how often: a tuning round every 180 days, a refit every 30
@@ -220,7 +220,6 @@ ft.layout.shapes = SH                                                           
 ft.layout.annotations = AN
 st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 
-target = ml_ui.target_picker(targets=sorted(set(trials["target"]), key=lambda t: ml_data.TARGETS.index(t)))
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
