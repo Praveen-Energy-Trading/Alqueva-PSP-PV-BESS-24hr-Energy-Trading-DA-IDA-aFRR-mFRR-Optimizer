@@ -377,7 +377,7 @@ else:
     if saved > 0:
         rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}% saved"],
                             textposition="inside", textangle=0, constraintext="none", textfont=dict(color="white", size=13), hoverinfo="skip"), row=2, col=4)
-    theme.style_fig(rf, height=560, legend=False, barmode="stack")
+    theme.style_fig(rf, height=542, legend=False, barmode="stack")
     for i in (1, 2):
         for j in (1, 2):
             rf.update_xaxes(tickvals=list(range(len(va))), ticktext=[_std(v).replace(" (", "<br>(") if ka in RULE_SETTINGS else v for v in va], tickangle=0, range=[-0.6, len(va) - 0.4], showgrid=False, zeroline=False,
@@ -393,7 +393,7 @@ else:
     for i in (1, 2):                                                                  # the label column has no axes
         rf.update_xaxes(visible=False, row=i, col=1)
         rf.update_yaxes(visible=False, row=i, col=1)
-    rf.update_layout(margin=dict(t=100, b=70, l=10, r=10))
+    rf.update_layout(margin=dict(t=82, b=70, l=10, r=10))
     _cards = [dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.16, y1=1.095, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
               for x0_, x1_ in ((-0.004, 0.682), (0.686, 1.004))]
     rf.layout.shapes = tuple(sh for sh in rf.layout.shapes if sh.xref not in ("x domain", "x5 domain")) + tuple(_cards)          # no axis line in the label column
@@ -410,9 +410,9 @@ else:
     rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x4", yref="y4", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
                       text=f"random <b>{ends_['random'][1]:.3f}</b>")
     rf.add_annotation(x=0, y=1.0, xref="x4", yref="y4", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
-    rf.add_annotation(x=0, y=1.0, yshift=58, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
-                      text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp;&nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp;&nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp;&nbsp; "
-                           f"<span style='color:{T_WIN}'>★</span> the best one found<br><span style='color:{theme.INK_MUTED}'>every cell is one combination of {ka.replace('_', ' ')} and {kb.replace('_', ' ')}</span>")
+    rf.add_annotation(x=0, y=1.0, yshift=46, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
+                      text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
+                           f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = {ka.replace('_', ' ')} × {kb.replace('_', ' ')}</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
     st.caption(f"The same {n_t} trials for each search, latest tuning round on the maps; the result and the work are averaged over all rounds. Day-ahead price only: the control was not run for the other targets."
                + (" This algorithm's grid is small, so both searches try every cell." if rc_model == "decision_tree" else ""))
