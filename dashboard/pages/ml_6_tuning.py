@@ -131,8 +131,8 @@ body = win - nb * L                                                             
 xw = win * DAY                                                                       # where the window ends, in units
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L})<br>"
-          f"<span style='color:{ORANGE}'>■</span> the refit's forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
+legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L}) &nbsp;&nbsp; "
+          f"<span style='color:{ORANGE}'>■</span> forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
 _head(-1.95, "①", "Tuning only looks inside the refit's own window",
       f"{ml_data.label(target)} · latest tuning round" + (f", window ending {pd.Timestamp(win_end):%d-%m-%Y}" if win_end is not None else "") + (f" · expanding window: all {win} days it has" if expanding else f" · rolling {win}-day window"), two=True)
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
@@ -159,7 +159,7 @@ for k in range(1, nb + 1):
     _note(ft, (b0 + L / 2) * DAY, y0 + rh / 2, f"<b>{k}</b>", color="white")
     _note(ft, xw + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
-_note(ft, 8, ys + 0.25, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle", align="left")    # what the colours mean, under the rounds
+_note(ft, 8, ys + 0.25, legend, size=11, color=theme.INK_SECONDARY, anchor="left", yanchor="middle", align="left")    # what the colours mean, under the rounds
 _note(ft, xw + 36, ys + 0.25, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
       align="left", bgcolor="white", bordercolor=VIOLET, borderwidth=1, borderpad=6)
 # ---- 3. the days tuning never looks at, and where they start
