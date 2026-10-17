@@ -315,7 +315,7 @@ st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
-_section(f"Random control and TPE, from scratch · {ml_data.label(target)}")
+_section(f"Random control and TPE · {ml_data.label(target)}")
 model = st.selectbox("Algorithm (for this section and for the ones below)", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, target)
 has_rnd = "random" in set(da["search"])                                              # the control was run for the day-ahead price only
