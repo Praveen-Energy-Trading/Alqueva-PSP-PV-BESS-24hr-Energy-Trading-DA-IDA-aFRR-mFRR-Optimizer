@@ -444,7 +444,22 @@ else:
 
 _section(f"Search space <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "every combination of settings the search may try")
 space = cfg["space"].get(model, {})
-ml_ui.table(pd.DataFrame([{"Setting": ml_data.setting_label(k), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
+def _space_row(k, v, last):
+    chips = "".join(f"<span style='background:#f4f3ef; border-radius:999px; padding:0.12rem 0.62rem; font-size:0.82rem; color:{theme.INK_PRIMARY}; white-space:nowrap;'>{_std(x) if k in RULE_SETTINGS else x}</span>" for x in v)
+    return (f"<div style='display:flex; align-items:center; gap:0.8rem; min-height:2.7rem; {'' if last else 'border-bottom:1px solid #eeede8;'}'>"
+            f"<span style='flex:none; width:9.2rem; font-weight:600; font-size:0.88rem; color:{theme.INK_PRIMARY};'>{ml_data.setting_label(k)}</span>"
+            f"<span style='display:flex; flex-wrap:wrap; gap:0.3rem; flex:1;'>{chips}</span>"
+            f"<span style='flex:none; font-size:0.76rem; color:{theme.INK_MUTED}; white-space:nowrap;'>×{len(v)}</span></div>")
+
+
+_rules = [(k, v) for k, v in space.items() if k in RULE_SETTINGS]                    # the learning rule has the longest names: its row runs across the whole card
+_rest = [(k, v) for k, v in space.items() if k not in RULE_SETTINGS]
+_cut = (len(_rest) + 1) // 2 if len(_rest) >= 4 else len(_rest)                      # a long list goes into two columns, to use the width
+_cols = [_rest[:_cut], _rest[_cut:]] if _rest[_cut:] else [_rest]
+_html = "".join(_space_row(k, v, last=(i == len(_rules) - 1 and not _rest)) for i, (k, v) in enumerate(_rules))
+_html += (f"<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(min(30rem, 100%), 1fr)); column-gap:2.2rem;'>"
+          + "".join("<div>" + "".join(_space_row(k, v, last=(j == len(col) - 1)) for j, (k, v) in enumerate(col)) + "</div>" for col in _cols) + "</div>")
+st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.1rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_html}</div>", unsafe_allow_html=True)
 n_comb = math.prod(len(v) for v in space.values())
 _line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
       f"With {int(cfg['search']['n_trials'])} trials the space is searched thinly: TPE steers toward the good regions."))
@@ -480,14 +495,30 @@ if len(exp):
     fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
     st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="score / defaults", legend=False), width="stretch")
 
-_section(f"What the search chose, round by round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "the chosen setting changes from round to round: no single tuned setting is 'the' best one")
+_section(f"What the search chose, round by round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "the chosen setting changes from round to round: no single tuned setting is 'the' best one &nbsp;·&nbsp; under each gain: inner MAE of the defaults, then of the chosen setting")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
-    lg["gain_%"] = (100 * (1 - lg["score"] / lg["default_score"])).round(1)
-    lg["params"] = lg["params"].map(lambda p: _std_text(ml_data.plain_params(p)))
-    ml_ui.table(lg[["tuned_at", "score", "default_score", "gain_%", "n_trials", "n_pruned", "params"]].rename(columns={
-        "tuned_at": "Round", "score": "Chosen (inner MAE)", "default_score": "Defaults (inner MAE)", "gain_%": "Inner gain (%)", "n_trials": "Trials",
-        "n_pruned": "Pruned", "params": "Chosen setting"}).round(3))
+    import ast
+    _keys = list(space.keys())                                                         # the settings of this algorithm are the columns, every round one row
+    _SHORT = {"squared error (L2)": "L2", "absolute error (L1)": "L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}
+    _grid = f"display:grid; grid-template-columns:5.3rem 5.2rem repeat({len(_keys)}, minmax(0, 1fr)); align-items:center; column-gap:0.5rem;"
+    _head_ = (f"<div style='{_grid} padding:0.55rem 0 0.35rem; border-bottom:1px solid #e3e1d9; font-size:0.7rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
+              "<span>round</span><span>gain</span>" + "".join(f"<span style='text-align:center;'>{ml_data.setting_label(k_)}</span>" for k_ in _keys) + "</div>")
+    _rows = ""
+    for i_, r_ in enumerate(lg.itertuples()):
+        try:
+            d_ = ast.literal_eval(r_.params) if isinstance(r_.params, str) else dict(r_.params)
+        except (ValueError, SyntaxError):
+            d_ = {}
+        gain_ = 100 * (1 - r_.score / r_.default_score)
+        cells = "".join(f"<span style='text-align:center; font-size:0.84rem; color:{theme.INK_PRIMARY}; white-space:nowrap;'>"
+                        f"<span style='background:#f4f3ef; border-radius:999px; padding:0.1rem 0.5rem;'>{(_SHORT.get(_std(d_[k_]), d_[k_]) if k_ in RULE_SETTINGS else d_[k_]) if k_ in d_ else '–'}</span></span>" for k_ in _keys)
+        _rows += (f"<div style='{_grid} height:2.9rem; {'' if i_ == len(lg) - 1 else 'border-bottom:1px solid #eeede8;'}'>"
+                  f"<span style='font-weight:700; font-size:0.84rem; color:{theme.INK_PRIMARY};'>{pd.Timestamp(r_.tuned_at):%d-%m-%Y}</span>"
+                  f"<span style='line-height:1.2;'><b style='color:{theme.INK_PRIMARY if gain_ >= 0 else T_STOP}; font-size:0.88rem;'>{gain_:+.1f}%</b>"
+                  f"<br><span style='font-size:0.68rem; color:{theme.INK_MUTED};'>{r_.default_score:.2f} → {r_.score:.2f}</span></span>{cells}</div>")
+    st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_head_}{_rows}</div>", unsafe_allow_html=True)
+
 
 io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
 imp = ml_data.target_evidence("importance", target, "importance_random_search")
