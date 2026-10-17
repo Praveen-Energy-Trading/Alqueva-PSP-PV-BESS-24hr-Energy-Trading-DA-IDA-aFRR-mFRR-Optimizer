@@ -452,8 +452,7 @@ io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
 imp = ml_data.target_evidence("importance", target, "importance_random_search")
 
 # ---- 5. what was searched, and what did it find
-_section(f"What was searched, and what did it find <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>",
-         "a row is a setting, a dot is an option · the dot is big where the search chose that option in many rounds · dark: TPE, ring: random control · the bar: how much of the score the setting explains", num="⑤")
+_section(f"What was searched, and what did it find <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑤")
 from collections import Counter
 import ast
 space = cfg["space"].get(model, {})
