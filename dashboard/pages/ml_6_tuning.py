@@ -680,3 +680,26 @@ _shead = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #
 _mini("TPE against the random control, target by target", "every number is the mean of the five algorithms · best: score as a share of the defaults, lower is better · difference below 0: TPE better · fits saved: by stopping weak trials, decision tree left out")
 st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_shead}{_srows}</div>", unsafe_allow_html=True)
 
+
+# the calculation behind one row of the table: the five algorithms, then their mean (= the table row)
+_mini("Calculation of one row")
+_rt = [t_ for t_ in ml_data.TARGETS if t_ in set(trials["target"])]
+_rc, _ = st.columns([1, 3])
+with _rc:
+    _rsel = st.selectbox("Row", _rt, index=_rt.index(target) if target in _rt else 0, format_func=ml_data.label)
+_bd = ml_ui.cached(ml_data.tuning_breakdown)(trials, _rsel, nb)
+if len(_bd):
+    _bd = _bd.assign(difference=_bd["tpe"] - _bd["random"])
+    _mn = _bd.mean()
+    _cl = lambda r_, fmt_: "–" if pd.isna(r_) else fmt_.format(r_)                                                      # noqa: E731
+    _cells = lambda r_: [_cl(r_["tpe"], "{:.3f}"), _cl(r_["random"], "{:.3f}"), ("0.000" if pd.notna(r_["difference"]) and abs(r_["difference"]) < 0.0005 else _cl(r_["difference"], "{:+.3f}")),
+                         _cl(100 * r_["saved"], "{:.0f}%"), _cl(r_["inner"], "{:.1f}%"), _cl(r_["outer"], "{:.1f}%")]       # noqa: E731
+    _crow = lambda name_, cs_, mean_: (f"<div style='{_g7} height:2.4rem; font-size:0.86rem; " + ("border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;" if mean_ else "border-bottom:1px solid #eeede8;") + "'>"   # noqa: E731
+                                       + f"<span style='color:{theme.INK_PRIMARY};'>{name_}</span>"
+                                       + "".join(f"<span style='text-align:center; color:{theme.INK_PRIMARY if c_ != '–' else theme.INK_MUTED};'>{c_}</span>" for c_ in cs_) + "</div>")
+    _body = "".join(_crow(ml_data.model_label(m_), _cells(r_), False) for m_, r_ in _bd.iterrows()) + _crow(f"Mean of the {len(_bd)}", _cells(_mn), True)
+    _hd = [h_ if j_ else "Algorithm" for j_, h_ in enumerate(_hdr)]
+    _hh = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
+           + "".join(f"<span style='{'' if j_ == 0 else 'text-align:center;'}'>{h_}</span>" for j_, h_ in enumerate(_hd)) + "</div>")
+    st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_hh}{_body}</div>", unsafe_allow_html=True)
+    _line("<b>Mean</b> = the row of the table above · difference = TPE best − random best · fits saved: decision tree left out (all its combinations are tried)")

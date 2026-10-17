@@ -253,3 +253,12 @@ def test_the_tuning_summary_has_a_row_per_target_and_a_mean_row():
     assert 0.8 < day["tpe"] < 1.05 and day["difference"] == pytest.approx(day["tpe"] - day["random"]) and 0 <= day["saved"] < 0.7
     both = s[s["target"] != "all"].dropna(subset=["random"])
     assert s.iloc[-1]["tpe"] == pytest.approx(both["tpe"].mean())            # the mean row compares TPE and the control over the same targets
+
+
+def test_the_tuning_breakdown_averages_to_the_summary_row():
+    trials = ml_data.pack("trials")
+    s = ml_data.tuning_summary(trials).set_index("target")
+    b = ml_data.tuning_breakdown(trials, "da_price")
+    assert len(b) == 5 and b.loc["decision_tree", "saved"] != b.loc["decision_tree", "saved"]          # the decision tree has no fits saved (NaN)
+    for c in ("tpe", "random", "saved", "inner", "outer"):
+        assert abs(float(b[c].mean()) - float(s.loc["da_price", c])) < 1e-9

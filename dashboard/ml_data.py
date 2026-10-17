@@ -450,30 +450,38 @@ def best_so_far(trials: pd.DataFrame) -> pd.DataFrame:
     return bsf(trials)
 
 
-def tuning_summary(trials: pd.DataFrame, n_blocks: int = 3, root: Path = REPO_ROOT) -> pd.DataFrame:
-    """What the tuning found, one row per price target and a last row for the mean of them (every number averaged over the five algorithms):
-    the best score of the Optuna search (TPE) and of the random control (as a share of the defaults' score, below 1 beats the defaults), their
-    difference, the share of the fits that TPE saved by stopping weak trials (the decision tree is searched in full and is left out), and the
-    gain of the chosen setting on the blocks it was chosen on and on the days that followed (%). A number a target does not have yet is NaN."""
+def tuning_breakdown(trials: pd.DataFrame, target: str, n_blocks: int = 3, root: Path = REPO_ROOT) -> pd.DataFrame:
+    """One row per algorithm for one target, the numbers that `tuning_summary` averages: the best relative score of the Optuna search (tpe) and of
+    the random control (random), the share of the fits saved by stopping weak trials (saved; NaN for the decision tree, which is searched in full),
+    and the mean gain of the chosen setting on the blocks it was chosen on (inner) and on the days that followed (outer), in %. NaN where missing."""
+    cols = ["tpe", "random", "saved", "inner", "outer"]
+    d = prepared_trials(trials, target)
+    out = pd.DataFrame(index=ordered_models(d["model"].unique()) if not d.empty else [], columns=cols, dtype=float)
+    if d.empty:
+        return out
+    for k in ("tpe", "random"):
+        dk = d[d["search"] == k]
+        if not dk.empty:
+            out[k] = best_so_far(dk).sort_values("trial").groupby("model")["best_rel"].last().reindex(out.index)
+    tp = d[(d["search"] == "tpe") & (d["model"] != "decision_tree")]
+    if not tp.empty:
+        out["saved"] = (tp.groupby("model")["pruned"].sum() * (n_blocks - 1) / n_blocks / tp.groupby("model").size()).reindex(out.index)
     io = read_csv(md(root) / "tables" / "inner_vs_outer_by_target.csv")
+    if not io.empty and "target" in io.columns and (io["target"] == target).any():
+        g = 100 * io[io["target"] == target].groupby("model")[["inner_gain", "outer_gain"]].mean()
+        out["inner"], out["outer"] = g["inner_gain"].reindex(out.index), g["outer_gain"].reindex(out.index)
+    return out
+
+
+def tuning_summary(trials: pd.DataFrame, n_blocks: int = 3, root: Path = REPO_ROOT) -> pd.DataFrame:
+    """What the tuning found, one row per price target and a last row for the mean of them (every number is the mean of the five algorithms, see
+    `tuning_breakdown`): the best score of the Optuna search (TPE) and of the random control (as a share of the defaults' score, below 1 beats the
+    defaults), their difference, the share of the fits that TPE saved by stopping weak trials (the decision tree is left out), and the gain of the
+    chosen setting on the blocks it was chosen on and on the days that followed (%). A number a target does not have yet is NaN."""
     rows = []
     for t in TARGETS:
-        row = {"target": t, "tpe": float("nan"), "random": float("nan"), "saved": float("nan"), "inner": float("nan"), "outer": float("nan")}
-        d = prepared_trials(trials, t)
-        if not d.empty:
-            ends = {}
-            for k in ("tpe", "random"):
-                dk = d[d["search"] == k]
-                if not dk.empty:
-                    ends[k] = float(best_so_far(dk).sort_values("trial").groupby("model")["best_rel"].last().mean())
-            row["tpe"], row["random"] = ends.get("tpe", float("nan")), ends.get("random", float("nan"))
-            tp = d[(d["search"] == "tpe") & (d["model"] != "decision_tree")]
-            if not tp.empty:
-                row["saved"] = float((tp.groupby("model")["pruned"].sum() * (n_blocks - 1) / n_blocks / tp.groupby("model").size()).mean())
-        if not io.empty and "target" in io.columns and (io["target"] == t).any():
-            g = io[io["target"] == t]
-            row["inner"], row["outer"] = 100 * float(g["inner_gain"].mean()), 100 * float(g["outer_gain"].mean())
-        rows.append(row)
+        m = tuning_breakdown(trials, t, n_blocks, root).mean()
+        rows.append({"target": t, **{c: float(m.get(c, float("nan"))) for c in ("tpe", "random", "saved", "inner", "outer")}})
     df = pd.DataFrame(rows)
     df["difference"] = df["tpe"] - df["random"]
     both = df[df["random"].notna()]                                                    # TPE and the control are compared over the same targets
