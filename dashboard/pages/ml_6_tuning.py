@@ -674,7 +674,7 @@ _mini("Calculation of one row")
 _rt = [t_ for t_ in ml_data.TARGETS if t_ in set(trials["target"])]
 _rc, _ = st.columns([1, 3])
 with _rc:
-    _rsel = st.selectbox("Row", _rt, index=_rt.index(target) if target in _rt else 0, format_func=ml_data.label)
+    _rsel = st.selectbox("Row", _rt, index=_rt.index(target) if target in _rt else 0, format_func=ml_data.label, label_visibility="collapsed")
 _bd = ml_ui.cached(ml_data.tuning_breakdown)(trials, _rsel, nb)
 if len(_bd):
     _bd = _bd.assign(difference=_bd["tpe"] - _bd["random"])
