@@ -283,13 +283,14 @@ tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
 _section("Random control and TPE, from scratch (day-ahead price)")
+model = st.selectbox("Algorithm (for this section and for the ones below)", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, "da_price")
 if da["search"].nunique() < 2:
     ml_ui.not_yet_run("the random-search control")
 else:
     from plotly.subplots import make_subplots
     ms = ml_data.ordered_models(da["model"].unique())
-    rc_model = st.selectbox("Algorithm", ms, index=ms.index("lightgbm") if "lightgbm" in ms else 0, format_func=ml_data.model_label, key="ml6_rc_model")
+    rc_model = model if model in ms else ms[0]
     sp_ = cfg["space"].get(rc_model, {})
     allx = da[(da["model"] == rc_model) & ~da["is_default"].astype(bool) & da["rel"].notna()]
     infl = {}                                                                          # how much the score depends on each setting: the two that matter most make the map
@@ -424,15 +425,14 @@ else:
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
                 f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
-_section("Search space", "every combination of settings the search may try")
-model = st.selectbox("Algorithm", models, format_func=ml_data.model_label, key="ml6_model")
+_section(f"Search space <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "every combination of settings the search may try")
 space = cfg["space"].get(model, {})
 ml_ui.table(pd.DataFrame([{"Setting": ml_data.setting_label(k), "Values": ", ".join(_std(x) if k in RULE_SETTINGS else str(x) for x in v), "Choices": len(v)} for k, v in space.items()]))
 n_comb = math.prod(len(v) for v in space.values())
 _line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
       f"With {int(cfg['search']['n_trials'])} trials the space is searched thinly: TPE steers toward the good regions."))
 
-_section("Every trial of one tuning round", "one dot per trial, scored on all 3 blocks; below the dotted line beats the defaults")
+_section(f"Every trial of one tuning round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "one dot per trial, scored on all 3 blocks; below the dotted line beats the defaults")
 m = tt[tt["model"] == model]
 rounds = sorted(m["tuned_at"].unique())
 rnd = st.select_slider("Round (training window ends)", rounds, value=rounds[-1], key="ml6_round")
@@ -451,7 +451,7 @@ npruned = int(r["pruned"].astype(bool).sum())
 _line(f"<b>{len(r)}</b> trials &nbsp;·&nbsp; <b>{npruned}</b> stopped after block 3 (not shown) &nbsp;·&nbsp; <b>{int(r['duplicate'].astype(bool).sum())}</b> repeated an earlier setting "
       "&nbsp;·&nbsp; ★ the one chosen: the best mean score over the three blocks")
 
-_section("What moves the score", "boxes that sit apart: that setting matters &nbsp;·&nbsp; overlapping boxes: it hardly matters &nbsp;·&nbsp; every non-default trial of every round")
+_section(f"What moves the score <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "boxes that sit apart: that setting matters &nbsp;·&nbsp; overlapping boxes: it hardly matters &nbsp;·&nbsp; every non-default trial of every round")
 exp = tt[(tt["model"] == model) & ~tt["is_default"].astype(bool) & tt["rel"].notna()]
 if len(exp):
     keys = sorted({k for p in exp["params_d"] for k in p})
@@ -463,7 +463,7 @@ if len(exp):
     fig.add_hline(y=1.0, line_dash="dot", line_color=theme.INK_MUTED)
     st.plotly_chart(theme.style_fig(fig, height=320, yaxis_title="score / defaults", legend=False), width="stretch")
 
-_section("What the search chose, round by round", "the chosen setting changes from round to round: no single tuned setting is 'the' best one")
+_section(f"What the search chose, round by round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "the chosen setting changes from round to round: no single tuned setting is 'the' best one")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
     lg["gain_%"] = (100 * (1 - lg["score"] / lg["default_score"])).round(1)
