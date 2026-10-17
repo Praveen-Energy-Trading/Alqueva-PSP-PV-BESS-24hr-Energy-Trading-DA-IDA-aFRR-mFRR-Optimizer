@@ -96,14 +96,14 @@ def _headline(bt: pd.DataFrame, report: dict) -> None:
     by_label = {l: v for l, v, is_hdr in report.get("Summary", []) if not is_hdr}
     days, feasible, passed = by_label.get("Days"), by_label.get("Feasible"), by_label.get("Checker passed")
     tot = bt[TOTAL_COL].dropna()
-    profit = f" · {(tot > 0).sum():,} of {len(tot):,} days profitable"
+    profit = f", {(tot > 0).sum():,} of {len(tot):,} days profitable"
     if days and feasible is not None and passed is not None:
         n_days, n_feas, n_pass = int(days), int(feasible), int(passed)
-        text = f"{n_feas}/{n_days} days feasible · {n_pass}/{n_days} passed the physical checker{profit}"
+        text = f"{n_feas}/{n_days} days feasible, {n_pass}/{n_days} passed the physical checker{profit}"
         if n_feas == n_days and n_pass == n_days:
             st.success(f"🟢 {text}")
         else:
-            st.warning(f"🟡 {text} · {n_days - n_feas} infeasible, {n_days - n_pass} checker failure(s)")
+            st.warning(f"🟡 {text}; {n_days - n_feas} infeasible, {n_days - n_pass} checker failure(s)")
     else:
         st.info(f"{len(bt):,} days{profit}")
 
@@ -147,7 +147,7 @@ def _day_ahead(d: pd.DataFrame) -> None:
     best, worst = d.loc[s.idxmax()], d.loc[s.idxmin()]
     groups = [(f"Past days, valued at real prices ({len(s):,} days)",
                [("Average revenue per day", f"€{s.mean():,.0f}"), ("Median day", f"€{s.median():,.0f}"),
-                ("Best day", f"€{best[DA_COL]:,.0f} · {best['date']:%d-%m-%Y}"), ("Worst day", f"−€{abs(worst[DA_COL]):,.0f} · {worst['date']:%d-%m-%Y}" if worst[DA_COL] < 0 else f"€{worst[DA_COL]:,.0f} · {worst['date']:%d-%m-%Y}"),
+                ("Best day", f"€{best[DA_COL]:,.0f} on {best['date']:%d-%m-%Y}"), ("Worst day", f"−€{abs(worst[DA_COL]):,.0f} on {worst['date']:%d-%m-%Y}" if worst[DA_COL] < 0 else f"€{worst[DA_COL]:,.0f} on {worst['date']:%d-%m-%Y}"),
                 ("Days earning below zero", f"{(s < 0).sum():,}"),
                 ("Days with the real OMIE price", f"{(d['realised_price_source'] == 'OMIE_LIVE').sum():,} of {len(d):,}")])]
     latest = _latest_run("DA", "Energy revenue")

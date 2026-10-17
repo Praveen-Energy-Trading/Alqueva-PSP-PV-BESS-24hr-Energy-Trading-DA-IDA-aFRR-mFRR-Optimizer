@@ -93,7 +93,7 @@ st.markdown(
     "".join(f'<div style="flex:{share:.2f} 1 0; min-width:6px; background:{colour}; border-radius:6px;"></div>' for (_, _, share), colour in zip(_alloc[:-1], _alloc_colours)) +
     '</div><div style="display:flex; flex-wrap:wrap; gap:6px 26px; margin-top:10px; font-size:13px; color:' + theme.INK_SECONDARY + ';">' +
     "".join(f'<span style="display:inline-flex; align-items:center;"><span style="width:9px; height:9px; border-radius:50%; background:{colour}; margin-right:7px;"></span>'
-            f'<b style="color:{theme.INK_PRIMARY}; font-weight:600; margin-right:6px;">{name}</b>{share:.0f}% · {mw:.0f} MW</span>'
+            f'<b style="color:{theme.INK_PRIMARY}; font-weight:600; margin-right:6px;">{name}</b>{share:.0f}% ({mw:.0f} MW)</span>'
             for (name, mw, share), colour in zip(_alloc[:-1], _alloc_colours)) +
     '</div></div>',
     unsafe_allow_html=True,
@@ -448,7 +448,7 @@ def _render() -> None:
         for ann in fig["layout"]["annotations"]:
             ann["font"] = dict(color=theme.INK_SECONDARY, size=13)
         st.plotly_chart(fig, width="stretch")
-        st.caption("Up = more injection or less pumping · Down (shown negative) = less injection or more pumping. "
+        st.caption("Up = more injection or less pumping; down (shown negative) = less injection or more pumping. "
                    "Reserve capacity is contracted per hour.")
 
 

@@ -112,7 +112,7 @@ def _render() -> None:
     with chart_col:
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     rows_txt = f"{sel['n_training_rows']:,} rows" if sel["n_training_rows"] else "n/a"
-    st.caption(f"🟢 Winner **{sel['selected']}**, live in production · {rows_txt} trained")
+    st.caption(f"🟢 Winner **{sel['selected']}**, live in production, {rows_txt} trained")
 
 
 _render()

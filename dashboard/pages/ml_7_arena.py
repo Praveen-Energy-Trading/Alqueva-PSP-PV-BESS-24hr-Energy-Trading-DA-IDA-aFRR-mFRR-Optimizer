@@ -64,7 +64,7 @@ else:
         mean, stat, p, n_d = float(res["mean_diff"]), float(res["statistic"]), float(res["p_value"]), int(res["n_days"])
         wins = int((diff["difference"] < 0).sum())
 
-        st.markdown("##### 1 · Every day, both models are scored")
+        st.markdown("##### 1. Every day, both models are scored")
         st.caption("Each bar is the average error of that delivery day (all 24 hours together, so a day counts once). The shorter bar was closer to the real price. The last 21 days are shown.")
         last = los.tail(21).reset_index(drop=True)
         lab = [f"{pd.Timestamp(x):%d-%m}" for x in last["date"]]
@@ -80,7 +80,7 @@ else:
         f1.update_yaxes(range=[0, float(max(last["a"].max(), last["b"].max())) * 1.55])
         st.plotly_chart(f1, width="stretch", config={"displayModeBar": False})
 
-        st.markdown("##### 2 · One gap per day, over the whole window")
+        st.markdown("##### 2. One gap per day, over the whole window")
         st.caption(f"The gap of a day is the champion's error minus the tree's. Blue: the champion was closer. Orange: the tree was closer. "
                    f"The champion was closer on **{wins:,} of {n_d:,} days ({wins / n_d:.0%})**; the line is the running average of the gaps.")
         neg, pos = diff["difference"].clip(upper=0), diff["difference"].clip(lower=0)
@@ -92,7 +92,7 @@ else:
         theme.style_fig(f2, height=300, yaxis_title="champion − tree (error of the day)", barmode="relative")
         st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})
 
-        st.markdown("##### 3 · The average gap, against how far luck alone could push it")
+        st.markdown("##### 3. The average gap, against how far luck alone could push it")
         se = abs(mean / stat) if stat else float(diff["difference"].std() / n_d ** 0.5)
         band = 1.96 * se
         m = max(abs(mean), band) * 1.3
@@ -125,7 +125,7 @@ else:
         f3.layout.shapes = tuple(sh for sh in f3.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1 and sh.y0 != 0.42))
         st.plotly_chart(f3, width="stretch", config={"displayModeBar": False})
 
-        st.markdown("##### 4 · The verdict")
+        st.markdown("##### 4. The verdict")
         ml_ui.cards([("Days compared", n_d), ("Average gap", f"{mean:+.3f}"), ("DM statistic = gap in luck-widths", f"{stat:.2f}"), ("p-value", f"{p:.2g}")], ncols=4, pre_formatted=True)
         if p < 0.05:
             st.success(f"Real, not luck: if the models were truly equal, a gap this big would be seen with probability {p:.2g}. The DM statistic is just the picture above in one number: how many luck-widths the average is from zero.")

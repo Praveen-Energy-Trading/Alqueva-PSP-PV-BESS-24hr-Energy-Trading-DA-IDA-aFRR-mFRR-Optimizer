@@ -109,11 +109,11 @@ if folds is not None and len(folds):
     top = -0.42
     x_train = min(max(pd.Timestamp(f0["train_start"]) + (s0 - pd.Timestamp(f0["train_start"])) * 0.35, start0 + span * 0.08), s0 - pd.Timedelta(days=2))      # a label is 150-200 px wide: keep it off the left edge
     # two label levels: the lower one holds training, the gap and the forecast, the upper one the tuning; every label sits above the part it names
-    callouts = [(x_train, 0, -46, BLUE, f"<b>Training · {train_label}</b><br>the model learns here"),
-                (mid(s0, e0), 0, -90, VIOLET, f"<b>Tuning · last {_val} days of the window</b><br>its settings are chosen here"),
+    callouts = [(x_train, 0, -46, BLUE, f"<b>Training: {train_label}</b><br>The model learns here"),
+                (mid(s0, e0), 0, -90, VIOLET, f"<b>Tuning: last {_val} days of the window</b><br>Its settings are chosen here"),
                 (e0, 24, -46, MUTED, f"{gap} day gap"),
                 (mid(pd.Timestamp(f0["test_start"]), pd.Timestamp(f0["test_end"]) + one_day), 150, -46, ORANGE,
-                 f"<b>Validation forecast · {step} days</b><br>forecast, then scored")]
+                 f"<b>Validation forecast: {step} days</b><br>Forecast, then scored")]
     for x, ax, ay, c, txt in callouts:                                             # tags: a thin border in the colour of the part they name, a dot where the line meets it
         fig.add_annotation(x=x, y=top, ax=ax, ay=ay, axref="pixel", ayref="pixel", text=txt, showarrow=True, arrowhead=3, arrowsize=0.9, arrowwidth=1, arrowcolor=c,
                            font=dict(size=12, color=c), yanchor="bottom", standoff=1, align="center", bgcolor="white", bordercolor=c, borderwidth=1, borderpad=4)
