@@ -32,6 +32,7 @@ win, L, nb, gap = int(ev["schedule"]["train_window_days"]), int(s["validation_da
 n_t, retune, refit = int(s["n_trials"]), int(s["retune_every_days"]), int(ev["schedule"]["retrain_every_days"])
 BLUE, VIOLET, ORANGE, AQUA, RED, MUTED, INK = theme.BLUE, theme.VIOLET, theme.ORANGE, theme.AQUA, theme.STATUS_CRITICAL, theme.INK_MUTED, theme.INK_PRIMARY
 GREY = "#d9d7cf"
+T_DEF, T_DONE, T_STOP, T_WIN, NEUTRAL = "#3d3c39", "#8791ab", theme.MAGENTA, theme.GREEN, "#6b6a64"
 ROW = 34.0                                                                           # pixels per row: the labels keep their places whatever the content
 X_END = win + 280                                                                    # room on the right for the labels and the days tuning never looks at
 px_day = 1150.0 / X_END
@@ -108,48 +109,47 @@ _note(ft, win - 6, -0.55, "the only days the tuning can use ←", size=11, color
 
 # ---- 4. the route of one setting
 yr = ysn + rh + 0.95
-_note(ft, 0, yr, "<b>The route of one setting</b>", size=13, anchor="left")
-cy, nh = yr + 1.35, 1.0
-def _node(x0, x1, color, label, badges=()):
-    _pill(ft, x0, x1, cy - nh / 2, cy + nh / 2, color, 0.14, r_px=6)
-    _pill(ft, x0, x0 + 4, cy - nh / 2, cy + nh / 2, color, 1.0, r_px=2)
+_note(ft, 0, yr, "<b>The route of one trial</b> &nbsp;<span style='color:%s'>(one trial = one candidate setting of the algorithm)</span>" % MUTED, size=13, anchor="left")
+cy, nh = yr + 1.5, 1.0
+def _node(x0, x1, label, badges=()):
+    _pill(ft, x0, x1, cy - nh / 2, cy + nh / 2, NEUTRAL, 0.10, r_px=6)
+    _pill(ft, x0, x0 + 4, cy - nh / 2, cy + nh / 2, NEUTRAL, 1.0, r_px=2)
     _note(ft, x0 + 14, cy, label, size=12, anchor="left")
-    for i, b in enumerate(badges):                                                   # the blocks it is scored on
+    for i, b in enumerate(badges):                                                   # the blocks it is scored on: violet, as the blocks above
         bx = x1 - 12 - (len(badges) - 1 - i) * 26
         _pill(ft, bx - 11, bx + 11, cy - 0.28, cy + 0.28, VIOLET, 0.9, r_px=3)
         _note(ft, bx, cy, f"<b>{b}</b>", size=11, color="white")
-_node(0, 150, VIOLET, "a setting")
-_node(205, 385, VIOLET, "latest block", badges=(nb,))
+_node(0, 150, "next trial")
+_node(205, 365, "latest block", badges=(nb,))
 _arrow(ft, 152, cy, 203, cy)
-_arrow(ft, 387, cy, 425, cy)
-dx, dh = 545, 0.85
-_shape(type="path", fillcolor=ORANGE, opacity=0.16, line_width=0,
-             path=f"M {dx - 120},{cy} L {dx},{cy - dh} L {dx + 120},{cy} L {dx},{cy + dh} Z")
-_shape(type="path", fillcolor="rgba(0,0,0,0)", line=dict(color=ORANGE, width=1.5),
-             path=f"M {dx - 120},{cy} L {dx},{cy - dh} L {dx + 120},{cy} L {dx},{cy + dh} Z")
-_note(ft, dx, cy, "worse than<br>the median?", size=11)
-_arrow(ft, dx + 122, cy, 700, cy)
-_note(ft, dx + 150, cy - 0.38, "no", size=11, color=MUTED)
-_node(702, 900, VIOLET, "older blocks", badges=tuple(range(nb - 1, 0, -1)))
-_arrow(ft, 902, cy, 925, cy)
-oy = cy + 1.95
-_arrow(ft, dx, cy + dh + 0.02, dx, oy - 0.45, color=ORANGE)
-_note(ft, dx + 22, cy + dh + 0.35, "yes", size=11, color=MUTED, anchor="left")
-_pill(ft, dx - 90, dx + 90, oy - 0.45, oy + 0.45, ORANGE, 0.9, r_px=6)
+_arrow(ft, 367, cy, 383, cy)
+dx, dh, dw = 545, 1.15, 160
+_dia = f"M {dx - dw},{cy} L {dx},{cy - dh} L {dx + dw},{cy} L {dx},{cy + dh} Z"
+_shape(type="path", fillcolor=T_STOP, opacity=0.13, line_width=0, path=_dia)
+_shape(type="path", fillcolor="rgba(0,0,0,0)", line=dict(color=T_STOP, width=1.5), path=_dia)
+_note(ft, dx, cy, "block 3: worse<br>than the median<br>of earlier trials?", size=11)
+_arrow(ft, dx + dw + 2, cy, 738, cy)
+_note(ft, dx + dw + 18, cy - 0.5, "no", size=11, color=MUTED)
+_node(740, 915, "older blocks", badges=tuple(range(nb - 1, 0, -1)))
+_arrow(ft, 917, cy, 930, cy)
+oy = cy + 2.25
+_arrow(ft, dx, cy + dh + 0.02, dx, oy - 0.45, color=T_STOP)
+_note(ft, dx + 22, cy + dh + 0.28, "yes", size=11, color=MUTED, anchor="left")
+_pill(ft, dx - 90, dx + 90, oy - 0.45, oy + 0.45, T_STOP, 0.9, r_px=6)
 _note(ft, dx, oy, "<b>✕ stopped</b>", size=12, color="white")
-_pill(ft, 925, X_END, cy - nh / 2, cy + nh / 2, VIOLET, 0.9, r_px=6)
-_note(ft, (925 + X_END) / 2, cy, "<b>score</b>", size=12, color="white")
-_arrow(ft, (925 + X_END) / 2, cy + nh / 2 + 0.02, (925 + X_END) / 2, oy - 0.45, color=AQUA)
-_pill(ft, 880, X_END, oy - 0.45, oy + 0.45, AQUA, 0.9, r_px=6)
+_pill(ft, 930, X_END, cy - nh / 2, cy + nh / 2, T_DONE, 0.95, r_px=6)
+_note(ft, (930 + X_END) / 2, cy, "<b>score</b>", size=12, color="white")
+_arrow(ft, (930 + X_END) / 2, cy + nh / 2 + 0.02, (930 + X_END) / 2, oy - 0.45, color=T_WIN)
+_pill(ft, 880, X_END, oy - 0.45, oy + 0.45, T_WIN, 0.95, r_px=6)
 _note(ft, (880 + X_END) / 2, oy, "<b>best score</b>", size=12, color="white")
-_pill(ft, 0, 150, oy - 0.45, oy + 0.45, BLUE, 0.9, r_px=6)
+_pill(ft, 0, 150, oy - 0.45, oy + 0.45, T_DEF, 0.95, r_px=6)
 _note(ft, 75, oy, "<b>trial 0</b>", size=12, color="white")
 _note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left")
 
 # ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
 ydt = oy + 1.3
 _note(ft, 0, ydt + 0.3, f"<b>The same budget for every algorithm: up to {n_t} trials each</b><br><span style='color:{MUTED}'>{ml_data.label(target)}, its latest tuning round &nbsp;·&nbsp; every square is a trial that was kept ({len(trials):,} in all)</span>", size=13, anchor="left", align="left")
-_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((BLUE, "defaults (trial 0)"), (VIOLET, "scored on all blocks"), (ORANGE, "stopped early"), (AQUA, "the winner"), ("#c9c7be", "trial not needed")))
+_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
 _note(ft, 0, ydt + 1.25, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
 xs0, xs1 = 130, 1000
 cw = (xs1 - xs0) / n_t
@@ -176,18 +176,18 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
         for r in d.itertuples():
             x0 = xs0 + int(r.trial) * cw
             if bool(r.is_default):
-                col, mark = BLUE, ""
+                col, mark = T_DEF, ""
             elif bool(r.selected):
-                col, mark = AQUA, "★"
+                col, mark = T_WIN, "★"
             elif bool(r.pruned):
-                col, mark = ORANGE, "×"
+                col, mark = T_STOP, "×"
             else:
-                col, mark = VIOLET, ""
-            _pill(ft, x0, x0 + cw - 3, y, y + bh, col, 0.9 if col != VIOLET else 0.75, r_px=2)
+                col, mark = T_DONE, ""
+            _pill(ft, x0, x0 + cw - 3, y, y + bh, col, 0.95, r_px=2)
             if mark:
                 _note(ft, x0 + (cw - 3) / 2, y + bh / 2, f"<b>{mark}</b>", size=10, color="white")
         if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
-            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"whole grid ({combos_dt} settings) already tried", size=10, color=MUTED)
+            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"whole grid ({combos_dt} combinations) already tried", size=10, color=MUTED)
         y += pitch
     y += 0.2
 yd_end = y
