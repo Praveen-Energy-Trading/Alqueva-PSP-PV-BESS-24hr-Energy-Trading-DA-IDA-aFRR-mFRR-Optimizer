@@ -654,16 +654,18 @@ _line("<b>fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b> · a stopped
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
+_d4 = lambda a_, b_: float("nan") if (pd.isna(a_) or pd.isna(b_)) else round(a_, 4) - round(b_, 4)                      # the difference of the two numbers as shown (4 decimals), so the table adds up
+_fd = lambda v: "–" if pd.isna(v) else ("0.0000" if abs(v) < 5e-5 else f"{v:+.4f}")                                    # noqa: E731
 _srows = ""
 for i_, r_ in enumerate(_sum.itertuples()):
     allrow = r_.target == "all"
-    cells = [("All targets" if allrow else ml_data.label(r_.target)), _f(r_.tpe, "{:.3f}"), _f(r_.random, "{:.3f}"), ("0.000" if pd.notna(r_.difference) and abs(r_.difference) < 0.0005 else _f(r_.difference, "{:+.3f}")),
+    cells = [("All targets" if allrow else ml_data.label(r_.target)), _f(r_.tpe, "{:.4f}"), _f(r_.random, "{:.4f}"), _fd(_d4(r_.tpe, r_.random)),
              _f(100 * r_.saved, "{:.0f}%"), _f(r_.inner, "{:.1f}%"), _f(r_.outer, "{:.1f}%")]
     _srows += (f"<div style='{_g7} height:2.5rem; font-size:0.86rem; {'border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;' if allrow else 'border-bottom:1px solid #eeede8;'}'>"
                + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'} color:{theme.INK_PRIMARY if (j == 0 or c != '–') else theme.INK_MUTED};'>{c}</span>" for j, c in enumerate(cells)) + "</div>")
 _shead = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
           + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(_hdr)) + "</div>")
-_mini("TPE against the random control, target by target", "every number is the mean of the five algorithms · best: score as a share of the defaults, lower is better · difference below 0: TPE better · fits saved: by stopping weak trials, decision tree left out")
+_mini("TPE against the random control, target by target")
 st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_shead}{_srows}</div>", unsafe_allow_html=True)
 
 
@@ -678,7 +680,7 @@ if len(_bd):
     _bd = _bd.assign(difference=_bd["tpe"] - _bd["random"])
     _mn = _bd.mean()
     _cl = lambda r_, fmt_: "–" if pd.isna(r_) else fmt_.format(r_)                                                      # noqa: E731
-    _cells = lambda r_: [_cl(r_["tpe"], "{:.3f}"), _cl(r_["random"], "{:.3f}"), ("0.000" if pd.notna(r_["difference"]) and abs(r_["difference"]) < 0.0005 else _cl(r_["difference"], "{:+.3f}")),
+    _cells = lambda r_: [_cl(r_["tpe"], "{:.4f}"), _cl(r_["random"], "{:.4f}"), _fd(_d4(r_["tpe"], r_["random"])),
                          _cl(100 * r_["saved"], "{:.0f}%"), _cl(r_["inner"], "{:.1f}%"), _cl(r_["outer"], "{:.1f}%")]       # noqa: E731
     _crow = lambda name_, cs_, mean_: (f"<div style='{_g7} height:2.4rem; font-size:0.86rem; " + ("border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;" if mean_ else "border-bottom:1px solid #eeede8;") + "'>"   # noqa: E731
                                        + f"<span style='color:{theme.INK_PRIMARY};'>{name_}</span>"
