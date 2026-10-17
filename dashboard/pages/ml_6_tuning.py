@@ -36,9 +36,10 @@ def _std_text(text: str) -> str:
     return re.sub(rf"(?<![\w:])({alt})(?![\w])", lambda m: OBJECTIVE_NAME[m.group(1)], text)
 
 
-def _section(title: str, hint: str = "") -> None:
-    """A section heading: a bold title and, under it, one muted line on how to read the section."""
-    st.markdown(f"<div style='margin:1.7rem 0 0.45rem;'><div style='font-size:1.55rem; font-weight:700; color:{theme.INK_PRIMARY}; line-height:1.25;'>{title}</div>"
+def _section(title: str, hint: str = "", num: str = "") -> None:
+    """A section heading: a number (the steps of the story), a bold title and, under it, one muted line on how to read the section."""
+    _n = f"<span style='font-weight:400; color:{NEUTRAL};'>{num}</span>&nbsp; " if num else ""
+    st.markdown(f"<div style='margin:1.7rem 0 0.45rem;'><div style='font-size:1.55rem; font-weight:700; color:{theme.INK_PRIMARY}; line-height:1.25;'>{_n}{title}</div>"
                 + (f"<div style='font-size:0.88rem; color:{theme.INK_MUTED}; margin-top:0.2rem;'>{hint}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
 
 
@@ -297,7 +298,7 @@ st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
-_section(f"Random control and TPE · {ml_data.label(target)}")
+_section(f"Random control and TPE · {ml_data.label(target)}", num="④")
 model = st.selectbox("Algorithm (for this section and for the ones below)", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, target)
 has_rnd = "random" in set(da["search"])                                              # the control was run for the day-ahead price only
@@ -447,51 +448,88 @@ else:
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
                 f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
-# ---- what the comparison found, across all the targets
-_sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
-_hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
-_g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
-_f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
-_srows = ""
-for i_, r_ in enumerate(_sum.itertuples()):
-    allrow = r_.target == "all"
-    cells = [("All targets" if allrow else ml_data.label(r_.target)), _f(r_.tpe, "{:.3f}"), _f(r_.random, "{:.3f}"), ("0.000" if pd.notna(r_.difference) and abs(r_.difference) < 0.0005 else _f(r_.difference, "{:+.3f}")),
-             _f(100 * r_.saved, "{:.0f}%"), _f(r_.inner, "{:.1f}%"), _f(r_.outer, "{:.1f}%")]
-    _srows += (f"<div style='{_g7} height:2.5rem; font-size:0.86rem; {'border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;' if allrow else 'border-bottom:1px solid #eeede8;'}'>"
-               + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'} color:{theme.INK_PRIMARY if (j == 0 or c != '–') else theme.INK_MUTED};'>{c}</span>" for j, c in enumerate(cells)) + "</div>")
-_shead = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
-          + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(_hdr)) + "</div>")
-_section("What the comparison found, across all the targets", "every number is the mean of the five algorithms · best: score as a share of the defaults, lower is better · difference below 0: TPE better · fits saved: by stopping weak trials, decision tree left out")
-st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_shead}{_srows}</div>", unsafe_allow_html=True)
+io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
+imp = ml_data.target_evidence("importance", target, "importance_random_search")
 
-_section(f"Search space <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "every combination of settings the search may try")
+# ---- 5. what was searched, and what did it find
+_section(f"What was searched, and what did it find <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>",
+         "a row is a setting, a dot is an option · the dot is big where the search chose that option in many rounds · dark: TPE, ring: random control · the bar: how much of the score the setting explains", num="⑤")
+from collections import Counter
+import ast
 space = cfg["space"].get(model, {})
-_RULE_SHORT = {"squared error (L2)": "squared L2", "absolute error (L1)": "absolute L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}      # the full names are in the strip of formulas above
+_lg = tlog[(tlog["target"] == target) & (tlog["model"] == model)]
+_nr = {k_: int((_lg["search"] == k_).sum()) for k_ in ("tpe", "random")}
 
 
-def _space_row(k, v, last):
-    chips = "".join(f"<span style='background:#f4f3ef; border-radius:999px; padding:0.12rem 0.6rem; font-size:0.82rem; color:{theme.INK_PRIMARY}; white-space:nowrap;'>{_RULE_SHORT.get(_std(x), _std(x)) if k in RULE_SETTINGS else x}</span>" for x in v)
-    return (f"<div style='display:flex; align-items:center; gap:0.7rem; min-height:2.7rem; {'' if last else 'border-bottom:1px solid #eeede8;'}'>"
-            f"<span style='flex:none; width:8.2rem; font-weight:600; font-size:0.86rem; color:{theme.INK_PRIMARY};'>{ml_data.setting_label(k)}</span>"
-            f"<span style='display:flex; flex-wrap:wrap; gap:0.3rem; flex:1;'>{chips}</span>"
-            f"<span style='flex:none; font-size:0.76rem; color:{theme.INK_MUTED}; white-space:nowrap;'>×{len(v)}</span></div>")
+def _chosen(key):
+    cnt = {k_: Counter() for k_ in space}
+    for pr_ in _lg[_lg["search"] == key]["params"]:
+        try:
+            d_ = ast.literal_eval(pr_) if isinstance(pr_, str) else dict(pr_)
+        except (ValueError, SyntaxError):
+            d_ = {}
+        for k_, v_ in d_.items():
+            if k_ in cnt:
+                cnt[k_][str(v_)] += 1
+    return cnt
 
 
-_items = list(space.items())                                                         # all the settings in two columns side by side: half as many rows
-_cut = (len(_items) + 1) // 2 if len(_items) >= 4 else len(_items)
-_cols = [_items[:_cut], _items[_cut:]] if _items[_cut:] else [_items]
-_html = (f"<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(min(21rem, 100%), 1fr)); column-gap:2.2rem;'>"
-         + "".join("<div>" + "".join(_space_row(k, v, last=(j == len(col) - 1)) for j, (k, v) in enumerate(col)) + "</div>" for col in _cols) + "</div>")
+_RS = {"squared error (L2)": "L2", "absolute error (L1)": "L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}
+_opt = lambda k_, v_: _RS.get(_std(v_), _std(v_)) if k_ in RULE_SETTINGS else str(v_)                                  # noqa: E731
+_ch = {"tpe": _chosen("tpe"), "random": _chosen("random")}
+_eta = dict(zip(imp[imp["model"] == model]["setting"], imp[imp["model"] == model]["eta2"])) if not imp.empty else {}
+_keys5 = list(space.keys())
+_n5 = len(_keys5)
+_pitch = 1.25
+cf = go.Figure()
+cf.add_trace(go.Scatter(x=[0, 1010], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
+_X0, _DX = 250, 100                                                                  # where the first option sits, and the distance between options
+for i_, k_ in enumerate(_keys5):
+    y_ = i_ * _pitch
+    if i_:
+        cf.add_shape(type="line", x0=10, x1=1000, y0=y_ - _pitch / 2, y1=y_ - _pitch / 2, line=dict(color="#eeede8", width=1))
+    cf.add_annotation(x=14, y=y_, xanchor="left", showarrow=False, text=f"<b>{ml_data.setting_label(k_)}</b>", font=dict(size=12, color=theme.INK_PRIMARY))
+    opts = [str(v_) for v_ in space[k_]]
+    cf.add_trace(go.Scatter(x=[_X0 + j_ * _DX for j_ in range(len(opts))], y=[y_ + 0.5] * len(opts), mode="text", text=[_opt(k_, v_) for v_ in opts], textfont=dict(size=10, color=MUTED),
+                            showlegend=False, hoverinfo="skip"))
+    for key_, sym_, col_, dx_ in (("tpe", "circle", "#2b2a28", -13 if _nr["random"] else 0), ("random", "circle-open", theme.INK_MUTED, 13)):
+        if not _nr[key_]:
+            continue
+        xs_, ys_, sz_, tx_ = [], [], [], []
+        for j_, v_ in enumerate(opts):
+            n_ = _ch[key_][k_].get(v_, 0)
+            if n_:
+                xs_.append(_X0 + j_ * _DX + dx_)
+                ys_.append(y_)
+                sz_.append(7 + 4.5 * n_)
+                tx_.append(f"{'TPE' if key_ == 'tpe' else 'random control'} chose {_opt(k_, v_)} in {n_} of {_nr[key_]} rounds")
+        cf.add_trace(go.Scatter(x=xs_, y=ys_, mode="markers", showlegend=False, text=tx_, hoverinfo="text", opacity=1,
+                                marker=dict(symbol=sym_, size=sz_, color=col_, line=dict(color="white" if sym_ == "circle" else col_, width=1.5 if sym_ == "circle" else 2))))
+    e_ = _eta.get(k_)
+    if e_ is not None:
+        w_ = min(e_ / 0.5, 1.0) * 230
+        cf.add_shape(type="rect", x0=730, x1=730 + w_, y0=y_ - 0.22, y1=y_ + 0.22, fillcolor=T_DONE, line_width=0)
+        cf.add_annotation(x=730 + w_ + 8, y=y_, xanchor="left", showarrow=False, text=f"<b>{100 * e_:.0f}%</b>", font=dict(size=11, color=theme.INK_SECONDARY))
+cf.add_annotation(x=14, y=-0.95, xanchor="left", showarrow=False, text="setting", font=dict(size=11, color=MUTED))
+cf.add_annotation(x=_X0, y=-0.95, xanchor="left", showarrow=False,
+                  text=f"options · <span style='color:{T_DEF}'>●</span> TPE ({_nr['tpe']} rounds)" + (f" &nbsp; <span style='color:{theme.INK_MUTED}'>○</span> random control ({_nr['random']} rounds)" if _nr["random"] else ""), font=dict(size=11, color=MUTED))
+cf.add_annotation(x=730, y=-0.95, xanchor="left", showarrow=False, text="how much of the score it explains", font=dict(size=11, color=MUTED))
+theme.style_fig(cf, height=int((_n5 * _pitch + 1.9) * 38 + 20), xaxis_title=None, legend=False)
+cf.update_yaxes(autorange=False, range=[(_n5 - 1) * _pitch + 0.85, -1.4], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
+cf.update_xaxes(range=[0, 1010], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
+cf.update_layout(margin=dict(t=4, b=4, l=6, r=6), plot_bgcolor="#ffffff", paper_bgcolor="#ffffff")
+cf.layout.shapes = tuple(sh for sh in cf.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1))
+st.plotly_chart(cf, width="stretch", config={"displayModeBar": False})
 n_comb = math.prod(len(v) for v in space.values())
 _n_trials = int(cfg["search"]["n_trials"])
-_math = " × ".join(str(len(v)) for v in space.values()) + f" = {n_comb:,}"                  # the number of combinations: the options of every setting multiplied
-_what = (f"every combination is tried: <b>{n_comb}</b> + the defaults = <b>{n_comb + 1}</b> trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
-         f"{_n_trials} trials look at {100 * _n_trials / n_comb:.1f}% of them: TPE steers toward the good regions")
-_foot = (f"<div style='display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; border-top:1px solid #e3e1d9; padding:0.55rem 0 0.6rem; font-size:0.84rem; color:{theme.INK_SECONDARY};'>"
-         f"<span><b style='color:{theme.INK_PRIMARY}; font-size:0.95rem;'>{_math}</b> combinations</span><span style='color:{theme.INK_MUTED};'>the options of every setting, multiplied &nbsp;·&nbsp; {_what}</span></div>")
-st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.1rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_html}{_foot}</div>", unsafe_allow_html=True)
+_what = (f"every combination is tried: {n_comb} + the defaults = {n_comb + 1} trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
+         f"{_n_trials} trials look at {100 * _n_trials / n_comb:.1f}% of them")
+_line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied) · {_what}")
 
-_section(f"What the search chose, round by round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "the chosen setting changes from round to round: no single tuned setting is 'the' best one &nbsp;·&nbsp; under each gain: inner MAE of the defaults, then of the chosen setting")
+# ---- 6. it changes from round to round, and the gain afterwards is smaller
+_section(f"It changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>",
+         "no single tuned setting is 'the' best one, and choosing the best of 40 on the same blocks flatters it", num="⑥")
+_mini("What the search chose, round by round", "under each gain: inner MAE of the defaults, then of the chosen setting")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
     import ast
@@ -515,29 +553,47 @@ if len(lg):
                   f"<br><span style='font-size:0.68rem; color:{theme.INK_MUTED};'>{r_.default_score:.2f} → {r_.score:.2f}</span></span>{cells}</div>")
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_head_}{_rows}</div>", unsafe_allow_html=True)
 
+if io.empty:
+    _line(f"The gain chart is not built for {ml_data.label(target)} yet.")
+if not io.empty:
+    _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
+    g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the tuning blocks", marker_color=theme.VIOLET))
+    fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
+    fig.update_xaxes(tickangle=-25)
+    st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
 
-io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
-imp = ml_data.target_evidence("importance", target, "importance_random_search")
-if io.empty and imp.empty:
-    _line(f"The two evidence charts (the gain when choosing against the gain afterwards, and what each setting explains) are not built for {ml_data.label(target)} yet.")
-else:
-    if not io.empty:
-        _section("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
-        g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["inner_gain"], name="on the tuning blocks", marker_color=theme.VIOLET))
-        fig.add_trace(go.Bar(x=[ml_data.model_label(x) for x in g["model"]], y=100 * g["outer_gain"], name="on the days that followed", marker_color=theme.ORANGE))
-        fig.update_xaxes(tickangle=-25)
-        st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE gain over defaults (%)", barmode="group"), width="stretch")
-    if not imp.empty:
-        top = imp.sort_values("eta2", ascending=False).groupby("model").head(3)
-        _best = top.sort_values("eta2", ascending=False).iloc[0]
-        _section("How much of the score each setting explains", f"{'no single setting dominates' if _best['eta2'] < 0.5 else 'one setting stands out'}: at most <b>{100 * _best['eta2']:.0f}%</b> ({ml_data.setting_label(_best['setting'])}), "
-              f"typically <b>{100 * top['eta2'].quantile(0.25):.0f}%</b> to <b>{100 * top['eta2'].quantile(0.75):.0f}%</b> (random-search trials)")
-        fig = go.Figure()
-        for mm in ml_data.ordered_models(top["model"].unique()):
-            x = top[top["model"] == mm]
-            fig.add_trace(go.Bar(y=[f"{ml_data.model_label(mm)}: {ml_data.setting_label(s_)}" for s_ in x["setting"]], x=x["eta2"], orientation="h",
-                                 marker_color=theme.CATEGORICAL[ml_data.model_index(mm) % 8], showlegend=False))
-        fig.update_yaxes(autorange="reversed")
-        st.plotly_chart(theme.style_fig(fig, height=420, xaxis_title="share of variance explained", legend=False), width="stretch")
+# ---- 7. the outcome
+_sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
+_all = _sum[_sum["target"] == "all"].iloc[0]
+_top = [k_ for k_ in sorted(_keys5, key=lambda x_: -_eta.get(x_, 0))][:4] if _eta else _keys5[:4]
+_usual = []
+for k_ in _top:
+    c_ = _ch["tpe"][k_].most_common(1)
+    if c_:
+        _usual.append(f"{ml_data.setting_label(k_)} {_opt(k_, c_[0][0])}")
+_tiles = [(f"{_all['inner']:.1f}% → {_all['outer']:.1f}%", "gain over the defaults: on the blocks it was chosen on, then on the days that followed (mean of the targets)"),
+          (f"{abs(_all['difference']):.3f}", "gap between TPE and the random control" + (" (TPE slightly better): the smart search ends about level with blind guessing" if _all["difference"] < 0 else ": the smart search ends level with blind guessing")),
+          (f"{100 * _all['saved']:.0f}%", "of the fits TPE skips by stopping weak trials after block 3: the same result for less work"),
+          ("a region, not a point", f"the usual choice for {ml_data.model_label(model)}: " + (" · ".join(_usual) if _usual else "see ⑤") + "; it changes from round to round")]
+_tl = "".join(f"<div style='flex:1 1 0; min-width:0; background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.8rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+              f"<div style='font-size:{'1.7rem' if j_ < 3 else '1.25rem'}; font-weight:800; color:{theme.INK_PRIMARY}; line-height:1.2;'>{big_}</div>"
+              f"<div style='font-size:0.78rem; color:{theme.INK_SECONDARY}; margin-top:0.3rem; line-height:1.4;'>{cap_}</div></div>" for j_, (big_, cap_) in enumerate(_tiles))
+_section("The outcome", "what tuning gave, in four numbers, and the same comparison for every target", num="⑦")
+st.markdown(f"<div style='display:flex; gap:0.7rem; align-items:stretch; margin-bottom:1rem;'>{_tl}</div>", unsafe_allow_html=True)
+_hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
+_g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
+_f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
+_srows = ""
+for i_, r_ in enumerate(_sum.itertuples()):
+    allrow = r_.target == "all"
+    cells = [("All targets" if allrow else ml_data.label(r_.target)), _f(r_.tpe, "{:.3f}"), _f(r_.random, "{:.3f}"), ("0.000" if pd.notna(r_.difference) and abs(r_.difference) < 0.0005 else _f(r_.difference, "{:+.3f}")),
+             _f(100 * r_.saved, "{:.0f}%"), _f(r_.inner, "{:.1f}%"), _f(r_.outer, "{:.1f}%")]
+    _srows += (f"<div style='{_g7} height:2.5rem; font-size:0.86rem; {'border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;' if allrow else 'border-bottom:1px solid #eeede8;'}'>"
+               + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'} color:{theme.INK_PRIMARY if (j == 0 or c != '–') else theme.INK_MUTED};'>{c}</span>" for j, c in enumerate(cells)) + "</div>")
+_shead = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
+          + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(_hdr)) + "</div>")
+_mini("TPE against the random control, target by target", "every number is the mean of the five algorithms · best: score as a share of the defaults, lower is better · difference below 0: TPE better · fits saved: by stopping weak trials, decision tree left out")
+st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_shead}{_srows}</div>", unsafe_allow_html=True)
+
