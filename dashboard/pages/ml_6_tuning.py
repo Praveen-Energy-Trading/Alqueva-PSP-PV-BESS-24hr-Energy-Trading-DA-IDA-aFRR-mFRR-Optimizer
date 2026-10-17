@@ -131,11 +131,10 @@ body = win - nb * L                                                             
 xw = win * DAY                                                                       # where the window ends, in units
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L}) &nbsp;&nbsp; "
+legend = (f"<span style='color:{BLUE}'>■</span> learns from &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> scored on ({nb} blocks of {L})<br>"
           f"<span style='color:{ORANGE}'>■</span> the refit's forecast &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> not used by that round")
-_head(-2.8, "①", "Tuning only looks inside the refit's own window",
+_head(-1.95, "①", "Tuning only looks inside the refit's own window",
       f"{ml_data.label(target)} · latest tuning round" + (f", window ending {pd.Timestamp(win_end):%d-%m-%Y}" if win_end is not None else "") + (f" · expanding window: all {win} days it has" if expanding else f" · rolling {win}-day window"), two=True)
-_note(ft, 6, -1.6, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle")
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
 _pill(ft, 0, body * DAY, 0, rh, BLUE, 0.62)
@@ -160,6 +159,7 @@ for k in range(1, nb + 1):
     _note(ft, (b0 + L / 2) * DAY, y0 + rh / 2, f"<b>{k}</b>", color="white")
     _note(ft, xw + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
+_note(ft, 8, ys + 0.25, legend, color=theme.INK_SECONDARY, anchor="left", yanchor="middle", align="left")    # what the colours mean, under the rounds
 _note(ft, xw + 36, ys + 0.25, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
       align="left", bgcolor="white", bordercolor=VIOLET, borderwidth=1, borderpad=6)
 # ---- 3. the days tuning never looks at, and where they start
@@ -171,7 +171,7 @@ _note(ft, xw + 134 + (X_END - xw - 134) / 2, ysn + rh / 2, "locked<br>test year"
 _note(ft, xw - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
 _shape(type="line", x0=xw + 0.5, x1=xw + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
 _note(ft, xw - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
-_card(-3.5, ysn + rh + 0.6)
+_card(-2.7, ysn + rh + 0.6)
 
 # ---- 4. the route of one setting
 yr = ysn + rh + 1.9
@@ -281,8 +281,8 @@ _note(ft, x0s + 14, yb + 1.0, f"{retune // refit} refits use its settings", size
 _note(ft, x0s + 14, yb + 1.95, f"a refit every {refit} days", size=11, color=BLUE, anchor="left", yanchor="top")
 _card(yt - 0.7, yb + 2.55)
 end = yb + 2.85
-theme.style_fig(ft, height=int((end + 3.65) * ROW + 12), xaxis_title=None, legend=False)
-ft.update_yaxes(autorange=False, range=[end, -3.65], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
+theme.style_fig(ft, height=int((end + 2.85) * ROW + 12), xaxis_title=None, legend=False)
+ft.update_yaxes(autorange=False, range=[end, -2.85], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
 ft.update_xaxes(range=[CARD_X0 - 3, CARD_X1 + 3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
 ft.update_layout(margin=dict(t=2, b=2, l=10, r=10))
 ft.layout.shapes = SH                                                                   # replace (not merge with) the axis line the theme added
