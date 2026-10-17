@@ -593,6 +593,29 @@ if len(lg):
 
 if io.empty:
     _line(f"The gain chart is not built for {ml_data.label(target)} yet.")
+_ir = io[io["model"] == model].sort_values("tuned_at") if not io.empty else io
+if len(_ir):
+    # the rounds of this algorithm: the gain on the blocks it was chosen on, and the gain of the same setting afterwards; the last row is the mean (the bars below)
+    _lab = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in _ir["tuned_at"]] + ["mean of the rounds"]
+    _gi = list(100 * _ir["inner_gain"]) + [100 * float(_ir["inner_gain"].mean())]
+    _go = list(100 * _ir["outer_gain"]) + [100 * float(_ir["outer_gain"].mean())]
+    _yy = list(range(len(_ir))) + [len(_ir) + 0.45]
+    sf = go.Figure()
+    sf.add_vline(x=0, line=dict(color=theme.INK_MUTED, width=1, dash="dot"))
+    for y_, a_, b_ in zip(_yy, _gi, _go):
+        sf.add_shape(type="line", x0=a_, x1=b_, y0=y_, y1=y_, line=dict(color="#c9c7bf", width=2.5), layer="below")
+    sf.add_shape(type="line", xref="paper", x0=0, x1=1, y0=len(_ir) - 0.25, y1=len(_ir) - 0.25, line=dict(color="#e3e1d9", width=1))
+    for nm_, xs_, col_ in (("on the tuning blocks (the best of the trials)", _gi, theme.VIOLET), ("on the days that followed", _go, theme.ORANGE)):
+        sf.add_trace(go.Scatter(x=xs_, y=_yy, mode="markers+text", name=nm_, text=[f"{v_:+.1f}%" for v_ in xs_], textposition=[("middle right" if (g_ >= o_) == (col_ == theme.VIOLET) else "middle left") for g_, o_ in zip(_gi, _go)],
+                                textfont=dict(size=10, color=col_), cliponaxis=False, hoverinfo="skip",
+                                marker=dict(size=[12] * len(_ir) + [16], color=col_, line=dict(color="white", width=1.5))))
+    _mini(f"Round by round · {ml_data.model_label(model)}")
+    theme.style_fig(sf, height=int(52 * len(_yy)) + 70, xaxis_title="MAE gain over the defaults (%)")
+    sf.update_xaxes(zeroline=False, showgrid=False)
+    sf.update_yaxes(tickmode="array", tickvals=_yy, ticktext=[f"<b>{x_}</b>" if x_.startswith("mean") else x_ for x_ in _lab], autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
+    sf.update_layout(margin=dict(t=30, b=40, l=130, r=40), legend=dict(orientation="h", x=0, y=1.0 + 18 / (52 * len(_yy) + 70), xanchor="left", yanchor="bottom"))
+    st.plotly_chart(sf, width="stretch", config={"displayModeBar": False})
+
 if not io.empty:
     _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
     g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
