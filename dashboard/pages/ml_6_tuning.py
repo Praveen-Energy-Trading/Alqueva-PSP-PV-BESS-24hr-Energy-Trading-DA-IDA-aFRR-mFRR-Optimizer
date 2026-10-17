@@ -292,11 +292,12 @@ st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
-_section("Random control and TPE, from scratch (day-ahead price)")
+_section(f"Random control and TPE, from scratch · {ml_data.label(target)}")
 model = st.selectbox("Algorithm (for this section and for the ones below)", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
-da = ml_ui.cached(ml_data.prepared_trials)(trials, "da_price")
-if da["search"].nunique() < 2:
-    ml_ui.not_yet_run("the random-search control")
+da = ml_ui.cached(ml_data.prepared_trials)(trials, target)
+has_rnd = "random" in set(da["search"])                                              # the control was run for the day-ahead price only
+if da.empty:
+    ml_ui.not_yet_run("the tuning trials of this target")
 else:
     from plotly.subplots import make_subplots
     ms = ml_data.ordered_models(da["model"].unique())
@@ -348,9 +349,11 @@ else:
                 rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka)))], y=[vb.index(str(p.get(kb)))], mode="markers", showlegend=False, hoverinfo="skip",
                                         marker=dict(symbol="star", size=27, color=T_WIN, line=dict(color="white", width=1.5))), row=i, col=j)
     # the result: the best score found so far, averaged over the tuning rounds
-    curves = {k_: ml_data.best_so_far(da[da["search"] == k_]) for k_ in ("tpe", "random")}
+    curves = {k_: ml_data.best_so_far(da[da["search"] == k_]) for k_ in (("tpe", "random") if has_rnd else ("tpe",))}
     ends_ = {}
     for key, name, colr, dash, wd in (("random", "random control", theme.INK_MUTED, "dash", 3), ("tpe", "TPE", theme.INK_PRIMARY, "solid", 3.2)):
+        if key not in curves:
+            continue
         cc = curves[key][curves[key]["model"] == rc_model].sort_values("trial")
         rf.add_trace(go.Scatter(x=cc["trial"], y=cc["best_rel"], mode="lines", showlegend=False, line=dict(color=colr, width=wd, dash=dash),
                                 hovertemplate=name + ": %{y:.3f} after trial %{x}<extra></extra>"), row=1, col=3)
@@ -359,7 +362,7 @@ else:
     # the work: a trial stopped after block 3 skips the other blocks
     tp = da[(da["search"] == "tpe") & (da["model"] == rc_model)]
     saved = float(tp["pruned"].sum()) * (nb - 1) / nb / max(len(tp), 1)
-    rf.add_trace(go.Bar(y=["TPE", "random"], x=[100 * (1 - saved), 100], orientation="h", marker_color=[T_DEF, theme.INK_MUTED], showlegend=False,
+    rf.add_trace(go.Bar(y=["TPE", "random" if has_rnd else "no stopping"], x=[100 * (1 - saved), 100], orientation="h", marker_color=[T_DEF, theme.INK_MUTED], showlegend=False,
                         text=[f"{100 * (1 - saved):.0f}%", "100%"], textposition="inside", insidetextanchor="middle", textangle=0, textfont=dict(color="white", size=14), hoverinfo="skip"), row=2, col=3)
     if saved > 0:
         rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}%<br>saved"],
@@ -396,8 +399,12 @@ else:
     # end labels of the two lines
     rf.add_annotation(x=ends_["tpe"][0], y=ends_["tpe"][1], xref="x3", yref="y3", xanchor="right", yanchor="top", yshift=-8, showarrow=False, font=dict(size=12, color=theme.INK_PRIMARY),
                       text=f"TPE <b>{ends_['tpe'][1]:.3f}</b>")
-    rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x3", yref="y3", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
-                      text=f"random <b>{ends_['random'][1]:.3f}</b>")
+    if has_rnd:
+        rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x3", yref="y3", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
+                          text=f"random <b>{ends_['random'][1]:.3f}</b>")
+    else:                                                                                # no control for this target: say so on the empty maps
+        rf.add_annotation(x=0.365, y=0.79, xref="paper", yref="paper", showarrow=False, align="center", font=dict(size=13, color=theme.INK_SECONDARY), bgcolor="rgba(255,255,255,0.92)",
+                          bordercolor="#e3e1d9", borderwidth=1, borderpad=8, text="<b>no random control for this target</b><br>it was run for the day-ahead price only")
     rf.add_annotation(x=0, y=1.0, xref="x3", yref="y3", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
     rf.add_annotation(x=0, y=1.0, yshift=70, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
                       text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
