@@ -282,28 +282,8 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
 yd_end = y
 ft.add_trace(go.Scatter(x=_hx, y=_hy, mode="markers", marker=dict(size=13, opacity=0), text=_ht, hoverinfo="text", showlegend=False))
 
-# ---- 6. how often: a tuning round every 180 days, a refit every 30
 _card(ydt - 0.7, yd_end + 0.05)
-yt = yd_end + 1.15
-_head(yt, "④", "When it happens", f"a tuning round every {retune} days, a refit every {refit}")
-n_rounds, span_d = 4, 3 * retune
-x0s, x1s = 130, 985
-per_day = (x1s - x0s) / span_d
-yb = yt + 1.05
-for k in range(3):                                                                   # the settings of one round serve every refit until the next
-    _pill(ft, x0s + k * retune * per_day, x0s + (k + 1) * retune * per_day - 3, yb, yb + 2.0, VIOLET, 0.09 + 0.05 * (k % 2), r_px=6)
-for d_ in range(0, span_d, refit):
-    _pill(ft, x0s + d_ * per_day + 1, x0s + d_ * per_day + 9, yb + 1.25, yb + 1.8, BLUE, 0.7, r_px=2)
-for k in range(n_rounds):
-    if k * retune <= span_d:
-        _pill(ft, x0s + k * retune * per_day - 6, x0s + k * retune * per_day + 6, yb + 0.12, yb + 0.9, VIOLET, 0.95, r_px=3)
-_note(ft, 0, yb + 0.5, "<b>tuning round</b>", size=12, color=VIOLET, anchor="left")
-_note(ft, 0, yb + 1.52, "<b>refit</b>", size=12, color=BLUE, anchor="left")
-_note(ft, x0s + 14, yb + 0.5, f"every {retune} days: a new search", size=11, color=VIOLET, anchor="left")
-_note(ft, x0s + 14, yb + 1.0, f"{retune // refit} refits use its settings", size=11, color=MUTED, anchor="left")
-_note(ft, x0s + 14, yb + 1.95, f"a refit every {refit} days", size=11, color=BLUE, anchor="left", yanchor="top")
-_card(yt - 0.7, yb + 2.55)
-end = yb + 2.85
+end = yd_end + 0.4
 theme.style_fig(ft, height=int((end + 2.85) * ROW + 12), xaxis_title=None, legend=False)
 ft.update_yaxes(autorange=False, range=[end, -2.85], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
 ft.update_xaxes(range=[CARD_X0 - 3, CARD_X1 + 3], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
