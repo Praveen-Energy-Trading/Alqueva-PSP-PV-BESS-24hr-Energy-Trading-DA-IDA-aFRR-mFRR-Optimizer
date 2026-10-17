@@ -554,7 +554,7 @@ if len(lg):
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_head_}{_rows}</div>", unsafe_allow_html=True)
 
     # how one gain comes about: the three blocks, their mean, the formula (the numbers of the round picked here)
-    _mini("How one gain is calculated", f"the defaults and the chosen setting are scored on the same {len(_bc_all := [c_ for c_ in ('block1', 'block2', 'block3') if c_ in trials])} blocks of {int(lg['validation_days'].iloc[0])} days · the same calculation on the days that followed gives the orange bars below")
+    _mini("Gain calculation", f"the defaults and the chosen setting are scored on the same {len(_bc_all := [c_ for c_ in ('block1', 'block2', 'block3') if c_ in trials])} blocks of {int(lg['validation_days'].iloc[0])} days · the same calculation on the days that followed gives the orange bars below")
     _rd = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in lg["tuned_at"]]
     _l, _r = st.columns([5, 4], gap="medium")
     with _r:
