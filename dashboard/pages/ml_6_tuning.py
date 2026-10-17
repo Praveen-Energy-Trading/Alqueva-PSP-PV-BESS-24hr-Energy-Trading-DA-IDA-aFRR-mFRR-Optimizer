@@ -554,10 +554,10 @@ if len(lg):
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_head_}{_rows}</div>", unsafe_allow_html=True)
 
     # how one gain comes about: the three blocks, their mean, the formula (the numbers of the round picked here)
-    _mini("How one gain is calculated", "pick a round · the defaults and the chosen setting are scored on the same blocks")
+    _mini("How one gain is calculated", f"the defaults and the chosen setting are scored on the same {len(_bc_all := [c_ for c_ in ('block1', 'block2', 'block3') if c_ in trials])} blocks of {int(lg['validation_days'].iloc[0])} days · the same calculation on the days that followed gives the orange bars below")
     _rd = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in lg["tuned_at"]]
-    _pick_c, _ = st.columns([1, 4])
-    with _pick_c:
+    _l, _r = st.columns([5, 4], gap="medium")
+    with _r:
         _rpick = st.selectbox("Round", _rd, index=len(_rd) - 1, key="ml6_round")
     _tp = trials[(trials["target"] == target) & (trials["search"] == "tpe") & (trials["model"] == model) & (pd.to_datetime(trials["tuned_at"]) == pd.to_datetime(_rpick, format="%d-%m-%Y"))]
     _bc = [c_ for c_ in ("block1", "block2", "block3") if c_ in _tp and _tp[c_].notna().any()]
@@ -573,25 +573,25 @@ if len(lg):
         for nm_, ys_, col_ in (("defaults", _bd + [None, _md], _GREY), ("chosen setting", _bs + [None, _ms], theme.VIOLET)):
             bf.add_trace(go.Bar(x=_cats, y=ys_, name=nm_, marker_color=col_, text=[f"{v_:.2f}" if v_ is not None else "" for v_ in ys_], textposition="outside", cliponaxis=False,
                                 textfont=dict(size=11, color=theme.INK_SECONDARY), hoverinfo="skip"))
-        theme.style_fig(bf, height=300, yaxis_title="MAE", barmode="group")
+        theme.style_fig(bf, height=260, yaxis_title="MAE", barmode="group")
         bf.update_yaxes(range=[0, max(_bd + _bs) * 1.18])
         bf.update_xaxes(tickangle=0)
-        bf.update_layout(legend=dict(orientation="h", x=0, y=1.12, xanchor="left"))
-        _l, _r = st.columns([3, 2], gap="large")
+        bf.update_layout(legend=dict(orientation="h", x=0, y=1.14, xanchor="left"), margin=dict(t=30, b=30, l=50, r=10))
         with _l:
             st.plotly_chart(bf, width="stretch", config={"displayModeBar": False})
-        _num = lambda v_, c_: f"<b style='color:{c_};'>{v_:.2f}</b>"                                                  # noqa: E731
         _sumtxt = lambda vs_: " + ".join(f"{v_:.2f}" for v_ in vs_)                                                   # noqa: E731
         _k = len(_bc)
+        _row = lambda dot_, name_, vs_, m_, c_: (f"<div style='display:grid; grid-template-columns:5.2rem 1fr; align-items:baseline; padding:0.35rem 0; border-bottom:1px solid #eeede8;'>"   # noqa: E731
+                                                 f"<span style='color:{theme.INK_PRIMARY}; font-weight:600;'><span style='color:{dot_};'>●</span> {name_}</span>"
+                                                 f"<span>({_sumtxt(vs_)}) ÷ {_k} = <b style='font-size:1.02rem; color:{c_};'>{m_:.2f}</b></span></div>")
         with _r:
             st.markdown(
-                f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.9rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.88rem; line-height:1.9; color:{theme.INK_SECONDARY};'>"
-                f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED};'>the mean of the blocks, for each</div>"
-                f"<div><span style='color:{_GREY};'>●</span> defaults &nbsp;({_sumtxt(_bd)}) ÷ {_k} = {_num(_md, theme.INK_PRIMARY)}</div>"
-                f"<div><span style='color:{theme.VIOLET};'>●</span> chosen &nbsp;({_sumtxt(_bs)}) ÷ {_k} = {_num(_ms, theme.VIOLET)}</div>"
-                f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.5rem;'>the gain</div>"
-                f"<div>({_md:.2f} − {_ms:.2f}) ÷ {_md:.2f} = <b style='font-size:1.25rem; color:{theme.INK_PRIMARY if _gn >= 0 else T_STOP};'>{_gn:+.1f}%</b></div></div>", unsafe_allow_html=True)
-        _line(f"each block is {int(lg['validation_days'].iloc[0])} days of validation · the same calculation on the days that followed gives the orange bars below")
+                f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.86rem; color:{theme.INK_SECONDARY};'>"
+                f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① the mean of the blocks</div>"
+                + _row(_GREY, "defaults", _bd, _md, theme.INK_PRIMARY) + _row(theme.VIOLET, "chosen", _bs, _ms, theme.VIOLET)
+                + f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.55rem;'>② the gain</div>"
+                f"<div style='display:flex; align-items:baseline; justify-content:space-between; gap:0.6rem; margin-top:0.1rem;'><span>({_md:.2f} − {_ms:.2f}) ÷ {_md:.2f} =</span>"
+                f"<b style='font-size:1.7rem; line-height:1.1; color:{theme.INK_PRIMARY if _gn >= 0 else T_STOP};'>{_gn:+.1f}%</b></div></div>", unsafe_allow_html=True)
 
 if io.empty:
     _line(f"The gain chart is not built for {ml_data.label(target)} yet.")
