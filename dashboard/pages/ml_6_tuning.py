@@ -489,9 +489,11 @@ if len(lg):
         "tuned_at": "Round", "score": "Chosen (inner MAE)", "default_score": "Defaults (inner MAE)", "gain_%": "Inner gain (%)", "n_trials": "Trials",
         "n_pruned": "Pruned", "params": "Chosen setting"}).round(3))
 
-if target == "da_price":
-    io = ml_data.evidence_table("inner_vs_outer_tpe")
-    imp = ml_data.evidence_table("importance_random_search")
+io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
+imp = ml_data.target_evidence("importance", target, "importance_random_search")
+if io.empty and imp.empty:
+    _line(f"The two evidence charts (the gain when choosing against the gain afterwards, and what each setting explains) are not built for {ml_data.label(target)} yet.")
+else:
     l, r_ = st.columns(2)
     with l:
         _mini("The gain when choosing, against the gain afterwards", "choosing the best of 40 on the same blocks flatters it: the gain on the days that followed is smaller (selection optimism, measured)")
@@ -506,7 +508,7 @@ if target == "da_price":
         if not imp.empty:
             top = imp.sort_values("eta2", ascending=False).groupby("model").head(3)
             _best = top.sort_values("eta2", ascending=False).iloc[0]
-            _mini("How much of the score each setting explains", f"no single setting dominates: at most <b>{100 * _best['eta2']:.0f}%</b> ({ml_data.setting_label(_best['setting'])}), "
+            _mini("How much of the score each setting explains", f"{'no single setting dominates' if _best['eta2'] < 0.5 else 'one setting stands out'}: at most <b>{100 * _best['eta2']:.0f}%</b> ({ml_data.setting_label(_best['setting'])}), "
                   f"typically <b>{100 * top['eta2'].quantile(0.25):.0f}%</b> to <b>{100 * top['eta2'].quantile(0.75):.0f}%</b> (random-search trials)")
             fig = go.Figure()
             for mm in ml_data.ordered_models(top["model"].unique()):

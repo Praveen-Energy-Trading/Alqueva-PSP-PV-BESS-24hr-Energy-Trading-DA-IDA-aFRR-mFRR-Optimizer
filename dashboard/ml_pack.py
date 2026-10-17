@@ -163,6 +163,7 @@ def tuned_runs() -> List[tuple]:
     runs = [("da_price", "tpe", os.path.join(ph9, "da_stage2_tpe_v2")), ("da_price", "random", os.path.join(ph9, "da_stage2_random_v2"))]
     for t in TARGETS[1:]:
         runs.append((t, "tpe", os.path.join(_REPO, "runtime", "analysis", "rollout", t, "tuned")))
+        runs.append((t, "random", os.path.join(_REPO, "runtime", "analysis", "rollout", t, "tuned_random")))          # the random-search control of the target, where it was run
     return [r for r in runs if os.path.exists(os.path.join(r[2], "tuning_trials.csv"))]
 
 

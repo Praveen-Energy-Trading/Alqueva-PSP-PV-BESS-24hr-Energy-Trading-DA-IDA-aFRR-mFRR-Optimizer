@@ -345,6 +345,16 @@ def evidence_table(name: str, root: Path = REPO_ROOT) -> pd.DataFrame:
     return read_csv(md(root) / "tables" / f"{name}.csv")
 
 
+def target_evidence(name: str, target: str, fallback: Optional[str] = None, root: Path = REPO_ROOT) -> pd.DataFrame:
+    """The tuning-evidence table `name` of one target: from <name>_by_target.csv (tools/make_target_evidence.py), else the day-ahead table `fallback` for the day-ahead price, else empty."""
+    t = evidence_table(f"{name}_by_target", root)
+    if not t.empty and "target" in t.columns:
+        return t[t["target"] == target].drop(columns="target").reset_index(drop=True)
+    if target == "da_price" and fallback:
+        return evidence_table(fallback, root)
+    return pd.DataFrame()
+
+
 def figure_path(name: str, root: Path = REPO_ROOT) -> Optional[Path]:
     p = md(root) / "figures" / name
     return p if p.exists() else None
