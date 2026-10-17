@@ -377,8 +377,8 @@ else:
     if saved > 0:
         rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}%<br>saved"],
                             textposition="inside", insidetextanchor="middle", textangle=0, constraintext="none", textfont=dict(color="white", size=12), hoverinfo="skip"), row=2, col=3)
-    theme.style_fig(rf, height=500, legend=False, barmode="stack")
-    M1, M2, R0, R1 = (0.085, 0.345), (0.365, 0.625), 0.735, 0.975                         # where the two maps and the result charts sit across the figure
+    theme.style_fig(rf, height=516, legend=False, barmode="stack")
+    M1, M2, R0, R1 = (0.105, 0.355), (0.375, 0.625), 0.745, 0.975                         # where the two maps and the result charts sit across the figure
     for i in (1, 2):
         for j, (d0, d1) in ((1, M1), (2, M2)):
             rf.update_xaxes(domain=[d0, d1], tickvals=list(range(len(va))), ticktext=[_std(v).replace(" (", "<br>(") if ka in RULE_SETTINGS else v for v in va], tickangle=0,
@@ -386,13 +386,17 @@ else:
             rf.update_yaxes(tickvals=list(range(len(vb))), ticktext=[_std(v).replace(" (", "<br>(") if kb in RULE_SETTINGS else v for v in vb], range=[-0.6, len(vb) - 0.4],
                             showgrid=False, zeroline=False, showticklabels=(j == 1), tickfont=dict(size=11), row=i, col=j)
         rf.update_xaxes(domain=[R0, R1], row=i, col=3)
+    for j in (1, 2):
+        rf.update_xaxes(title_text=ka.replace('_', ' '), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=4, row=2, col=j)
+    for i in (1, 2):
+        rf.update_yaxes(title_text=kb.replace('_', ' '), title_font=dict(size=11, color=theme.INK_SECONDARY), title_standoff=2, row=i, col=1)
     rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], showgrid=False, row=1, col=3)
-    rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=False, row=1, col=3)
+    rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=True, tickformat='.2f', nticks=4, tickfont=dict(size=10), row=1, col=3)
     rf.update_xaxes(range=[0, 104], showticklabels=False, showgrid=False, row=2, col=3)
     rf.update_yaxes(showgrid=False, tickfont=dict(size=13), automargin=True, row=2, col=3)
-    rf.update_layout(margin=dict(t=88, b=62, l=10, r=10))
+    rf.update_layout(margin=dict(t=88, b=76, l=10, r=10))
     rf.layout.shapes = tuple(rf.layout.shapes) + tuple(                                  # two white cards: the two searches, and the verdict
-        dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.14, y1=1.164, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
+        dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.19, y1=1.165, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
         for x0_, x1_ in ((-0.004, 0.652), (0.662, 1.004)))
     dom = {(1, 1): "x domain", (1, 2): "x2 domain", (1, 3): "x3 domain", (2, 1): "x4 domain", (2, 2): "x5 domain", (2, 3): "x6 domain"}
     # column titles, one header per search, the titles of the verdict
@@ -410,7 +414,7 @@ else:
     rf.add_annotation(x=0, y=1.0, xref="x3", yref="y3", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
     rf.add_annotation(x=0, y=1.0, yshift=70, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
                       text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
-                           f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = {ka.replace('_', ' ')} × {kb.replace('_', ' ')}</span>")
+                           f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = one combination of the axes</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
     st.caption(f"The same {n_t} trials for each search, latest tuning round on the maps; the result and the work are averaged over all rounds. Day-ahead price only: the control was not run for the other targets."
                + (" This algorithm's grid is small, so both searches try every cell." if rc_model == "decision_tree" else ""))
