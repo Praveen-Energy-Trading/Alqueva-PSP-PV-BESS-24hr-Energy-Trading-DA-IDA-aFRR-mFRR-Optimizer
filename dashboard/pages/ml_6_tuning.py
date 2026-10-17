@@ -447,6 +447,23 @@ else:
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
                 f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
+# ---- what the comparison found, across all the targets
+_sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
+_hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
+_g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
+_f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
+_srows = ""
+for i_, r_ in enumerate(_sum.itertuples()):
+    allrow = r_.target == "all"
+    cells = [("All targets" if allrow else ml_data.label(r_.target)), _f(r_.tpe, "{:.3f}"), _f(r_.random, "{:.3f}"), ("0.000" if pd.notna(r_.difference) and abs(r_.difference) < 0.0005 else _f(r_.difference, "{:+.3f}")),
+             _f(100 * r_.saved, "{:.0f}%"), _f(r_.inner, "{:.1f}%"), _f(r_.outer, "{:.1f}%")]
+    _srows += (f"<div style='{_g7} height:2.5rem; font-size:0.86rem; {'border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;' if allrow else 'border-bottom:1px solid #eeede8;'}'>"
+               + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'} color:{theme.INK_PRIMARY if (j == 0 or c != '–') else theme.INK_MUTED};'>{c}</span>" for j, c in enumerate(cells)) + "</div>")
+_shead = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
+          + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(_hdr)) + "</div>")
+_section("What the comparison found, across all the targets", "every number is the mean of the five algorithms · best: score as a share of the defaults, lower is better · difference below 0: TPE better · fits saved: by stopping weak trials, decision tree left out")
+st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_shead}{_srows}</div>", unsafe_allow_html=True)
+
 _section(f"Search space <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "every combination of settings the search may try")
 space = cfg["space"].get(model, {})
 _RULE_SHORT = {"squared error (L2)": "squared L2", "absolute error (L1)": "absolute L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}      # the full names are in the strip of formulas above

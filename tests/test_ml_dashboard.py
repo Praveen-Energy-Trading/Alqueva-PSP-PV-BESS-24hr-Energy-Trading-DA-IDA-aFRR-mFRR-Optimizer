@@ -240,3 +240,16 @@ def test_a_target_with_days_without_a_published_price_is_shown_on_its_real_days_
     assert r["p_value"] is not None and lk["dm_vs_reference"]["p_value"] < r["p_value"] < 0.05                 # still significant on real days, less strongly
     assert all(ml_data.locked_real_only(t) is None for t in ml_data.TARGETS if t != "ida1_price")
 
+
+
+def test_the_tuning_summary_has_a_row_per_target_and_a_mean_row():
+    trials = ml_data.pack("trials")
+    if trials.empty:
+        pytest.skip("no data pack")
+    s = ml_data.tuning_summary(trials)
+    assert list(s["target"]) == list(ml_data.TARGETS) + ["all"]
+    assert {"tpe", "random", "difference", "saved", "inner", "outer"} <= set(s.columns)
+    day = s[s["target"] == "da_price"].iloc[0]
+    assert 0.8 < day["tpe"] < 1.05 and day["difference"] == pytest.approx(day["tpe"] - day["random"]) and 0 <= day["saved"] < 0.7
+    both = s[s["target"] != "all"].dropna(subset=["random"])
+    assert s.iloc[-1]["tpe"] == pytest.approx(both["tpe"].mean())            # the mean row compares TPE and the control over the same targets

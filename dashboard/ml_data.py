@@ -450,6 +450,38 @@ def best_so_far(trials: pd.DataFrame) -> pd.DataFrame:
     return bsf(trials)
 
 
+def tuning_summary(trials: pd.DataFrame, n_blocks: int = 3, root: Path = REPO_ROOT) -> pd.DataFrame:
+    """What the tuning found, one row per price target and a last row for the mean of them (every number averaged over the five algorithms):
+    the best score of the Optuna search (TPE) and of the random control (as a share of the defaults' score, below 1 beats the defaults), their
+    difference, the share of the fits that TPE saved by stopping weak trials (the decision tree is searched in full and is left out), and the
+    gain of the chosen setting on the blocks it was chosen on and on the days that followed (%). A number a target does not have yet is NaN."""
+    io = read_csv(md(root) / "tables" / "inner_vs_outer_by_target.csv")
+    rows = []
+    for t in TARGETS:
+        row = {"target": t, "tpe": float("nan"), "random": float("nan"), "saved": float("nan"), "inner": float("nan"), "outer": float("nan")}
+        d = prepared_trials(trials, t)
+        if not d.empty:
+            ends = {}
+            for k in ("tpe", "random"):
+                dk = d[d["search"] == k]
+                if not dk.empty:
+                    ends[k] = float(best_so_far(dk).sort_values("trial").groupby("model")["best_rel"].last().mean())
+            row["tpe"], row["random"] = ends.get("tpe", float("nan")), ends.get("random", float("nan"))
+            tp = d[(d["search"] == "tpe") & (d["model"] != "decision_tree")]
+            if not tp.empty:
+                row["saved"] = float((tp.groupby("model")["pruned"].sum() * (n_blocks - 1) / n_blocks / tp.groupby("model").size()).mean())
+        if not io.empty and "target" in io.columns and (io["target"] == t).any():
+            g = io[io["target"] == t]
+            row["inner"], row["outer"] = 100 * float(g["inner_gain"].mean()), 100 * float(g["outer_gain"].mean())
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    df["difference"] = df["tpe"] - df["random"]
+    both = df[df["random"].notna()]                                                    # TPE and the control are compared over the same targets
+    mean = {c: float(both[c].mean()) for c in ("tpe", "random", "difference")}
+    mean.update({c: float(df[c].mean()) for c in ("saved", "inner", "outer")})                                          # NaN rows are left out of each mean
+    return pd.concat([df, pd.DataFrame([{"target": "all", **mean}])], ignore_index=True)
+
+
 # ---------------------------------------------------------------------------------------------------------- monitoring
 def monitoring_replay(locked: pd.DataFrame, daily: pd.DataFrame, target: str, window: int = 28, quantile: float = 0.95,
                       shock_day: Optional[str] = None, factor: float = 1.0) -> Optional[dict]:
