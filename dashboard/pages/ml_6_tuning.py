@@ -36,17 +36,20 @@ def _std_text(text: str) -> str:
     return re.sub(rf"(?<![\w:])({alt})(?![\w])", lambda m: OBJECTIVE_NAME[m.group(1)], text)
 
 
+_cap = lambda h_: h_[:1].upper() + h_[1:] if h_[:1].islower() else h_                                                  # a hint starts with a capital
+
+
 def _section(title: str, hint: str = "", num: str = "") -> None:
     """A section heading: a number (the steps of the story), a bold title and, under it, one muted line on how to read the section."""
     _n = f"<span style='font-weight:400; color:{NEUTRAL};'>{num}</span>&nbsp; " if num else ""
     st.markdown(f"<div style='margin:1.7rem 0 0.45rem;'><div style='font-size:1.55rem; font-weight:700; color:{theme.INK_PRIMARY}; line-height:1.25;'>{_n}{title}</div>"
-                + (f"<div style='font-size:0.88rem; color:{theme.INK_MUTED}; margin-top:0.2rem;'>{hint}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+                + (f"<div style='font-size:0.88rem; color:{theme.INK_MUTED}; margin-top:0.2rem;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
 
 
 def _mini(title: str, hint: str = "") -> None:
     """The title of a chart that shares a row with another one."""
     st.markdown(f"<div style='margin:0.2rem 0 0.3rem;'><div style='font-size:1.02rem; font-weight:700; color:{theme.INK_PRIMARY};'>{title}</div>"
-                + (f"<div style='font-size:0.82rem; color:{theme.INK_MUTED}; margin-top:0.1rem; line-height:1.35;'>{hint}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+                + (f"<div style='font-size:0.82rem; color:{theme.INK_MUTED}; margin-top:0.1rem; line-height:1.35;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
 
 
 def _line(html: str) -> None:
@@ -117,7 +120,7 @@ def _card(y0, y1, r_px=10.0):
 def _head(y, num, title, sub_="", two=False):
     """The header of a section: a number, a bold title, and a muted line of explanation."""
     AN.append(dict(x=6, y=y, xanchor="left", yanchor="middle", showarrow=False, align="left", font=dict(size=14, color=INK),
-                   text=f"<b style='font-size:17px;color:{NEUTRAL}'>{num}</b>&nbsp; <b>{title}</b>" + (f"{'<br>' if two else ' &nbsp;'}<span style='font-size:12px;color:{MUTED}'>{sub_}</span>" if sub_ else "")))
+                   text=f"<b style='font-size:17px;color:{NEUTRAL}'>{num}</b>&nbsp; <b>{title}</b>" + (f"{'<br>' if two else ' &nbsp;'}<span style='font-size:12px;color:{MUTED}'>{_cap(sub_)}</span>" if sub_ else "")))
 
 
 def _note(fig, x, y, text, size=12, color=INK, anchor="center", **kw):
@@ -452,7 +455,7 @@ io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
 imp = ml_data.target_evidence("importance", target, "importance_random_search")
 
 # ---- 5. what was searched, and what did it find
-_section(f"What was searched, and what did it find <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑤")
+_section(f"What was searched and what was found <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑤")
 from collections import Counter
 import ast
 space = cfg["space"].get(model, {})
@@ -526,7 +529,7 @@ _what = (f"every combination is tried: {n_comb} + the defaults = {n_comb + 1} tr
 _line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied) · {_what}")
 
 # ---- 6. it changes from round to round, and the gain afterwards is smaller
-_section(f"It changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑥")
+_section(f"The choice changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑥")
 _mini("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
@@ -641,7 +644,7 @@ if not io.empty:
     for nm_, col_, key_ in (("on the tuning blocks", theme.VIOLET, "inner_gain"), ("on the days that followed", theme.ORANGE, "outer_gain")):
         fig.add_trace(go.Bar(x=_xl, y=100 * g[key_], name=nm_, marker_color=col_, text=[f"{v_:.1f}%" for v_ in 100 * g[key_]], textposition="outside", cliponaxis=False,
                              textfont=dict(size=12, color=col_), hoverinfo="skip"))
-    theme.style_fig(fig, height=330, yaxis_title="MAE gain over defaults (%)", barmode="group")
+    theme.style_fig(fig, height=330, yaxis_title="MAE gain over the defaults (%)", barmode="group")
     fig.update_xaxes(tickangle=0)
     fig.update_yaxes(range=[min(0.0, float(100 * g[["inner_gain", "outer_gain"]].min().min()) * 1.3), float(100 * g[["inner_gain", "outer_gain"]].max().max()) * 1.15])
     fig.update_layout(legend=dict(orientation="h", x=0, y=1.1, xanchor="left", yanchor="bottom"), margin=dict(t=30))
@@ -650,7 +653,7 @@ if not io.empty:
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
 _section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
-_line("<b>fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b> · a stopped trial skips 2 of its 3 block fits")
+_line("<b>Fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b> · a stopped trial skips 2 of its 3 block fits")
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
