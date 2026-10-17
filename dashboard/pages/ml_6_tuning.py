@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -264,52 +265,77 @@ if len(exp):
     st.caption("All non-default trials of all rounds for this algorithm, by the value of the chosen setting. Differences between boxes show what the "
                "setting does; overlapping boxes show it hardly matters.")
 
-st.subheader("Is the smart search worth it? TPE against a random control (day-ahead price)")
+st.subheader("The random control: same grid, same budget, no learning (day-ahead price)")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, "da_price")
 if da["search"].nunique() < 2:
     ml_ui.not_yet_run("the random-search control")
 else:
     from plotly.subplots import make_subplots
-    curves = {s_: ml_data.best_so_far(da[da["search"] == s_]) for s_ in ("tpe", "random")}
     ms = ml_data.ordered_models(da["model"].unique())
-    nbk = int(s["n_blocks"])
-    rf = make_subplots(rows=2, cols=len(ms), row_heights=[0.68, 0.32], vertical_spacing=0.2, horizontal_spacing=0.03, subplot_titles=[ml_data.model_label(m) for m in ms])
-    lo_y = min(float(c["best_rel"].min()) for c in curves.values()) - 0.012
-    gains, saved, gaps = [], [], []
-    for j, mm in enumerate(ms, start=1):
-        ends = {}
-        for key, name, colr, dash, wd in (("random", "random control", theme.INK_MUTED, "dash", 2.2), ("tpe", "TPE (smart search)", theme.INK_PRIMARY, "solid", 2.8)):
-            cc = curves[key][curves[key]["model"] == mm].sort_values("trial")
-            rf.add_trace(go.Scatter(x=cc["trial"], y=cc["best_rel"], mode="lines", name=name, line=dict(color=colr, width=wd, dash=dash), showlegend=False,
-                                    hovertemplate=name + ": %{y:.3f} after trial %{x}<extra></extra>"), row=1, col=j)
-            ends[key] = float(cc["best_rel"].iloc[-1])
-        rf.add_hline(y=1.0, line=dict(color=theme.INK_MUTED, width=1, dash="dot"), row=1, col=j)
-        gains.append(1 - ends["tpe"]); gaps.append(abs(ends["tpe"] - ends["random"]))
-        tp = da[(da["search"] == "tpe") & (da["model"] == mm)]
-        sv = float(tp["pruned"].sum()) * (nbk - 1) / nbk / max(len(tp), 1)                # a stopped trial skips the other blocks
-        saved.append(sv)
-        rf.add_trace(go.Bar(x=["fits saved"], y=[100 * sv], marker_color=T_STOP, showlegend=False, text=[f"{100 * sv:.0f}%"], textposition="outside", hoverinfo="skip"), row=2, col=j)
-        rf.add_annotation(x=0.5, y=lo_y + 0.004, xref=f"x{j if j > 1 else ''} domain", yref=f"y{j if j > 1 else ''}", showarrow=False, font=dict(size=11, color=theme.INK_SECONDARY),
-                          text=f"after 40: <b>{ends['tpe']:.3f}</b> vs {ends['random']:.3f}", yanchor="bottom")
-    theme.style_fig(rf, height=470, legend=False)
-    rf.update_yaxes(range=[lo_y, 1.01], showticklabels=False, row=1)
-    rf.update_yaxes(range=[0, 48], showticklabels=False, showgrid=False, row=2)
-    rf.update_xaxes(showticklabels=False, row=2)
-    rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], ticktext=["0", str(n_t - 1)], row=1)
-    rf.update_yaxes(showticklabels=True, tickformat=".2f", row=1, col=1)
-    rf.update_yaxes(showticklabels=True, ticksuffix="%", row=2, col=1)
-    rf.update_layout(margin=dict(t=116, b=10, l=50, r=10))
-    for a_ in rf.layout.annotations[:len(ms)]:
-        a_.update(font=dict(size=13, color=theme.INK_PRIMARY))
-    rf.add_annotation(x=0, y=1.0, yshift=58, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, align="left", font=dict(size=12, color=theme.INK_SECONDARY),
-                      text=f"<b style='color:{theme.INK_PRIMARY}'>━━</b> TPE, smart search (stops weak trials) &nbsp;&nbsp; <b style='color:{theme.INK_MUTED}'>╍╍</b> random control (blind draws) &nbsp;&nbsp; "
-                           f"<span style='color:{theme.INK_MUTED}'>┈┈</span> the defaults<br>"
-                           f"<span style='color:{theme.INK_MUTED}'>top: best score so far, over 40 trials (1.00 = defaults, lower is better) &nbsp;·&nbsp; bottom: fits saved by stopping early</span>")
+    rc_model = st.selectbox("Algorithm", ms, index=ms.index("lightgbm") if "lightgbm" in ms else 0, format_func=ml_data.model_label, key="ml6_rc_model")
+    sp_ = cfg["space"].get(rc_model, {})
+    allx = da[(da["model"] == rc_model) & ~da["is_default"].astype(bool) & da["rel"].notna()]
+    infl = {}                                                                          # how much the score depends on each setting: the two that matter most make the map
+    for k_ in sp_:
+        g_ = allx.groupby(allx["params_d"].map(lambda p, k_=k_: str(p.get(k_))))["rel"].mean()
+        if len(g_) > 1:
+            infl[k_] = float(g_.max() - g_.min())
+    ka, kb = sorted(infl, key=infl.get, reverse=True)[:2]
+    va, vb = [str(v) for v in sp_[ka]], [str(v) for v in sp_[kb]]
+    rf = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.04,
+                       subplot_titles=["Random control: blind draws", "TPE: steered by the scores so far"])
+    rng = np.random.default_rng(0)
+    rounds = {}
+    for key in ("random", "tpe"):
+        d_ = da[(da["search"] == key) & (da["model"] == rc_model) & ~da["is_default"].astype(bool)]
+        rounds[key] = d_[d_["tuned_at"] == d_["tuned_at"].max()]
+    cnt = {}
+    for key, r_ in rounds.items():
+        z_ = np.zeros((len(vb), len(va)))
+        for p in r_["params_d"]:
+            z_[vb.index(str(p.get(kb))), va.index(str(p.get(ka)))] += 1
+        cnt[key] = z_
+    zmax = max(float(z.max()) for z in cnt.values())
+    summary = {}
+    for j, key in enumerate(("random", "tpe"), start=1):
+        r_ = rounds[key]
+        rf.add_trace(go.Heatmap(x=list(range(len(va))), y=list(range(len(vb))), z=cnt[key], zmin=0, zmax=zmax, showscale=False, xgap=3, ygap=3, hoverinfo="skip",
+                                colorscale=[[0, "#f4f3ef"], [1, "#9aa5bf"]], text=[[str(int(v)) if v else "" for v in row] for row in cnt[key]], texttemplate="%{text}",
+                                textfont=dict(size=20, color="#5c5b57")), row=1, col=j)
+        fin, stop = r_[~r_["pruned"].astype(bool)], r_[r_["pruned"].astype(bool)]
+        for sub_, sym, col_, sz, name_ in ((fin, "circle", T_DONE, 9, "finished"), (stop, "x", T_STOP, 10, "stopped early")):
+            if len(sub_):
+                xs_ = [va.index(str(p.get(ka))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]]
+                ys_ = [vb.index(str(p.get(kb))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]]
+                rf.add_trace(go.Scatter(x=xs_, y=ys_, mode="markers", showlegend=False, marker=dict(symbol=sym, size=sz, color=col_, line=dict(color="white", width=1)),
+                                        customdata=sub_["rel"], hovertemplate=name_ + ": score %{customdata:.3f} of the defaults<extra></extra>"), row=1, col=j)
+        win_ = r_[r_["selected"].astype(bool)]
+        if len(win_):
+            p = win_["params_d"].iloc[0]
+            rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka)))], y=[vb.index(str(p.get(kb)))], mode="markers", showlegend=False, hoverinfo="skip",
+                                    marker=dict(symbol="star", size=19, color=T_WIN, line=dict(color="white", width=1.5))), row=1, col=j)
+        summary[key] = (float(fin["rel"].min()) if len(fin) else float("nan"), len(stop), len(r_))
+    theme.style_fig(rf, height=400, legend=False)
+    for j in (1, 2):
+        rf.update_xaxes(tickvals=list(range(len(va))), ticktext=va, range=[-0.6, len(va) - 0.4], title_text=ka.replace("_", " "), showgrid=False, zeroline=False, row=1, col=j)
+    rf.update_yaxes(tickvals=list(range(len(vb))), ticktext=vb, range=[-0.6, len(vb) - 0.4], title_text=kb.replace("_", " "), showgrid=False, zeroline=False, row=1, col=1)
+    rf.update_yaxes(showgrid=False, zeroline=False, row=1, col=2)
+    rf.update_layout(margin=dict(t=140, b=64, l=70, r=10))
+    for a_ in rf.layout.annotations[:2]:
+        a_.update(font=dict(size=14, color=theme.INK_PRIMARY), y=1.0, yshift=52)
+    for j, key in enumerate(("random", "tpe"), start=1):
+        b_, n_stop, n_all = summary[key]
+        rf.add_annotation(x=0.5, y=1.0, xref=f"x{j if j > 1 else ''} domain", yref="paper", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY),
+                          text=f"latest round: {n_all} trials<br>{n_stop} stopped · best error <b>{abs(100 * (b_ - 1)):.1f}% {'below' if b_ < 1 else 'above'}</b> the defaults")
+    rf.add_annotation(x=0, y=1.0, yshift=104, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
+                      text=f"<span style='color:{T_DONE}'>●</span> a finished trial &nbsp;&nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp;&nbsp; <span style='color:{T_WIN}'>★</span> the winner &nbsp;&nbsp; "
+                           f"<span style='color:#9aa5bf'>■</span> darker cell, more trials landed there")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
-    st.caption(f"Both searches end within {max(gaps):.3f} of each other, relative to the defaults: at this budget the smart search finds about the same improvement "
-               f"({100 * min(gains):.0f}% to {100 * max(gains):.0f}% lower error than the defaults) as random guessing. What it saves is work: it stops weak trials after block 3 and "
-               f"skips {100 * min(v for v in saved if v):.0f}% to {100 * max(saved):.0f}% of the fits (the decision tree's small grid is searched exhaustively, so nothing is stopped). "
-               "Scores are averaged over the six tuning rounds.")
+    ends_ = {k_: float(ml_data.best_so_far(da[da["search"] == k_]).query("model == @rc_model").sort_values("trial")["best_rel"].iloc[-1]) for k_ in ("tpe", "random")}
+    st.caption(f"Each cell is one combination of {ka.replace('_', ' ')} and {kb.replace('_', ' ')}, the two settings that move the score most for this algorithm (the other settings vary inside the cells). "
+               f"Both searches get the same {n_t} trials in the same tuning round. The control draws cells blindly; TPE learns where the scores are good and crowds in there. "
+               f"Averaged over all the tuning rounds the two end almost level ({ends_['tpe']:.3f} with TPE, {ends_['random']:.3f} with the control, 1.000 = the defaults), so at this budget the control matches the smart search; TPE stays worth it for the early stopping. "
+               + ("This algorithm's grid is small, so both searches try every cell." if rc_model == "decision_tree" else ""))
 
 st.subheader("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
