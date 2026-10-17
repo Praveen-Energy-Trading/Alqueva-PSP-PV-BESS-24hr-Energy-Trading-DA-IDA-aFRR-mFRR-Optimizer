@@ -444,21 +444,22 @@ else:
 
 _section(f"Search space <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "every combination of settings the search may try")
 space = cfg["space"].get(model, {})
+_RULE_SHORT = {"squared error (L2)": "squared L2", "absolute error (L1)": "absolute L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}      # the full names are in the strip of formulas above
+
+
 def _space_row(k, v, last):
-    chips = "".join(f"<span style='background:#f4f3ef; border-radius:999px; padding:0.12rem 0.62rem; font-size:0.82rem; color:{theme.INK_PRIMARY}; white-space:nowrap;'>{_std(x) if k in RULE_SETTINGS else x}</span>" for x in v)
-    return (f"<div style='display:flex; align-items:center; gap:0.8rem; min-height:2.7rem; {'' if last else 'border-bottom:1px solid #eeede8;'}'>"
-            f"<span style='flex:none; width:9.2rem; font-weight:600; font-size:0.88rem; color:{theme.INK_PRIMARY};'>{ml_data.setting_label(k)}</span>"
+    chips = "".join(f"<span style='background:#f4f3ef; border-radius:999px; padding:0.12rem 0.6rem; font-size:0.82rem; color:{theme.INK_PRIMARY}; white-space:nowrap;'>{_RULE_SHORT.get(_std(x), _std(x)) if k in RULE_SETTINGS else x}</span>" for x in v)
+    return (f"<div style='display:flex; align-items:center; gap:0.7rem; min-height:2.7rem; {'' if last else 'border-bottom:1px solid #eeede8;'}'>"
+            f"<span style='flex:none; width:8.2rem; font-weight:600; font-size:0.86rem; color:{theme.INK_PRIMARY};'>{ml_data.setting_label(k)}</span>"
             f"<span style='display:flex; flex-wrap:wrap; gap:0.3rem; flex:1;'>{chips}</span>"
             f"<span style='flex:none; font-size:0.76rem; color:{theme.INK_MUTED}; white-space:nowrap;'>×{len(v)}</span></div>")
 
 
-_rules = [(k, v) for k, v in space.items() if k in RULE_SETTINGS]                    # the learning rule has the longest names: its row runs across the whole card
-_rest = [(k, v) for k, v in space.items() if k not in RULE_SETTINGS]
-_cut = (len(_rest) + 1) // 2 if len(_rest) >= 4 else len(_rest)                      # a long list goes into two columns, to use the width
-_cols = [_rest[:_cut], _rest[_cut:]] if _rest[_cut:] else [_rest]
-_html = "".join(_space_row(k, v, last=(i == len(_rules) - 1 and not _rest)) for i, (k, v) in enumerate(_rules))
-_html += (f"<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(min(30rem, 100%), 1fr)); column-gap:2.2rem;'>"
-          + "".join("<div>" + "".join(_space_row(k, v, last=(j == len(col) - 1)) for j, (k, v) in enumerate(col)) + "</div>" for col in _cols) + "</div>")
+_items = list(space.items())                                                         # all the settings in two columns side by side: half as many rows
+_cut = (len(_items) + 1) // 2 if len(_items) >= 4 else len(_items)
+_cols = [_items[:_cut], _items[_cut:]] if _items[_cut:] else [_items]
+_html = (f"<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(min(21rem, 100%), 1fr)); column-gap:2.2rem;'>"
+         + "".join("<div>" + "".join(_space_row(k, v, last=(j == len(col) - 1)) for j, (k, v) in enumerate(col)) + "</div>" for col in _cols) + "</div>")
 st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.1rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_html}</div>", unsafe_allow_html=True)
 n_comb = math.prod(len(v) for v in space.values())
 _line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
