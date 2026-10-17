@@ -272,7 +272,8 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
             _hx.append(x0 + (cw - 3) / 2)
             _hy.append(y + bh / 2)
             _ht.append(f"<b>{ml_data.model_label(mdl)} · {'TPE' if method == 'tpe' else 'random control'}</b><br>trial {int(r.trial)} · {state}<br>"
-                       + (f"score {float(r.rel):.3f} of the defaults<br>" if pd.notna(r.rel) else "") + (_std_text(ml_data.plain_params(r.params)) if not bool(r.is_default) else "default settings"))
+                       + (f"score {float(r.rel):.3f} of the defaults<br>" if pd.notna(r.rel) else (f"its error on the latest block: {float(r.block1):.2f}, worse than the median of the earlier trials<br>" if bool(r.pruned) and pd.notna(r.block1) else ""))
+                       + ("<br>".join(" · ".join(_pairs[i_:i_ + 2]) for i_ in range(0, len(_pairs), 2)) if not bool(r.is_default) and (_pairs := [x_.strip() for x_ in _std_text(ml_data.plain_params(r.params)).split(", ")]) else "default settings"))
         _done = d[~d["pruned"].astype(bool) & d["rel"].notna()]
         _note(ft, xs1 + 10, y + bh / 2, f"<b>{float(_done['rel'].min()):.3f}</b> · {int(d['pruned'].sum())}" + ("✕" if method == "tpe" else ""), size=10, color=theme.INK_SECONDARY, anchor="left")
         if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
@@ -280,7 +281,8 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
         y += pitch
     y += 0.2
 yd_end = y
-ft.add_trace(go.Scatter(x=_hx, y=_hy, mode="markers", marker=dict(size=13, opacity=0), text=_ht, hoverinfo="text", showlegend=False))
+ft.add_trace(go.Scatter(x=_hx, y=_hy, mode="markers", marker=dict(size=13, opacity=0), text=_ht, hoverinfo="text", showlegend=False,
+                        hoverlabel=dict(align="left", bgcolor="white", bordercolor="#e3e1d9", font=dict(size=12, color=theme.INK_PRIMARY))))
 
 _card(ydt - 0.7, yd_end + 0.05)
 end = yd_end + 0.4
