@@ -483,10 +483,14 @@ _cut = (len(_items) + 1) // 2 if len(_items) >= 4 else len(_items)
 _cols = [_items[:_cut], _items[_cut:]] if _items[_cut:] else [_items]
 _html = (f"<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(min(21rem, 100%), 1fr)); column-gap:2.2rem;'>"
          + "".join("<div>" + "".join(_space_row(k, v, last=(j == len(col) - 1)) for j, (k, v) in enumerate(col)) + "</div>" for col in _cols) + "</div>")
-st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.1rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_html}</div>", unsafe_allow_html=True)
 n_comb = math.prod(len(v) for v in space.values())
-_line(f"<b>{n_comb:,}</b> combinations. " + (f"Fewer than the {n_t} trials, so every one is tried." if n_comb < int(cfg["search"]["n_trials"]) else
-      f"With {int(cfg['search']['n_trials'])} trials the space is searched thinly: TPE steers toward the good regions."))
+_n_trials = int(cfg["search"]["n_trials"])
+_math = " × ".join(str(len(v)) for v in space.values()) + f" = {n_comb:,}"                  # the number of combinations: the options of every setting multiplied
+_what = (f"every combination is tried: <b>{n_comb}</b> + the defaults = <b>{n_comb + 1}</b> trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
+         f"{_n_trials} trials look at {100 * _n_trials / n_comb:.1f}% of them: TPE steers toward the good regions")
+_foot = (f"<div style='display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; border-top:1px solid #e3e1d9; padding:0.55rem 0 0.6rem; font-size:0.84rem; color:{theme.INK_SECONDARY};'>"
+         f"<span><b style='color:{theme.INK_PRIMARY}; font-size:0.95rem;'>{_math}</b> combinations</span><span style='color:{theme.INK_MUTED};'>the options of every setting, multiplied &nbsp;·&nbsp; {_what}</span></div>")
+st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.1rem 1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_html}{_foot}</div>", unsafe_allow_html=True)
 
 _section(f"Every trial of one tuning round <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", "one dot per trial, scored on all 3 blocks; below the dotted line beats the defaults")
 m = tt[tt["model"] == model]
