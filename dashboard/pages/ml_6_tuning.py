@@ -341,76 +341,74 @@ else:
     GOLD = theme.YELLOW
     rng = np.random.default_rng(0)
     n_early = min(10, n_t - 1)                                              # TPE's first trials are random draws too
-    rf = make_subplots(rows=2, cols=4, column_widths=[0.13, 0.27, 0.27, 0.33], horizontal_spacing=0.03, vertical_spacing=0.2)
+    rf = make_subplots(rows=2, cols=3, horizontal_spacing=0.03, vertical_spacing=0.16)
     for i, key in enumerate(("random", "tpe"), start=1):
         r_ = latest[key]
         for j, (lo_t, hi_t) in enumerate(((0, n_early), (n_early, 10 ** 6)), start=1):
             part = r_[(r_["trial"] > lo_t) & (r_["trial"] <= hi_t)]
             rf.add_trace(go.Heatmap(x=list(range(len(va))), y=list(range(len(vb))), z=quality, zmin=0, zmax=1, showscale=False, xgap=3, ygap=3, hoverinfo="skip",
-                                    colorscale=[[0, "#f7f5ee"], [1, GOLD]]), row=i, col=j + 1)
+                                    colorscale=[[0, "#f7f5ee"], [1, GOLD]]), row=i, col=j)
             fin, stop = part[~part["pruned"].astype(bool)], part[part["pruned"].astype(bool)]
             for sub_, sym, col_, sz in ((fin, "circle", T_DONE, 12), (stop, "x", T_STOP, 13)):
                 if len(sub_):
                     rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]],
                                             y=[vb.index(str(p.get(kb))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]], mode="markers", showlegend=False,
                                             marker=dict(symbol=sym, size=sz, color=col_, line=dict(color="white", width=1)), customdata=sub_["rel"],
-                                            hovertemplate="score %{customdata:.3f} of the defaults<extra></extra>"), row=i, col=j + 1)
+                                            hovertemplate="score %{customdata:.3f} of the defaults<extra></extra>"), row=i, col=j)
             win_ = part[part["selected"].astype(bool)]
             if len(win_):
                 p = win_["params_d"].iloc[0]
                 rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka)))], y=[vb.index(str(p.get(kb)))], mode="markers", showlegend=False, hoverinfo="skip",
-                                        marker=dict(symbol="star", size=27, color=T_WIN, line=dict(color="white", width=1.5))), row=i, col=j + 1)
+                                        marker=dict(symbol="star", size=27, color=T_WIN, line=dict(color="white", width=1.5))), row=i, col=j)
     # the result: the best score found so far, averaged over the tuning rounds
     curves = {k_: ml_data.best_so_far(da[da["search"] == k_]) for k_ in ("tpe", "random")}
     ends_ = {}
     for key, name, colr, dash, wd in (("random", "random control", theme.INK_MUTED, "dash", 3), ("tpe", "TPE", theme.INK_PRIMARY, "solid", 3.2)):
         cc = curves[key][curves[key]["model"] == rc_model].sort_values("trial")
         rf.add_trace(go.Scatter(x=cc["trial"], y=cc["best_rel"], mode="lines", showlegend=False, line=dict(color=colr, width=wd, dash=dash),
-                                hovertemplate=name + ": %{y:.3f} after trial %{x}<extra></extra>"), row=1, col=4)
+                                hovertemplate=name + ": %{y:.3f} after trial %{x}<extra></extra>"), row=1, col=3)
         ends_[key] = (float(cc["trial"].iloc[-1]), float(cc["best_rel"].iloc[-1]))
-    rf.add_hline(y=1.0, line=dict(color=theme.INK_MUTED, width=1, dash="dot"), row=1, col=4)
+    rf.add_hline(y=1.0, line=dict(color=theme.INK_MUTED, width=1, dash="dot"), row=1, col=3)
     # the work: a trial stopped after block 3 skips the other blocks
     tp = da[(da["search"] == "tpe") & (da["model"] == rc_model)]
     saved = float(tp["pruned"].sum()) * (nb - 1) / nb / max(len(tp), 1)
     rf.add_trace(go.Bar(y=["TPE", "random"], x=[100 * (1 - saved), 100], orientation="h", marker_color=[T_DEF, theme.INK_MUTED], showlegend=False,
-                        text=[f"{100 * (1 - saved):.0f}%", "100%"], textposition="inside", textfont=dict(color="white", size=14), hoverinfo="skip"), row=2, col=4)
+                        text=[f"{100 * (1 - saved):.0f}%", "100%"], textposition="inside", insidetextanchor="middle", textangle=0, textfont=dict(color="white", size=14), hoverinfo="skip"), row=2, col=3)
     if saved > 0:
-        rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}% saved"],
-                            textposition="inside", textangle=0, constraintext="none", textfont=dict(color="white", size=13), hoverinfo="skip"), row=2, col=4)
-    theme.style_fig(rf, height=542, legend=False, barmode="stack")
+        rf.add_trace(go.Bar(y=["TPE"], x=[100 * saved], orientation="h", marker=dict(color=T_STOP), showlegend=False, text=[f"{100 * saved:.0f}%<br>saved"],
+                            textposition="inside", insidetextanchor="middle", textangle=0, constraintext="none", textfont=dict(color="white", size=12), hoverinfo="skip"), row=2, col=3)
+    theme.style_fig(rf, height=500, legend=False, barmode="stack")
+    M1, M2, R0, R1 = (0.085, 0.345), (0.365, 0.625), 0.735, 0.975                         # where the two maps and the result charts sit across the figure
     for i in (1, 2):
-        for j in (1, 2):
-            rf.update_xaxes(tickvals=list(range(len(va))), ticktext=[_std(v).replace(" (", "<br>(") if ka in RULE_SETTINGS else v for v in va], tickangle=0, range=[-0.6, len(va) - 0.4], showgrid=False, zeroline=False,
-                            showticklabels=(i == 2), tickfont=dict(size=11), row=i, col=j + 1)
-            rf.update_yaxes(tickvals=list(range(len(vb))), ticktext=[_std(v) if kb in RULE_SETTINGS else v for v in vb], range=[-0.6, len(vb) - 0.4], showgrid=False, zeroline=False,
-                            showticklabels=(j == 1), tickfont=dict(size=11), row=i, col=j + 1)
-    rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], showgrid=False, row=1, col=4)
-    rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=False, row=1, col=4)
-    rf.update_xaxes(range=[0, 104], showticklabels=False, showgrid=False, row=2, col=4)
-    for i in (1, 2):                                                                  # room for the labels inside the card
-        rf.update_xaxes(domain=[0.75, 0.985], row=i, col=4)
-    rf.update_yaxes(showgrid=False, tickfont=dict(size=13), automargin=True, row=2, col=4)
-    for i in (1, 2):                                                                  # the label column has no axes
-        rf.update_xaxes(visible=False, row=i, col=1)
-        rf.update_yaxes(visible=False, row=i, col=1)
-    rf.update_layout(margin=dict(t=82, b=70, l=10, r=10))
-    _cards = [dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.16, y1=1.095, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
-              for x0_, x1_ in ((-0.004, 0.682), (0.686, 1.004))]
-    rf.layout.shapes = tuple(sh for sh in rf.layout.shapes if sh.xref not in ("x domain", "x5 domain")) + tuple(_cards)          # no axis line in the label column
-    dom = {(1, 1): "x domain", (1, 2): "x2 domain", (1, 3): "x3 domain", (1, 4): "x4 domain", (2, 1): "x5 domain", (2, 2): "x6 domain", (2, 3): "x7 domain", (2, 4): "x8 domain"}
-    # row labels and column titles
-    for (i, j), title in (((1, 2), "first 10 trials"), ((1, 3), f"the other {n_t - 1 - n_early} trials"), ((1, 4), "result: best score so far")):
-        rf.add_annotation(x=0.5, y=1.0, xref=dom[(i, j)], yref="paper", yshift=8, yanchor="bottom", showarrow=False, text=f"<b>{title}</b>", font=dict(size=13, color=theme.INK_PRIMARY))
-    rf.add_annotation(x=0.5, y=0.4, xref=dom[(2, 4)], yref="paper", yshift=12, yanchor="bottom", showarrow=False, text="<b>work done</b>", font=dict(size=13, color=theme.INK_PRIMARY))
-    for (i, _), lab, ypos in (((1, 1), "<b style='font-size:14px'>RANDOM<br>CONTROL</b><br><br>picks cells blindly,<br>never stops", 0.8), ((2, 1), "<b style='font-size:14px'>TPE</b><br><br>guesses 10 times,<br>then learns from<br>the scores and<br>stops weak trials", 0.2)):
-        rf.add_annotation(x=0.059, y=ypos, xref="paper", yref="paper", showarrow=False, font=dict(size=11, color=theme.INK_SECONDARY), align="center", text=lab)
+        for j, (d0, d1) in ((1, M1), (2, M2)):
+            rf.update_xaxes(domain=[d0, d1], tickvals=list(range(len(va))), ticktext=[_std(v).replace(" (", "<br>(") if ka in RULE_SETTINGS else v for v in va], tickangle=0,
+                            range=[-0.6, len(va) - 0.4], showgrid=False, zeroline=False, showticklabels=(i == 2), tickfont=dict(size=11), row=i, col=j)
+            rf.update_yaxes(tickvals=list(range(len(vb))), ticktext=[_std(v).replace(" (", "<br>(") if kb in RULE_SETTINGS else v for v in vb], range=[-0.6, len(vb) - 0.4],
+                            showgrid=False, zeroline=False, showticklabels=(j == 1), tickfont=dict(size=11), row=i, col=j)
+        rf.update_xaxes(domain=[R0, R1], row=i, col=3)
+    rf.update_xaxes(range=[0, n_t - 1], tickvals=[0, n_t - 1], showgrid=False, row=1, col=3)
+    rf.update_yaxes(range=[min(v for _, v in ends_.values()) - 0.02, 1.01], showticklabels=False, row=1, col=3)
+    rf.update_xaxes(range=[0, 104], showticklabels=False, showgrid=False, row=2, col=3)
+    rf.update_yaxes(showgrid=False, tickfont=dict(size=13), automargin=True, row=2, col=3)
+    rf.update_layout(margin=dict(t=88, b=62, l=10, r=10))
+    rf.layout.shapes = tuple(rf.layout.shapes) + tuple(                                  # two white cards: the two searches, and the verdict
+        dict(type="rect", xref="paper", yref="paper", x0=x0_, x1=x1_, y0=-0.14, y1=1.164, fillcolor="#ffffff", line=dict(color="#e3e1d9", width=1), layer="below")
+        for x0_, x1_ in ((-0.004, 0.652), (0.662, 1.004)))
+    dom = {(1, 1): "x domain", (1, 2): "x2 domain", (1, 3): "x3 domain", (2, 1): "x4 domain", (2, 2): "x5 domain", (2, 3): "x6 domain"}
+    # column titles, one header per search, the titles of the verdict
+    for (i, j), title in (((1, 1), "first 10 trials"), ((1, 2), f"the other {n_t - 1 - n_early} trials"), ((1, 3), "result: best score so far")):
+        rf.add_annotation(x=0.5, y=1.0, xref=dom[(i, j)], yref="paper", yshift=30, yanchor="bottom", showarrow=False, text=f"<b>{title}</b>", font=dict(size=13, color=theme.INK_PRIMARY))
+    rf.add_annotation(x=0.5, y=0.42, xref=dom[(2, 3)], yref="paper", yshift=6, yanchor="bottom", showarrow=False, text="<b>work done</b>", font=dict(size=13, color=theme.INK_PRIMARY))
+    for ypos, ysh, lab in ((1.0, 6, "<b style='font-size:13px;color:#0b0b0b'>RANDOM CONTROL</b> &nbsp;picks cells blindly and never stops"),
+                           (0.42, 6, "<b style='font-size:13px;color:#0b0b0b'>TPE</b> &nbsp;guesses for 10 trials, then learns from the scores and stops weak trials")):
+        rf.add_annotation(x=0.012, y=ypos, xref="paper", yref="paper", yshift=ysh, xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), text=lab)
     # end labels of the two lines
-    rf.add_annotation(x=ends_["tpe"][0], y=ends_["tpe"][1], xref="x4", yref="y4", xanchor="right", yanchor="top", yshift=-8, showarrow=False, font=dict(size=12, color=theme.INK_PRIMARY),
+    rf.add_annotation(x=ends_["tpe"][0], y=ends_["tpe"][1], xref="x3", yref="y3", xanchor="right", yanchor="top", yshift=-8, showarrow=False, font=dict(size=12, color=theme.INK_PRIMARY),
                       text=f"TPE <b>{ends_['tpe'][1]:.3f}</b>")
-    rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x4", yref="y4", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
+    rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x3", yref="y3", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
                       text=f"random <b>{ends_['random'][1]:.3f}</b>")
-    rf.add_annotation(x=0, y=1.0, xref="x4", yref="y4", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
-    rf.add_annotation(x=0, y=1.0, yshift=46, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
+    rf.add_annotation(x=0, y=1.0, xref="x3", yref="y3", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
+    rf.add_annotation(x=0, y=1.0, yshift=70, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
                       text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
                            f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = {ka.replace('_', ' ')} × {kb.replace('_', ' ')}</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
