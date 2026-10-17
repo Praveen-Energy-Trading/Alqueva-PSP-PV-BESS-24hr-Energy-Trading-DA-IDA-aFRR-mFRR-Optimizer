@@ -135,10 +135,10 @@ body = win - nb * L                                                             
 xw = win * DAY                                                                       # where the window ends, in units
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-legend = (f"<span style='color:{BLUE}'>■</span> training days (the model learns from them) &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> tuning days (scored on: {nb} blocks of {L}) &nbsp;&nbsp; "
-          f"<span style='color:{ORANGE}'>■</span> the refit's forecast days &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> days not used by that round")
+legend = (f"<span style='color:{BLUE}'>■</span> Training days (the model learns from them) &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> Tuning days ({nb} blocks of {L} days, scored) &nbsp;&nbsp; "
+          f"<span style='color:{ORANGE}'>■</span> The refit's forecast days &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> Days not used by that round")
 _head(-1.95, "①", "Tuning only looks inside the refit's own window",
-      f"{ml_data.label(target)} · latest tuning round" + (f", window ending {pd.Timestamp(win_end):%d-%m-%Y}" if win_end is not None else "") + (f" · expanding window: all {win} days it has" if expanding else f" · rolling {win}-day window"), two=True)
+      f"{ml_data.label(target)}, latest tuning round (" + (f"window ending {pd.Timestamp(win_end):%d-%m-%Y}, " if win_end is not None else "") + (f"expanding window of all {win} days available" if expanding else f"rolling {win}-day window") + ")", two=True)
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
 _pill(ft, 0, body * DAY, 0, rh, BLUE, 0.62)
@@ -146,10 +146,10 @@ _pill(ft, body * DAY + 0.6, xw, 0, rh, VIOLET, 0.9)
 for k in range(1, nb):                                                               # the block boundaries inside the tuning days
     _shape(type="line", x0=(body + k * L) * DAY, x1=(body + k * L) * DAY, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
 _pill(ft, xw + 1, xw + 1 + 30 * DAY, 0, rh, ORANGE, 1.0)
-_note(ft, 8, rh / 2, f"<b>One refit</b> &nbsp;·&nbsp; {body} days of training", anchor="left", align="left")
+_note(ft, 8, rh / 2, f"<b>One refit:</b> {body} days of training", anchor="left", align="left")
 for k in range(nb):
     _note(ft, (body + k * L + L / 2) * DAY, rh / 2, f"<b>{k + 1}</b>", color="white")
-_note(ft, xw + 1 + 30 * DAY + 10, rh / 2, "forecast days", color=ORANGE, anchor="left")
+_note(ft, xw + 1 + 30 * DAY + 10, rh / 2, "Forecast days", color=ORANGE, anchor="left")
 # ---- 2. the tuning rounds: each block is predicted by a model that has seen only the days before it
 for k in range(1, nb + 1):
     y0 = 1.55 + (k - 1) * 1.0
@@ -159,22 +159,22 @@ for k in range(1, nb + 1):
     _pill(ft, b0 * DAY, (b0 + L) * DAY, y0, y0 + rh, VIOLET, 0.9)
     if b0 + L < win:
         _pill(ft, (b0 + L) * DAY + 0.6, xw, y0, y0 + rh, GREY, 0.8)
-    _note(ft, 8, y0 + rh / 2, f"<b>Round {k}</b> &nbsp;·&nbsp; trains on {tr_days} days", anchor="left", align="left")
+    _note(ft, 8, y0 + rh / 2, f"<b>Round {k}:</b> trains on {tr_days} days", anchor="left", align="left")
     _note(ft, (b0 + L / 2) * DAY, y0 + rh / 2, f"<b>{k}</b>", color="white")
-    _note(ft, xw + 36, y0 + rh / 2, f"predicts block {k}: <b>error {k}</b>" + ("<br>scored first: pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
+    _note(ft, xw + 36, y0 + rh / 2, f"Predicts block {k}: <b>error {k}</b>" + ("<br>Scored first: the pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
 _note(ft, 8, ys + 1.5, legend, size=11, color=theme.INK_SECONDARY, anchor="left", yanchor="middle", align="left", bgcolor="#f7f6f2", bordercolor="#e8e6df", borderwidth=1, borderpad=6)    # what the colours mean, on one row of its own under the rounds
-_note(ft, xw + 36, ys + 0.3, "<b>score</b> = average of<br>error " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
+_note(ft, xw + 36, ys + 0.3, "<b>Score</b> = average of<br>errors " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
       align="left", bgcolor="white", bordercolor=VIOLET, borderwidth=1, borderpad=6)
 # ---- 3. the days tuning never looks at, and where they start
 ysn = ys + 2.4
 _pill(ft, xw + 1, xw + 130, ysn, ysn + rh, ORANGE, 0.35)
 _pill(ft, xw + 134, X_END, ysn, ysn + rh, RED, 0.3)
-_note(ft, xw + 65, ysn + rh / 2, "backtest<br>validation", size=11)
-_note(ft, xw + 134 + (X_END - xw - 134) / 2, ysn + rh / 2, "locked<br>test year", size=11, color=RED)
-_note(ft, xw - 8, ysn + rh / 2, "<b>never looked at by the tuning</b> →", color=RED, anchor="right", align="right")
+_note(ft, xw + 65, ysn + rh / 2, "Backtest<br>validation", size=11)
+_note(ft, xw + 134 + (X_END - xw - 134) / 2, ysn + rh / 2, "Locked<br>test year", size=11, color=RED)
+_note(ft, xw - 8, ysn + rh / 2, "<b>Never used by the tuning</b> →", color=RED, anchor="right", align="right")
 _shape(type="line", x0=xw + 0.5, x1=xw + 0.5, y0=-0.55, y1=ysn + rh + 0.1, line=dict(color="#a8a69d", width=1.2, dash="dot"))
-_note(ft, xw - 6, -0.55, "the only days the tuning can use ←", size=11, color=MUTED, anchor="right")
+_note(ft, xw - 6, -0.55, "The only days the tuning can use ←", size=11, color=MUTED, anchor="right")
 _card(-2.7, ysn + rh + 0.6)
 
 # ---- 4. the route of one setting
@@ -189,38 +189,38 @@ def _node(x0, x1, label, badges=()):
         bx = x1 - 12 - (len(badges) - 1 - i) * 26
         _pill(ft, bx - 11, bx + 11, cy - 0.28, cy + 0.28, VIOLET, 0.9, r_px=3)
         _note(ft, bx, cy, f"<b>{b}</b>", size=11, color="white")
-_node(0, 150, "next trial")
-_node(205, 365, "latest block", badges=(nb,))
+_node(0, 150, "Next trial")
+_node(205, 365, "Latest block", badges=(nb,))
 _arrow(ft, 152, cy, 203, cy)
 _arrow(ft, 367, cy, 383, cy)
 dx, dh, dw = 545, 1.15, 160
 _dia = f"M {dx - dw},{cy} L {dx},{cy - dh} L {dx + dw},{cy} L {dx},{cy + dh} Z"
 _shape(type="path", fillcolor=T_STOP, opacity=0.13, line_width=0, path=_dia)
 _shape(type="path", fillcolor="rgba(0,0,0,0)", line=dict(color=T_STOP, width=1.5), path=_dia)
-_note(ft, dx, cy, "block 3: worse<br>than the median<br>of earlier trials?", size=11)
+_note(ft, dx, cy, "Block 3: worse<br>than the median<br>of earlier trials?", size=11)
 _arrow(ft, dx + dw + 2, cy, 738, cy)
-_note(ft, dx + dw + 18, cy - 0.5, "no", size=11, color=MUTED)
-_node(740, 915, "older blocks", badges=tuple(range(nb - 1, 0, -1)))
+_note(ft, dx + dw + 18, cy - 0.5, "No", size=11, color=MUTED)
+_node(740, 915, "Older blocks", badges=tuple(range(nb - 1, 0, -1)))
 _arrow(ft, 917, cy, 930, cy)
 oy = cy + 2.25
 _arrow(ft, dx, cy + dh + 0.02, dx, oy - 0.45, color=T_STOP)
-_note(ft, dx + 22, cy + dh + 0.28, "yes", size=11, color=MUTED, anchor="left")
+_note(ft, dx + 22, cy + dh + 0.28, "Yes", size=11, color=MUTED, anchor="left")
 _pill(ft, dx - 90, dx + 90, oy - 0.45, oy + 0.45, T_STOP, 0.9, r_px=6)
-_note(ft, dx, oy, "<b>✕ stopped</b>", size=12, color="white")
+_note(ft, dx, oy, "<b>✕ Stopped</b>", size=12, color="white")
 _pill(ft, 930, X_END, cy - nh / 2, cy + nh / 2, T_DONE, 0.95, r_px=6)
-_note(ft, (930 + X_END) / 2, cy, "<b>score</b>", size=12, color="white")
+_note(ft, (930 + X_END) / 2, cy, "<b>Score</b>", size=12, color="white")
 _arrow(ft, (930 + X_END) / 2, cy + nh / 2 + 0.02, (930 + X_END) / 2, oy - 0.45, color=T_WIN)
 _pill(ft, 880, X_END, oy - 0.45, oy + 0.45, T_WIN, 0.95, r_px=6)
-_note(ft, (880 + X_END) / 2, oy, "<b>best score</b>", size=12, color="white")
+_note(ft, (880 + X_END) / 2, oy, "<b>Best score</b>", size=12, color="white")
 _pill(ft, 0, 150, oy - 0.45, oy + 0.45, T_DEF, 0.95, r_px=6)
-_note(ft, 75, oy, "<b>trial 0</b>", size=12, color="white")
-_note(ft, 165, oy, "defaults, never stopped", size=11, color=MUTED, anchor="left")
+_note(ft, 75, oy, "<b>Trial 0</b>", size=12, color="white")
+_note(ft, 165, oy, "Defaults, never stopped", size=11, color=MUTED, anchor="left")
 
 # ---- 5. the same budget for every algorithm: the trials of one real round, TPE and the random control
 _card(yr - 0.7, oy + 0.8)
 ydt = oy + 2.0
-_head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"TPE = Tree-structured Parzen Estimator, Optuna's smart search · {ml_data.label(target)}, latest round · each square = one trial ({len(trials):,} logged)", two=True)
-_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "defaults (trial 0)"), (T_DONE, "all 3 blocks scored (darker = lower error)"), (T_STOP, "stopped after block 3"), (T_WIN, "the winner"), ("#c9c7be", "trial not needed")))
+_head(ydt + 0.1, "③", f"The same budget for every algorithm: up to {n_t} trials each", f"TPE = Tree-structured Parzen Estimator (Optuna's search). {ml_data.label(target)}, latest round. Each square is one trial ({len(trials):,} logged).", two=True)
+_leg = " &nbsp;&nbsp; ".join(f"<span style='color:{c}'>■</span> {x}" for c, x in ((T_DEF, "Defaults (trial 0)"), (T_DONE, "All 3 blocks scored (darker = lower error)"), (T_STOP, "Stopped after block 3"), (T_WIN, "The winner"), ("#c9c7be", "Trial not needed")))
 _note(ft, 6, ydt + 1.1, _leg, size=11, color=theme.INK_SECONDARY, anchor="left")
 xs0, xs1 = 190, 905                                                                  # the right-hand end of the rows is kept for each row's best score
 _dg = ml_ui.cached(ml_data.prepared_trials)(trials, target)                           # every search of this target, with the score relative to the defaults
@@ -236,7 +236,7 @@ def _shade(rel):
 
 
 _hx, _hy, _ht = [], [], []                                                           # what a square says when the pointer is on it
-_note(ft, xs1 + 10, ydt + 1.45, "best score · stopped", size=9, color=MUTED, anchor="left")
+_note(ft, xs1 + 10, ydt + 1.45, "Best score, stopped", size=9, color=MUTED, anchor="left")
 cw = (xs1 - xs0) / n_t
 bh, pitch = 0.42, 0.52
 y = ydt + 1.75
@@ -253,7 +253,7 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
             _note(ft, xs0 - 6, y + bh / 2, "TPE", size=10, color=MUTED, anchor="right")                   # the first row of an algorithm is the smart search, the second the control
             n_pr_all += int(d["pruned"].sum())
         else:
-            _note(ft, 0, y + bh / 2, "↳ random control", size=10, color=MUTED, anchor="left")
+            _note(ft, 0, y + bh / 2, "↳ Random control", size=10, color=MUTED, anchor="left")
         used = set(int(t) for t in d["trial"])
         for i in range(n_t):
             x0 = xs0 + i * cw
@@ -275,13 +275,13 @@ for mdl in ml_data.ordered_models(sorted(set(trials["model"]))):
             state = ("the defaults" if bool(r.is_default) else "the winner of this search" if bool(r.selected) else "stopped after block 3" if bool(r.pruned) else "scored on all 3 blocks")
             _hx.append(x0 + (cw - 3) / 2)
             _hy.append(y + bh / 2)
-            _ht.append(f"<b>{ml_data.model_label(mdl)} · {'TPE' if method == 'tpe' else 'random control'}</b><br>trial {int(r.trial)} · {state}<br>"
-                       + (f"score {float(r.rel):.3f} of the defaults<br>" if pd.notna(r.rel) else (f"its error on the latest block: {float(r.block1):.2f}, worse than the median of the earlier trials<br>" if bool(r.pruned) and pd.notna(r.block1) else ""))
-                       + ("<br>".join(" · ".join(_pairs[i_:i_ + 2]) for i_ in range(0, len(_pairs), 2)) if not bool(r.is_default) and (_pairs := [x_.strip() for x_ in _std_text(ml_data.plain_params(r.params)).split(", ")]) else "default settings"))
+            _ht.append(f"<b>{ml_data.model_label(mdl)}, {'TPE' if method == 'tpe' else 'random control'}</b><br>Trial {int(r.trial)}: {state}<br>"
+                       + (f"Score {float(r.rel):.3f} of the defaults<br>" if pd.notna(r.rel) else (f"Its error on the latest block: {float(r.block1):.2f}, worse than the median of the earlier trials<br>" if bool(r.pruned) and pd.notna(r.block1) else ""))
+                       + ("<br>".join(", ".join(_pairs[i_:i_ + 2]) for i_ in range(0, len(_pairs), 2)) if not bool(r.is_default) and (_pairs := [x_.strip() for x_ in _std_text(ml_data.plain_params(r.params)).split(", ")]) else "Default settings"))
         _done = d[~d["pruned"].astype(bool) & d["rel"].notna()]
-        _note(ft, xs1 + 10, y + bh / 2, f"<b>{float(_done['rel'].min()):.3f}</b> · {int(d['pruned'].sum())}" + ("✕" if method == "tpe" else ""), size=10, color=theme.INK_SECONDARY, anchor="left")
+        _note(ft, xs1 + 10, y + bh / 2, f"<b>{float(_done['rel'].min()):.3f}</b>, {int(d['pruned'].sum())}" + ("✕" if method == "tpe" else ""), size=10, color=theme.INK_SECONDARY, anchor="left")
         if mdl == "decision_tree" and method == "tpe" and len(used) < n_t:
-            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"whole grid ({combos_dt} combinations) already tried", size=10, color=MUTED)
+            _note(ft, xs0 + (len(used) + n_t) / 2 * cw, y + bh / 2, f"Whole grid ({combos_dt} combinations) already tried", size=10, color=MUTED)
         y += pitch
     y += 0.2
 yd_end = y
@@ -301,7 +301,7 @@ st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
-_section(f"Random control and TPE · {ml_data.label(target)}", num="④")
+_section(f"Random control and TPE <span style='font-weight:400; color:{theme.INK_MUTED};'>— {ml_data.label(target)}</span>", num="④")
 model = st.selectbox("Algorithm", models, index=models.index("lightgbm") if "lightgbm" in models else 0, format_func=ml_data.model_label, key="ml6_model")
 da = ml_ui.cached(ml_data.prepared_trials)(trials, target)
 has_rnd = "random" in set(da["search"])                                              # the control was run for the day-ahead price only
@@ -351,7 +351,7 @@ else:
                     rf.add_trace(go.Scatter(x=[va.index(str(p.get(ka))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]],
                                             y=[vb.index(str(p.get(kb))) + rng.uniform(-0.3, 0.3) for p in sub_["params_d"]], mode="markers", showlegend=False,
                                             marker=dict(symbol=sym, size=sz, color=col_, line=dict(color="white", width=1)), customdata=sub_["rel"],
-                                            hovertemplate="score %{customdata:.3f} of the defaults<extra></extra>"), row=i, col=j)
+                                            hovertemplate="Score %{customdata:.3f} of the defaults<extra></extra>"), row=i, col=j)
             win_ = part[part["selected"].astype(bool)]
             if len(win_):
                 p = win_["params_d"].iloc[0]
@@ -399,25 +399,25 @@ else:
         for x0_, x1_ in ((-0.004, 0.652), (0.662, 1.004)))
     dom = {(1, 1): "x domain", (1, 2): "x2 domain", (1, 3): "x3 domain", (2, 1): "x4 domain", (2, 2): "x5 domain", (2, 3): "x6 domain"}
     # column titles, one header per search, the titles of the verdict
-    for (i, j), title in (((1, 1), "first 10 trials"), ((1, 2), f"the other {n_t - 1 - n_early} trials"), ((1, 3), "result: best score so far")):
+    for (i, j), title in (((1, 1), "First 10 trials"), ((1, 2), f"The other {n_t - 1 - n_early} trials"), ((1, 3), "Result: best score so far")):
         rf.add_annotation(x=0.5, y=1.0, xref=dom[(i, j)], yref="paper", yshift=30, yanchor="bottom", showarrow=False, text=f"<b>{title}</b>", font=dict(size=13, color=theme.INK_PRIMARY))
-    rf.add_annotation(x=0.5, y=0.42, xref=dom[(2, 3)], yref="paper", yshift=6, yanchor="bottom", showarrow=False, text="<b>work done</b>", font=dict(size=13, color=theme.INK_PRIMARY))
-    for ypos, ysh, lab in ((1.0, 6, "<b style='font-size:13px;color:#0b0b0b'>RANDOM CONTROL</b> &nbsp;picks cells blindly and never stops"),
-                           (0.42, 6, "<b style='font-size:13px;color:#0b0b0b'>TPE</b> &nbsp;guesses for 10 trials, then learns from the scores and stops weak trials")):
+    rf.add_annotation(x=0.5, y=0.42, xref=dom[(2, 3)], yref="paper", yshift=6, yanchor="bottom", showarrow=False, text="<b>Work done</b>", font=dict(size=13, color=theme.INK_PRIMARY))
+    for ypos, ysh, lab in ((1.0, 6, "<b style='font-size:13px;color:#0b0b0b'>Random control:</b> picks cells blindly and never stops"),
+                           (0.42, 6, "<b style='font-size:13px;color:#0b0b0b'>TPE:</b> guesses for 10 trials, then learns from the scores and stops weak trials")):
         rf.add_annotation(x=0.012, y=ypos, xref="paper", yref="paper", yshift=ysh, xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), text=lab)
     # end labels of the two lines
     rf.add_annotation(x=ends_["tpe"][0], y=ends_["tpe"][1], xref="x3", yref="y3", xanchor="right", yanchor="top", yshift=-8, showarrow=False, font=dict(size=12, color=theme.INK_PRIMARY),
                       text=f"TPE <b>{ends_['tpe'][1]:.3f}</b>")
     if has_rnd:
         rf.add_annotation(x=ends_["random"][0], y=ends_["random"][1], xref="x3", yref="y3", xanchor="right", yanchor="bottom", yshift=8, showarrow=False, font=dict(size=12, color=theme.INK_MUTED),
-                          text=f"random <b>{ends_['random'][1]:.3f}</b>")
+                          text=f"Random <b>{ends_['random'][1]:.3f}</b>")
     else:                                                                                # no control for this target: say so on the empty maps
         rf.add_annotation(x=0.365, y=0.79, xref="paper", yref="paper", showarrow=False, align="center", font=dict(size=13, color=theme.INK_SECONDARY), bgcolor="rgba(255,255,255,0.92)",
-                          bordercolor="#e3e1d9", borderwidth=1, borderpad=8, text="<b>no random control for this target</b><br>it was run for the day-ahead price only")
-    rf.add_annotation(x=0, y=1.0, xref="x3", yref="y3", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="defaults = 1.000")
+                          bordercolor="#e3e1d9", borderwidth=1, borderpad=8, text="<b>No random control for this target yet</b>")
+    rf.add_annotation(x=0, y=1.0, xref="x3", yref="y3", xanchor="left", yanchor="bottom", yshift=3, showarrow=False, font=dict(size=11, color=theme.INK_MUTED), text="Defaults = 1.000")
     rf.add_annotation(x=0, y=1.0, yshift=70, xref="paper", yref="paper", xanchor="left", yanchor="bottom", showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY), align="left",
-                      text=f"<span style='color:{GOLD}'>■</span> gold = a good combination &nbsp; <span style='color:{T_DONE}'>●</span> a trial &nbsp; <span style='color:{T_STOP}'>✕</span> stopped early &nbsp; "
-                           f"<span style='color:{T_WIN}'>★</span> the best found &nbsp;·&nbsp; <span style='color:{theme.INK_MUTED}'>a cell = one combination of the axes</span>")
+                      text=f"<span style='color:{GOLD}'>■</span> Good combination &nbsp; <span style='color:{T_DONE}'>●</span> Trial &nbsp; <span style='color:{T_STOP}'>✕</span> Stopped early &nbsp; "
+                           f"<span style='color:{T_WIN}'>★</span> Best found &nbsp;&nbsp; <span style='color:{theme.INK_MUTED}'>Each cell is one combination of the axes.</span>")
     st.plotly_chart(rf, width="stretch", config={"displayModeBar": False})
     if rc_model == "decision_tree":
         st.caption("This algorithm's grid is small, so both searches try every cell.")
@@ -426,36 +426,36 @@ else:
     rule_raw = [str(v) for k_, vs in sp_.items() if k_ in RULE_SETTINGS for v in vs]
     fixed = not rule_raw                                                                # trees and forests: squared error only, nothing to choose
     rule_raw = rule_raw or ["squared_error"]
-    CARD = {"squared error (L2)": ("Squared error (L2)", "e²", "900", "follows spikes: big misses dominate"),
-            "absolute error (L1)": ("Absolute error (L1)", "|e|", "30", "follows the typical day"),
-            "Huber": ("Huber", "½e² if |e| ≤ δ,  else δ(|e| − ½δ)", "29.5", "squared if small, absolute if big (δ = 1 here)"),
-            "pseudo-Huber": ("Pseudo-Huber", "δ²(√(1 + (e/δ)²) − 1)", "29.0", "a smooth Huber (δ = 1 here)")}
-    SCORES = [("SSE", "Σ e²", "905", "sum of squared errors"), ("MSE", "(1/n) Σ e²", "301.7", "mean squared error"), ("RMSE", "√MSE", "17.4", "back in €/MWh"),
-              ("MAE", "(1/n) Σ |e|", "11", "the score the tuning compares settings by")]
+    CARD = {"squared error (L2)": ("Squared error (L2)", "e²", "900", "Follows spikes: large misses dominate"),
+            "absolute error (L1)": ("Absolute error (L1)", "|e|", "30", "Follows the typical day"),
+            "Huber": ("Huber", "½e² if |e| ≤ δ,  else δ(|e| − ½δ)", "29.5", "Squared if small, absolute if large (δ = 1 here)"),
+            "pseudo-Huber": ("Pseudo-Huber", "δ²(√(1 + (e/δ)²) − 1)", "29.0", "A smooth Huber (δ = 1 here)")}
+    SCORES = [("SSE", "Σ e²", "905", "Sum of squared errors"), ("MSE", "(1/n) Σ e²", "301.7", "Mean squared error"), ("RMSE", "√MSE", "17.4", "Back in €/MWh"),
+              ("MAE", "(1/n) Σ |e|", "11", "The score the tuning compares settings by")]
     # two thin rows of chips, for reference only: the learning rules of this algorithm, and the scores
     FONT = "'Cambria Math', 'STIX Two Math', 'Times New Roman', serif"
     CHIP = "display:inline-flex; align-items:baseline; gap:0.45rem; background:#fff; border:1px solid #e3e1d9; border-radius:999px; padding:0.18rem 0.8rem; font-size:0.85rem; white-space:nowrap;"
     LAB = f"font-size:0.66rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; min-width:5.2rem;"
     chips = "".join(
-        f"<span style='{CHIP}' title='{raw} · {note}'><b style='color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][0]}</b>"
+        f"<span style='{CHIP}' title='{raw}: {note}'><b style='color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][0]}</b>"
         f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][1]}</span>"
         f"</span>"
         for raw, note in ((r_, CARD[OBJECTIVE_NAME.get(r_, r_)][3]) for r_ in rule_raw))
     if fixed:
-        chips += f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>trees and forests always split on squared error</span>"
+        chips += f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>Trees and forests always split on squared error</span>"
     score_chips = "".join(
         f"<span style='{CHIP}{'background:#fff7e6; border-color:#eda100;' if n == 'MAE' else ''}' title='{d}'><b style='color:{theme.INK_PRIMARY};'>{n}</b>"
         f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{f}</span></span>" for n, f, v, d in SCORES)
     st.markdown(f"<div style='display:flex; flex-direction:column; gap:0.35rem; margin:0.1rem 0 0.6rem;'>"
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>{ml_data.model_label(rc_model)} rules</span>{chips}</div>"
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
-                f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast · MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
+                f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast; MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
 io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
 imp = ml_data.target_evidence("importance", target, "importance_random_search")
 
 # ---- 5. what was searched, and what did it find
-_section(f"What was searched and what was found <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑤")
+_section(f"What was searched and what was found <span style='font-weight:400; color:{theme.INK_MUTED};'>— {ml_data.model_label(model)}</span>", num="⑤")
 from collections import Counter
 import ast
 space = cfg["space"].get(model, {})
@@ -512,10 +512,10 @@ for i_, k_ in enumerate(_keys5):
         w_ = min(e_ / 0.5, 1.0) * 230
         cf.add_shape(type="rect", x0=730, x1=730 + w_, y0=y_ - 0.22, y1=y_ + 0.22, fillcolor=T_DONE, line_width=0)
         cf.add_annotation(x=730 + w_ + 8, y=y_, xanchor="left", showarrow=False, text=f"<b>{100 * e_:.0f}%</b>", font=dict(size=11, color=theme.INK_SECONDARY))
-cf.add_annotation(x=14, y=-0.95, xanchor="left", showarrow=False, text="setting", font=dict(size=11, color=MUTED))
+cf.add_annotation(x=14, y=-0.95, xanchor="left", showarrow=False, text="Setting", font=dict(size=11, color=MUTED))
 cf.add_annotation(x=_X0, y=-0.95, xanchor="left", showarrow=False,
-                  text=f"options · <span style='color:{T_DEF}'>●</span> TPE ({_nr['tpe']} rounds)" + (f" &nbsp; <span style='color:{theme.INK_MUTED}'>○</span> random control ({_nr['random']} rounds)" if _nr["random"] else ""), font=dict(size=11, color=MUTED))
-cf.add_annotation(x=730, y=-0.95, xanchor="left", showarrow=False, text="how much of the score it explains", font=dict(size=11, color=MUTED))
+                  text=f"Options: <span style='color:{T_DEF}'>●</span> TPE ({_nr['tpe']} rounds)" + (f" &nbsp; <span style='color:{theme.INK_MUTED}'>○</span> Random control ({_nr['random']} rounds)" if _nr["random"] else ""), font=dict(size=11, color=MUTED))
+cf.add_annotation(x=730, y=-0.95, xanchor="left", showarrow=False, text="How much of the score it explains", font=dict(size=11, color=MUTED))
 theme.style_fig(cf, height=int((_n5 * _pitch + 1.9) * 38 + 20), xaxis_title=None, legend=False)
 cf.update_yaxes(autorange=False, range=[(_n5 - 1) * _pitch + 0.85, -1.4], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
 cf.update_xaxes(range=[0, 1010], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
@@ -524,12 +524,12 @@ cf.layout.shapes = tuple(sh for sh in cf.layout.shapes if not (sh.line.color == 
 st.plotly_chart(cf, width="stretch", config={"displayModeBar": False})
 n_comb = math.prod(len(v) for v in space.values())
 _n_trials = int(cfg["search"]["n_trials"])
-_what = (f"every combination is tried: {n_comb} + the defaults = {n_comb + 1} trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
+_what = (f"Every combination is tried: {n_comb} + the defaults = {n_comb + 1} trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
          f"{_n_trials} trials look at {100 * _n_trials / n_comb:.1f}% of them")
-_line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied) · {_what}")
+_line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied). {_what}.")
 
 # ---- 6. it changes from round to round, and the gain afterwards is smaller
-_section(f"The choice changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>· {ml_data.model_label(model)}</span>", num="⑥")
+_section(f"The choice changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>— {ml_data.model_label(model)}</span>", num="⑥")
 _mini("What the search chose, round by round")
 lg = tlog[(tlog["target"] == target) & (tlog["search"] == "tpe") & (tlog["model"] == model)].copy()
 if len(lg):
@@ -538,7 +538,7 @@ if len(lg):
     _SHORT = {"squared error (L2)": "L2", "absolute error (L1)": "L1", "Huber": "Huber", "pseudo-Huber": "pseudo-Huber"}
     _grid = f"display:grid; grid-template-columns:5.3rem 5.2rem repeat({len(_keys)}, minmax(0, 1fr)); align-items:center; column-gap:0.5rem;"
     _head_ = (f"<div style='{_grid} padding:0.55rem 0 0.35rem; border-bottom:1px solid #e3e1d9; font-size:0.7rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
-              "<span>round</span><span>gain</span>" + "".join(f"<span style='text-align:center;'>{ml_data.setting_label(k_)}</span>" for k_ in _keys) + "</div>")
+              "<span>Round</span><span>Gain</span>" + "".join(f"<span style='text-align:center;'>{ml_data.setting_label(k_)}</span>" for k_ in _keys) + "</div>")
     _rows = ""
     for i_, r_ in enumerate(lg.itertuples()):
         try:
@@ -569,9 +569,9 @@ if len(lg):
         _md, _ms = sum(_bd) / len(_bd), sum(_bs) / len(_bs)
         _gn = 100 * (1 - _ms / _md)
         _GREY = "#b9b7ae"
-        _cats = [f"block {j_ + 1}" for j_ in range(len(_bc))] + [" ", "mean"]
+        _cats = [f"Block {j_ + 1}" for j_ in range(len(_bc))] + [" ", "Mean"]
         bf = go.Figure()
-        for nm_, ys_, col_ in (("defaults", _bd + [None, _md], _GREY), ("chosen setting", _bs + [None, _ms], theme.VIOLET)):
+        for nm_, ys_, col_ in (("Defaults", _bd + [None, _md], _GREY), ("Chosen setting", _bs + [None, _ms], theme.VIOLET)):
             bf.add_trace(go.Bar(x=_cats, y=ys_, name=nm_, marker_color=col_, text=[f"{v_:.2f}" if v_ is not None else "" for v_ in ys_], textposition="outside", cliponaxis=False,
                                 textfont=dict(size=11, color=theme.INK_SECONDARY), hoverinfo="skip"))
         theme.style_fig(bf, height=260, yaxis_title="MAE", barmode="group")
@@ -588,9 +588,9 @@ if len(lg):
         with _r:
             st.markdown(
                 f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.86rem; color:{theme.INK_SECONDARY};'>"
-                f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① the mean of the blocks</div>"
-                + _row(_GREY, "defaults", _bd, _md, theme.INK_PRIMARY) + _row(theme.VIOLET, "chosen", _bs, _ms, theme.VIOLET)
-                + f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.55rem;'>② the gain</div>"
+                f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the blocks</div>"
+                + _row(_GREY, "Defaults", _bd, _md, theme.INK_PRIMARY) + _row(theme.VIOLET, "Chosen", _bs, _ms, theme.VIOLET)
+                + f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.55rem;'>② The gain</div>"
                 f"<div style='display:flex; align-items:baseline; justify-content:space-between; gap:0.6rem; margin-top:0.1rem;'><span>({_md:.2f} − {_ms:.2f}) ÷ {_md:.2f} =</span>"
                 f"<b style='font-size:1.7rem; line-height:1.1; color:{theme.INK_PRIMARY if _gn >= 0 else T_STOP};'>{_gn:+.1f}%</b></div></div>", unsafe_allow_html=True)
 
@@ -599,7 +599,7 @@ if io.empty:
 _ir = io[io["model"] == model].sort_values("tuned_at") if not io.empty else io
 if len(_ir):
     # the rounds of this algorithm: the gain on the blocks it was chosen on, and the gain of the same setting afterwards; the last row is the mean (the bars below)
-    _lab = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in _ir["tuned_at"]] + ["mean of the rounds"]
+    _lab = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in _ir["tuned_at"]] + ["Mean of the rounds"]
     _gi = list(100 * _ir["inner_gain"]) + [100 * float(_ir["inner_gain"].mean())]
     _go = list(100 * _ir["outer_gain"]) + [100 * float(_ir["outer_gain"].mean())]
     _yy = list(range(len(_ir))) + [len(_ir) + 0.45]
@@ -608,18 +608,18 @@ if len(_ir):
     for y_, a_, b_ in zip(_yy, _gi, _go):
         sf.add_shape(type="line", x0=a_, x1=b_, y0=y_, y1=y_, line=dict(color="#c9c7bf", width=2.5), layer="below")
     sf.add_shape(type="line", xref="paper", x0=0, x1=1, y0=len(_ir) - 0.25, y1=len(_ir) - 0.25, line=dict(color="#e3e1d9", width=1))
-    for nm_, xs_, col_ in (("on the tuning blocks", _gi, theme.VIOLET), ("on the days that followed", _go, theme.ORANGE)):
+    for nm_, xs_, col_ in (("On the tuning blocks", _gi, theme.VIOLET), ("On the days that followed", _go, theme.ORANGE)):
         sf.add_trace(go.Scatter(x=xs_, y=_yy, mode="markers+text", name=nm_, text=[f"{v_:+.1f}%" for v_ in xs_], textposition=[("middle right" if (g_ >= o_) == (col_ == theme.VIOLET) else "middle left") for g_, o_ in zip(_gi, _go)],
                                 textfont=dict(size=10, color=col_), cliponaxis=False, hoverinfo="skip",
                                 marker=dict(size=[12] * len(_ir) + [16], color=col_, line=dict(color="white", width=1.5))))
-    _mini(f"Round by round · {ml_data.model_label(model)}")
+    _mini(f"Round by round — {ml_data.model_label(model)}")
     _cl, _cr = st.columns([5, 4], gap="medium")
     theme.style_fig(sf, height=int(42 * len(_yy)) + 78, xaxis_title="MAE gain over the defaults (%)", legend=False)
     sf.update_xaxes(zeroline=False, showgrid=False, range=[min(0.0, min(_gi + _go)) - 2.6, max(_gi + _go) + 2.6])
-    sf.update_yaxes(tickmode="array", tickvals=_yy, ticktext=[f"<b>{x_}</b>" if x_.startswith("mean") else x_ for x_ in _lab], autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
+    sf.update_yaxes(tickmode="array", tickvals=_yy, ticktext=[f"<b>{x_}</b>" if x_.startswith("Mean") else x_ for x_ in _lab], autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
     sf.update_layout(margin=dict(t=34, b=40, l=130, r=40))
     sf.add_annotation(xref="paper", yref="paper", x=0, y=1, xanchor="left", yanchor="bottom", yshift=6, showarrow=False, font=dict(size=12, color=theme.INK_SECONDARY),
-                      text=f"<span style='color:{theme.VIOLET}'>●</span> on the tuning blocks &nbsp;&nbsp;&nbsp; <span style='color:{theme.ORANGE}'>●</span> on the days that followed")
+                      text=f"<span style='color:{theme.VIOLET}'>●</span> On the tuning blocks &nbsp;&nbsp;&nbsp; <span style='color:{theme.ORANGE}'>●</span> On the days that followed")
     with _cl:
         st.plotly_chart(sf, width="stretch", config={"displayModeBar": False})
     _fmt = lambda v_: f"{v_:.2f}" if v_ >= 0 else f"({v_:.2f})"                                                          # noqa: E731
@@ -630,9 +630,9 @@ if len(_ir):
     with _cr:
         st.markdown(
             f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.9rem; color:{theme.INK_SECONDARY}; min-height:{int(42 * len(_yy)) + 40}px; display:flex; flex-direction:column; justify-content:space-between;'>"
-            f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① the mean of the {len(_ir)} rounds</div>"
-            + _row2(theme.VIOLET, "on the tuning blocks", _gi[:-1], _mi) + _row2(theme.ORANGE, "on the days that followed", _go[:-1], _mo)
-            + f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.2rem;'>② the gap between the two bars below</div>"
+            f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the {len(_ir)} rounds</div>"
+            + _row2(theme.VIOLET, "On the tuning blocks", _gi[:-1], _mi) + _row2(theme.ORANGE, "On the days that followed", _go[:-1], _mo)
+            + f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.2rem;'>② The gap between the two bars below</div>"
             f"<div style='margin-top:0.1rem;'>{_mi:.2f} − {_mo:.2f} = "
             f"<b style='font-size:1.5rem; line-height:1.1; color:{theme.INK_PRIMARY};'>{_mi - _mo:.2f} points lost</b></div></div>", unsafe_allow_html=True)
 
@@ -641,7 +641,7 @@ if not io.empty:
     g = io.groupby("model")[["inner_gain", "outer_gain"]].mean().reindex(ml_data.ordered_models(io["model"].unique())).reset_index()
     fig = go.Figure()
     _xl = [ml_data.model_label(x).replace(" ", "<br>", 1) for x in g["model"]]
-    for nm_, col_, key_ in (("on the tuning blocks", theme.VIOLET, "inner_gain"), ("on the days that followed", theme.ORANGE, "outer_gain")):
+    for nm_, col_, key_ in (("On the tuning blocks", theme.VIOLET, "inner_gain"), ("On the days that followed", theme.ORANGE, "outer_gain")):
         fig.add_trace(go.Bar(x=_xl, y=100 * g[key_], name=nm_, marker_color=col_, text=[f"{v_:.1f}%" for v_ in 100 * g[key_]], textposition="outside", cliponaxis=False,
                              textfont=dict(size=12, color=col_), hoverinfo="skip"))
     theme.style_fig(fig, height=330, yaxis_title="MAE gain over the defaults (%)", barmode="group")
@@ -653,7 +653,7 @@ if not io.empty:
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
 _section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
-_line("<b>Fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b> · a stopped trial skips 2 of its 3 block fits")
+_line("<b>Fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b>. A stopped trial skips 2 of its 3 block fits.")
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
@@ -693,4 +693,4 @@ if len(_bd):
     _hh = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
            + "".join(f"<span style='{'' if j_ == 0 else 'text-align:center;'}'>{h_}</span>" for j_, h_ in enumerate(_hd)) + "</div>")
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_hh}{_body}</div>", unsafe_allow_html=True)
-    _line("<b>Mean</b> = the row of the table above · difference = TPE best − random best · fits saved: decision tree left out (all its combinations are tried)")
+    _line("<b>Mean</b> = the row of the table above. <b>Difference</b> = TPE best − random best. <b>Fits saved</b> leaves out the decision tree, because all its combinations are tried.")
