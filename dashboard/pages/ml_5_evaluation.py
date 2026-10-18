@@ -36,13 +36,50 @@ tune = ml_ui.cached(lambda: ml_data.config("tuning"))().get("search", {})
 _fmt = lambda x: f"{pd.Timestamp(x):%d-%m-%Y}"
 _val = int(tune.get("n_blocks", 3)) * int(tune.get("validation_days", 30))          # the last days of every training window, where the settings are chosen
 
-st.subheader("How the data is split")
-c_evid, c_win = st.columns([2, 1])
+INK, NEUTRAL, CARD_LINE = theme.INK_PRIMARY, "#6b6a64", "#e3e1d9"
+_cap = lambda h_: h_[:1].upper() + h_[1:] if h_[:1].islower() else h_                                                  # noqa: E731
+
+
+def _section(title: str, hint: str = "", num: str = "") -> None:
+    """A section heading: a number (the steps of the story), a bold title and, under it, one muted line on how to read the section."""
+    _n = f"<span style='font-weight:400; color:{NEUTRAL};'>{num}</span>&nbsp; " if num else ""
+    st.markdown(f"<div style='margin:1.7rem 0 0.45rem;'><div style='font-size:1.55rem; font-weight:700; color:{INK}; line-height:1.25;'>{_n}{title}</div>"
+                + (f"<div style='font-size:0.88rem; color:{theme.INK_MUTED}; margin-top:0.2rem;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+
+
+def _mini(title: str, hint: str = "") -> None:
+    """The title of a chart or table inside a section."""
+    st.markdown(f"<div style='margin:0.6rem 0 0.3rem;'><div style='font-size:1.02rem; font-weight:700; color:{INK};'>{title}</div>"
+                + (f"<div style='font-size:0.82rem; color:{theme.INK_MUTED}; margin-top:0.1rem; line-height:1.35;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+
+
+def _line(html_: str) -> None:
+    """One short note under a table or chart, the key numbers in bold."""
+    st.markdown(f"<div style='font-size:0.86rem; color:{theme.INK_SECONDARY}; margin:0.25rem 0 0.9rem;'>{html_}</div>", unsafe_allow_html=True)
+
+
+def _panel(inner: str) -> str:
+    """A white rounded card, as on the Tuning lab."""
+    return (f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.55rem 1.1rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); "
+            f"font-size:0.9rem; color:{theme.INK_SECONDARY};'>{inner}</div>")
+
+
+def _table(headers: list, rows: list, widths: str | None = None, left: tuple = (0,)) -> None:
+    """A table as on the Tuning lab: muted header, thin row lines, the first column left, the others centred."""
+    grid = f"display:grid; grid-template-columns:{widths or f'minmax(9rem, 1.5fr) repeat({len(headers) - 1}, minmax(0, 1fr))'}; align-items:center; column-gap:0.6rem;"
+    head = (f"<div style='{grid} padding:0.6rem 0 0.4rem; border-bottom:1px solid {CARD_LINE}; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
+            + "".join(f"<span style='{'' if j in left else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(headers)) + "</div>")
+    body = "".join(f"<div style='{grid} min-height:2.5rem; font-size:0.86rem; border-bottom:1px solid #eeede8;'>"
+                   + "".join(f"<span style='{'' if j in left else 'text-align:center;'} color:{INK};'>{c}</span>" for j, c in enumerate(row)) + "</div>" for row in rows)
+    st.markdown(f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{head}{body}</div>", unsafe_allow_html=True)
+
+_section("How the data is split", "Each refit trains on the days before it, tunes on the last days of its window, and forecasts the days after it", num="①")
+c_evid, c_win = st.columns([2, 1], gap="medium")
 treat = c_evid.radio("Evidence", ["Full (day-ahead, aFRR)", "Limited (IDA1-3, XBID)", "Very limited (mFRR)"], horizontal=True, key="ml5_treat")
 tkey = {"Full": "standard", "Limited": "limited_evidence", "Very": "very_limited_evidence"}[treat.split()[0]]
 tr_cfg = roll.get("treatments", {}).get(tkey, {}).get("schedule", {})
 first_data = {"standard": dt.date(2020, 1, 1), "limited_evidence": dt.date(2024, 6, 13), "very_limited_evidence": dt.date(2024, 11, 27)}[tkey]       # where each group's prices begin
-c1, _, _ = st.columns(3)
+c1, _, _ = st.columns(3, gap="medium")
 every = c1.slider("Refit every (days)", 7, 90, int(sch["retrain_every_days"]), key="ml5_every")
 window_opts = ["rolling 730 days", "rolling 365 days", "expanding"]
 default_w = 0 if tkey == "standard" else 2
@@ -122,7 +159,7 @@ if folds is not None and len(folds):
     strips = [(start0, v0, BLUE, 0.7, theme.INK_PRIMARY, f"<b>Training period</b><br>{_fmt(start0)} to {_fmt(v0 - one_day)}<br>used only for learning and tuning"),
               (v0, v1, ORANGE, 1.0, "white", f"<b>Validation period</b> &nbsp;{_fmt(v0)} to {_fmt(v1 - one_day)}<br>all the orange validation forecasts together<br>"
                                               "algorithms compared, champion chosen"),
-              (l0, l1, RED, 1.0, "white", f"<b>Locked test</b><br>{_fmt(l0)} to {_fmt(l1 - one_day)}<br>scored once: the final result")]
+              (l0, l1, RED, 1.0, "white", f"<b>Locked test</b><br>{_fmt(l0)} to<br>{_fmt(l1 - one_day)}<br>scored once")]
     for x0, x1, c, op, tc, txt in strips:
         pill(x0 + pd.Timedelta(days=1.5), x1 - pd.Timedelta(days=1.5), ys, ye, c, op, r_px=8)
         fig.add_annotation(x=mid(x0, x1), y=(ys + ye) / 2, text=txt, showarrow=False, font=dict(size=11, color=tc), align="center")
@@ -135,7 +172,7 @@ if folds is not None and len(folds):
     for x in (v0, l0):                                                              # where one period ends and the next begins
         fig.add_shape(type="line", x0=x, x1=x, y0=-0.6, y1=ys - 0.2, line=dict(color="#c4c2b9", width=1, dash="dot"))
     fig.add_annotation(x=l0 + (l1 - l0) / 2, y=n / 2, text="<i>no refit trains on<br>or tunes on this year</i>", showarrow=False, font=dict(size=12, color=RED))
-    fig.add_annotation(x=l1, y=-10.1, xanchor="right", yanchor="top", text=f"{n} refits, one row each, a new one every {step} days ↓", showarrow=False, font=dict(size=11, color=MUTED), bgcolor="#eef1f8", bordercolor="#d5dcec", borderwidth=1, borderpad=5)
+    fig.add_annotation(x=l1, y=-10.1, xanchor="right", yanchor="top", text=f"{n} refits, one every {step} days ↓", showarrow=False, font=dict(size=11, color=MUTED), bgcolor="#eef1f8", bordercolor="#d5dcec", borderwidth=1, borderpad=5)
     theme.style_fig(fig, height=int((n + 19.5) * 14 + 60), xaxis_title=None, legend=False)          # 14 px a row whatever the number of rows, so the labels keep their places
     fig.update_yaxes(autorange=False, range=[n + 9.1, -10.4], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
     fig.update_xaxes(type="date", range=[start0, l1 + pd.Timedelta(days=20)], showgrid=False, dtick="M12", tickformat="%Y", ticks="outside", ticklen=4, tickcolor="#c4c2b9",
@@ -143,7 +180,31 @@ if folds is not None and len(folds):
     fig.update_layout(margin=dict(t=2, b=34, l=10, r=10))
     fig.layout.shapes = tuple(sh for sh in fig.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1 == 0))          # no dark axis line down the left: the rows need none
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    sq = lambda c_, t_: f"<span style='white-space:nowrap;'><span style='color:{c_}'>■</span>&nbsp;{t_}</span>"           # noqa: E731
+    _line(f"{sq(BLUE, 'Training days: the model learns from them')} &nbsp;&nbsp; {sq(VIOLET, 'Tuning days: its settings are chosen on them')} &nbsp;&nbsp; "
+          f"{sq(ORANGE, 'Validation forecast days: forecast, then scored')} &nbsp;&nbsp; {sq(RED, 'The locked year: scored once')}")
+    _mini("The schedule in numbers")
+    vdays = (v1 - v0).days
+    ldays = (l1 - l0).days
+    st.markdown(_panel(
+        f"<div style='display:grid; grid-template-columns:11rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
+        f"<span style='font-weight:600; color:{INK};'>Validation period</span><span>{_fmt(v0)} to {_fmt(v1 - one_day)}, <b style='color:{INK};'>{vdays:,}</b> days</span>"
+        f"<span style='font-weight:600; color:{INK};'>Refits</span><span>{vdays:,} ÷ {step} = {vdays / step:.2f}, so <b style='font-size:1.1rem; color:{INK};'>{n}</b> refits, one new row every {step} days</span>"
+        f"<span style='font-weight:600; color:{INK};'>Each refit</span><span>Trains on {train_label}, tunes on the last {_val} days of its window, leaves a {gap}-day gap, then forecasts {step} days</span>"
+        f"<span style='font-weight:600; color:{INK};'>Locked year</span><span>{_fmt(l0)} to {_fmt(l1 - one_day)}, <b style='color:{INK};'>{ldays:,}</b> days, never trained or tuned on</span></div>"), unsafe_allow_html=True)
 
-st.subheader("What is measured")
-ml_ui.table(__import__("pandas").DataFrame([{"SSE": "sum of squared errors", "MAE": "mean absolute error", "RMSE": "root mean squared error"}]), stretch=True)
-st.caption("MAE is lowest for the median, so the forecasts are median-type: the typical price, not the expected price, which a spike lifts.")
+_section("What is measured", "Every forecast is judged by the size of its errors, an error being the actual price minus the forecast", num="②")
+_mini("The scores", "An illustration with four hourly errors of +2, −4, +1 and +9 (not data)")
+_errs = [2, -4, 1, 9]
+_sse = sum(e_ ** 2 for e_ in _errs)
+_mse = _sse / len(_errs)
+_rmse = _mse ** 0.5
+_mae = sum(abs(e_) for e_ in _errs) / len(_errs)
+_table(["Score", "Name", "Formula", "Worked out on the four errors", "Result"],
+       [["SSE", "Sum of squared errors", "Σ e²", " + ".join(f"{e_ ** 2}" for e_ in _errs), f"{_sse:,.0f}"],
+        ["MSE", "Mean squared error", "(1/n) Σ e²", f"{_sse:,.0f} ÷ {len(_errs)}", f"{_mse:,.1f}"],
+        ["RMSE", "Root mean squared error", "√MSE", f"√{_mse:,.1f}", f"{_rmse:,.2f}"],
+        ["<b>MAE</b>", "<b>Mean absolute error</b>", "(1/n) Σ |e|", " + ".join(f"{abs(e_)}" for e_ in _errs) + f" = {sum(abs(e_) for e_ in _errs)}, ÷ {len(_errs)}", f"<b>{_mae:,.2f}</b>"]],
+       widths="minmax(4rem, 0.6fr) minmax(11rem, 1.6fr) minmax(7rem, 1fr) minmax(12rem, 2fr) minmax(4rem, 0.7fr)", left=(0, 1))
+_line(f"MAE is the score the tuning and the comparison use, so the large miss of 9 counts as 9, not as 81: it makes up {100 * 81 / _sse:.0f}% of the SSE but {100 * 9 / sum(abs(e_) for e_ in _errs):.0f}% of the absolute errors. "
+      "MAE is lowest for the median, so the forecasts are median-type: the typical price, not the expected price, which a spike lifts.")
