@@ -513,13 +513,14 @@ with _lc:
         fl.add_shape(type="line", x0=_best_l, x1=_best_l, y0=-0.5, y1=len(lad) - 0.5, line=dict(color=MUTED, width=1, dash="dot"))
         fl.add_trace(go.Scatter(x=[r_[1] for r_ in lad], y=[ml_data.model_label(r_[0]) for r_ in lad], mode="markers+text", showlegend=False,
                                 marker=dict(size=15, color=[_alg(r_[0]) for r_ in lad], line=dict(color="white", width=1.5)),
-                                text=[f"{r_[1]:.3f}" + ("" if r_[3] is None else f"   {'Cannot be told apart' if r_[2] == 'tied' else 'Significantly worse'} (p {r_[3]:.2g})") for r_ in lad],
+                                text=[f"{r_[1]:.3f}" + ("" if r_[3] is None else f"   {'Tied' if r_[2] == 'tied' else 'Worse'}, p {r_[3]:.2g}") for r_ in lad],
                                 textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
         theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title=f"Mean daily error ({units})", legend=False)
         fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
         fl.update_xaxes(range=[_best_l - 0.6, max(r_[1] for r_ in lad) + 3.4], showgrid=False, zeroline=False)
         fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
         st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
+        _line("Worse: significantly worse than the best after the Holm correction. Tied: cannot be told apart from it.")
 with _rc2:
     st.markdown(_panel(
         f"<div style='font-size:1.7rem; font-weight:800; color:{_alg(best['model'])}; line-height:1.2;'>{ml_data.model_label(best['model'])}</div>"

@@ -54,17 +54,17 @@ def _panel(inner: str, min_height: str = "") -> str:
             f"font-size:0.9rem; color:{theme.INK_SECONDARY}; {min_height}'>{inner}</div>")
 
 
-def _table(headers: list, rows: list, highlight: int | None = None, first: str = "minmax(9rem, 1.5fr)") -> None:
+def _table(headers: list, rows: list, highlight: int | None = None, first: str = "minmax(9rem, 1.5fr)", widths: str | None = None, left: tuple = (0,)) -> None:
     """A table as on the Tuning lab: muted header, thin row lines, the first column left, the others centred; one row can be shaded."""
-    grid = f"display:grid; grid-template-columns:{first} repeat({len(headers) - 1}, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
+    grid = f"display:grid; grid-template-columns:{widths or f'{first} repeat({len(headers) - 1}, minmax(0, 1fr))'}; align-items:center; column-gap:0.6rem;"
     head = (f"<div style='{grid} padding:0.6rem 0 0.4rem; border-bottom:1px solid {CARD_LINE}; font-size:0.72rem; color:{MUTED}; font-weight:600; line-height:1.2;'>"
-            + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(headers)) + "</div>")
+            + "".join(f"<span style='{'' if j in left else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(headers)) + "</div>")
     body = ""
     for i, row in enumerate(rows):
         hl = i == highlight
         body += (f"<div style='{grid} min-height:2.5rem; font-size:0.86rem; "
                  + ("border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;" if hl else "border-bottom:1px solid #eeede8;") + "'>"
-                 + "".join(f"<span style='{'' if j == 0 else 'text-align:center;'} color:{INK if str(c) != '–' else MUTED};'>{c}</span>" for j, c in enumerate(row)) + "</div>")
+                 + "".join(f"<span style='{'' if j in left else 'text-align:center;'} color:{INK if str(c) != '–' else MUTED};'>{c}</span>" for j, c in enumerate(row)) + "</div>")
     st.markdown(f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{head}{body}</div>", unsafe_allow_html=True)
 
 
@@ -175,7 +175,7 @@ if d.get("policy_digest"):
 # ---- card 2: the two windows
 y2 = y1 + 8.45
 _fcard(y2, y2 + 4.9)
-_fhead(y2 + 1.0, "②", "Two windows, one honest test", "The choice is made on the development window. The locked year is scored once, and nothing was tuned or chosen on it")
+_fhead(y2 + 1.0, "②", "Two windows, one honest test", "Chosen on the development window. The locked year is scored once")
 dev = (d.get("source") or {}).get("window") or [None, None]
 lkw = (lk or {}).get("window") or [None, None]
 dev_days, lock_days = int(d["n_days"]), 365
@@ -194,18 +194,18 @@ _fnote(wd + 13, cyt + 1.55, "Scored once, frozen by digest", size=11, color=RED,
 SH.append(dict(type="line", x0=wd, x1=wd, y0=cyt - 0.75, y1=cyt + 0.75, line=dict(color="#a8a69d", width=1.4, dash="dot")))
 # ---- card 3: what the champion is compared with
 y3 = y2 + 5.35
-_fcard(y3, y3 + 4.6)
+_fcard(y3, y3 + 5.05)
 _fhead(y3 + 1.0, "③", "What the champion is compared with", "All on exactly the same hours")
-cmp_items = [(CHAMP, "Champion", "The chosen forecast"), (theme.BLUE, "Decision tree", "The simplest algorithm: what the extra ones buy"),
-             (LUCK, "Naive forecasts", "No model at all: is machine learning worth having?")]
+cmp_items = [(CHAMP, "Champion", "The chosen forecast<br>&nbsp;"), (theme.BLUE, "Decision tree", "The simplest algorithm:<br>what the extra ones buy"),
+             (LUCK, "Naive forecasts", "No model at all: is machine<br>learning worth having?")]
 iw = 310.0
 for i, (col, ttl, sub_) in enumerate(cmp_items):
     x0 = i * (iw + 25)
-    _shp(x0, x0 + iw, y3 + 2.2, y3 + 4.0, col, 0.10, r_px=8)
-    _shp(x0, x0 + 5, y3 + 2.2, y3 + 4.0, col, 1.0, r_px=2)
-    _fnote(x0 + 16, y3 + 2.85, f"<b>{ttl}</b>", size=13, anchor="left")
-    _fnote(x0 + 16, y3 + 3.5, sub_, size=10, color=theme.INK_SECONDARY, anchor="left")
-end = y3 + 4.6
+    _shp(x0, x0 + iw, y3 + 2.2, y3 + 4.5, col, 0.10, r_px=8)
+    _shp(x0, x0 + 5, y3 + 2.2, y3 + 4.5, col, 1.0, r_px=2)
+    _fnote(x0 + 16, y3 + 2.8, f"<b>{ttl}</b>", size=13, anchor="left")
+    _fnote(x0 + 16, y3 + 3.7, sub_, size=10, color=theme.INK_SECONDARY, anchor="left", align="left")
+end = y3 + 5.05
 fig_a.layout.shapes = ()
 theme.style_fig(fig_a, height=int((end + 0.9) * ROW + 12), xaxis_title=None, legend=False)
 fig_a.update_yaxes(autorange=False, range=[end + 0.15, -0.75], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
@@ -237,7 +237,7 @@ with _lc:
     pv = {r_["model"]: r_ for _, r_ in vb.iterrows()} if len(vb) else {}
     fl.add_trace(go.Scatter(x=lad["mean_loss"], y=[ml_data.model_label(m_) for m_ in lad["model"]], mode="markers+text", showlegend=False,
                             marker=dict(size=15, color=[_alg(m_) for m_ in lad["model"]], line=dict(color="white", width=1.5)),
-                            text=[f"{v_:.3f}" + ("" if m_ not in pv else f"   {'Cannot be told apart' if m_ in notworse else 'Significantly worse'} (p {_p(float(pv[m_]['p_holm']))})") for m_, v_ in zip(lad["model"], lad["mean_loss"])],
+                            text=[f"{v_:.3f}" + ("" if m_ not in pv else f"   {'Tied' if m_ in notworse else 'Worse'}, p {_p(float(pv[m_]['p_holm']))}") for m_, v_ in zip(lad["model"], lad["mean_loss"])],
                             textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
     theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title=f"Mean daily error ({units})", legend=False)
     fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
@@ -245,6 +245,7 @@ with _lc:
     fl.update_xaxes(range=[best_l - 0.15 * spread - 0.3, float(lad["mean_loss"].max()) + 0.9 * spread + 1.5], showgrid=False, zeroline=False)
     fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
     st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
+    _line("Worse: significantly worse than the best after the Holm correction. Tied: cannot be told apart from it.")
 with _rc:
     st.markdown(_panel(
         f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED};'>Champion</div>"
@@ -376,12 +377,12 @@ else:
             ok = pv_ is not None and pv_ < 0.05
             rows.append([f"{_dot(n_) if n_ == 'reference' else ''}{NAMES.get(n_, n_)}", WHAT.get(n_, ""), f"{round(sc[n_]['mae'], 3):.3f}", f"{sc[n_]['rmse']:.3f}", f"{g_:.1f}%", _p(pv_),
                          (_real_pill() if g_ > 0 else _pill("Real: champion is worse", "#8a1f1f", "#f7e3e3")) if ok else _luck_pill()])
-        _table(["Forecast", "What it is", "MAE", "RMSE", "Champion's gain", "p-value", "Verdict"], rows, first="minmax(11rem, 1.3fr)")
+        _table(["Forecast", "What it is", "MAE", "RMSE", "Champion's gain", "p-value", "Verdict"], rows, widths="minmax(9rem, 1.3fr) minmax(11rem, 2.2fr) minmax(3.5rem, 0.7fr) minmax(3.5rem, 0.7fr) minmax(5.6rem, 0.9fr) minmax(4rem, 0.8fr) minmax(4.8rem, 0.9fr)", left=(0, 1))
         st.markdown("<div style='height:0.6rem;'></div>", unsafe_allow_html=True)
     nv = [n_ for n_ in (bm[stages[0][0]]["scores"] if stages else {}) if n_ not in ("champion", "reference")]
     if nv:
         _mini("Calculation of the gain over one forecast")
-        _cc, _cd = st.columns([1, 3], gap="medium")
+        _cc, _cd = st.columns([2, 3], gap="medium")
         with _cc:
             _sel = st.selectbox("Forecast", nv, index=nv.index("naive_seasonal") if "naive_seasonal" in nv else 0, format_func=lambda n_: NAMES.get(n_, n_), key="ml8_naive", label_visibility="collapsed")
         parts = ""
