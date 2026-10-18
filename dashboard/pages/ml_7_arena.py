@@ -298,52 +298,5 @@ if res is not None and A != B:
     st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})
     _line(f"{la} was closer on <b>{wins:,} of {n_d:,} days ({100 * wins / n_d:.1f}%)</b>.")
 
-# ============================================================================================ 8. the outcome
-_section("The outcome", num="⑥")
-_vb = tabs["versus_best"]
-_ex = lambda m_, v_: float(piv.loc[m_].mean()) if (piv is not None and m_ in piv.index) else float(v_)               # the mean daily error from the daily table, not from the 4-decimal file
-_tied = []
-if not _vb.empty:
-    _tied = [ml_data.model_label(m_) for m_, d_ in zip(_vb["model"], _vb["distinguishable_from_best"]) if not d_]
-_sig = f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "–"
-_lc, _rc2 = st.columns([3, 2], gap="medium")
-with _lc:
-    if not _vb.empty:
-        _best_m = _vb["best"].iloc[0]
-        _best_l = _ex(_best_m, _vb["best_loss"].iloc[0])
-        lad = [(_best_m, _best_l, "best", None)] + [(m_, _ex(m_, l_), "tied" if not d_ else "worse", float(ph_)) for m_, l_, d_, ph_ in zip(_vb["model"], _vb["mean_loss"], _vb["distinguishable_from_best"], _vb["p_holm"])]
-        lad.sort(key=lambda r_: r_[1])
-        fl = go.Figure()
-        k_tie = sum(1 for r_ in lad if r_[2] != "worse")
-        if k_tie > 1:
-            fl.add_shape(type="rect", xref="paper", x0=0, x1=1, y0=-0.5, y1=k_tie - 0.5, fillcolor="rgba(154,152,144,0.14)", line_width=0, layer="below")
-        fl.add_shape(type="line", x0=_best_l, x1=_best_l, y0=-0.5, y1=len(lad) - 0.5, line=dict(color=MUTED, width=1, dash="dot"))
-        fl.add_trace(go.Scatter(x=[r_[1] for r_ in lad], y=[ml_data.model_label(r_[0]) for r_ in lad], mode="markers+text", showlegend=False,
-                                marker=dict(size=15, color=[_alg(r_[0]) for r_ in lad], line=dict(color="white", width=1.5)),
-                                text=[f"{r_[1]:.3f}" + ("" if r_[3] is None else f"   {'Tied' if r_[2] == 'tied' else 'Worse'}, p {r_[3]:.2g}") for r_ in lad],
-                                textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
-        theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title=f"Mean daily error ({units})", legend=False)
-        fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
-        fl.update_xaxes(range=[_best_l - 0.6, max(r_[1] for r_ in lad) + 3.4], showgrid=False, zeroline=False)
-        fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
-        st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
-        _line("Worse: significantly worse than the best after the Holm correction. Tied: cannot be told apart from it.")
-with _rc2:
-    st.markdown(_panel(
-        f"<div style='font-size:1.7rem; font-weight:800; color:{_alg(best['model'])}; line-height:1.2;'>{ml_data.model_label(best['model'])}</div>"
-        f"<div style='line-height:1.6; font-size:0.9rem; margin-top:0.4rem;'>"
-        f"<div><b>Lowest MAE:</b> {best['mae']:.3f} {units} over {n_days_all:,} days.</div>"
-        f"<div><b>Pairs that differ after the Holm correction (5%):</b> {_sig}.</div>"
-        f"<div><b>Cannot be told apart from it:</b> {', '.join(_tied) if _tied else 'none, every other algorithm is significantly worse'}.</div></div>"), unsafe_allow_html=True)
-if not _vb.empty:
-    _mini("Each algorithm against the best", "The Holm correction is applied over these comparisons")
-    _rows = []
-    for _, r_ in _vb.iterrows():
-        worse = bool(r_["distinguishable_from_best"])
-        _rows.append([f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{_ex(r_['model'], r_['mean_loss']):.3f}", f"{_ex(r_['best'], r_['best_loss']):.3f}", f"{round(_ex(r_['model'], r_['mean_loss']), 3) - round(_ex(r_['best'], r_['best_loss']), 3):+.3f}", f"{float(r_['statistic']):.2f}",
-                      f"{float(r_['p_value']):.2g}", f"{float(r_['p_holm']):.2g}",
-                      _pill("Real: worse than the best", "#006100", "#e3f1e3") if worse else _pill("Cannot be told apart", "#5a5953", "#ecebe6")])
-    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference", "DM statistic", "p-value", "p-value (Holm)", "Verdict"], _rows)
-    _line("The mean daily error averages the day scores. The MAE of the scoreboard averages every hour, so the two differ in the third decimal.")
 _line("The champion is chosen on the next page, by a rule written before the results existed.")
 st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are compared on their own page, against simple forecasts and, for irradiance and temperature, the weather forecast.")
