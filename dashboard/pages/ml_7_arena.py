@@ -252,18 +252,6 @@ _table(["Algorithm", f"MAE ({units})", f"RMSE ({units})", "Days with the smalles
        [[f"{_dot(m)}{ml_data.model_label(m)}", f"{float(r['mae']):.3f}", f"{float(r['rmse']):.3f}", f"{_cnt[m]:,} of {_nd:,}", f"{100 * _cnt[m] / _nd:.1f}%"] for m, (_, r) in zip(models, board.iterrows())], highlight=0)
 _line("The best algorithm by MAE is shaded.")
 
-_mini("Calculation for one algorithm")
-_rc, _rd = st.columns([1, 3], gap="medium")
-with _rc:
-    _rsel = st.selectbox("Algorithm", models, index=0, format_func=ml_data.model_label, key="ml7_row", label_visibility="collapsed")
-_rb = board[board["model"] == _rsel].iloc[0]
-with _rd:
-    st.markdown(_panel(
-        f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>MAE</span><span>The mean of the {n_hours:,} hourly errors = <b style='font-size:1.1rem; color:{_alg(_rsel)};'>{_rb['mae']:.3f}</b> {units}</span>"
-        f"<span style='font-weight:600; color:{INK};'>Smallest error</span><span>{_cnt[_rsel]:,} of {_nd:,} days = <b style='font-size:1.1rem; color:{INK};'>{100 * _cnt[_rsel] / _nd:.1f}%</b> of the days</span></div>"), unsafe_allow_html=True)
-_line("A day counts for the algorithm with the smallest error of that day. A high share of days can go with a worse average when the misses on the other days are large.")
-
 # ============================================================================================ 3-4. is the gap real
 if daily.empty:
     _section("How the two compare, day by day", num="⑤")
@@ -279,7 +267,7 @@ else:
         B = st.selectbox("Against", _opts, index=_opts.index("decision_tree") if "decision_tree" in _opts else 1, format_func=_name, key="ml7_b")
     with _px:
         smooth_d = st.slider("Smoothing (days)", 1, 60, 28, key="ml7_smooth")
-    _line(M(r"\text{Smoothed error}(t)=\frac{\text{error}(t)+\text{error}(t-1)+\cdots+\text{error}(t-N+1)}{N}") + ", N = number of days")
+    _line(M(r"\text{Smoothed error}(t)=\frac{\text{error}(t)+\text{error}(t-1)+\cdots+\text{error}(t-N+1)}{N}", size=0.95) + ", N = number of days")
     la, lb = _name(A), _name(B)
     res = ml_data.dm_example(daily, target, A, B) if A != B else None
     if res is not None and not (np.isfinite(res["statistic"]) and np.isfinite(res["p_value"]) and float(res["statistic"]) != 0.0):

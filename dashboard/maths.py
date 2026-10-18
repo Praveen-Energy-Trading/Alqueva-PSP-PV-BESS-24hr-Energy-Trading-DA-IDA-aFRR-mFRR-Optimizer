@@ -16,7 +16,7 @@ except ImportError:                                                             
 
 
 @lru_cache(maxsize=1024)
-def tex(latex: str, display: bool = False) -> str:
+def tex(latex: str, display: bool = False, size: float = 1.22) -> str:
     """A LaTeX formula as MathML, ready to be placed inside an HTML string."""
     if _converter is None:
         return f"<code>{html.escape(latex)}</code>"
@@ -24,6 +24,6 @@ def tex(latex: str, display: bool = False) -> str:
         ml = _converter.convert(latex, display="block" if display else "inline")
     except Exception:                                                                     # noqa: BLE001 - a formula the converter does not know
         return f"<code>{html.escape(latex)}</code>"
-    ml = ml.replace("<math ", "<math style=\"font-size:1.22em; font-family:'Cambria Math','STIX Two Math','Latin Modern Math',serif;\" ", 1)
+    ml = ml.replace("<math ", "<math style=\"font-size:" + f"{size}em" + "; font-family:'Cambria Math','STIX Two Math','Latin Modern Math',serif;\" ", 1)
     head, _, rest = ml.partition(">")                                                     # a fraction keeps its full size inside a line of text
     return f"{head}><mstyle displaystyle=\"true\" scriptlevel=\"0\">{rest[:-len('</math>')]}</mstyle></math>"
