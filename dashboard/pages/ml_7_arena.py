@@ -283,6 +283,7 @@ if not daily.empty and res is not None and A != B:
 
     _section("The average gap against luck, and the verdict", num="⑥")
     se = abs(mean / stat) if stat else float(diff["difference"].std() / n_d ** 0.5)
+    sd_gap = float(diff["difference"].std())
     band = 1.96 * se
     m = max(abs(mean), band, 3.2 * se) * 1.18
     c_obs = BLUE if mean < 0 else ORANGE
@@ -319,8 +320,9 @@ if not daily.empty and res is not None and A != B:
         _hd = lambda txt_: f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; margin-top:0.55rem;'>{txt_}</div>"                    # noqa: E731
         st.markdown(_panel(
             f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① One luck-width</div>"
-            f"<div>= <b style='font-size:1.1rem; color:{INK};'>{se:.3f}</b></div>"
-            f"<div style='font-size:0.8rem; line-height:1.35;'>How much the average gap moves by chance, from {n_d:,} daily gaps (neighbouring days that move together are allowed for).</div>"
+            f"<div>= <b style='font-size:1.1rem; color:{INK};'>{se:.3f}</b>, how much the average gap moves by chance</div>"
+            f"<div style='font-size:0.8rem; line-height:1.45; margin-top:0.2rem;'>Plain: the spread of the {n_d:,} daily gaps ÷ √{n_d:,} = {sd_gap:.2f} ÷ {n_d ** 0.5:.1f} = {sd_gap / n_d ** 0.5:.3f}.<br>"
+            f"Neighbouring days move together, so they hold less news than {n_d:,} independent days: the corrected figure is {se:.3f}.</div>"
             + _hd("② The gap in luck-widths: the DM statistic")
             + f"<div>{mean:+.3f} ÷ {se:.3f} = <b style='font-size:1.1rem; color:{INK};'>{stat:.2f}</b></div>"
             + _hd("③ The chance of a gap this big if the two were equal")
@@ -373,6 +375,26 @@ else:
         st.plotly_chart(fh, width="stretch", config={"displayModeBar": False})
     _line("A green dot is real after the correction: it sits below the violet step, the limit Holm allows for its rank. Orange dots could be luck. "
           "Dots are floored at 1e-12 for display.")
+    _pa_, _pb_ = globals().get("A"), globals().get("B")
+    _from_pick = _pa_ in models and _pb_ in models and _pa_ != _pb_
+    if _from_pick:
+        _pick = pws[((pws["a"] == _pa_) & (pws["b"] == _pb_)) | ((pws["a"] == _pb_) & (pws["b"] == _pa_))]
+    else:
+        _pick = pws.iloc[:1]
+    if len(_pick):
+        _ri = int(_pick.index[0])
+        _r_, _pv, _th = _ri + 1, float(pws["p_value"].iloc[_ri]), thr[_ri]
+        _na, _nb2 = ml_data.model_label(pws["a"].iloc[_ri]), ml_data.model_label(pws["b"].iloc[_ri])
+        _own = _pv <= _th
+        _good = okk[_ri]
+        _verdict = "Real after the correction" if _good else ("Could be luck: a smaller p-value failed before it, so Holm stops" if _own else "Could be luck")
+        _mini("Calculation for one pair", f"{_na} against {_nb2}. " + ("The pair follows the choice in step ⑤." if _from_pick else "The pair with the smallest p-value; pick two algorithms in step ⑤ to change it."))
+        st.markdown(_panel(
+            f"<div style='display:grid; grid-template-columns:7.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
+            f"<span style='font-weight:600; color:{INK};'>① Rank</span><span>The p-value is number <b style='color:{INK};'>{_r_}</b> of {mm}, smallest first.</span>"
+            f"<span style='font-weight:600; color:{INK};'>② Limit</span><span>0.05 ÷ ({mm} − {_r_} + 1) = 0.05 ÷ {mm - _r_ + 1} = <b style='color:{INK};'>{_th:.4g}</b></span>"
+            f"<span style='font-weight:600; color:{INK};'>③ Compare</span><span>p = <b style='color:{INK};'>{_pv:.2g}</b> {'≤' if _own else '>'} {_th:.4g}, so this pair {'passes' if _own else 'fails'} its limit. After the correction: p = {float(_pick['p_holm'].iloc[0]):.2g}.</span></div>"
+            f"<div style='margin-top:0.6rem; font-size:1.15rem; font-weight:800; color:{theme.GREEN if _good else MUTED};'>{_verdict}</div>"), unsafe_allow_html=True)
     vb = tabs["versus_best"]
     if not vb.empty:
         tied = [m_ for m_, d_ in zip(vb["model"], vb["distinguishable_from_best"]) if not d_]
