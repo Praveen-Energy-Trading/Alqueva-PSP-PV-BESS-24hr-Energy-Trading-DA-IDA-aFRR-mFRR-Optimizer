@@ -494,6 +494,7 @@ else:
 # ============================================================================================ 8. the outcome
 _section("The outcome", num="⑩")
 _vb = tabs["versus_best"]
+_ex = lambda m_, v_: float(piv.loc[m_].mean()) if (piv is not None and m_ in piv.index) else float(v_)               # the mean daily error from the daily table, not from the 4-decimal file
 _tied = []
 if not _vb.empty:
     _tied = [ml_data.model_label(m_) for m_, d_ in zip(_vb["model"], _vb["distinguishable_from_best"]) if not d_]
@@ -501,8 +502,9 @@ _sig = f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "–"
 _lc, _rc2 = st.columns([3, 2], gap="medium")
 with _lc:
     if not _vb.empty:
-        _best_m, _best_l = _vb["best"].iloc[0], float(_vb["best_loss"].iloc[0])
-        lad = [(_best_m, _best_l, "best", None)] + [(m_, float(l_), "tied" if not d_ else "worse", float(ph_)) for m_, l_, d_, ph_ in zip(_vb["model"], _vb["mean_loss"], _vb["distinguishable_from_best"], _vb["p_holm"])]
+        _best_m = _vb["best"].iloc[0]
+        _best_l = _ex(_best_m, _vb["best_loss"].iloc[0])
+        lad = [(_best_m, _best_l, "best", None)] + [(m_, _ex(m_, l_), "tied" if not d_ else "worse", float(ph_)) for m_, l_, d_, ph_ in zip(_vb["model"], _vb["mean_loss"], _vb["distinguishable_from_best"], _vb["p_holm"])]
         lad.sort(key=lambda r_: r_[1])
         fl = go.Figure()
         k_tie = sum(1 for r_ in lad if r_[2] != "worse")
@@ -530,7 +532,7 @@ if not _vb.empty:
     _rows = []
     for _, r_ in _vb.iterrows():
         worse = bool(r_["distinguishable_from_best"])
-        _rows.append([f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}", f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}", f"{float(r_['statistic']):.2f}",
+        _rows.append([f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{_ex(r_['model'], r_['mean_loss']):.3f}", f"{_ex(r_['best'], r_['best_loss']):.3f}", f"{round(_ex(r_['model'], r_['mean_loss']), 3) - round(_ex(r_['best'], r_['best_loss']), 3):+.3f}", f"{float(r_['statistic']):.2f}",
                       f"{float(r_['p_value']):.2g}", f"{float(r_['p_holm']):.2g}",
                       _pill("Real: worse than the best", "#006100", "#e3f1e3") if worse else _pill("Cannot be told apart", "#5a5953", "#ecebe6")])
     _table(["Algorithm", "Mean daily error", "Error of the best", "Difference", "DM statistic", "p-value", "p-value (Holm)", "Verdict"], _rows)
