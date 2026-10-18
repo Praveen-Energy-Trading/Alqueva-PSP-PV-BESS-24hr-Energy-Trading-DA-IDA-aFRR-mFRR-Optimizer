@@ -140,9 +140,9 @@ if piv is not None and piv.shape[1] >= 20:
     fig_a = go.Figure()
     fig_a.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
     # ---- card 1: five lanes over the same days
-    _fcard(-0.6, 6.75)
+    _fcard(-0.6, 7.45)
     _fhead(0.4, "①", "The same days for every algorithm", f"{ml_data.label(target)}, development window: {n_d:,} delivery days from {pd.Timestamp(dates[0]):%d-%m-%Y} to {pd.Timestamp(dates[-1]):%d-%m-%Y}")
-    pitch, y_first, xs0, xs1 = 0.95, 1.7, 190.0, 1000.0
+    pitch, y_first, xs0, xs1 = 0.95, 1.7, 215.0, 1000.0
     ys = [y_first + i * pitch for i in range(len(models))]
     xs = np.linspace(xs0, xs1, n_d)
     z = piv.to_numpy(dtype=float)
@@ -154,10 +154,10 @@ if piv is not None and piv.shape[1] >= 20:
         _fnote(8, y, f"{_dot(m)}<b>{ml_data.model_label(m)}</b>", anchor="left")
     _fnote(xs0, ys[-1] + 0.72, f"{pd.Timestamp(dates[0]):%d-%m-%Y}", size=11, color=MUTED, anchor="left")
     _fnote(xs1, ys[-1] + 0.72, f"{pd.Timestamp(dates[-1]):%d-%m-%Y}", size=11, color=MUTED, anchor="right")
-    _fnote((xs0 + xs1) / 2, ys[-1] + 0.72, "One column is one delivery day, the same day in every row. Darker = smaller error that day.", size=11, color=MUTED)
+    _fnote(8, ys[-1] + 1.3, "One column is one delivery day, the same day in every row. Darker = smaller error that day.", size=11, color=MUTED, anchor="left")
     # ---- card 2: one score per day
-    y2 = 7.1
-    _fcard(y2, y2 + 4.2)
+    y2 = 7.8
+    _fcard(y2, y2 + 4.5)
     _fhead(y2 + 0.8, "②", "One score per day", "A forecast error is the gap to the real price, in absolute value")
     cy = y2 + 2.75
     x = 8.0
@@ -170,14 +170,14 @@ if piv is not None and piv.shape[1] >= 20:
     ex = piv.loc[models[0]]
     ex_day = ex.index[int((ex - ex.median()).abs().to_numpy().argmin())]                    # a typical day of the best algorithm
     _farrow(448, cy, 497, cy)
-    _shp(500, 700, cy - 0.5, cy + 0.5, NEUTRAL, 0.12, r_px=8)
-    _fnote(600, cy, "<b>Day score</b>: mean of the 24", size=12)
-    _fnote(600, cy + 0.85, f"{float(ex[ex_day]):.1f} on {pd.Timestamp(ex_day):%d-%m-%Y}, {ml_data.model_label(models[0])}", size=10, color=MUTED)
+    _shp(500, 700, cy - 0.62, cy + 0.62, NEUTRAL, 0.12, r_px=8)
+    _fnote(600, cy, "<b>Day score</b><br>mean of the 24", size=12)
+    _fnote(600, cy + 1.05, f"{float(ex[ex_day]):.1f} on {pd.Timestamp(ex_day):%d-%m-%Y}", size=10, color=MUTED)
     _farrow(703, cy, 752, cy)
-    _shp(755, 1000, cy - 0.5, cy + 0.5, NEUTRAL, 0.12, r_px=8)
-    _fnote(877, cy, f"<b>MAE</b>: mean of all {n_hours:,} hourly errors", size=12)
-    _fnote(877, cy + 0.85, f"{float(best['mae']):.3f} {units}, {ml_data.model_label(models[0])}", size=10, color=MUTED)
-    end = y2 + 4.2
+    _shp(755, 1000, cy - 0.62, cy + 0.62, NEUTRAL, 0.12, r_px=8)
+    _fnote(877, cy, "<b>MAE</b><br>mean of all hourly errors", size=12)
+    _fnote(877, cy + 1.05, f"{float(best['mae']):.3f} {units} over {n_hours:,} hours", size=10, color=MUTED)
+    end = y2 + 4.5
     # ---- card 3: one gap per day for a pair (the champion against the decision tree)
     if res0 is not None:
         y3 = end + 0.35
@@ -187,7 +187,7 @@ if piv is not None and piv.shape[1] >= 20:
         kk = int((lastd["a"] - lastd["b"] - (lastd["a"] - lastd["b"]).mean()).abs().idxmin())               # a typical day, as on the picture of step 5
         va, vb = round(float(lastd["a"][kk]), 1), round(float(lastd["b"][kk]), 1)                           # the gap is the difference of the numbers shown
         cya, cyb = y3 + 2.55, y3 + 3.55
-        scale = 520.0 / max(va, vb)
+        scale = 470.0 / max(va, vb)
         xa, xb = 190 + va * scale, 190 + vb * scale
         _fnote(8, cya, f"{_dot('champion')}<b>Champion</b>", anchor="left")
         _fnote(8, cyb, f"{_dot('decision_tree')}<b>Decision tree</b>", anchor="left")
@@ -198,9 +198,10 @@ if piv is not None and piv.shape[1] >= 20:
         _fnote(190, y3 + 1.75, f"Day score on {pd.Timestamp(lastd['date'][kk]):%d-%m-%Y}", size=11, color=MUTED, anchor="left")
         for xx in (xa, xb):
             SH.append(dict(type="line", x0=xx, x1=xx, y0=cya - 0.45, y1=cyb + 0.5, line=dict(color="#a8a69d", width=1.2, dash="dot")))
-        _shp(790, 1000, y3 + 2.15, y3 + 3.95, NEUTRAL, 0.12, r_px=8)
-        _fnote(895, y3 + 2.65, f"<b>Gap = {va:.1f} − {vb:.1f} = {va - vb:+.1f}</b>", size=13)
-        _fnote(895, y3 + 3.4, f"{'Champion' if va < vb else 'Decision tree'} closer. One gap per day, {res0['n_days']:,} days", size=10, color=MUTED)
+        _shp(730, 1000, y3 + 2.0, y3 + 4.0, NEUTRAL, 0.12, r_px=8)
+        _fnote(865, y3 + 2.5, f"<b>Gap = {va:.1f} − {vb:.1f} = {va - vb:+.1f}</b>", size=12)
+        _fnote(865, y3 + 3.1, f"{'Champion' if va < vb else 'Decision tree'} closer", size=10, color=MUTED)
+        _fnote(865, y3 + 3.5, f"One gap per day, {res0['n_days']:,} days", size=10, color=MUTED)
         end = y3 + 4.4
     fig_a.layout.shapes = ()
     theme.style_fig(fig_a, height=int((end + 0.9) * ROW + 12), xaxis_title=None, legend=False)
@@ -337,7 +338,7 @@ if res is not None and A != B:
         stp = max(1, int(np.ceil(2 * kmax / 12)))
         tv = [kk * se for kk in range(-kmax, kmax + 1) if kk % stp == 0]
         tt = [f"{kk}".replace("-", "−") for kk in range(-kmax, kmax + 1) if kk % stp == 0]
-        theme.style_fig(f3, height=300, xaxis_title=f"{la} − {lb}, average over all days, in luck-widths (one luck-width = {se:.3f})", legend=False)
+        theme.style_fig(f3, height=300, xaxis_title="Average gap in luck-widths", legend=False)
         f3.update_xaxes(range=[-m, m], tickmode="array", tickvals=tv, ticktext=tt, zeroline=False, showgrid=False)
         f3.update_yaxes(range=[-0.02, 1.4], visible=False, fixedrange=True)
         st.plotly_chart(f3, width="stretch", config={"displayModeBar": False})
