@@ -231,16 +231,17 @@ else:
         for _, r_ in frame.iterrows():
             rp = r_["reproduced"]
             pill = _off_pill("Single attempt") if pd.isna(rp) else _ok_pill("Reproduced exactly") if bool(rp) else _warn_pill("Not reproduced")
-            out.append([ml_data.run_label(r_["kind"]), ml_data.label(r_["target"]), ml_data.run_label(r_["stage"]), f"{pd.Timestamp(r_['window_start']):%d-%m-%Y}", f"{pd.Timestamp(r_['window_end']):%d-%m-%Y}",
-                        f"{int(r_['attempts'])}", pill, ml_data.run_label(r_["source"])])
+            out.append([f"{ml_data.run_label(r_['kind'])}, {ml_data.label(r_['target'])}, {ml_data.run_label(r_['stage']).lower()}",
+                        f"{pd.Timestamp(r_['window_start']):%d-%m-%Y} to {pd.Timestamp(r_['window_end']):%d-%m-%Y}", f"{int(r_['attempts'])}", pill,
+                        f"<span style='font-family:monospace;'>{str(r_['run_key'])[:8]}</span>"])
         return out
-    heads = ["Kind", "Target", "Stage", "From", "To", "Attempts", "Reproducibility", "Recorded by"]
-    wdt = "minmax(7rem, 1.1fr) minmax(8rem, 1.2fr) minmax(5rem, 0.8fr) minmax(5.5rem, 0.9fr) minmax(5.5rem, 0.9fr) minmax(4rem, 0.6fr) minmax(8rem, 1.1fr) minmax(6rem, 1fr)"
+    heads = ["Experiment", "Window", "Attempts", "Reproducibility", "Run key"]
+    wdt = "minmax(11rem, 2fr) minmax(9.5rem, 1.5fr) minmax(3.5rem, 0.6fr) minmax(8rem, 1.1fr) minmax(5.5rem, 0.8fr)"
     rep_rows = runs[runs["attempts"] > 1]
     if len(rep_rows):
         _mini("The experiments that were run more than once")
         _table(heads, _rows(rep_rows), widths=wdt, left=(0, 1))
-        _line("The Optuna day-ahead experiment, run twice, gave identical predictions. The random-search control is shown as not reproduced on purpose: "
+        _line("The Optuna day-ahead experiment, run twice, gave identical predictions: it is the one reproduced exactly. The random-search control is shown as not reproduced on purpose: "
               "its second attempt ran with the numerical guard, which changed one unstable row (see step ⑩).")
     with st.expander(f"All {len(runs)} experiments"):
         _table(heads, _rows(runs), widths=wdt, left=(0, 1))
