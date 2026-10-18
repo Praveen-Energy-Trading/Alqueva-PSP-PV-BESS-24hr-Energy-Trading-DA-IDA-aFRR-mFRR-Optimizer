@@ -75,13 +75,13 @@ _TINTS = ["#e8f0fb", "#fdeee4", "#fff6dc", "#e3f5ee", "#efe9fb"]                
 st.markdown(
     f'<div style="font-size:13px; color:{theme.INK_MUTED}; font-weight:600; margin-bottom:8px;">'
     f'Alqueva PSP + PV + BESS</div>'
-    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem, 1fr)); gap:12px;">' +
+    '<div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px;">' +
     "".join(
-        f'<div style="{_CARD} padding:12px 14px; display:flex; align-items:center; gap:12px;">'
-        f'<div style="flex:none; width:36px; height:36px; border-radius:10px; background:{_TINTS[n]}; display:flex; align-items:center; justify-content:center; font-size:18px;">{icon}</div>'
+        f'<div style="{_CARD} padding:10px 10px; display:flex; align-items:center; gap:8px;">'
+        f'<div style="flex:none; width:30px; height:30px; border-radius:9px; background:{_TINTS[n]}; display:flex; align-items:center; justify-content:center; font-size:15px;">{icon}</div>'
         f'<div style="min-width:0;">'
-        f'<div style="font-size:11.5px; color:{theme.INK_MUTED}; font-weight:500; margin-bottom:1px;">{label}</div>'
-        f'<div style="font-size:16px; font-weight:600; color:{theme.INK_PRIMARY}; line-height:1.25;">{value}</div>'
+        f'<div style="font-size:11.5px; color:{theme.INK_MUTED}; font-weight:500; margin-bottom:1px; white-space:nowrap;">{label}</div>'
+        f'<div style="font-size:14px; font-weight:600; color:{theme.INK_PRIMARY}; line-height:1.25;">{value}</div>'
         + (f'<div style="font-size:11.5px; color:{theme.INK_MUTED}; margin-top:1px;">{sub}</div>' if sub else "") +
         f'</div></div>'
         for n, (icon, label, value, sub) in enumerate(ASSET_CARDS)
