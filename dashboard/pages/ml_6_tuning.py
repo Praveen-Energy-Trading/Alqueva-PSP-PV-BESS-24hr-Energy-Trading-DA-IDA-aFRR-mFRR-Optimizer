@@ -133,13 +133,18 @@ def _arrow(fig, x0, y0, x1, y1, color=MUTED):
 
 
 body = win - nb * L                                                                  # the days before the tuning blocks
+_D = lambda d_: f"{d_:%d-%m-%Y}"                                                     # noqa: E731
+_E = pd.Timestamp(win_end) if win_end is not None else None                          # the last day of the window (the day the tuning ran)
+_S = _E - pd.Timedelta(days=win - 1) if _E is not None else None                     # its first day
+_span = lambda a_, b_: f"{_D(a_)} to {_D(b_)}" if _E is not None else ""             # noqa: E731
+_dk = lambda k_: (_E - pd.Timedelta(days=(nb - k_ + 1) * L - 1), _E - pd.Timedelta(days=(nb - k_) * L)) if _E is not None else (None, None)    # the days of block k
 xw = win * DAY                                                                       # where the window ends, in units
 ft = go.Figure()
 ft.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-legend = (f"<span style='color:{BLUE}'>■</span> Training days (the model learns from them) &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> Tuning days ({nb} blocks of {L} days, scored) &nbsp;&nbsp; "
+legend = (f"<span style='color:{BLUE}'>■</span> Training days (the model learns from them) &nbsp;&nbsp; <span style='color:{VIOLET}'>■</span> Tuning days ({nb} blocks of {L} days; also in the refit) &nbsp;&nbsp; "
           f"<span style='color:{ORANGE}'>■</span> The refit's forecast days &nbsp;&nbsp; <span style='color:#c9c7be'>■</span> Days not used by that round")
 _head(-1.95, "①", "Tuning only looks inside the refit's own window",
-      f"{ml_data.label(target)}, latest tuning round (" + (f"window ending {pd.Timestamp(win_end):%d-%m-%Y}, " if win_end is not None else "") + (f"expanding window of all {win} days available" if expanding else f"rolling {win}-day window") + ")", two=True)
+      f"{ml_data.label(target)}, latest tuning round (round {_log['tuned_at'].nunique()} of {_log['tuned_at'].nunique()} below; " + (f"window ending {pd.Timestamp(win_end):%d-%m-%Y}, " if win_end is not None else "") + (f"expanding window of all {win} days available" if expanding else f"rolling {win}-day window") + ")", two=True)
 # ---- 1. the window of one refit: training, then the tuning days cut into blocks
 rh = 0.8
 _pill(ft, 0, body * DAY, 0, rh, BLUE, 0.62)
@@ -147,10 +152,10 @@ _pill(ft, body * DAY + 0.6, xw, 0, rh, VIOLET, 0.9)
 for k in range(1, nb):                                                               # the block boundaries inside the tuning days
     _shape(type="line", x0=(body + k * L) * DAY, x1=(body + k * L) * DAY, y0=0.08, y1=rh - 0.08, line=dict(color="white", width=2))
 _pill(ft, xw + 1, xw + 1 + 30 * DAY, 0, rh, ORANGE, 1.0)
-_note(ft, 8, rh / 2, f"<b>One refit:</b> {body} days of training", anchor="left", align="left")
+_note(ft, 8, rh / 2, f"<b>One refit:</b> trains on all {win} days" + (f", {_span(_S, _E)}" if _E is not None else ""), anchor="left", align="left")
 for k in range(nb):
     _note(ft, (body + k * L + L / 2) * DAY, rh / 2, f"<b>{k + 1}</b>", color="white")
-_note(ft, xw + 1 + 30 * DAY + 10, rh / 2, "Forecast days", color=ORANGE, anchor="left")
+_note(ft, xw + 1 + 30 * DAY + 10, rh / 2, "Forecast days" + (f"<br>{_span(_E + pd.Timedelta(days=1), _E + pd.Timedelta(days=30))}" if _E is not None else ""), color=ORANGE, anchor="left", align="left")
 # ---- 2. the tuning rounds: each block is predicted by a model that has seen only the days before it
 for k in range(1, nb + 1):
     y0 = 1.55 + (k - 1) * 1.0
@@ -160,9 +165,9 @@ for k in range(1, nb + 1):
     _pill(ft, b0 * DAY, (b0 + L) * DAY, y0, y0 + rh, VIOLET, 0.9)
     if b0 + L < win:
         _pill(ft, (b0 + L) * DAY + 0.6, xw, y0, y0 + rh, GREY, 0.8)
-    _note(ft, 8, y0 + rh / 2, f"<b>Round {k}:</b> trains on {tr_days} days", anchor="left", align="left")
+    _note(ft, 8, y0 + rh / 2, f"<b>Block fit {k}:</b> trains on {tr_days} days" + (f", {_span(_S, _dk(k)[0] - pd.Timedelta(days=gap + 1))}" if _E is not None else ""), anchor="left", align="left")
     _note(ft, (b0 + L / 2) * DAY, y0 + rh / 2, f"<b>{k}</b>", color="white")
-    _note(ft, xw + 36, y0 + rh / 2, f"Predicts block {k}: <b>error {k}</b>" + ("<br>Scored first: the pruner looks here" if k == nb else ""), color=VIOLET, anchor="left", align="left")
+    _note(ft, xw + 36, y0 + rh / 2, f"Predicts block {k}: <b>error {k}</b>" + (f"<br>{_span(*_dk(k))}" if _E is not None else ""), color=VIOLET, anchor="left", align="left")
 ys = 1.55 + nb * 1.0 + 0.75
 _note(ft, 8, ys + 1.5, legend, size=11, color=theme.INK_SECONDARY, anchor="left", yanchor="middle", align="left", bgcolor="#f7f6f2", bordercolor="#e8e6df", borderwidth=1, borderpad=6)    # what the colours mean, on one row of its own under the rounds
 _note(ft, xw + 36, ys + 0.3, "<b>Score</b> = average of<br>errors " + ", ".join(str(k) for k in range(1, nb + 1)), size=13, color=VIOLET, anchor="left",
@@ -299,39 +304,54 @@ ft.layout.shapes = SH                                                           
 ft.layout.annotations = AN
 st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 
-# ---- how often: the tuning rounds and the refits on one time axis
+# ---- how often: every tuning round of this target on a real calendar
+_rounds = sorted(pd.to_datetime(_log["tuned_at"]).unique())
 _ex = nb * L                                                                                                             # the days of one round's exam
-_mini(f"How often: tune every {retune} days, refit every {refit} days",
-      f"Two tuning rounds on one time axis. A round tries {n_t} settings and keeps the best; until the next round that setting stays, and only the training data moves forward")
-_sh_, _an_ = [], []
-_R = lambda x0_, x1_, y_, col_, op_=1.0, h_=0.3: _sh_.append(dict(type="rect", x0=x0_, x1=x1_, y0=y_ - h_, y1=y_ + h_, fillcolor=col_, opacity=op_, line_width=0, layer="below"))   # noqa: E731
-_T = lambda x_, y_, txt_, col_=theme.INK_PRIMARY, sz_=11, **kw_: _an_.append(dict(x=x_, y=y_, text=txt_, showarrow=False, font=dict(size=sz_, color=col_), **kw_))             # noqa: E731
-for k_, r_ in enumerate((0, retune)):
-    _R(r_ - _ex - 70, r_ - _ex - 1, 0, BLUE, 0.55)                                                                       # the days it learns from (cut short here)
-    _T(r_ - _ex - 35, 0, "<b>trains</b>", "white", 10)
-    for j_ in range(nb):                                                                                                 # the exam: nb blocks, each scored
-        _R(r_ - _ex + j_ * L, r_ - _ex + (j_ + 1) * L - (1 if j_ < nb - 1 else 0), 0, VIOLET, 0.9)
-        _T(r_ - _ex + j_ * L + L / 2, 0, f"<b>{j_ + 1}</b>", "white")
-    _T(r_ - _ex / 2, -0.52, f"<b>Round {k_ + 1}</b>: best of {n_t} settings", VIOLET, 11)
-    _an_.append(dict(x=r_, y=0.32, ax=r_, ay=0.62, ayref="y", axref="x", xref="x", yref="y", text="", showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.4, arrowcolor=VIOLET))
-for k_, (a_, b_, fc_) in enumerate(((0, retune, "#e6e4dc"), (retune, 2 * retune, "#d3d8ea"))):                          # which setting is in use
-    _R(a_ + 0.5, b_ - 0.5, 1, fc_, 1.0, 0.27)
-    _T((a_ + b_) / 2, 1, f"<b>Setting {'AB'[k_]}</b> in use for {retune} days")
-_rx = list(range(0, 2 * retune, refit))
-fr = go.Figure(go.Scatter(x=_rx, y=[2] * len(_rx), mode="markers", marker=dict(size=9, color=BLUE, symbol="square"), hoverinfo="skip"))
-for i_, x_ in enumerate(_rx):                                                                                            # the 30 days each refit forecasts
-    _R(x_ + 0.5, x_ + refit - 0.5, 3, ORANGE, 0.9 if (i_ // (retune // refit)) == 0 else 0.55, 0.22)
-    _T(x_ + refit / 2, 3, f"<b>{i_ + 1}</b>", "white", 10)
-_T(retune / 2, 2.43, f"{retune // refit} refits, the same setting A", MUTED, 11)
-_T(retune * 1.5, 2.43, f"{retune // refit} refits, the same setting B", MUTED, 11)
-theme.style_fig(fr, height=300, xaxis_title="Days", legend=False)
-fr.update_xaxes(range=[-_ex - 78, 2 * retune + 62], tickvals=[0, retune, 2 * retune], showgrid=False, zeroline=False)
-fr.update_yaxes(range=[3.45, -0.8], tickvals=[0, 1, 2, 3], ticktext=["Tuning round", "Setting in use", "Model refit", "Forecast"], showgrid=False, zeroline=False, fixedrange=True)
-fr.update_layout(margin=dict(t=4, b=4, l=10, r=10))
-fr.layout.shapes = _sh_                                                                                                  # replace (not merge with) the axis line the theme added
-fr.layout.annotations = _an_
-st.plotly_chart(fr, width="stretch", config={"displayModeBar": False})
-_line(f"Between two rounds only the data moves: each refit trains on the {win} days before it, with the setting in use, and forecasts the next {refit} days. A round judges settings only on its own {_ex}-day exam.")
+if len(_rounds):
+    _dl = ml_ui.cached(ml_data.pack)("daily_loss")
+    _dd = pd.to_datetime(_dl.loc[_dl["target"] == target, "date"]) if len(_dl) else pd.Series(dtype="datetime64[ns]")
+    _first, _last = (_dd.min(), _dd.max()) if len(_dd) else (pd.NaT, pd.NaT)                                              # the first and the last day that has a forecast to score
+    _mini(f"How often: a tuning round every {retune} days, a refit every {refit} days",
+          f"{ml_data.label(target)}: {len(_rounds)} tuning rounds. Each looks at the days before its date, keeps the best setting of up to {n_t} trials, and that setting is used for the next {retune} days ({retune // refit} refits)")
+    _sh_, _an_, _wl = [], [], []                                                                                         # _wl: the window length of every round
+    _day = lambda d_, n_=0: (pd.Timestamp(d_) + pd.Timedelta(days=n_)).strftime("%Y-%m-%d")                              # noqa: E731
+    _R = lambda x0_, x1_, y_, col_, op_=1.0, h_=0.34: _sh_.append(dict(type="rect", x0=x0_, x1=x1_, y0=y_ - h_, y1=y_ + h_, fillcolor=col_, opacity=op_, line_width=0, layer="below"))   # noqa: E731
+    for k_, e_ in enumerate(_rounds):
+        _w = int(_log[pd.to_datetime(_log["tuned_at"]) == e_]["inner_train_days"].median()) + L + gap if expanding else win    # the window of this round
+        _wl.append(_w)
+        _R(_day(e_, -(_w - 1)), _day(e_, -_ex), k_, BLUE, 0.55)                                                          # the days it learns from
+        for j_ in range(nb):                                                                                             # the exam: nb blocks
+            _R(_day(e_, -_ex + j_ * L + 1), _day(e_, -_ex + (j_ + 1) * L), k_, VIOLET, 0.9)
+        fe_ = pd.Timestamp(e_) + pd.Timedelta(days=retune)
+        if pd.notna(_last):
+            fe_ = min(fe_, _last)
+        if fe_ > pd.Timestamp(e_):
+            _R(_day(e_, 1), _day(fe_), k_, ORANGE, 0.9)
+            for r_ in range(refit, retune, refit):                                                                       # the refits inside the forecast days
+                if pd.Timestamp(e_) + pd.Timedelta(days=r_) < fe_:
+                    _sh_.append(dict(type="line", x0=_day(e_, r_), x1=_day(e_, r_), y0=k_ - 0.34, y1=k_ + 0.34, line=dict(color="white", width=1.5)))
+    _fc = []                                                                                                             # the forecast days of every round
+    for e_ in _rounds:
+        fe_ = pd.Timestamp(e_) + pd.Timedelta(days=retune)
+        _fc.append((pd.Timestamp(e_) + pd.Timedelta(days=1), min(fe_, _last) if pd.notna(_last) else fe_))
+    _nr = len(_rounds)
+    if pd.notna(_first):
+        _R(_day(_first), _day(_last), _nr + 0.15, ORANGE, 0.4)
+        _an_.append(dict(x=_day(_first, (_last - _first).days // 2), y=_nr + 0.15, text=f"<b>Backtest validation</b> (the arena's days)", showarrow=False, font=dict(size=11, color=theme.INK_PRIMARY)))
+    fr = go.Figure(go.Scatter(x=[_day(_rounds[0], -2000), _day(_rounds[-1], retune)], y=[0, 0], mode="markers", marker=dict(opacity=0), hoverinfo="skip", showlegend=False))
+    theme.style_fig(fr, height=72 * (len(_rounds) + 1) + 40, legend=False)
+    fr.update_xaxes(type="date", range=[_day(_rounds[0], -(win + 6)), _day(_rounds[-1], retune + 6)], showgrid=False, zeroline=False, tickformat="%b %Y", dtick="M12", tickangle=0)
+    fr.update_yaxes(range=[len(_rounds) + 0.65, -0.7], tickvals=list(range(len(_rounds))) + ([len(_rounds) + 0.15] if pd.notna(_first) else []),     ticktext=[f"<b>Round {k_ + 1}</b> · tuned {pd.Timestamp(e_):%d-%m-%Y}" + (" (step ①)" if k_ == len(_rounds) - 1 else "")
+              + f"<br><span style='color:{BLUE}'>■</span> training {pd.Timestamp(e_) - pd.Timedelta(days=_wl[k_] - 1):%d-%m-%Y} to {pd.Timestamp(e_) - pd.Timedelta(days=_ex):%d-%m-%Y}"
+              + f"<br><span style='color:{VIOLET}'>■</span> tuning {pd.Timestamp(e_) - pd.Timedelta(days=_ex - 1):%d-%m-%Y} to {pd.Timestamp(e_):%d-%m-%Y}"
+              + f"<br><span style='color:{ORANGE}'>■</span> forecast {a_:%d-%m-%Y} to {b_:%d-%m-%Y}" for k_, (e_, (a_, b_)) in enumerate(zip(_rounds, _fc))]
+    + ([f"<b>Backtest period</b><br><span style='color:#9a9890'>{_first:%d-%m-%Y} to {_last:%d-%m-%Y}</span>"] if pd.notna(_first) else []), showgrid=False, zeroline=False, fixedrange=True)
+    fr.update_layout(margin=dict(t=4, b=4, l=10, r=10))
+    fr.layout.shapes = _sh_                                                                                              # replace (not merge with) the axis line the theme added
+    fr.layout.annotations = _an_
+    st.plotly_chart(fr, width="stretch", config={"displayModeBar": False})
+    _line(f"<span style='color:{BLUE}'>■</span> Window days before the tuning days &nbsp; <span style='color:{VIOLET}'>■</span> The {_ex} tuning days of the round (3 blocks) &nbsp; <span style='color:{ORANGE}'>■</span> Days forecast with the setting the round chose, refit every {refit} days (white lines). "
+          f"The windows overlap and slide forward {retune} days at a time. The forecast days never overlap: each round forecasts the {retune} days after its date, so together the rounds cover the backtest period once. The last round stops at the last day with a forecast. " + (f"Scoring starts on {_first:%d-%m-%Y}; the days before it serve only as history for training and tuning." if pd.notna(_first) else ""))
 
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
@@ -540,7 +560,7 @@ for i_, k_ in enumerate(_keys5):
                 xs_.append(_X0 + j_ * _DX + dx_)
                 ys_.append(y_)
                 sz_.append(7 + 4.5 * n_)
-                tx_.append(f"{'TPE' if key_ == 'tpe' else 'random control'} chose {_opt(k_, v_)} in {n_} of {_nr[key_]} rounds")
+                tx_.append(f"{'TPE' if key_ == 'tpe' else 'random control'} chose {_opt(k_, v_)} in {n_} of {_nr[key_]} tuning rounds")
         cf.add_trace(go.Scatter(x=xs_, y=ys_, mode="markers", showlegend=False, text=tx_, hoverinfo="text", opacity=1,
                                 marker=dict(symbol=sym_, size=sz_, color=col_, line=dict(color="white" if sym_ == "circle" else col_, width=1.5 if sym_ == "circle" else 2))))
     e_ = _eta.get(k_)
@@ -550,7 +570,7 @@ for i_, k_ in enumerate(_keys5):
         cf.add_annotation(x=730 + w_ + 8, y=y_, xanchor="left", showarrow=False, text=f"<b>{100 * e_:.0f}%</b>", font=dict(size=11, color=theme.INK_SECONDARY))
 cf.add_annotation(x=14, y=-0.95, xanchor="left", showarrow=False, text="Setting", font=dict(size=11, color=MUTED))
 cf.add_annotation(x=_X0, y=-0.95, xanchor="left", showarrow=False,
-                  text=f"Options: <span style='color:{T_DEF}'>●</span> TPE ({_nr['tpe']} rounds)" + (f" &nbsp; <span style='color:{theme.INK_MUTED}'>○</span> Random control ({_nr['random']} rounds)" if _nr["random"] else ""), font=dict(size=11, color=MUTED))
+                  text=f"Options: <span style='color:{T_DEF}'>●</span> TPE ({_nr['tpe']} tuning rounds)" + (f" &nbsp; <span style='color:{theme.INK_MUTED}'>○</span> Random control ({_nr['random']} tuning rounds)" if _nr["random"] else ""), font=dict(size=11, color=MUTED))
 cf.add_annotation(x=730, y=-0.95, xanchor="left", showarrow=False, text="How much of the score it explains", font=dict(size=11, color=MUTED))
 theme.style_fig(cf, height=int((_n5 * _pitch + 1.9) * 38 + 20), xaxis_title=None, legend=False)
 cf.update_yaxes(autorange=False, range=[(_n5 - 1) * _pitch + 0.85, -1.4], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
@@ -635,7 +655,7 @@ if io.empty:
 _ir = io[io["model"] == model].sort_values("tuned_at") if not io.empty else io
 if len(_ir):
     # the rounds of this algorithm: the gain on the blocks it was chosen on, and the gain of the same setting afterwards; the last row is the mean (the bars below)
-    _lab = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in _ir["tuned_at"]] + ["Mean of the rounds"]
+    _lab = [f"{pd.Timestamp(x_):%d-%m-%Y}" for x_ in _ir["tuned_at"]] + ["Mean of the tuning rounds"]
     _gi = list(100 * _ir["inner_gain"]) + [100 * float(_ir["inner_gain"].mean())]
     _go = list(100 * _ir["outer_gain"]) + [100 * float(_ir["outer_gain"].mean())]
     _yy = list(range(len(_ir))) + [len(_ir) + 0.45]
@@ -666,7 +686,7 @@ if len(_ir):
     with _cr:
         st.markdown(
             f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.9rem; color:{theme.INK_SECONDARY}; min-height:{int(42 * len(_yy)) + 40}px; display:flex; flex-direction:column; justify-content:space-between;'>"
-            f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the {len(_ir)} rounds</div>"
+            f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the {len(_ir)} tuning rounds</div>"
             + _row2(theme.VIOLET, "On the tuning blocks", _gi[:-1], _mi) + _row2(theme.ORANGE, "On the days that followed", _go[:-1], _mo)
             + f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.2rem;'>② The gap between the two bars below</div>"
             f"<div style='margin-top:0.1rem;'>{M(rf'{_mi:.2f}-{_mo:.2f}=')} "
