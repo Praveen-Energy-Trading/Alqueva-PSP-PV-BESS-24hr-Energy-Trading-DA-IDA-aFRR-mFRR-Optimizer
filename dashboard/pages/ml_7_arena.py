@@ -88,8 +88,17 @@ if board.empty:
 
 _cfg_t, _cfg_e = ml_data.config("tuning"), ml_data.config("evaluation")
 if _cfg_t and _cfg_e:
+    _tl = ml_data.pack("tuning_log")
+    _rr = sorted(pd.to_datetime(_tl.loc[(_tl["target"] == target) & (_tl["search"] == "tpe"), "tuned_at"]).unique()) if len(_tl) else []
+    _rt = int(_cfg_t["search"]["retune_every_days"])
+    _eg = ""
+    if len(_rr) > 1:                                                                                                        # an example: which round's setting serves which days
+        _k = min(2, len(_rr) - 2)                                                                                           # the third round, or the last one that is followed by another
+        _d0 = pd.Timestamp(_rr[_k])
+        _eg = f" For example, the setting of round {_k + 1} serves {_d0 + pd.Timedelta(days=1):%d-%m-%Y} to {_d0 + pd.Timedelta(days=_rt):%d-%m-%Y}."
     st.markdown(f"<div style='font-size:0.88rem; color:{theme.INK_SECONDARY}; margin:0.2rem 0 0;'>Every algorithm is scored with the settings found in the Tuning lab: "
-                f"retuned every <b>{int(_cfg_t['search']['retune_every_days'])}</b> days, refit every <b>{int(_cfg_e['schedule']['retrain_every_days'])}</b> days.</div>", unsafe_allow_html=True)
+                f"retuned every <b>{_rt}</b> days, refit every <b>{int(_cfg_e['schedule']['retrain_every_days'])}</b> days. "
+                f"Each day uses the setting of the latest tuning round before it, never a later one.{_eg}</div>", unsafe_allow_html=True)
     try:
         st.page_link("pages/ml_6_tuning.py", label="Tuning lab", icon="🎛️")
     except Exception:                                                                                                       # a single page run on its own
