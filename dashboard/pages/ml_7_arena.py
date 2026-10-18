@@ -183,7 +183,7 @@ if piv is not None and piv.shape[1] >= 20:
         _fcard(y3, y3 + 4.4)
         _fhead(y3 + 0.8, "③", "One gap per day for a pair", "The two models are scored on the same day; their difference is that day's gap")
         lastd = res0["losses"].tail(21).reset_index(drop=True)
-        kk = int((lastd["a"] - lastd["b"] - (lastd["a"] - lastd["b"]).mean()).abs().idxmin())               # a typical day, as on the picture of step 5
+        kk = int((lastd["a"] - lastd["b"] - (lastd["a"] - lastd["b"]).mean()).abs().idxmin())               # a typical day of the last three weeks
         va, vb = round(float(lastd["a"][kk]), 1), round(float(lastd["b"][kk]), 1)                           # the gap is the difference of the numbers shown
         cya, cyb = y3 + 2.55, y3 + 3.55
         scale = 470.0 / max(va, vb)
@@ -283,23 +283,6 @@ if res is not None and A != B:
     diff["date"] = diff["date"].astype(str)
     mean, stat, p, n_d = float(res["mean_diff"]), float(res["statistic"]), float(res["p_value"]), int(res["n_days"])
     wins = int((diff["difference"] < 0).sum())
-    _mini("Every day, both are scored", "Each bar is the average error of one delivery day. The shorter bar was closer. The last 21 days are shown.")
-    last = los.tail(21).reset_index(drop=True)
-    lab = [f"{pd.Timestamp(x):%d-%m}" for x in last["date"]]
-    f1 = go.Figure()
-    f1.add_trace(go.Bar(x=lab, y=last["a"], name=la, marker_color=ca))
-    f1.add_trace(go.Bar(x=lab, y=last["b"], name=lb, marker_color=cb))
-    k = int((last["a"] - last["b"] - (last["a"] - last["b"]).mean()).abs().idxmin())
-    ka, kb = round(float(last["a"][k]), 1), round(float(last["b"][k]), 1)
-    f1.add_annotation(x=lab[k], y=max(last["a"][k], last["b"][k]), ax=0, ay=-48, showarrow=True, arrowhead=3, arrowwidth=1, arrowcolor=INK, font=dict(size=12, color=INK),
-                      text=f"<b>This day</b><br>{la} {ka:.1f}, {lb} {kb:.1f}<br>Gap = {ka - kb:+.1f}", align="center",
-                      bgcolor="white", bordercolor=INK, borderwidth=1, borderpad=4, yanchor="bottom")
-    theme.style_fig(f1, height=300, yaxis_title="Average error of the day", barmode="group")
-    f1.update_xaxes(type="category", tickangle=0, tickfont=dict(size=10, color=MUTED))
-    f1.update_yaxes(range=[0, float(max(last["a"].max(), last["b"].max())) * 1.6])
-    _legend_top(f1)
-    f1.update_layout(margin=dict(t=34))
-    st.plotly_chart(f1, width="stretch", config={"displayModeBar": False})
     _mini("Both models over the whole window", f"The daily error of each, smoothed over {smooth_d} days. Where {la}'s line is below {lb}'s, {la} was closer.")
     sm_a = los["a"].rolling(smooth_d, min_periods=1).mean()
     sm_b = los["b"].rolling(smooth_d, min_periods=1).mean()
