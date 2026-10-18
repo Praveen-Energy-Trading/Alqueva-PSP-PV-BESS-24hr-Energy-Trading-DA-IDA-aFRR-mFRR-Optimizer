@@ -208,93 +208,125 @@ with _r:
 _line(f"Tuned algorithms on the development window, {n_days_all:,} days. The RMSE of each algorithm, the same score with squared errors, is "
       + ", ".join(f"{ml_data.model_label(m)} {v:.2f}" for m, v in zip(board["model"], board["rmse"])) + ".")
 
-# ============================================================================================ 3-4. is the gap real
-if daily.empty:
-    _section("Is the gap real?", num="⑤")
-    ml_ui.not_yet_run("the daily losses (data pack)")
-elif res is None:
-    _section("Is the gap real?", num="⑤")
-    st.info("Not enough days for this target.")
+_mini("Calculation for one algorithm")
+_rc, _rd = st.columns([1, 3], gap="medium")
+with _rc:
+    _rsel = st.selectbox("Algorithm", models, index=0, format_func=ml_data.model_label, key="ml7_row", label_visibility="collapsed")
+_rb = board[board["model"] == _rsel].iloc[0]
+if piv is not None and piv.shape[1] >= 20:
+    _nb = int((piv.idxmin() == _rsel).sum())
+    _nd = piv.shape[1]
 else:
+    _nd = n_days_all
+    _nb = int(round(_rb["days_best"] * _nd))
+with _rd:
+    st.markdown(_panel(
+        f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
+        f"<span style='font-weight:600; color:{INK};'>MAE</span><span>The mean of the {_nd:,} day scores = <b style='font-size:1.1rem; color:{BLUE if _rsel == models[0] else INK};'>{_rb['mae']:.2f}</b> {units}</span>"
+        f"<span style='font-weight:600; color:{INK};'>Smallest error</span><span>{_nb:,} of {_nd:,} days = <b style='font-size:1.1rem; color:{INK};'>{100 * _nb / _nd:.0f}%</b> of the days</span></div>"), unsafe_allow_html=True)
+_line("A day counts for the algorithm with the smallest error of that day. A high share of days can go with a worse average when the misses on the other days are large.")
+
+# ============================================================================================ 3-4. is the gap real
+_NAME = lambda m_: "Champion" if m_ == "champion" else ml_data.model_label(m_)                                              # noqa: E731
+if daily.empty:
+    _section("Is the edge real or luck? Day by day", num="⑤")
+    ml_ui.not_yet_run("the daily losses (data pack)")
+else:
+    _section("Is the edge real or luck? Day by day", "Pick any two to compare on the same days", num="⑤")
+    _pa, _pb, _px = st.columns([2, 2, 4], gap="medium")
+    _opts = ["champion"] + models
+    with _pa:
+        A = st.selectbox("Compare", _opts, index=0, format_func=_NAME, key="ml7_a")
+    with _pb:
+        B = st.selectbox("Against", _opts, index=_opts.index("decision_tree") if "decision_tree" in _opts else 1, format_func=_NAME, key="ml7_b")
+    la, lb = _NAME(A), _NAME(B)
+    res = ml_data.dm_example(daily, target, A, B) if A != B else None
+    if res is not None and not (np.isfinite(res["statistic"]) and np.isfinite(res["p_value"]) and float(res["statistic"]) != 0.0):
+        res = None
+        st.info(f"{la} and {lb} give the same errors on these days, so there is no gap to test.")
+    elif A == B:
+        st.info("Pick two different algorithms.")
+    elif res is None:
+        st.info("Not enough days for this target.")
+if not daily.empty and res is not None and A != B:
     diff, los = res["differences"].copy(), res["losses"].copy()
     diff["date"] = diff["date"].astype(str)
     mean, stat, p, n_d = float(res["mean_diff"]), float(res["statistic"]), float(res["p_value"]), int(res["n_days"])
     wins = int((diff["difference"] < 0).sum())
-    _section("Is the champion's edge real or luck? Day by day", "The champion is compared with the decision tree on the same days", num="⑤")
     _l, _r = st.columns(2, gap="large")
     with _l:
         _mini("Every day, both are scored", "Each bar is the average error of one delivery day. The shorter bar was closer. The last 21 days are shown.")
         last = los.tail(21).reset_index(drop=True)
         lab = [f"{pd.Timestamp(x):%d-%m}" for x in last["date"]]
         f1 = go.Figure()
-        f1.add_trace(go.Bar(x=lab, y=last["a"], name="Champion", marker_color=BLUE))
-        f1.add_trace(go.Bar(x=lab, y=last["b"], name="Decision tree", marker_color=ORANGE))
+        f1.add_trace(go.Bar(x=lab, y=last["a"], name=la, marker_color=BLUE))
+        f1.add_trace(go.Bar(x=lab, y=last["b"], name=lb, marker_color=ORANGE))
         k = int((last["a"] - last["b"] - (last["a"] - last["b"]).mean()).abs().idxmin())
         f1.add_annotation(x=lab[k], y=max(last["a"][k], last["b"][k]), ax=0, ay=-48, showarrow=True, arrowhead=3, arrowwidth=1, arrowcolor=INK, font=dict(size=12, color=INK),
-                          text=f"<b>This day</b><br>Champion {last['a'][k]:.1f}, tree {last['b'][k]:.1f}<br>Gap = {last['a'][k] - last['b'][k]:+.1f}", align="center",
+                          text=f"<b>This day</b><br>{la} {last['a'][k]:.1f}, {lb} {last['b'][k]:.1f}<br>Gap = {last['a'][k] - last['b'][k]:+.1f}", align="center",
                           bgcolor="white", bordercolor=INK, borderwidth=1, borderpad=4, yanchor="bottom")
         theme.style_fig(f1, height=320, yaxis_title="Average error of the day", barmode="group")
         f1.update_xaxes(type="category", tickangle=-90, tickfont=dict(size=10, color=MUTED))
         f1.update_yaxes(range=[0, float(max(last["a"].max(), last["b"].max())) * 1.6])
         st.plotly_chart(f1, width="stretch", config={"displayModeBar": False})
     with _r:
-        _mini("One gap per day, over the whole window", "The gap of a day is the champion's error minus the tree's. The line is the running average.")
+        _mini("One gap per day, over the whole window", f"The gap of a day is {la}'s error minus {lb}'s. The line is the running average.")
         neg, pos = diff["difference"].clip(upper=0), diff["difference"].clip(lower=0)
         f2 = go.Figure()
-        f2.add_trace(go.Bar(x=diff["date"], y=neg, name="Champion closer", marker_color=BLUE))
-        f2.add_trace(go.Bar(x=diff["date"], y=pos, name="Tree closer", marker_color=ORANGE))
+        f2.add_trace(go.Bar(x=diff["date"], y=neg, name=f"{la} closer", marker_color=BLUE))
+        f2.add_trace(go.Bar(x=diff["date"], y=pos, name=f"{lb} closer", marker_color=ORANGE))
         f2.add_trace(go.Scatter(x=diff["date"], y=diff["difference"].expanding().mean(), mode="lines", line=dict(color=INK, width=2), name="Running average"))
         f2.add_hline(y=0, line_color=MUTED)
-        theme.style_fig(f2, height=320, yaxis_title="Champion − tree (error of the day)", barmode="relative")
+        theme.style_fig(f2, height=320, yaxis_title=f"{la} − {lb} (error of the day)", barmode="relative")
         st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})
-    _line(f"The champion was closer on <b>{wins:,} of {n_d:,} days ({wins / n_d:.0%})</b>. Closer on most days is not yet proof: the days are not independent, and luck can produce a lead.")
+    _line(f"{la} was closer on <b>{wins:,} of {n_d:,} days ({wins / n_d:.0%})</b>. Closer on most days is not yet proof: the days are not independent, and luck can produce a lead.")
 
     _section("The average gap against luck, and the verdict", num="⑥")
     se = abs(mean / stat) if stat else float(diff["difference"].std() / n_d ** 0.5)
     band = 1.96 * se
-    m = max(abs(mean), band) * 1.3
+    m = max(abs(mean), band, 3.2 * se) * 1.18
     c_obs = BLUE if mean < 0 else ORANGE
     _l, _r = st.columns([5, 3], gap="medium")
     with _l:
+        xs_b = np.linspace(-m, m, 600)
+        ys_b = np.exp(-0.5 * (xs_b / se) ** 2)
+        inz = np.abs(xs_b) <= band
         f3 = go.Figure()
-        f3.add_shape(type="rect", x0=-band, x1=band, y0=0.5, y1=1.0, fillcolor="#c4c2b9", opacity=0.45, line_width=0)
-        f3.add_shape(type="line", x0=0, x1=0, y0=0.42, y1=1.08, line=dict(color=MUTED, width=1.5, dash="dot"))
-        f3.add_annotation(x=0, y=1.1, yanchor="bottom", showarrow=False, font=dict(size=12, color=MUTED), align="center",
-                          text=f"<b>The luck zone</b> (±{band:.2f})<br>If the two models were equal, the average would land here")
-        f3.add_annotation(x=mean, y=0.75, ax=0, ay=0.75, axref="x", ayref="y", showarrow=True, arrowhead=2, arrowwidth=2, arrowcolor=c_obs, text="")
-        f3.add_annotation(x=mean / 2, y=0.75, yshift=15, showarrow=False, font=dict(size=13, color=c_obs), text=f"<b>{abs(stat):.1f} luck-widths</b>")
-        f3.add_trace(go.Scatter(x=[mean], y=[0.75], mode="markers", marker=dict(symbol="diamond", size=17, color=c_obs, line=dict(color="white", width=1.5)), showlegend=False,
-                                hovertemplate=f"Observed average gap {mean:+.3f}<extra></extra>"))
-        f3.add_annotation(x=mean, y=0.75, yshift=-30, showarrow=False, font=dict(size=12, color=c_obs), align="center",
-                          text=f"<b>Observed average gap {mean:+.2f}</b><br>{'Champion' if mean < 0 else 'Tree'} lower by {abs(mean):.2f}")
-        kmax = int(abs(stat))
-        step = 1 if kmax <= 12 else 5
-        ks = list(range(step, kmax + 1, step))
-        sgn = -1 if mean < 0 else 1
-        if ks:
-            f3.add_trace(go.Scatter(x=[sgn * k_ * se for k_ in ks], y=[0.22] * len(ks), mode="markers+text", text=[str(k_) for k_ in ks], textposition="top center",
-                                    textfont=dict(size=10, color=MUTED), marker=dict(symbol="line-ns", size=11, color=MUTED, line=dict(width=1.5, color=MUTED)),
-                                    showlegend=False, hoverinfo="skip"))
-        f3.add_annotation(x=m, y=0.06, xanchor="right", yanchor="bottom", showarrow=False, font=dict(size=11, color=MUTED), align="right",
-                          text=f"One luck-width = {se:.2f}: how much the average gap moves by chance<br>(allowing for hours and neighbouring days that move together)")
-        theme.style_fig(f3, height=270, xaxis_title="Champion − tree, average over all days", legend=False)
-        f3.update_xaxes(range=[-m, m], zeroline=False, showgrid=False)
-        f3.update_yaxes(range=[0, 1.55], visible=False, fixedrange=True)
-        f3.layout.shapes = tuple(sh for sh in f3.layout.shapes if not (sh.line.color == theme.AXIS_LINE and sh.x0 == sh.x1 and sh.y0 != 0.42))
+        f3.add_trace(go.Scatter(x=xs_b, y=ys_b, mode="lines", line=dict(color="#a8a69d", width=1.5), fill="tozeroy", fillcolor="rgba(196,194,185,0.22)", hoverinfo="skip", showlegend=False))
+        f3.add_trace(go.Scatter(x=xs_b[inz], y=ys_b[inz], mode="lines", line=dict(width=0), fill="tozeroy", fillcolor="rgba(196,194,185,0.75)", hoverinfo="skip", showlegend=False))
+        f3.add_trace(go.Scatter(x=[mean], y=[0], mode="markers", marker=dict(symbol="diamond", size=17, color=c_obs, line=dict(color="white", width=1.5)), cliponaxis=False,
+                                showlegend=False, hovertemplate=f"Observed average gap {mean:+.3f}<extra></extra>"))
+        f3.add_annotation(x=mean, y=0, ax=(105 if mean < -0.5 * m else -105 if mean > 0.5 * m else 0), ay=-70, axref="pixel", ayref="pixel", showarrow=True, arrowhead=2, arrowwidth=1.6, arrowcolor=c_obs, font=dict(size=12, color=c_obs), align="center",
+                          text=f"<b>Observed average gap {mean:+.2f}</b><br>{abs(stat):.1f} luck-widths from zero", bgcolor="white", bordercolor=c_obs, borderwidth=1, borderpad=4)
+        f3.add_annotation(x=0, y=1.0, yanchor="bottom", showarrow=False, font=dict(size=12, color=MUTED), align="center",
+                          text=f"<b>The luck zone</b> (±{band:.2f})<br>If the two were equal, the average would land here 95% of the time")
+        kmax = int(m / se)
+        stp = max(1, int(np.ceil(2 * kmax / 12)))
+        tv = [kk * se for kk in range(-kmax, kmax + 1) if kk % stp == 0]
+        tt = [f"{kk}".replace("-", "−") for kk in range(-kmax, kmax + 1) if kk % stp == 0]
+        theme.style_fig(f3, height=300, xaxis_title=f"{la} − {lb}, average over all days, in luck-widths (one luck-width = {se:.2f})", legend=False)
+        f3.update_xaxes(range=[-m, m], tickmode="array", tickvals=tv, ticktext=tt, zeroline=False, showgrid=False)
+        f3.update_yaxes(range=[-0.02, 1.4], visible=False, fixedrange=True)
         st.plotly_chart(f3, width="stretch", config={"displayModeBar": False})
     with _r:
         real = p < 0.05
         badge_col = theme.GREEN if real else MUTED
-        _row = lambda name_, val_: (f"<div style='display:flex; justify-content:space-between; align-items:baseline; padding:0.35rem 0; border-bottom:1px solid #eeede8;'>"      # noqa: E731
-                                    f"<span>{name_}</span><b style='font-size:1.02rem; color:{INK};'>{val_}</b></div>")
+        ph = None
+        if A in models and B in models and not pw.empty:
+            _hit = pw[((pw["a"] == A) & (pw["b"] == B)) | ((pw["a"] == B) & (pw["b"] == A))]
+            if len(_hit):
+                ph = float(_hit["p_holm"].iloc[0])
+        _hd = lambda txt_: f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; margin-top:0.55rem;'>{txt_}</div>"                    # noqa: E731
         st.markdown(_panel(
-            f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>The verdict in four numbers</div>"
-            + _row("Days compared", f"{n_d:,}") + _row("Average gap", f"{mean:+.3f}") + _row("DM statistic (gap in luck-widths)", f"{stat:.2f}") + _row("p-value", f"{p:.2g}")
-            + f"<div style='margin-top:0.7rem; font-size:1.25rem; font-weight:800; color:{badge_col};'>{'Real, not luck' if real else 'Not distinguishable from luck'}</div>"
-            + f"<div style='margin-top:0.2rem; font-size:0.84rem; line-height:1.4;'>"
-            + (f"If the models were truly equal, a gap this big would appear with probability {p:.2g}." if real else
-               f"Equal models would show a gap this big with probability {p:.2g}; the average is only {abs(stat):.1f} luck-widths from zero.") + "</div>"), unsafe_allow_html=True)
-    _line("Beyond about 2 luck-widths, the edge of the luck zone, a gap is called real. The DM statistic is that distance in one number.")
+            f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① One luck-width</div>"
+            f"<div>= <b style='font-size:1.1rem; color:{INK};'>{se:.3f}</b></div>"
+            f"<div style='font-size:0.8rem; line-height:1.35;'>How much the average gap moves by chance, from {n_d:,} daily gaps (neighbouring days that move together are allowed for).</div>"
+            + _hd("② The gap in luck-widths: the DM statistic")
+            + f"<div>{mean:+.3f} ÷ {se:.3f} = <b style='font-size:1.1rem; color:{INK};'>{stat:.2f}</b></div>"
+            + _hd("③ The chance of a gap this big if the two were equal")
+            + f"<div>p = <b style='font-size:1.1rem; color:{INK};'>{p:.2g}</b>" + (f", after the Holm correction {ph:.2g}" if ph is not None else "") + "</div>"
+            + f"<div style='margin-top:0.7rem; font-size:1.25rem; font-weight:800; color:{badge_col};'>{'Real, not luck' if real else 'Not distinguishable from luck'}</div>"), unsafe_allow_html=True)
+    _line("Beyond about 2 luck-widths, the edge of the luck zone, a gap is called real. The shaded middle is where chance alone would put the average.")
 
 # ============================================================================================ 5. every pair, with Holm
 _section("Every pair, with the Holm correction", f"{len(pw)} pairs are tested, so some would look real by chance alone" if not pw.empty else "", num="⑦")
@@ -367,7 +399,26 @@ else:
             fig.add_trace(go.Scatter(x=t["group"], y=t[m], mode="lines", name=ml_data.model_label(m), line=dict(color=color, width=1.8)))
         else:
             fig.add_trace(go.Bar(x=t["group"].astype(str), y=t[m], name=ml_data.model_label(m), marker_color=color))
-    st.plotly_chart(theme.style_fig(fig, height=340, yaxis_title="MAE", barmode="group"), width="stretch", config={"displayModeBar": False})
+    theme.style_fig(fig, height=340, yaxis_title="MAE", barmode="group")
+    fig.update_layout(margin=dict(l=62, r=12))
+    if by == "hour":
+        fig.update_xaxes(range=[float(t["group"].min()) - 0.5, float(t["group"].max()) + 0.5])
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    strip = go.Figure()
+    for m in mcols:
+        hit = t[t["lowest_mae"] == m]
+        if len(hit):
+            strip.add_trace(go.Bar(x=hit["group"] if by == "hour" else hit["group"].astype(str), y=[1] * len(hit), name=ml_data.model_label(m), marker_color=theme.CATEGORICAL[ml_data.model_index(m) % 8],
+                                   hovertemplate=f"{ml_data.model_label(m)}: lowest average error<extra></extra>", showlegend=True))
+    theme.style_fig(strip, height=120, barmode="stack")
+    strip.update_traces(marker_line_width=2, marker_line_color="white")
+    strip.update_yaxes(visible=False, fixedrange=True, range=[0, 1])
+    strip.update_xaxes(showticklabels=False)
+    if by == "hour":
+        strip.update_xaxes(range=[float(t["group"].min()) - 0.5, float(t["group"].max()) + 0.5])
+    strip.update_layout(bargap=0, margin=dict(t=26, b=4, l=62, r=12), legend=dict(orientation="h", x=0, y=1.35, xanchor="left", yanchor="bottom"))
+    _mini("Lowest average error in each slot")
+    st.plotly_chart(strip, width="stretch", config={"displayModeBar": False})
     win = t[["group", "units", "lowest_mae", "winner", "winner_share"]].copy()
     win["lowest_mae"] = win["lowest_mae"].map(ml_data.model_label)
     win["winner"] = win["winner"].map(ml_data.model_label)
@@ -400,12 +451,33 @@ _vb = tabs["versus_best"]
 if not _vb.empty:
     _tied = [ml_data.model_label(m_) for m_, d_ in zip(_vb["model"], _vb["distinguishable_from_best"]) if not d_]
 _sig = f"{int(pw['significant'].sum())} of {len(pw)}" if not pw.empty else "–"
-st.markdown(
-    f"<div style='display:flex; align-items:center; gap:1.3rem; background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.8rem 1.2rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-    f"<div style='font-size:1.7rem; font-weight:800; color:{INK}; line-height:1.2;'>{ml_data.model_label(best['model'])}</div>"
-    f"<div style='line-height:1.55; font-size:0.9rem; color:{theme.INK_SECONDARY};'>"
-    f"<div><b>Lowest MAE:</b> {best['mae']:.3f} {units} over {n_days_all:,} days.</div>"
-    f"<div><b>Pairs that differ after the Holm correction (5%):</b> {_sig}.</div>"
-    f"<div><b>Cannot be told apart from it:</b> {', '.join(_tied) if _tied else 'none, every other algorithm is significantly worse'}.</div></div></div>", unsafe_allow_html=True)
+_lc, _rc2 = st.columns([3, 2], gap="medium")
+with _lc:
+    if not _vb.empty:
+        _best_m, _best_l = _vb["best"].iloc[0], float(_vb["best_loss"].iloc[0])
+        lad = [(_best_m, _best_l, "best", None)] + [(m_, float(l_), "tied" if not d_ else "worse", float(ph_)) for m_, l_, d_, ph_ in zip(_vb["model"], _vb["mean_loss"], _vb["distinguishable_from_best"], _vb["p_holm"])]
+        lad.sort(key=lambda r_: r_[1])
+        ncol = {"best": BLUE, "tied": "#8fb3e8", "worse": GREY}
+        fl = go.Figure()
+        k_tie = sum(1 for r_ in lad if r_[2] != "worse")
+        if k_tie > 1:
+            fl.add_shape(type="rect", xref="paper", x0=0, x1=1, y0=-0.5, y1=k_tie - 0.5, fillcolor="rgba(143,179,232,0.16)", line_width=0, layer="below")
+        fl.add_shape(type="line", x0=_best_l, x1=_best_l, y0=-0.5, y1=len(lad) - 0.5, line=dict(color=MUTED, width=1, dash="dot"))
+        fl.add_trace(go.Scatter(x=[r_[1] for r_ in lad], y=[ml_data.model_label(r_[0]) for r_ in lad], mode="markers+text", showlegend=False,
+                                marker=dict(size=15, color=[ncol[r_[2]] for r_ in lad], line=dict(color="white", width=1.5)),
+                                text=[f"{r_[1]:.2f}" + ("" if r_[3] is None else f"   {'Cannot be told apart' if r_[2] == 'tied' else 'Significantly worse'} (p {r_[3]:.2g})") for r_ in lad],
+                                textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
+        theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title="Mean daily error (MAE)", legend=False)
+        fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
+        fl.update_xaxes(range=[_best_l - 0.6, max(r_[1] for r_ in lad) + 3.2], showgrid=False, zeroline=False)
+        fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
+        st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
+with _rc2:
+    st.markdown(_panel(
+        f"<div style='font-size:1.7rem; font-weight:800; color:{INK}; line-height:1.2;'>{ml_data.model_label(best['model'])}</div>"
+        f"<div style='line-height:1.6; font-size:0.9rem; margin-top:0.4rem;'>"
+        f"<div><b>Lowest MAE:</b> {best['mae']:.3f} {units} over {n_days_all:,} days.</div>"
+        f"<div><b>Pairs that differ after the Holm correction (5%):</b> {_sig}.</div>"
+        f"<div><b>Cannot be told apart from it:</b> {', '.join(_tied) if _tied else 'none, every other algorithm is significantly worse'}.</div></div>"), unsafe_allow_html=True)
 _line("The champion is chosen on the next page, by a rule written before the results existed.")
 st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are compared on their own page, against simple forecasts and, for irradiance and temperature, the weather forecast.")
