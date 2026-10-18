@@ -260,6 +260,20 @@ if len(vb):
            [[f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}",
              f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}", f"{float(r_['statistic']):.2f}", _p(float(r_["p_value"])), _p(float(r_["p_holm"])),
              _pill("Real: worse than the best", "#006100", "#e3f1e3") if r_["distinguishable_from_best"] else _pill("Cannot be told apart", "#5a5953", "#ecebe6")] for _, r_ in vb.iterrows()])
+_mini("Calculation for the parsimony gate", f"Does the best algorithm beat the simplest one, the {refl}?")
+if not par_tested:
+    st.markdown(_panel(f"<div style='font-size:0.95rem;'>The best algorithm is the {refl} itself, so there is nothing to test.</div>"), unsafe_allow_html=True)
+else:
+    _ml = rk.set_index("model")["mean_loss"]
+    _bl, _rl = round(float(_ml[d["best"]]), 3), round(float(_ml[ref]), 3)
+    _pp = float(par["p_value"])
+    st.markdown(_panel(
+        f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
+        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} {_bl:.3f} − {refl} {_rl:.3f} = <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span>"
+        f"<span style='font-weight:600; color:{INK};'>② The test</span><span>DM statistic <b style='color:{INK};'>{float(par['statistic']):.2f}</b>, p = <b style='color:{INK};'>{_p(_pp)}</b></span>"
+        f"<span style='font-weight:600; color:{INK};'>③ The limit</span><span>p {'&lt;' if _pp < pol['alpha'] else '≥'} {pol['alpha']:.2f} ({pol['alpha']:.0%})</span></div>"
+        f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if par_passed else LUCK};'>"
+        + (f"The best beats the {refl}: the rule goes on to the ties" if par_passed else f"Not better than the {refl}: the simplest wins") + "</div>"), unsafe_allow_html=True)
 if comb:
     _mini("Calculation for the tie", "Several algorithms cannot be told apart from the best, so the champion is their average, if the average is not worse")
     st.markdown(_panel(
