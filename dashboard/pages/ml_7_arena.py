@@ -15,8 +15,7 @@ import ml_data
 import ml_ui
 import theme
 
-ml_ui.header("Model arena", "Five tree algorithms are compared on the same days, scored the same way, and every pair is tested. The "
-             "algorithms' settings are never compared, only their out-of-sample errors.", step=6)
+ml_ui.header("Model arena", "", step=6)
 ml_ui.tour_bar(7)
 
 # The colours mean one thing each, on every picture of this page:
