@@ -255,17 +255,19 @@ _line("A day counts for the algorithm with the smallest error of that day. A hig
 
 # ============================================================================================ 3-4. is the gap real
 if daily.empty:
-    _section("Is the edge real or luck? Day by day", num="⑤")
+    _section("How the two compare, day by day", num="⑤")
     ml_ui.not_yet_run("the daily losses (data pack)")
     res, A, B = None, "champion", "decision_tree"
 else:
-    _section("Is the edge real or luck? Day by day", "Pick any two to compare on the same days", num="⑤")
+    _section("How the two compare, day by day", "Pick any two to compare on the same days", num="⑤")
     _pa, _pb, _px = st.columns([2, 2, 4], gap="medium")
     _opts = ["champion"] + models
     with _pa:
         A = st.selectbox("Compare", _opts, index=0, format_func=_name, key="ml7_a")
     with _pb:
         B = st.selectbox("Against", _opts, index=_opts.index("decision_tree") if "decision_tree" in _opts else 1, format_func=_name, key="ml7_b")
+    with _px:
+        smooth_d = st.slider("Smoothing (days)", 1, 60, 28, key="ml7_smooth")
     la, lb = _name(A), _name(B)
     res = ml_data.dm_example(daily, target, A, B) if A != B else None
     if res is not None and not (np.isfinite(res["statistic"]) and np.isfinite(res["p_value"]) and float(res["statistic"]) != 0.0):
@@ -298,42 +300,21 @@ if res is not None and A != B:
     _legend_top(f1)
     f1.update_layout(margin=dict(t=34))
     st.plotly_chart(f1, width="stretch", config={"displayModeBar": False})
-    _mini("One gap per day, over the whole window", f"The gap of a day is {la}'s error minus {lb}'s. Below zero, {la} was closer. The line is the running average.")
-    neg, pos = diff["difference"].clip(upper=0), diff["difference"].clip(lower=0)
+    _mini("Both models over the whole window", f"The daily error of each, smoothed over {smooth_d} days. Where {la}'s line is below {lb}'s, {la} was closer.")
+    sm_a = los["a"].rolling(smooth_d, min_periods=1).mean()
+    sm_b = los["b"].rolling(smooth_d, min_periods=1).mean()
     f2 = go.Figure()
-    f2.add_trace(go.Bar(x=diff["date"], y=neg, name=f"{la} closer", marker_color=ca))
-    f2.add_trace(go.Bar(x=diff["date"], y=pos, name=f"{lb} closer", marker_color=cb))
-    f2.add_trace(go.Scatter(x=diff["date"], y=diff["difference"].expanding().mean(), mode="lines", line=dict(color=INK, width=2), name="Running average"))
-    f2.add_hline(y=0, line_color=MUTED)
-    theme.style_fig(f2, height=300, yaxis_title=f"{la} − {lb} ({units})", barmode="relative")
+    f2.add_trace(go.Scatter(x=los["date"], y=sm_a, mode="lines", name=la, line=dict(color=ca, width=1.8)))
+    f2.add_trace(go.Scatter(x=los["date"], y=sm_b, mode="lines", name=lb, line=dict(color=cb, width=1.8), fill="tonexty", fillcolor="rgba(154,152,144,0.16)"))
+    theme.style_fig(f2, height=320, yaxis_title=f"Daily error, smoothed ({units})")
+    f2.update_layout(hovermode="x unified")
     _legend_top(f2)
     f2.update_layout(margin=dict(t=34))
     st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})
-    _line(f"{la} was closer on <b>{wins:,} of {n_d:,} days ({100 * wins / n_d:.1f}%)</b>. Closer on most days is not yet proof: the days are not independent, and luck can produce a lead.")
-
-# ============================================================================================ 7. error through time
-_section("Error through time", "The errors of all algorithms rise and fall together, which is why the tests compare them on paired daily losses", num="⑥")
-if daily.empty:
-    ml_ui.not_yet_run("the daily losses (data pack)")
-else:
-    d = daily[daily["target"] == target]
-    opts = ml_data.ordered_models(m for m in d["model"].unique() if m not in ("champion", "reference"))
-    _pc, _sc = st.columns([3, 2], gap="large")
-    with _pc:
-        pick = st.multiselect("Algorithms", opts, default=[o for o in ["lightgbm", "decision_tree"] if o in opts] or opts[:2], format_func=ml_data.model_label, key="ml7_pick")
-    with _sc:
-        win_d = st.slider("Smoothing (days)", 1, 60, 28, key="ml7_smooth")
-    fig = go.Figure()
-    for m in ml_data.ordered_models(pick):
-        x = d[d["model"] == m].sort_values("date")
-        fig.add_trace(go.Scatter(x=x["date"], y=x["mae"].rolling(win_d, min_periods=1).mean(), mode="lines", name=ml_data.model_label(m), line=dict(color=_alg(m), width=1.8)))
-    theme.style_fig(fig, height=320, yaxis_title=f"Daily MAE, smoothed ({units})")
-    _legend_top(fig)
-    fig.update_layout(margin=dict(t=34))
-    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    _line(f"{la} was closer on <b>{wins:,} of {n_d:,} days ({100 * wins / n_d:.1f}%)</b>.")
 
 # ============================================================================================ 8. the outcome
-_section("The outcome", num="⑦")
+_section("The outcome", num="⑥")
 _vb = tabs["versus_best"]
 _ex = lambda m_, v_: float(piv.loc[m_].mean()) if (piv is not None and m_ in piv.index) else float(v_)               # the mean daily error from the daily table, not from the 4-decimal file
 _tied = []
