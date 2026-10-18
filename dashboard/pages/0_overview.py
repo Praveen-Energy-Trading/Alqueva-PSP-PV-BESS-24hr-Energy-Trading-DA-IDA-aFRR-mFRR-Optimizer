@@ -23,6 +23,16 @@ import theme
 
 st.title("⚡ Overview")
 
+
+def _head(title: str, hint: str = "") -> None:
+    """A section heading: bold, sentence case, with a muted line under it on how to read the block (the divider lines of the old page are gone)."""
+    st.markdown(f"<div style='margin:1.4rem 0 0.4rem;'><div style='font-size:1.3rem; font-weight:700; color:{theme.INK_PRIMARY}; line-height:1.25;'>{title}</div>"
+                + (f"<div style='font-size:0.86rem; color:{theme.INK_MUTED}; margin-top:0.15rem;'>{hint}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+
+
+def _gap() -> None:
+    st.markdown("<div style='height:0.3rem;'></div>", unsafe_allow_html=True)
+
 # Streamlit's default top padding on the main content block is ~35px,
 # leaving a visible dead gap above the title before anything else on the
 # page. Trimmed to match the standard 16px gap used between every other
@@ -63,9 +73,9 @@ _CARD = f"background:{theme.SURFACE}; border:1px solid {theme.GRIDLINE}; border-
 _TINTS = ["#e8f0fb", "#fdeee4", "#fff6dc", "#e3f5ee", "#efe9fb"]                  # one soft tint per icon tile
 
 st.markdown(
-    f'<div style="font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; margin-bottom:8px;">'
+    f'<div style="font-size:13px; color:{theme.INK_MUTED}; font-weight:600; margin-bottom:8px;">'
     f'Alqueva PSP + PV + BESS</div>'
-    '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px;">' +
+    '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem, 1fr)); gap:12px;">' +
     "".join(
         f'<div style="{_CARD} padding:12px 14px; display:flex; align-items:center; gap:12px;">'
         f'<div style="flex:none; width:36px; height:36px; border-radius:10px; background:{_TINTS[n]}; display:flex; align-items:center; justify-content:center; font-size:18px;">{icon}</div>'
@@ -87,7 +97,7 @@ _alloc_colours = [theme.COLOR_GEN, theme.COLOR_UP, theme.COLOR_PUMP, theme.COLOR
 st.markdown(
     f'<div style="{_CARD} padding:12px 16px; margin-top:12px;">'
     f'<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">'
-    f'<span style="font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600;">Allocation over the markets (largest offers)</span>'
+    f'<span style="font-size:13px; color:{theme.INK_MUTED}; font-weight:600;">Allocation over the markets (largest offers)</span>'
     f'<span style="font-size:13px; color:{theme.INK_SECONDARY};"><b style="color:{theme.INK_PRIMARY}; font-weight:600;">{_alloc_total:.1f} MW</b> in total</span></div>'
     '<div style="display:flex; gap:3px; height:12px;">' +
     "".join(f'<div style="flex:{share:.2f} 1 0; min-width:6px; background:{colour}; border-radius:6px;"></div>' for (_, _, share), colour in zip(_alloc[:-1], _alloc_colours)) +
@@ -113,7 +123,7 @@ st.markdown(
 def _render_section(title: str, cards: list, state_key: str) -> None:
     if not cards:
         return
-    st.markdown(f"##### {title}")
+    _head(title)
     labels = [label for label, _ in cards]
     if state_key not in st.session_state:
         st.session_state[state_key] = labels[0]  # only seed on first render
@@ -132,7 +142,7 @@ def _render_section(title: str, cards: list, state_key: str) -> None:
 
     render_fn = dict(cards).get(selected) or cards[0][1]
     render_fn()
-    st.markdown("---")
+    _gap()
 
 
 def _crosshair_series(fig, hours, series, x_format) -> None:
@@ -157,7 +167,7 @@ def _crosshair_series(fig, hours, series, x_format) -> None:
 def _render_gate_positions(gate_pos: dict) -> None:
     """Gate Position Evolution -- its own fragment for the same reason as
     _render_section: switching gate tabs reruns only this chart."""
-    st.markdown("##### Gate Position Evolution")
+    _head("Gate position evolution", "The net position in MW as of each gate's close: the effect of every re-bid, not only its revenue")
     gate_order = gate_pos["gate_order"]
     gate_key = "overview_gate_pos_tab"
     if gate_key not in st.session_state:
@@ -200,8 +210,7 @@ def _render_gate_positions(gate_pos: dict) -> None:
     if selected_gate == "DA":
         _plot(gate_pos["gates_mw"]["DA"], gate_pos["gates_price"]["DA"], "Selling (generating)", "Buying (pumping)",
               theme.COLOR_GEN, theme.COLOR_PUMP, "Net position (MW)", "Price (EUR/MWh)", "Net MW", "Price EUR/MWh")
-        st.caption("**DA** is the fixed reference position -- every other gate below is "
-                   "shown as its deviation from this chart, not from each other.")
+        st.caption("**DA** is the fixed reference position; every other gate is shown as its deviation from this chart, not from each other.")
     else:
         n_diverged = gate_pos["diverged_isps"][selected_gate]
         net_delta = gate_pos["net_mw_delta"][selected_gate]
@@ -211,14 +220,12 @@ def _render_gate_positions(gate_pos: dict) -> None:
             # flat line at 0 sits exactly on top of the 0 gridline). There
             # is nothing to plot here, so say so plainly instead of
             # rendering a graph that looks empty.
-            st.info(f"**{selected_gate}** held - position is unchanged from DA at every "
-                    f"ISP. Nothing to plot; the DA chart above is still the live position.")
+            st.info(f"**{selected_gate}** held: the position is unchanged from DA at every ISP. Nothing to plot; the DA tab shows the live position.")
         else:
             _plot(gate_pos["gates_mw_delta"][selected_gate], gate_pos["gates_price_delta"][selected_gate], "More than DA", "Less than DA",
                   theme.COLOR_UP, theme.COLOR_DOWN, "Change vs DA (MW)", "Price vs DA (EUR/MWh)", "MW vs DA", "Price vs DA (EUR/MWh)")
-            st.caption(f"**{selected_gate}** diverged from DA at **{n_diverged}** ISP(s), "
-                       f"net **{net_delta:+.1f} MW** vs the DA baseline.")
-    st.markdown("---")
+            st.caption(f"**{selected_gate}** differs from DA in **{n_diverged}** ISP{'' if n_diverged == 1 else 's'}, by a net **{net_delta:+.1f} MW** against the DA baseline.")
+    _gap()
 
 
 def _status_line(kind: str, html_text: str) -> None:
@@ -235,38 +242,34 @@ def _render() -> None:
     report_ready = st.session_state.get("report_ready", False)
 
     if not selected_date:
-        st.warning("No runs found yet - visit Run & Monitor to start one.")
+        st.warning("No runs found yet. Open Run & Monitor to start one.")
         return
 
     run_status = data.load_run_status(selected_date)
     state = data.run_phase_state(selected_date)
 
     if state == "running":
-        st.success(f"🟢 Pipeline is actively running right now for delivery **{selected_date}**.")
+        st.success(f"🟢 The pipeline is running now for delivery **{selected_date}**.")
     elif state == "idle_running":
         if run_status and run_status.get("mode") == "trader":
-            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                       f"gone quiet - most likely paused on an Approve/Reject or ENTER "
-                       f"prompt waiting on you in trader mode. Check the terminal, or "
-                       f"Console Log for the last line printed.")
+            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has gone quiet. Most likely it is paused on an Approve/Reject or ENTER "
+                       "prompt, waiting for you in trader mode. Check the terminal, or the Console Log for the last line printed.")
         else:
-            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has "
-                       f"gone quiet - most likely still computing (e.g. a slow model "
-                       f"fit) rather than stuck. Check Console Log for the last line printed.")
+            st.warning(f"🟡 A run is in progress for **{selected_date}** but the log has gone quiet. Most likely it is still computing (for example a slow model fit) "
+                       "rather than stuck. Check the Console Log for the last line printed.")
     elif state == "stopped":
-        st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer "
-                 f"running - most likely Ctrl+C or a crash while it was paused waiting for "
-                 f"input. Start a fresh run when ready.")
+        st.error(f"⚫ A run for **{selected_date}** was started but the process is no longer running. Most likely it was stopped with Ctrl+C, "
+                 "or it crashed while paused waiting for input. Start a fresh run when ready.")
     elif state == "none":
-        st.info(f"No run-status record for **{selected_date}** yet - see Run & Monitor.")
+        st.info(f"There is no run-status record for **{selected_date}** yet. See Run & Monitor.")
     else:
         results = run_status["results"]
         n_fail = sum(1 for r in results if r["status"] == "FAIL")
         n_pass = sum(1 for r in results if r["status"] == "PASS")
         if n_fail:
-            _status_line("bad", f"🔴 <b>{selected_date}</b> - {n_fail} phase(s) FAILED (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            _status_line("bad", f"🔴 <b>{selected_date}</b>: {n_fail} phase{'' if n_fail == 1 else 's'} failed (finished {run_status['finished_at']}, mode: {run_status['mode']})")
         else:
-            _status_line("good", f"🟢 <b>{selected_date}</b> - {n_pass}/{len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode={run_status['mode']})")
+            _status_line("good", f"🟢 <b>{selected_date}</b>: {n_pass} of {len(results)} phases passed cleanly (finished {run_status['finished_at']}, mode: {run_status['mode']})")
 
     # ---------------------------------------------------------------------------
     # Live gate tickets - updates gate-by-gate as the pipeline runs, reading
@@ -299,8 +302,9 @@ def _render() -> None:
         # decision and amount on one line; a flat colour dot shows the status.
         st.markdown(
             '<style>'
-            'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { min-height: 2.6rem; border-radius: 12px; font-weight: 500;'
+            'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { min-height: 2.6rem; border-radius: 12px; font-weight: 500; white-space: nowrap; padding-left: 0.3rem; padding-right: 0.3rem;'
             ' border: 1px solid ' + theme.GRIDLINE + '; box-shadow: 0 1px 2px rgba(11,11,11,0.05); transition: box-shadow .15s, border-color .15s; }'
+            'div[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-secondary"] p, div[data-testid="stHorizontalBlock"] [data-testid="stBaseButton-primary"] p { white-space: nowrap !important; font-size: 0.85rem !important; }'
             'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover { border-color: ' + theme.BLUE + '; box-shadow: 0 2px 6px rgba(42,120,214,0.18); }'
             'div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="primary"] { font-weight: 600; box-shadow: 0 2px 8px rgba(42,120,214,0.35); }'
             '</style>', unsafe_allow_html=True)
@@ -337,7 +341,7 @@ def _render() -> None:
         if selected_ticket.get("gate_close"):
             card_height += 20
         components.html(gate_ticket.render(selected_ticket, selected_date), height=card_height)
-        st.markdown("---")
+        _gap()
 
     # ---------------------------------------------------------------------------
     # Delivery cards - RT dispatch, aFRR activation, mFRR activation, FCR droop
@@ -382,7 +386,7 @@ def _render() -> None:
     ]
     technical_cards = [c for c in technical_cards if c is not None]
 
-    _render_section("Optimization & Physical Dispatch", technical_cards, "overview_dispatch_tab")
+    _render_section("Optimization and physical dispatch", technical_cards, "overview_dispatch_tab")
 
     # ---------------------------------------------------------------------------
     # Gate Position Evolution -- net MW position as of each gate's close
@@ -415,7 +419,7 @@ def _render() -> None:
     # the final/XBID position) instead of just one fixed snapshot.
     # ---------------------------------------------------------------------------
 
-    st.markdown("##### Reserve capacity offered (aFRR / mFRR, hourly)")
+    _head("Reserve capacity offered", "aFRR and mFRR, hourly; the two products are about six times apart in scale, so each has its own axis")
     # aFRR (up to ~500 MW) and mFRR (up to ~85 MW) are ~6x apart in scale --
     # sharing one axis flattened mFRR into a barely-visible line hugging
     # zero. Split into two stacked panels, each with its own scale, so both
@@ -438,18 +442,17 @@ def _render() -> None:
                                       legendgroup="down", showlegend=(row == 1)), row=row, col=1)
             fig.add_hline(y=0, line_color=theme.GRIDLINE, row=row, col=1)
         theme.style_fig(fig, height=460)
-        fig.update_layout(margin=dict(t=32))  # subplot title ("aFRR") otherwise sits under the modebar icons
+        fig.update_layout(margin=dict(t=44), legend=dict(orientation="h", x=0, y=1.1, xanchor="left", yanchor="bottom", font=dict(size=12, color=theme.INK_SECONDARY)))  # subplot title ("aFRR") otherwise sits under the modebar icons
         fig.update_yaxes(title_text="aFRR (MW)", gridcolor=theme.GRIDLINE, row=1, col=1)
         fig.update_yaxes(title_text="mFRR (MW)", gridcolor=theme.GRIDLINE, row=2, col=1)
         _crosshair_series(fig, dispatch["Hour"], [("aFRR up (MW)", dispatch["aFRR_up_MW"], ",.0f"), ("aFRR down (MW)", dispatch["aFRR_dn_MW"], ",.0f"),
                                                   ("mFRR up (MW)", dispatch["mFRR_up_MW"], ",.0f"), ("mFRR down (MW)", dispatch["mFRR_dn_MW"], ",.0f")], ".0f")
         fig.update_xaxes(range=[1, 24], tickvals=[1, 4, 8, 12, 16, 20, 24])
-        fig.update_xaxes(title_text="Hour of the day (1-24)", row=2, col=1)
+        fig.update_xaxes(title_text="Hour of the day (1–24)", row=2, col=1)
         for ann in fig["layout"]["annotations"]:
             ann["font"] = dict(color=theme.INK_SECONDARY, size=13)
         st.plotly_chart(fig, width="stretch")
-        st.caption("Up = more injection or less pumping; down (shown negative) = less injection or more pumping. "
-                   "Reserve capacity is contracted per hour.")
+        st.caption("Up is capacity to inject more or pump less; down (shown negative) is capacity to inject less or pump more. Reserve capacity is contracted per hour.")
 
 
 _render()
