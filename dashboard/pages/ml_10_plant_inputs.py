@@ -1,4 +1,4 @@
-"""ML Lifecycle 10 - Plant inputs: the forecasts of solar irradiance, air temperature and natural inflow that feed the optimiser."""
+"""ML Lifecycle 10 - Plant inputs: the forecasts of solar irradiance, air temperature and natural inflow that feed the optimiser. Told as a story in numbered steps."""
 from __future__ import annotations
 
 import html
@@ -18,171 +18,223 @@ import theme
 ml_ui.header("Plant inputs: PV and inflow", "", step=9)
 ml_ui.tour_bar(10)
 
+# The colours mean one thing each, on every picture of this page (and of the other ML pages):
+#   what happened is light grey, the serving forecast is near-black, a simple forecast is dark grey and dotted, an algorithm keeps its own colour.
+MUTED, INK, CHAMP = theme.INK_MUTED, theme.INK_PRIMARY, "#2b2a28"
+NEUTRAL, GREY, REAL, LUCK = "#6b6a64", "#b9b7ae", theme.GREEN, "#9a9890"
+CARD_LINE = "#e3e1d9"
+_cap = lambda h_: h_[:1].upper() + h_[1:] if h_[:1].islower() else h_                                                  # noqa: E731
+_esc = lambda v: html.escape(str(v))                                                                                   # noqa: E731
+_dmy = lambda x: f"{str(x)[8:10]}-{str(x)[5:7]}-{str(x)[:4]}"                                                          # noqa: E731
+ALG = {"DecisionTree": "decision_tree", "RandomForest": "random_forest", "GradientBoosting": "gradient_boosting", "XGBoost": "xgboost", "LightGBM": "lightgbm"}
+_key = lambda m_: ALG.get(m_, m_)                                                                                      # noqa: E731
+_label = lambda m_: ml_data.MODEL_LABELS.get(_key(m_), m_)                                                             # noqa: E731
+_col = lambda m_: theme.CATEGORICAL[ml_data.model_index(_key(m_)) % 8] if _key(m_) in ml_data.MODEL_ORDER else LUCK    # noqa: E731
+
+
+def _section(title: str, hint: str = "", num: str = "") -> None:
+    """A section heading: a number (the steps of the story), a bold title and, under it, one muted line on how to read the section."""
+    _n = f"<span style='font-weight:400; color:{NEUTRAL};'>{num}</span>&nbsp; " if num else ""
+    st.markdown(f"<div style='margin:1.7rem 0 0.45rem;'><div style='font-size:1.55rem; font-weight:700; color:{INK}; line-height:1.25;'>{_n}{title}</div>"
+                + (f"<div style='font-size:0.88rem; color:{MUTED}; margin-top:0.2rem;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+
+
+def _mini(title: str, hint: str = "") -> None:
+    """The title of a chart or table inside a section."""
+    st.markdown(f"<div style='margin:0.6rem 0 0.3rem;'><div style='font-size:1.02rem; font-weight:700; color:{INK};'>{title}</div>"
+                + (f"<div style='font-size:0.82rem; color:{MUTED}; margin-top:0.1rem; line-height:1.35;'>{_cap(hint)}</div>" if hint else "") + "</div>", unsafe_allow_html=True)
+
+
+def _line(html_: str) -> None:
+    """One short note under a table or chart, the key numbers in bold."""
+    st.markdown(f"<div style='font-size:0.86rem; color:{theme.INK_SECONDARY}; margin:0.25rem 0 0.9rem;'>{html_}</div>", unsafe_allow_html=True)
+
+
+def _panel(inner: str) -> str:
+    """A white rounded card for a calculation, as on the Tuning lab."""
+    return (f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.55rem 1.1rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); "
+            f"font-size:0.9rem; color:{theme.INK_SECONDARY};'>{inner}</div>")
+
+
+def _table(headers: list, rows: list, highlight: int | None = None, widths: str | None = None, left: tuple = (0,)) -> None:
+    """A table as on the Tuning lab: muted header, thin row lines, the first column left, the others centred; one row can be shaded."""
+    grid = f"display:grid; grid-template-columns:{widths or f'minmax(9rem, 1.5fr) repeat({len(headers) - 1}, minmax(0, 1fr))'}; align-items:center; column-gap:0.6rem;"
+    head = (f"<div style='{grid} padding:0.6rem 0 0.4rem; border-bottom:1px solid {CARD_LINE}; font-size:0.72rem; color:{MUTED}; font-weight:600; line-height:1.2;'>"
+            + "".join(f"<span style='{'' if j in left else 'text-align:center;'}'>{h}</span>" for j, h in enumerate(headers)) + "</div>")
+    body = ""
+    for i, row in enumerate(rows):
+        hl = i == highlight
+        body += (f"<div style='{grid} min-height:2.5rem; font-size:0.86rem; "
+                 + ("border-top:1px solid #e3e1d9; background:#f8f7f3; font-weight:700;" if hl else "border-bottom:1px solid #eeede8;") + "'>"
+                 + "".join(f"<span style='{'' if j in left else 'text-align:center;'} color:{INK if str(c) != '–' else MUTED};'>{c}</span>" for j, c in enumerate(row)) + "</div>")
+    st.markdown(f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{head}{body}</div>", unsafe_allow_html=True)
+
+
+def _pill(text: str, color: str, bg: str) -> str:
+    return f"<span style='background:{bg}; color:{color}; border-radius:999px; padding:0.1rem 0.6rem; font-size:0.78rem; font-weight:600; white-space:nowrap;'>{text}</span>"
+
+
+def _legend_top(fig, y=1.08) -> None:
+    fig.update_layout(legend=dict(orientation="h", x=0, y=y, xanchor="left", yanchor="bottom", font=dict(size=12, color=theme.INK_SECONDARY)))
+
+
 labels = {key: name for key, name, _ in ml_data.PLANT_INPUTS}
 choice = st.selectbox("Forecast", [key for key, _, _ in ml_data.PLANT_INPUTS], format_func=lambda k: labels[k], key="ml10_choice")
-w = ml_ui.cached(ml_data.weather_eval)(choice) if choice in ("ghi", "temperature") else None
-if w and "daily" in w:                                         # irradiance and temperature: the weather forecast against the algorithms, as of the decision time
-    _dmy = lambda x: f"{str(x)[8:10]}-{str(x)[5:7]}-{str(x)[:4]}"
-    _catalogue = ml_ui.cached(lambda: ml_data.config("forecast_catalogue"))()
-    _entry = next((t for t in _catalogue.get("targets", []) if t.get("id") == "pv_weather"), {})
-    _unit, _nd = w["unit"], (0 if w["unit"] == "W/m²" else 2)
-    _esc = lambda v: __import__("html").escape(str(v))
-    _tiles = [("Feeds", _entry.get("decision", "-"), theme.BLUE), ("Needed by", _entry.get("as_of", {}).get("rule", "-"), theme.AQUA),
-              ("Serving forecast", "Weather forecast (Open-Meteo), two days old", theme.ORANGE)]
-    _tile_html = "".join(
-        f'<div style="flex:1 1 0; min-width:0; background:{c}12; border-left:4px solid {c}; border-radius:10px; padding:0.55rem 0.9rem;">'
-        f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600;">{_esc(k)}</div>'
-        f'<div style="font-size:0.93rem; font-weight:600; color:{theme.INK_PRIMARY}; margin-top:0.1rem; overflow-wrap:anywhere;">{_esc(v)}</div></div>' for k, v, c in _tiles)
-    _d = w["data"]
-    _rows = [("Series", f"{w['target']} ({_unit}), hourly"),
-             ("Inputs", "the numerical weather forecast of the site; without it, a model on past observations and clear-sky physics"),
-             ("Without the forecast", (lambda p: f"the model uses {p['features'].replace('_', ' ')}. Its lags and rolling means end at the same hour yesterday, which is later than what is observed at 11:00 on the day before." if p else "-")(ml_data.plant_input(choice))),
-             ("Truth", f"{_d['source']}, {_dmy(_d['first'])} to {_dmy(_d['last'])}. A reanalysis, not an on-site measurement; the weather forecasts are archived from {_dmy(_d['forecast_first'])}."),
-             ("Test", f"the last twelve months, {_dmy(w['test_range'][0])} to {_dmy(w['test_range'][1])} ({w['n_test']:,} hours), judged as of 11:00 on the day before: "
-                      "no observation of the last hours before the delivery day is used by anything below")]
-    _row_html = "".join(
-        f'<div style="display:grid; grid-template-columns:8rem 1fr; gap:0.8rem; padding:0.42rem 0; border-top:1px solid {theme.GRIDLINE};">'
-        f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; padding-top:0.15rem;">{_esc(k)}</div>'
-        f'<div style="font-size:0.9rem; color:{theme.INK_PRIMARY}; line-height:1.45; overflow-wrap:anywhere;">{_esc(v)}</div></div>' for k, v in _rows)
-    st.markdown(f'<div style="border:1px solid {theme.GRIDLINE}; border-radius:14px; background:{theme.SURFACE}; padding:0.85rem 1rem 0.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
-                f'<div style="display:flex; gap:0.7rem; margin-bottom:0.7rem;">{_tile_html}</div>{_row_html}</div>', unsafe_allow_html=True)
-
-    st.subheader("How good is it?")
-    _f = lambda v: f"{v:,.{_nd}f}"
-    _serve = w["baselines"]["Weather forecast alone"]
-    _plain = min(w["without_forecast_full_history"].items(), key=lambda kv: kv[1]["mae"])
-    _simple = min((kv for kv in w["baselines"].items() if kv[0] != "Weather forecast alone"), key=lambda kv: kv[1]["mae"])
-    ml_ui.cards([("Error of the weather forecast (MAE)", f"{_f(_serve['mae'])} {_unit}"),
-                 (f"Best algorithm without it ({ml_data.MODEL_LABELS.get(_plain[0], _plain[0])})", f"{_f(_plain[1]['mae'])} {_unit}"),
-                 ("Weather forecast against that algorithm", theme.pct(100 * (_serve["mae"] / _plain[1]["mae"] - 1), 0, signed=True))], ncols=3, pre_formatted=True)
-    _table = [{"Forecast": "Weather forecast (serving)", "Kind": "Weather forecast", "MAE": _serve["mae"], "RMSE": _serve["rmse"], "Bias": _serve["bias"]}]
-    _table += [{"Forecast": k, "Kind": "Simple forecast", "MAE": v["mae"], "RMSE": v["rmse"], "Bias": v["bias"]} for k, v in w["baselines"].items() if k != "Weather forecast alone"]
-    _table += [{"Forecast": ml_data.MODEL_LABELS.get(m, m), "Kind": "Algorithm, past observations only", "MAE": v["mae"], "RMSE": v["rmse"], "Bias": v["bias"]}
-               for m, v in w["without_forecast_full_history"].items()]
-    _table += [{"Forecast": ml_data.MODEL_LABELS.get(m, m) + " + weather forecast", "Kind": "Algorithm with the forecast as an input", "MAE": v["mae"], "RMSE": v["rmse"], "Bias": v["bias"]}
-               for m, v in w["with_forecast"].items()]
-    ml_ui.table(pd.DataFrame(_table).sort_values("MAE").reset_index(drop=True).rename(columns={"MAE": f"MAE ({_unit})", "RMSE": f"RMSE ({_unit})", "Bias": f"Bias ({_unit})"}),
-                formats={f"MAE ({_unit})": f"%.{_nd}f", f"RMSE ({_unit})": f"%.{_nd}f", f"Bias ({_unit})": f"%.{_nd}f"}, stretch=True)
-    _best_with = min(w["with_forecast"].items(), key=lambda kv: kv[1]["mae"])
-    st.info(f"The weather forecast cuts the error by {abs(100 * (_serve['mae'] / _plain[1]['mae'] - 1)):.0f}% against the best algorithm that sees only past observations, "
-            f"and by {abs(100 * (_serve['mae'] / _simple[1]['mae'] - 1)):.0f}% against the best simple forecast. Algorithms that also take the forecast as an input "
-            f"({ml_data.MODEL_LABELS.get(_best_with[0], _best_with[0])}: {_f(_best_with[1]['mae'])} {_unit}) are no better than the forecast itself, so the forecast is used directly.\n\n"
-            "Two limits. **1.** The truth is a reanalysis made with a weather model similar to the one that makes the forecast, so the forecast probably looks somewhat "
-            "better here than it would against a sensor at the plant. **2.** The forecast is the one issued two days earlier, which is certainly available at the decision "
-            "time; a real run uses the newest forecast, which is usually a little better.")
-
-    st.subheader("Forecast against what happened")
-    _d = w["daily"]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=_d["day"], y=_d["actual"], name="Reanalysis (what happened)", mode="lines", line=dict(color=theme.INK_PRIMARY, width=1.6)))
-    fig.add_trace(go.Scatter(x=_d["day"], y=_d["model"], name="Weather forecast", mode="lines", line=dict(color=theme.BLUE, width=1.6)))
-    fig.add_trace(go.Scatter(x=_d["day"], y=_d["yesterday"], name="Newest same-hour observation", mode="lines", line=dict(color=theme.ORANGE, width=1.2, dash="dot")))
-    theme.style_fig(fig, height=330, yaxis_title=f"{w['target']} ({_unit}), daily mean")
-    fig.update_layout(hovermode="x unified", legend=dict(orientation="h", y=1.08, x=0.5, xanchor="center"))
-    fig.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED)
-    st.plotly_chart(fig, width="stretch")
-    _w = w["week"]
-    pos = list(range(len(_w["t"])))
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=pos, y=_w["actual"], name="Reanalysis (what happened)", mode="lines", line=dict(color=theme.INK_PRIMARY, width=1.8)))
-    fig.add_trace(go.Scatter(x=pos, y=_w["model"], name="Weather forecast", mode="lines", line=dict(color=theme.BLUE, width=1.8)))
-    fig.add_trace(go.Scatter(x=pos, y=_w["yesterday"], name="Newest same-hour observation", mode="lines", line=dict(color=theme.ORANGE, width=1.4, dash="dot")))
-    theme.style_fig(fig, height=300, yaxis_title=f"{w['target']} ({_unit}), hourly", xaxis_title="the last seven days of the test year (hourly, UTC)")
-    ticks = [i for i, t in enumerate(_w["t"]) if t[11:13] == "00"]
-    fig.update_xaxes(tickvals=ticks, ticktext=[f"{_w['t'][i][8:10]}-{_w['t'][i][5:7]}-{_w['t'][i][:4]}" for i in ticks],
-                     showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED)
-    fig.update_traces(customdata=_w["t"], hovertemplate="%{y:,.1f}  (%{customdata})")
-    fig.update_layout(hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"))
-    st.plotly_chart(fig, width="stretch")
-    st.stop()
-
-r = ml_ui.cached(ml_data.plant_input)(choice)                  # the choice is an argument, so each forecast has its own cache entry
-if not r:
-    ml_ui.not_yet_run(f"the {labels[choice].lower()} evaluation (tools/evaluate_plant_inputs.py)")
-    st.stop()
-
 catalogue = ml_ui.cached(lambda: ml_data.config("forecast_catalogue"))()
 entry_id = next(cid for key, _, cid in ml_data.PLANT_INPUTS if key == choice)
 entry = next((t for t in catalogue.get("targets", []) if t.get("id") == entry_id), {})
-unit = r["unit"]
-selected = r["selected"]
-chosen = r["models"][selected]
-simple = r["baselines"]
-best_simple_name, best_simple = min(simple.items(), key=lambda kv: kv[1]["mae"])
-fmt = (lambda v: f"{v:,.0f}") if unit == "m³/h" else (lambda v: f"{v:,.2f}")
+w = ml_ui.cached(ml_data.weather_eval)(choice) if choice in ("ghi", "temperature") else None
+weather = bool(w and "daily" in w)
 
+# ============================================================================================ what the page needs, from the two kinds of forecast
+if weather:                                                    # irradiance and temperature: the weather forecast against the algorithms, as of the decision time
+    unit, nd = w["unit"], (1 if w["unit"] == "W/m²" else 2)
+    d_ = w["data"]
+    tiles = [("Feeds", entry.get("decision", "–"), theme.BLUE), ("Needed by", entry.get("as_of", {}).get("rule", "–"), theme.AQUA), ("Serving forecast", "Weather forecast (Open-Meteo), two days old", CHAMP)]
+    p_ = ml_data.plant_input(choice)
+    rows = [("Series", f"{w['target']} ({unit}), hourly"),
+            ("Inputs", "The numerical weather forecast of the site; without it, a model on past observations and clear-sky physics"),
+            ("Without the forecast", (f"The model uses {p_['features'].replace('_', ' ')}. Its lags and rolling means end at the same hour yesterday, which is later than what is observed at 11:00 on the day before." if p_ else "–")),
+            ("Truth", f"{d_['source']}, {_dmy(d_['first'])} to {_dmy(d_['last'])}. A reanalysis, not an on-site measurement; the weather forecasts are archived from {_dmy(d_['forecast_first'])}."),
+            ("Test", f"The last twelve months, {_dmy(w['test_range'][0])} to {_dmy(w['test_range'][1])} ({w['n_test']:,} hours), judged as of 11:00 on the day before: "
+                     "no observation of the last hours before the delivery day is used by anything below")]
+    serve_name = "Weather forecast (serving)"
+    serve = w["baselines"]["Weather forecast alone"]
+    perf = [(serve_name, "Weather forecast", serve, True, None)]
+    perf += [(k, "Simple forecast", v, False, None) for k, v in w["baselines"].items() if k != "Weather forecast alone"]
+    perf += [(_label(m), "Algorithm, past observations only", v, False, m) for m, v in w["without_forecast_full_history"].items()]
+    perf += [(_label(m) + " + weather forecast", "Algorithm with the forecast as an input", v, False, m) for m, v in w["with_forecast"].items()]
+    plain_m, plain = min(w["without_forecast_full_history"].items(), key=lambda kv: kv[1]["mae"])
+    simple_n, simple = min((kv for kv in w["baselines"].items() if kv[0] != "Weather forecast alone"), key=lambda kv: kv[1]["mae"])
+    with_m, with_v = min(w["with_forecast"].items(), key=lambda kv: kv[1]["mae"])
+    daily, week = w["daily"], w["week"]
+    names = ("Reanalysis (what happened)", "Weather forecast", "Newest same-hour observation")
+    week_x = "The last seven days of the test year (hourly, UTC)"
+else:
+    r = ml_ui.cached(ml_data.plant_input)(choice)              # the choice is an argument, so each forecast has its own cache entry
+    if not r:
+        ml_ui.not_yet_run(f"the {labels[choice].lower()} evaluation (tools/evaluate_plant_inputs.py)")
+        st.stop()
+    unit = r["unit"]
+    nd = 0 if unit == "m³/h" else 2
+    selected = r["selected"]
+    chosen = r["models"][selected]
+    simple_n, simple = min(r["baselines"].items(), key=lambda kv: kv[1]["mae"])
+    d_ = r.get("data") or {}
+    days = (lambda n: round(n / 24)) if r["resolution"] == "hourly" else (lambda n: n)
+    tiles = [("Feeds", entry.get("decision", "–"), theme.BLUE), ("Needed by", entry.get("as_of", {}).get("rule", "–"), theme.AQUA), ("Serving model", f"{_label(selected)}, retrained daily", CHAMP)]
+    rows = [("Series", f"{r['name']} ({unit}), {r['resolution']}"), ("Inputs of the model", _cap(r["features"].replace("_", " "))),
+            ("History", f"Development {_dmy(r['dev_range'][0])} to {_dmy(r['dev_range'][1])} ({days(r['n_dev']):,} days); test {_dmy(r['test_range'][0])} to {_dmy(r['test_range'][1])} ({days(r['n_test']):,} days)")]
+    if d_:
+        src = "Plant sensor" if choice in ("ghi", "temperature") else "Guadiana inflow research dataset"
+        kind = "synthetic" if choice in ("ghi", "temperature") else "monthly means (climatology)"
+        rows.append(("Data", f"{src}, measured {_dmy(d_['first'])} to {_dmy(d_['last_measured'])} ({d_['measured']:,} values). The {d_['filled']:,} later rows are {kind} and are never scored."))
+    serve_name = _label(selected) + " (serving)"
+    serve = chosen
+    perf = [(_label(m) + (" (serving)" if m == selected else ""), "Algorithm", s_, m == selected, m) for m, s_ in r["models"].items()]
+    perf += [(n, "Simple forecast", s_, False, None) for n, s_ in r["baselines"].items()]
+    daily, week = r["daily"], r.get("week")
+    names = ("Measured", "Serving model", "Same time yesterday")
+    week_x = "The last seven days of the test year (hourly)"
+fmt = lambda v_: f"{(round(v_, nd) or 0.0):,.{nd}f}"                                                                 # noqa: E731                                       (no "-0.0")
 
-def _esc(v) -> str:
-    return html.escape(str(v))
-
-
-# ---------------------------------------------------------------------------------------------------------------- what it is
-tiles = [("Feeds", entry.get("decision", "-"), theme.BLUE), ("Needed by", entry.get("as_of", {}).get("rule", "-"), theme.AQUA),
-         ("Serving model", f"{ml_data.MODEL_LABELS.get(selected, selected)}, retrained daily", theme.ORANGE)]
+# ============================================================================================ 1. what it is
+_section("What it is", f"{labels[choice]}: the forecast that feeds the optimiser", num="①")
 tile_html = "".join(
     f'<div style="flex:1 1 0; min-width:0; background:{c}12; border-left:4px solid {c}; border-radius:10px; padding:0.55rem 0.9rem;">'
-    f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600;">{_esc(k)}</div>'
-    f'<div style="font-size:0.93rem; font-weight:600; color:{theme.INK_PRIMARY}; margin-top:0.1rem; overflow-wrap:anywhere;">{_esc(v)}</div></div>'
-    for k, v, c in tiles)
-_days = (lambda n: round(n / 24)) if r["resolution"] == "hourly" else (lambda n: n)
-rows = [("Series", f"{r['name']} ({unit}), {r['resolution']}"), ("Inputs of the model", r["features"].replace("_", " ")),
-        ("History", f"development {r['dev_range'][0]} to {r['dev_range'][1]} ({_days(r['n_dev']):,} days); test {r['test_range'][0]} to {r['test_range'][1]} ({_days(r['n_test']):,} days)")]
-_d = r.get("data") or {}
-_dmy = lambda x: f"{str(x)[8:10]}-{str(x)[5:7]}-{str(x)[:4]}"
-if _d:
-    _src = "Plant sensor" if choice in ("ghi", "temperature") else "Guadiana inflow research dataset"
-    _kind = "synthetic" if choice in ("ghi", "temperature") else "monthly means (climatology)"
-    rows.append(("Data", f"{_src}, measured {_dmy(_d['first'])} to {_dmy(_d['last_measured'])} ({_d['measured']:,} values). "
-                         f"The {_d['filled']:,} later rows are {_kind} and are never scored."))
+    f'<div style="font-size:0.74rem; color:{MUTED}; font-weight:600;">{_esc(k)}</div>'
+    f'<div style="font-size:0.93rem; font-weight:600; color:{INK}; margin-top:0.1rem; overflow-wrap:anywhere;">{_esc(v)}</div></div>' for k, v, c in tiles)
 row_html = "".join(
-    f'<div style="display:grid; grid-template-columns:8rem 1fr; gap:0.8rem; padding:0.42rem 0; border-top:1px solid {theme.GRIDLINE};">'
-    f'<div style="font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; padding-top:0.15rem;">{_esc(k)}</div>'
-    f'<div style="font-size:0.9rem; color:{theme.INK_PRIMARY}; line-height:1.45; overflow-wrap:anywhere;">{_esc(v)}</div></div>'
-    for k, v in rows)
-st.markdown(f'<div style="border:1px solid {theme.GRIDLINE}; border-radius:14px; background:{theme.SURFACE}; padding:0.85rem 1rem 0.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
+    f'<div style="display:grid; grid-template-columns:9rem 1fr; gap:0.8rem; padding:0.5rem 0; border-top:1px solid {CARD_LINE};">'
+    f'<div style="font-size:0.74rem; color:{MUTED}; font-weight:600; padding-top:0.1rem;">{_esc(k)}</div>'
+    f'<div style="font-size:0.9rem; color:{INK}; line-height:1.45; overflow-wrap:anywhere;">{_esc(v)}</div></div>' for k, v in rows)
+st.markdown(f'<div style="border:1px solid {CARD_LINE}; border-radius:12px; background:#fff; padding:0.85rem 1rem 0.4rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);">'
             f'<div style="display:flex; gap:0.7rem; margin-bottom:0.7rem;">{tile_html}</div>{row_html}</div>', unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------------------------------------------- how good
-st.subheader("How good is it?")
-skill = r.get("skill_vs_yesterday")
-ml_ui.cards([("Error of the serving model (MAE)", f"{fmt(chosen['mae'])} {unit}"), (f"Best simple forecast ({best_simple_name.lower()})", f"{fmt(best_simple['mae'])} {unit}"),
-             ("Serving model against 'same time yesterday'", theme.pct(100 * skill, 1, signed=True) if skill is not None else "-")], ncols=3, pre_formatted=True)
+# ============================================================================================ 2. how good is it
+_section("How good is it?", f"Every forecast is scored on the same test values, mean absolute error in {unit}", num="②")
+_mini("The forecasts on the held-out test", "Sorted by MAE; the serving forecast is shaded")
+perf = sorted(perf, key=lambda p_: p_[2]["mae"])
+hl = next(i for i, p_ in enumerate(perf) if p_[3])
+_rows = []
+for nm, kind, sc, srv, m in perf:
+    dot_col = CHAMP if srv else (_col(m) if m else (NEUTRAL if kind == "Simple forecast" else LUCK))
+    dot = f"<span style='color:{dot_col}'>■</span>&nbsp;"
+    _rows.append([f"{dot}{_esc(nm)}", kind, fmt(sc["mae"]), fmt(sc["rmse"]), fmt(sc["bias"])])
+_table(["Forecast", "Kind", f"MAE ({unit})", f"RMSE ({unit})", f"Bias ({unit})"], _rows, highlight=hl, widths="minmax(12rem, 2fr) minmax(15rem, 2.2fr) repeat(3, minmax(4.5rem, 0.7fr))", left=(0, 1))
+_line("MAE is the mean absolute error. RMSE is the same with squared errors, so large misses weigh more. Bias is the mean of forecast minus actual: below zero the forecast is too low.")
 
-table = [{"Forecast": ml_data.MODEL_LABELS.get(m, m) + ("  (serving)" if m == selected else ""), "Kind": "Algorithm", "MAE": s_["mae"], "RMSE": s_["rmse"], "Bias": s_["bias"]}
-         for m, s_ in r["models"].items()]
-table += [{"Forecast": n, "Kind": "Simple forecast", "MAE": s_["mae"], "RMSE": s_["rmse"], "Bias": s_["bias"]} for n, s_ in simple.items()]
-df = pd.DataFrame(table).sort_values("MAE").reset_index(drop=True)
-nd = 0 if unit == "m³/h" else 2
-ml_ui.table(df.rename(columns={"MAE": f"MAE ({unit})", "RMSE": f"RMSE ({unit})", "Bias": f"Bias ({unit})"}),
-            formats={f"MAE ({unit})": f"%.{nd}f", f"RMSE ({unit})": f"%.{nd}f", f"Bias ({unit})": f"%.{nd}f"}, stretch=True)
-if best_simple["mae"] < chosen["mae"]:
-    st.info(f"On the held-out year the serving model does not beat the simple forecast '{best_simple_name.lower()}': its MAE is {fmt(chosen['mae'])} {unit} "
-            f"against {fmt(best_simple['mae'])} {unit}. All forecasts are scored on the same test values; only measured values are scored.\n\n"
-            "Two limits on these numbers. **1.** Both use yesterday's full day as an input, but at 11:00 on the day before only observations up to about 10:00 exist "
-            "(the rule of the forecast catalogue), so both scores are optimistic. **2.** The origin of the measured history is not independently verified.")
+_mini("Calculation")
+if weather:
+    s_m, p_m = round(serve["mae"], nd), round(plain["mae"], nd)
+    sm_m = round(simple["mae"], nd)
+    ch1, ch2 = 100 * (s_m / p_m - 1), 100 * (s_m / sm_m - 1)
+    st.markdown(_panel(
+        f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
+        f"<span style='font-weight:600; color:{INK};'>① The weather forecast</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(serve['mae'])}</b> {unit}</span>"
+        f"<span style='font-weight:600; color:{INK};'>② The best algorithm without it</span><span>{_label(plain_m)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(plain['mae'])}</b> {unit}</span>"
+        f"<span style='font-weight:600; color:{INK};'>③ The change</span><span>{fmt(serve['mae'])} ÷ {fmt(plain['mae'])} − 1 = <b style='font-size:1.25rem; color:{REAL if ch1 < 0 else LUCK};'>{ch1:+.0f}%</b></span>"
+        f"<span style='font-weight:600; color:{INK};'>④ Against the best simple forecast</span><span>{simple_n}: {fmt(serve['mae'])} ÷ {fmt(simple['mae'])} − 1 = <b style='font-size:1.1rem; color:{INK};'>{ch2:+.0f}%</b></span></div>"), unsafe_allow_html=True)
+    rel_w = 100 * (round(with_v["mae"], nd) / round(serve["mae"], nd) - 1)
+    verdict_w = (f"better than the forecast itself by {abs(rel_w):.1f}%." if rel_w < -2 else
+                 f"about as good as the forecast itself ({rel_w:+.1f}%), so the forecast is used directly." if rel_w <= 2 else
+                 f"worse than the forecast itself ({rel_w:+.1f}%), so the forecast is used directly.")
+    _line(f"The weather forecast cuts the error by <b>{abs(ch1):.0f}%</b> against the best algorithm that sees only past observations, and by <b>{abs(ch2):.0f}%</b> against the best simple forecast. "
+          f"Algorithms that also take the forecast as an input ({_label(with_m)}: {fmt(with_v['mae'])} {unit}) are " + verdict_w)
+    _mini("Two limits on these numbers")
+    _table(["Limit", "Why it matters"],
+           [["1. The truth is a reanalysis", "It is made with a weather model similar to the one that makes the forecast, so the forecast probably looks somewhat better here than it would against a sensor at the plant"],
+            ["2. The forecast is two days old", "It is the one issued two days earlier, which is certainly available at the decision time; a real run uses the newest forecast, which is usually a little better"]],
+           widths="minmax(12rem, 1fr) minmax(20rem, 3.2fr)", left=(0, 1))
+else:
+    skill = r.get("skill_vs_yesterday")
+    yk = next((k_ for k_ in r["baselines"] if "yesterday" in k_.lower()), simple_n)
+    yv = r["baselines"][yk]
+    c_m, y_m = round(chosen["mae"], nd), round(yv["mae"], nd)
+    sk = 100 * (1 - c_m / y_m) if y_m else None
+    st.markdown(_panel(
+        f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
+        f"<span style='font-weight:600; color:{INK};'>① The serving model</span><span>{_label(selected)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(chosen['mae'])}</b> {unit}</span>"
+        f"<span style='font-weight:600; color:{INK};'>② '{_esc(yk)}'</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(yv['mae'])}</b> {unit}</span>"
+        f"<span style='font-weight:600; color:{INK};'>③ The skill against it</span><span>1 − {fmt(chosen['mae'])} ÷ {fmt(yv['mae'])} = <b style='font-size:1.25rem; color:{REAL if (sk or 0) > 0 else LUCK};'>{('–' if sk is None else f'{sk:+.1f}%')}</b></span></div>"), unsafe_allow_html=True)
+    if simple["mae"] < chosen["mae"]:
+        _line(f"On the held-out year the serving model does not beat the simple forecast '{_esc(simple_n.lower())}': its MAE is {fmt(chosen['mae'])} {unit} against {fmt(simple['mae'])} {unit}. "
+              "All forecasts are scored on the same test values; only measured values are scored.")
+        _mini("Two limits on these numbers")
+        _table(["Limit", "Why it matters"],
+               [["1. Yesterday's full day is an input", "Both use it, but at 11:00 on the day before only observations up to about 10:00 exist (the rule of the forecast catalogue), so both scores are optimistic"],
+                ["2. The origin of the history", "The origin of the measured history is not independently verified"]],
+               widths="minmax(12rem, 1fr) minmax(20rem, 3.2fr)", left=(0, 1))
 
-# ---------------------------------------------------------------------------------------------------------------- charts
-st.subheader("Forecast against measured")
-d = r["daily"]
+# ============================================================================================ 3. forecast against what happened
+_section("Forecast against what happened", "The daily mean over the test year, then the last seven days hour by hour", num="③")
+
+
+def _lines(fig, x, ys, widths):
+    fig.add_trace(go.Scatter(x=x, y=ys[0], name=names[0], mode="lines", line=dict(color=GREY, width=widths[0])))
+    fig.add_trace(go.Scatter(x=x, y=ys[1], name=names[1], mode="lines", line=dict(color=CHAMP, width=widths[1])))
+    fig.add_trace(go.Scatter(x=x, y=ys[2], name=names[2], mode="lines", line=dict(color=NEUTRAL, width=widths[2], dash="dot")))
+
+
+_mini("The daily mean")
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=d["day"], y=d["actual"], name="Measured", mode="lines", line=dict(color=theme.INK_PRIMARY, width=1.6)))
-fig.add_trace(go.Scatter(x=d["day"], y=d["model"], name="Serving model", mode="lines", line=dict(color=theme.BLUE, width=1.6)))
-fig.add_trace(go.Scatter(x=d["day"], y=d["yesterday"], name="Same time yesterday", mode="lines", line=dict(color=theme.ORANGE, width=1.2, dash="dot")))
-theme.style_fig(fig, height=330, yaxis_title=f"{r['name']} ({unit}), daily mean")
-fig.update_layout(hovermode="x unified", legend=dict(orientation="h", y=1.08, x=0.5, xanchor="center"))
-fig.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED)
-st.plotly_chart(fig, width="stretch")
-if "week" in r:
-    w = r["week"]
-    pos = list(range(len(w["t"])))
+_lines(fig, daily["day"], (daily["actual"], daily["model"], daily["yesterday"]), (3, 1.6, 1.4))
+theme.style_fig(fig, height=320, yaxis_title=f"{unit}, daily mean")
+fig.update_layout(hovermode="x unified")
+_legend_top(fig)
+fig.update_layout(margin=dict(t=34))
+fig.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=MUTED)
+st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+if week:
+    _mini("The last seven days")
+    pos = list(range(len(week["t"])))
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=pos, y=w["actual"], name="Measured", mode="lines", line=dict(color=theme.INK_PRIMARY, width=1.8)))
-    fig.add_trace(go.Scatter(x=pos, y=w["model"], name="Serving model", mode="lines", line=dict(color=theme.BLUE, width=1.8)))
-    fig.add_trace(go.Scatter(x=pos, y=w["yesterday"], name="Same time yesterday", mode="lines", line=dict(color=theme.ORANGE, width=1.4, dash="dot")))
-    theme.style_fig(fig, height=300, yaxis_title=f"{r['name']} ({unit}), hourly", xaxis_title="the last seven days of the test year (hourly)")
-    ticks = [i for i, t in enumerate(w["t"]) if t[11:13] == "00"]
-    fig.update_xaxes(tickvals=ticks, ticktext=[f"{w['t'][i][8:10]}-{w['t'][i][5:7]}-{w['t'][i][:4]}" for i in ticks],
-                     showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=theme.INK_MUTED)
-    fig.update_traces(customdata=w["t"], hovertemplate="%{y:,.1f}  (%{customdata})")
-    fig.update_layout(hovermode="x unified", legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"))
-    st.plotly_chart(fig, width="stretch")
+    _lines(fig, pos, (week["actual"], week["model"], week["yesterday"]), (3.4, 1.8, 1.5))
+    theme.style_fig(fig, height=300, yaxis_title=f"{unit}, hourly", xaxis_title=week_x)
+    ticks = [i for i, t_ in enumerate(week["t"]) if t_[11:13] == "00"]
+    fig.update_xaxes(tickvals=ticks, ticktext=[_dmy(week["t"][i]) for i in ticks], showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=MUTED)
+    fig.update_traces(customdata=week["t"], hovertemplate="%{y:,.1f}  (%{customdata})")
+    fig.update_layout(hovermode="x unified")
+    _legend_top(fig)
+    fig.update_layout(margin=dict(t=34))
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
