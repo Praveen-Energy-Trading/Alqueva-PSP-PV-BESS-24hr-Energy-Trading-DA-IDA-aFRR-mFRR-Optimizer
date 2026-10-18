@@ -14,6 +14,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Model arena", "", step=6)
 ml_ui.tour_bar(7)
@@ -198,7 +199,7 @@ if piv is not None and piv.shape[1] >= 20:
         for xx in (xa, xb):
             SH.append(dict(type="line", x0=xx, x1=xx, y0=cya - 0.45, y1=cyb + 0.5, line=dict(color="#a8a69d", width=1.2, dash="dot")))
         _shp(730, 1000, y3 + 2.0, y3 + 4.0, NEUTRAL, 0.12, r_px=8)
-        _fnote(865, y3 + 2.5, f"<b>Gap = {va:.1f} − {vb:.1f} = {va - vb:+.1f}</b>", size=12)
+        _fnote(865, y3 + 2.5, f"<b>Gap = {va:.1f} - {vb:.1f} = {va - vb:+.1f}</b>", size=12)
         _fnote(865, y3 + 3.1, f"{'Champion' if va < vb else 'Decision tree'} closer", size=10, color=MUTED)
         _fnote(865, y3 + 3.5, f"One gap per day, {res0['n_days']:,} days", size=10, color=MUTED)
         end = y3 + 4.4
@@ -268,6 +269,7 @@ else:
         B = st.selectbox("Against", _opts, index=_opts.index("decision_tree") if "decision_tree" in _opts else 1, format_func=_name, key="ml7_b")
     with _px:
         smooth_d = st.slider("Smoothing (days)", 1, 60, 28, key="ml7_smooth")
+    _line(M(r"\text{Smoothed error}(t)=\frac{\text{error}(t)+\text{error}(t-1)+\cdots+\text{error}(t-N+1)}{N}") + ", N = number of days")
     la, lb = _name(A), _name(B)
     res = ml_data.dm_example(daily, target, A, B) if A != B else None
     if res is not None and not (np.isfinite(res["statistic"]) and np.isfinite(res["p_value"]) and float(res["statistic"]) != 0.0):

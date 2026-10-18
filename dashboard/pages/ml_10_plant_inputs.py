@@ -14,6 +14,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Plant inputs: PV and inflow", "", step=9)
 ml_ui.tour_bar(10)
@@ -136,6 +137,7 @@ else:
     daily, week = r["daily"], r.get("week")
     names = ("Measured", "Serving model", "Same time yesterday")
     week_x = "The last seven days of the test year (hourly)"
+_n = lambda v_: f"{(round(v_, nd) or 0.0):,.{nd}f}".replace(",", "{,}")                                              # a number for a formula
 fmt = lambda v_: f"{(round(v_, nd) or 0.0):,.{nd}f}"                                                                 # noqa: E731                                       (no "-0.0")
 
 # ============================================================================================ 1. what it is
@@ -173,8 +175,8 @@ if weather:
         f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
         f"<span style='font-weight:600; color:{INK};'>① The weather forecast</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(serve['mae'])}</b> {unit}</span>"
         f"<span style='font-weight:600; color:{INK};'>② The best algorithm without it</span><span>{_label(plain_m)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(plain['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The change</span><span>{fmt(serve['mae'])} ÷ {fmt(plain['mae'])} − 1 = <b style='font-size:1.25rem; color:{REAL if ch1 < 0 else LUCK};'>{ch1:+.0f}%</b></span>"
-        f"<span style='font-weight:600; color:{INK};'>④ Against the best simple forecast</span><span>{simple_n}: {fmt(serve['mae'])} ÷ {fmt(simple['mae'])} − 1 = <b style='font-size:1.1rem; color:{INK};'>{ch2:+.0f}%</b></span></div>"), unsafe_allow_html=True)
+        f"<span style='font-weight:600; color:{INK};'>③ The change</span><span>{M(rf"\frac{{{_n(serve['mae'])}}}{{{_n(plain['mae'])}}}-1=")} <b style='font-size:1.25rem; color:{REAL if ch1 < 0 else LUCK};'>{ch1:+.0f}%</b></span>"
+        f"<span style='font-weight:600; color:{INK};'>④ Against the best simple forecast</span><span>{simple_n}: {M(rf"\frac{{{_n(serve['mae'])}}}{{{_n(simple['mae'])}}}-1=")} <b style='font-size:1.1rem; color:{INK};'>{ch2:+.0f}%</b></span></div>"), unsafe_allow_html=True)
     rel_w = 100 * (round(with_v["mae"], nd) / round(serve["mae"], nd) - 1)
     verdict_w = (f"better than the forecast itself by {abs(rel_w):.1f}%." if rel_w < -2 else
                  f"about as good as the forecast itself ({rel_w:+.1f}%), so the forecast is used directly." if rel_w <= 2 else
@@ -196,7 +198,7 @@ else:
         f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
         f"<span style='font-weight:600; color:{INK};'>① The serving model</span><span>{_label(selected)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(chosen['mae'])}</b> {unit}</span>"
         f"<span style='font-weight:600; color:{INK};'>② '{_esc(yk)}'</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(yv['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The skill against it</span><span>1 − {fmt(chosen['mae'])} ÷ {fmt(yv['mae'])} = <b style='font-size:1.25rem; color:{REAL if (sk or 0) > 0 else LUCK};'>{('–' if sk is None else f'{sk:+.1f}%')}</b></span></div>"), unsafe_allow_html=True)
+        f"<span style='font-weight:600; color:{INK};'>③ The skill against it</span><span>{M(rf"1-\frac{{{_n(chosen['mae'])}}}{{{_n(yv['mae'])}}}=")} <b style='font-size:1.25rem; color:{REAL if (sk or 0) > 0 else LUCK};'>{('–' if sk is None else f'{sk:+.1f}%')}</b></span></div>"), unsafe_allow_html=True)
     if simple["mae"] < chosen["mae"]:
         _line(f"On the held-out year the serving model does not beat the simple forecast '{_esc(simple_n.lower())}': its MAE is {fmt(chosen['mae'])} {unit} against {fmt(simple['mae'])} {unit}. "
               "All forecasts are scored on the same test values; only measured values are scored.")

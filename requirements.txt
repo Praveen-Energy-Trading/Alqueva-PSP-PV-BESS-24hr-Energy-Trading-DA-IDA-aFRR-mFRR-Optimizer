@@ -40,3 +40,4 @@ plotly>=5.24
 
 # Hyper-parameter search (common_layer/forecast_evaluation/tuning.py, model development stage 2)
 optuna>=3.6        # TPE sampler and pruner for the nested, time-aware tuning
+latex2mathml>=3.77     # the formulas of the dashboard are written in LaTeX and drawn as MathML (dashboard/maths.py)

@@ -15,6 +15,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Problem formulation", "", step=2)
 ml_ui.tour_bar(3)
@@ -190,7 +191,7 @@ if len(tl):
         trows.append([r_["series"], off, "–" if h is None else clock(h), known, state, evid])
     _table(["Series", "Latest day used", "Available at", "Known for", "Status", "Evidence"], trows,
            widths="minmax(9rem, 1.6fr) minmax(4.8rem, 0.8fr) minmax(5.2rem, 0.9fr) minmax(5.2rem, 0.9fr) minmax(7rem, 1.1fr) minmax(10rem, 1.5fr)")
-    _line("Known for = the time the forecast is made minus the time the newest value became available, from the clock times shown. "
+    _line(M(r"\text{Known for}=t_{\text{forecast made}}-t_{\text{newest value available}}") + ", from the clock times shown. "
           "Hover over a pill in the evidence column for the note behind it.")
 
 # ============================================================================================ 3. what may and may not be used

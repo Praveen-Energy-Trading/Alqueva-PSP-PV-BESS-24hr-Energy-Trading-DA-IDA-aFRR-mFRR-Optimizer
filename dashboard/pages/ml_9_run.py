@@ -14,6 +14,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Run it: registry, monitoring, live", "A model in production needs a record of how it was made, a rule for replacing it, a watch on "
              "its errors and a safe way to switch it on. This page shows each.", step=8)
@@ -279,7 +280,7 @@ if pol:
         rows.append([nm, f"{loss_:.2f}", mk(c1, f"{imp:.1f}% lower"), mk(c2, f"p = {p_:g}"), mk(c3, f"{days_} days"), _ok_pill("Promoted") if (c1 and c2 and c3) else _off_pill("Rejected")])
     _table(["Challenger", "Loss", f"At least {pol['min_improvement']:.0%} lower", f"p below {pol['alpha']:.0%}", f"At least {pol['min_days_between_promotions']} days since the last", "Result"], rows,
            widths="minmax(8rem, 1.2fr) minmax(4rem, 0.6fr) repeat(3, minmax(7.5rem, 1.2fr)) minmax(6rem, 0.9fr)")
-    _line("The improvement is worked out from the losses as shown: (17.80 − 17.40) ÷ 17.80 = 2.2%. A challenger that fails any one condition is rejected, and the rejection is logged.")
+    _line("The improvement is worked out from the losses as shown: " + M(r"\frac{17.80-17.40}{17.80}=2.2\%") + ". A challenger that fails any one condition is rejected, and the rejection is logged.")
 
 # ============================================================================================ 4. monitoring
 _section("Monitoring: replay over the locked year", f"The rolling {window}-day error of the champion against what normal looked like before going live", num="⑥")
@@ -351,7 +352,7 @@ if sch:
         f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
         f"<span style='font-weight:600; color:{INK};'>Refit</span><span>Every <b style='font-size:1.1rem; color:{INK};'>{refit_d}</b> days, settings reused</span>"
         f"<span style='font-weight:600; color:{INK};'>Re-tune</span><span>Every <b style='font-size:1.1rem; color:{INK};'>{tune_d}</b> days, the search runs again</span>"
-        f"<span style='font-weight:600; color:{INK};'>Refits per re-tune</span><span>{tune_d} ÷ {refit_d} = <b style='font-size:1.1rem; color:{INK};'>{tune_d // refit_d}</b></span></div>"), unsafe_allow_html=True)
+        f"<span style='font-weight:600; color:{INK};'>Refits per re-tune</span><span>{M(rf'\frac{{{tune_d}}}{{{refit_d}}}=')} <b style='font-size:1.1rem; color:{INK};'>{tune_d // refit_d}</b></span></div>"), unsafe_allow_html=True)
     _line("The live schedule equals the one used in the evaluation, checked when the configuration is loaded, so live behaviour is the behaviour that was scored.")
 
 # ============================================================================================ 6. the live switch

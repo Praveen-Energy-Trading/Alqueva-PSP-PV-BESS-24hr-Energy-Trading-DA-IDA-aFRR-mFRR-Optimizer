@@ -14,6 +14,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Evaluation design", "", step=4)
 ml_ui.tour_bar(5)
@@ -189,22 +190,23 @@ if folds is not None and len(folds):
     st.markdown(_panel(
         f"<div style='display:grid; grid-template-columns:11rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
         f"<span style='font-weight:600; color:{INK};'>Validation period</span><span>{_fmt(v0)} to {_fmt(v1 - one_day)}, <b style='color:{INK};'>{vdays:,}</b> days</span>"
-        f"<span style='font-weight:600; color:{INK};'>Refits</span><span>{vdays:,} ÷ {step} = {vdays / step:.2f}, so <b style='font-size:1.1rem; color:{INK};'>{n}</b> refits, one new row every {step} days</span>"
+        f"<span style='font-weight:600; color:{INK};'>Refits</span><span>{M(rf"\frac{{{vdays}}}{{{step}}}={vdays / step:.2f}")}, so <b style='font-size:1.1rem; color:{INK};'>{n}</b> refits, one new row every {step} days</span>"
         f"<span style='font-weight:600; color:{INK};'>Each refit</span><span>Trains on {train_label}, tunes on the last {_val} days of its window, leaves a {gap}-day gap, then forecasts {step} days</span>"
         f"<span style='font-weight:600; color:{INK};'>Locked year</span><span>{_fmt(l0)} to {_fmt(l1 - one_day)}, <b style='color:{INK};'>{ldays:,}</b> days, never trained or tuned on</span></div>"), unsafe_allow_html=True)
 
 _section("What is measured", "Every forecast is judged by the size of its errors, an error being the actual price minus the forecast", num="②")
-_mini("The scores", "An illustration with four hourly errors of +2, −4, +1 and +9 (not data)")
+_mini("The scores", "An illustration with four hourly errors, not data: " + M(r"e = 2,\ -4,\ 1,\ 9"))
 _errs = [2, -4, 1, 9]
 _sse = sum(e_ ** 2 for e_ in _errs)
 _mse = _sse / len(_errs)
 _rmse = _mse ** 0.5
 _mae = sum(abs(e_) for e_ in _errs) / len(_errs)
 _table(["Score", "Name", "Formula", "Worked out on the four errors", "Result"],
-       [["SSE", "Sum of squared errors", "Σ e²", " + ".join(f"{e_ ** 2}" for e_ in _errs), f"{_sse:,.0f}"],
-        ["MSE", "Mean squared error", "(1/n) Σ e²", f"{_sse:,.0f} ÷ {len(_errs)}", f"{_mse:,.1f}"],
-        ["RMSE", "Root mean squared error", "√MSE", f"√{_mse:,.1f}", f"{_rmse:,.2f}"],
-        ["<b>MAE</b>", "<b>Mean absolute error</b>", "(1/n) Σ |e|", " + ".join(f"{abs(e_)}" for e_ in _errs) + f" = {sum(abs(e_) for e_ in _errs)}, ÷ {len(_errs)}", f"<b>{_mae:,.2f}</b>"]],
+       [["SSE", "Sum of squared errors", M(r"\sum_{i=1}^{n} e_i^{2}"), M("+".join(f"{e_ ** 2}" for e_ in _errs)), f"{_sse:,.0f}"],
+        ["MSE", "Mean squared error", M(r"\frac{1}{n}\sum_{i=1}^{n} e_i^{2}"), M(rf"\frac{{{_sse}}}{{{len(_errs)}}}"), f"{_mse:,.1f}"],
+        ["RMSE", "Root mean squared error", M(r"\sqrt{\mathrm{MSE}}"), M(rf"\sqrt{{{_mse:.1f}}}"), f"{_rmse:,.2f}"],
+        ["<b>MAE</b>", "<b>Mean absolute error</b>", M(r"\frac{1}{n}\sum_{i=1}^{n} \left| e_i \right|"),
+         M(rf"\frac{{{'+'.join(str(abs(e_)) for e_ in _errs)}}}{{{len(_errs)}}}=\frac{{{sum(abs(e_) for e_ in _errs)}}}{{{len(_errs)}}}"), f"<b>{_mae:,.2f}</b>"]],
        widths="minmax(4rem, 0.6fr) minmax(11rem, 1.6fr) minmax(7rem, 1fr) minmax(12rem, 2fr) minmax(4rem, 0.7fr)", left=(0, 1))
 _line(f"MAE is the score the tuning and the comparison use, so the large miss of 9 counts as 9, not as 81: it makes up {100 * 81 / _sse:.0f}% of the SSE but {100 * 9 / sum(abs(e_) for e_ in _errs):.0f}% of the absolute errors. "
       "MAE is lowest for the median, so the forecasts are median-type: the typical price, not the expected price, which a spike lifts.")

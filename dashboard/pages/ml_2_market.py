@@ -13,6 +13,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 SERIES = {"da_pt": "Day-ahead (PT)", "ida1_pt": "IDA1", "ida2_pt": "IDA2", "ida3_pt": "IDA3", "xbid_pt": "XBID (continuous)",
           "afrr_up": "aFRR capacity up", "afrr_dn": "aFRR capacity down", "mfrr_ap": "mFRR activation price", "imb_short": "Imbalance (short)",
@@ -139,9 +140,9 @@ else:
             mean_sp, abs_sp, lvl = round(float(d_.mean()), 2), round(float(d_.abs().mean()), 2), round(float(both["da_pt"].mean()), 2)
             shares.append(100 * abs_sp / lvl)
             rows.append([f"<span style='color:{COLOR[s]}'>■</span>&nbsp;{SERIES[s]}", f"{len(both):,}", f"{mean_sp:+.2f}", f"{abs_sp:.2f}", f"{lvl:.2f}", f"{100 * abs_sp / lvl:.1f}%"])
-        _table(["Market", "Days", "Mean spread (EUR/MWh)", "Mean absolute spread (EUR/MWh)", "Average day-ahead price (EUR/MWh)", "Absolute spread ÷ day-ahead price"], rows,
+        _table(["Market", "Days", "Mean spread (EUR/MWh)", "Mean absolute spread (EUR/MWh)", "Average day-ahead price (EUR/MWh)", "Absolute spread as a share of the day-ahead price"], rows,
                widths="minmax(9rem, 1.4fr) minmax(4rem, 0.6fr) repeat(4, minmax(6rem, 1fr))")
-        _line("Absolute spread ÷ day-ahead price = the mean absolute spread divided by the average day-ahead price, from the numbers shown. "
+        _line(M(r"\text{Absolute spread share}=\frac{\text{mean absolute spread}}{\text{average day-ahead price}}") + ", from the numbers shown. "
               "The intraday markets start on 13-06-2024 in their current form. "
               + (f"The mean absolute spread is <b>{min(shares):.0f}% to {max(shares):.0f}%</b> of the day-ahead price, small compared with its level, " if shares else "")
               + "which is why the intraday targets are modelled as a spread to the day-ahead price.")
@@ -194,6 +195,6 @@ else:
             prow.append([f"Period {i}", f"{a:%d-%m-%Y}", f"{b:%d-%m-%Y}", f"{n:,}", f"{lv:,.1f}", change])
             prev = lv
         _table(["Period", "From", "To", "Days", "Average price (EUR/MWh)", "Change from the period before"], prow, widths="minmax(7rem, 1fr) repeat(2, minmax(6rem, 1fr)) minmax(4rem, 0.7fr) minmax(7rem, 1.2fr) minmax(7rem, 1.2fr)")
-        _line("The change is worked out from the averages as shown: (this period − the period before) ÷ the period before.")
+        _line("The change is worked out from the averages as shown: " + M(r"\text{change}=\frac{\text{this period}-\text{period before}}{\text{period before}}") + ".")
         _mini("The known market events", "The numbers on the chart")
         _table(["No.", "Event", "Date"], [[f"<b>{i}</b>", e["text"], f"{e['date']:%d-%m-%Y}"] for i, e in enumerate(events, 1)], widths="minmax(3.5rem, 0.4fr) minmax(16rem, 3fr) minmax(6rem, 1fr)", left=(0, 1))

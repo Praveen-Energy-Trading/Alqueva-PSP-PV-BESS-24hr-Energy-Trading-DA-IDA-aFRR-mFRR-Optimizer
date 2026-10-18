@@ -14,6 +14,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Decision and locked test", "The champion is chosen by a rule written down before the results existed, applied by code, and then "
              "scored once on a year that nothing was tuned or chosen on.", step=7)
@@ -267,11 +268,12 @@ else:
     _ml = rk.set_index("model")["mean_loss"]
     _bl, _rl = round(float(_ml[d["best"]]), 3), round(float(_ml[ref]), 3)
     _pp = float(par["p_value"])
+    _cmp = "<" if _pp < pol["alpha"] else r"\geq"
     st.markdown(_panel(
         f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} {_bl:.3f} − {refl} {_rl:.3f} = <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span>"
+        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} minus {refl}: {M(rf'{_bl:.3f}-{_rl:.3f}=')} <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span>"
         f"<span style='font-weight:600; color:{INK};'>② The test</span><span>DM statistic <b style='color:{INK};'>{float(par['statistic']):.2f}</b>, p = <b style='color:{INK};'>{_p(_pp)}</b></span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The limit</span><span>p {'&lt;' if _pp < pol['alpha'] else '≥'} {pol['alpha']:.2f} ({pol['alpha']:.0%})</span></div>"
+        f"<span style='font-weight:600; color:{INK};'>③ The limit</span><span>{M(rf"p{_cmp}{pol['alpha']:.2f}")} ({pol['alpha']:.0%})</span></div>"
         f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if par_passed else LUCK};'>"
         + (f"The best beats the {refl}: the rule goes on to the ties" if par_passed else f"Not better than the {refl}: the simplest wins") + "</div>"), unsafe_allow_html=True)
 if comb:
@@ -315,13 +317,13 @@ else:
             _hd = lambda txt_: f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; margin-top:0.55rem;'>{txt_}</div>"                    # noqa: E731
             st.markdown(_panel(
                 f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① The gain over the reference</div>"
-                f"<div>({round(rf_mae, 3):.3f} − {round(ch_mae, 3):.3f}) ÷ {round(rf_mae, 3):.3f} = <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"
+                f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"
                 + _hd("② The test against the reference")
                 + (f"<div>DM statistic <b style='color:{INK};'>{stat_lk:.2f}</b>, p = <b style='color:{INK};'>{_p(p_lk)}</b></div>" if stat_lk is not None else f"<div>p = <b style='color:{INK};'>{_p(p_lk)}</b></div>")
                 + f"<div style='margin-top:0.7rem; font-size:1.2rem; font-weight:800; color:{REAL if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else LUCK};'>"
                 + ("Real, not luck" if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else "Not distinguishable from luck") + "</div>"), unsafe_allow_html=True)
     _mini("What was frozen", "The locked test is scored once; the frozen data and the code revision are recorded")
-    _table(["Window", "Days", "Lock status", "Code revision", "Data digest", "Locked loss ÷ development loss"],
+    _table(["Window", "Days", "Lock status", "Code revision", "Data digest", "Locked loss against development loss"],
            [[f"{pd.Timestamp(lk['window'][0]):%d-%m-%Y} to {pd.Timestamp(lk['window'][1]):%d-%m-%Y}", f"{lock_days}",
              _pill(str(lk.get("lock_status")), "#006100", "#e3f1e3") if lk.get("lock_status") == "verified" else _pill(str(lk.get("lock_status")), "#5a5953", "#ecebe6"),
              f"{lk['code']}", f"{str(lk.get('data_digest', ''))[:10]}", f"{lk['loss_ratio_locked_over_dev']:.2f}"]], first="minmax(11rem, 1.6fr)")
@@ -404,7 +406,7 @@ else:
             sc = bm[stage]["scores"]
             if _sel in sc:
                 parts += (f"<span style='font-weight:600; color:{INK};'>{title}</span>"
-                          f"<span>({round(sc[_sel]['mae'], 3):.3f} − {round(sc['champion']['mae'], 3):.3f}) ÷ {round(sc[_sel]['mae'], 3):.3f} = "
+                          f"<span>{M(rf'\frac{{{round(sc[_sel]['mae'], 3):.3f}-{round(sc['champion']['mae'], 3):.3f}}}{{{round(sc[_sel]['mae'], 3):.3f}}}=')} "
                           f"<b style='font-size:1.1rem; color:{INK};'>{_gain(sc[_sel]['mae'], sc['champion']['mae']):.1f}%</b></span>")
         with _cd:
             st.markdown(_panel(f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>{parts}</div>"), unsafe_allow_html=True)

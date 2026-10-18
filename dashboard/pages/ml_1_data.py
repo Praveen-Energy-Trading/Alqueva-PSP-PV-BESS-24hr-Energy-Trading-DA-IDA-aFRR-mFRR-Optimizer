@@ -15,6 +15,7 @@ import fill_legend
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Data and quality", "", step=0)
 ml_ui.tour_bar(1)
@@ -106,7 +107,7 @@ else:
                      _ok_pill("None") if int(r_["versions_above_1"]) == 0 else _warn_pill(f"{int(r_['versions_above_1']):,}")])
     _table(["Source", "Days held", "First day", "Last day", "Days in the span", "Missing in the span", "Files with several versions"], rows,
            widths="minmax(10rem, 1.7fr) minmax(4rem, 0.7fr) minmax(5.2rem, 0.9fr) minmax(5.2rem, 0.9fr) minmax(4rem, 0.7fr) minmax(7rem, 1.1fr) minmax(5.5rem, 0.8fr)")
-    _line("Missing in the span = days in the span − days held, where the span runs from the first to the last day. A missing day is either a day the source never published or one that failed to load; see step ⑤.")
+    _line(M(r"\text{Missing in the span}=\text{days in the span}-\text{days held}") + ", where the span runs from the first to the last day. A missing day is either a day the source never published or one that failed to load; see step ⑤.")
 
 # ============================================================================================ 2. the quality gate
 _section("The quality gate", "The latest check of the data: it passes, or it says why not", num="②")
@@ -159,7 +160,7 @@ else:
                      (_ok_pill("0.00%") if r_["filled"] == 0 else _warn_pill(f"{sh:.2f}%"))])
     _table(["Series", "Hours in the series", "Published", "Data errors removed", "Hours imputed", "Share imputed"], rows,
            widths="minmax(10rem, 1.6fr) repeat(4, minmax(4.8rem, 0.9fr)) minmax(5rem, 0.9fr)")
-    _line("Share imputed = hours imputed ÷ hours in the series. A series with 0.00% needed no filling.")
+    _line(M(r"\text{Share imputed}=\frac{\text{hours imputed}}{\text{hours in the series}}") + ". A series with 0.00% needed no filling.")
     gaps = ml_ui.cached(lambda: ml_data.pack("curation_gaps"))()
     if not gaps.empty:
         _mini("How the gaps were filled", "The number of separate gaps, with the hours in brackets: 187 small gaps read faster than 213 hours")

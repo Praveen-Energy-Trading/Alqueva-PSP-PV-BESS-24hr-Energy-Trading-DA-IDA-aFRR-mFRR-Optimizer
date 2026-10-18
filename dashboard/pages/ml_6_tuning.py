@@ -15,6 +15,7 @@ import streamlit as st
 import ml_data
 import ml_ui
 import theme
+from maths import tex as M
 
 ml_ui.header("Tuning lab", "", step=5)
 ml_ui.tour_bar(6)
@@ -426,30 +427,31 @@ else:
     rule_raw = [str(v) for k_, vs in sp_.items() if k_ in RULE_SETTINGS for v in vs]
     fixed = not rule_raw                                                                # trees and forests: squared error only, nothing to choose
     rule_raw = rule_raw or ["squared_error"]
-    CARD = {"squared error (L2)": ("Squared error (L2)", "e²", "900", "Follows spikes: large misses dominate"),
-            "absolute error (L1)": ("Absolute error (L1)", "|e|", "30", "Follows the typical day"),
-            "Huber": ("Huber", "½e² if |e| ≤ δ,  else δ(|e| − ½δ)", "29.5", "Squared if small, absolute if large (δ = 1 here)"),
-            "pseudo-Huber": ("Pseudo-Huber", "δ²(√(1 + (e/δ)²) − 1)", "29.0", "A smooth Huber (δ = 1 here)")}
-    SCORES = [("SSE", "Σ e²", "905", "Sum of squared errors"), ("MSE", "(1/n) Σ e²", "301.7", "Mean squared error"), ("RMSE", "√MSE", "17.4", "Back in €/MWh"),
-              ("MAE", "(1/n) Σ |e|", "11", "The score the tuning compares settings by")]
+    CARD = {"squared error (L2)": ("Squared error (L2)", r"e^{2}", "900", "Follows spikes: large misses dominate"),
+            "absolute error (L1)": ("Absolute error (L1)", r"\left| e \right|", "30", "Follows the typical day"),
+            "Huber": ("Huber", r"\frac{1}{2}e^{2}\ \text{if}\ \left| e \right|\le\delta,\ \text{else}\ \delta\left(\left| e \right|-\frac{1}{2}\delta\right)", "29.5", "Squared if small, absolute if large (delta equals 1 here)"),
+            "pseudo-Huber": ("Pseudo-Huber", r"\delta^{2}\left(\sqrt{1+\left(\frac{e}{\delta}\right)^{2}}-1\right)", "29.0", "A smooth Huber (delta equals 1 here)")}
+    SCORES = [("SSE", r"\sum_{i=1}^{n} e_i^{2}", "905", "Sum of squared errors"), ("MSE", r"\frac{1}{n}\sum_{i=1}^{n} e_i^{2}", "301.7", "Mean squared error"),
+              ("RMSE", r"\sqrt{\mathrm{MSE}}", "17.4", "Back in EUR/MWh"),
+              ("MAE", r"\frac{1}{n}\sum_{i=1}^{n} \left| e_i \right|", "11", "The score the tuning compares settings by")]
     # two thin rows of chips, for reference only: the learning rules of this algorithm, and the scores
     FONT = "'Cambria Math', 'STIX Two Math', 'Times New Roman', serif"
     CHIP = "display:inline-flex; align-items:baseline; gap:0.45rem; background:#fff; border:1px solid #e3e1d9; border-radius:999px; padding:0.18rem 0.8rem; font-size:0.85rem; white-space:nowrap;"
     LAB = f"font-size:0.66rem; letter-spacing:0.08em; text-transform:uppercase; color:{theme.INK_MUTED}; font-weight:600; min-width:5.2rem;"
     chips = "".join(
         f"<span style='{CHIP}' title='{raw}: {note}'><b style='color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][0]}</b>"
-        f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{CARD[OBJECTIVE_NAME.get(raw, raw)][1]}</span>"
+        f"<span style='color:{theme.INK_PRIMARY};'>{M(CARD[OBJECTIVE_NAME.get(raw, raw)][1])}</span>"
         f"</span>"
         for raw, note in ((r_, CARD[OBJECTIVE_NAME.get(r_, r_)][3]) for r_ in rule_raw))
     if fixed:
         chips += f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>Trees and forests always split on squared error</span>"
     score_chips = "".join(
         f"<span style='{CHIP}{'background:#fff7e6; border-color:#eda100;' if n == 'MAE' else ''}' title='{d}'><b style='color:{theme.INK_PRIMARY};'>{n}</b>"
-        f"<span style='font-family:{FONT}; font-size:1rem; color:{theme.INK_PRIMARY};'>{f}</span></span>" for n, f, v, d in SCORES)
+        f"<span style='color:{theme.INK_PRIMARY};'>{M(f)}</span></span>" for n, f, v, d in SCORES)
     st.markdown(f"<div style='display:flex; flex-direction:column; gap:0.35rem; margin:0.1rem 0 0.6rem;'>"
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>{ml_data.model_label(rc_model)} rules</span>{chips}</div>"
                 f"<div style='display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;'><span style='{LAB}'>scores</span>{score_chips}"
-                f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>e = actual − forecast; MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
+                f"<span style='color:{theme.INK_MUTED}; font-size:0.72rem;'>{M(r"e=\text{actual}-\text{forecast}")}; MAE is the tuning's score</span></div></div>", unsafe_allow_html=True)
 
 io = ml_data.target_evidence("inner_vs_outer", target, "inner_vs_outer_tpe")
 imp = ml_data.target_evidence("importance", target, "importance_random_search")
@@ -526,7 +528,7 @@ n_comb = math.prod(len(v) for v in space.values())
 _n_trials = int(cfg["search"]["n_trials"])
 _what = (f"Every combination is tried: {n_comb} + the defaults = {n_comb + 1} trials, fewer than the {_n_trials} allowed" if n_comb < _n_trials else
          f"{_n_trials} trials look at {100 * _n_trials / n_comb:.1f}% of them")
-_line(f"<b>{' × '.join(str(len(v)) for v in space.values())} = {n_comb:,}</b> combinations (the options of every setting, multiplied). {_what}.")
+_line(f"{M(r' \times '.join(str(len(v)) for v in space.values()) + rf'={n_comb}')} combinations (the options of every setting, multiplied). {_what}.")
 
 # ---- 6. it changes from round to round, and the gain afterwards is smaller
 _section(f"The choice changes from round to round, and the gain afterwards is smaller <span style='font-weight:400; color:{theme.INK_MUTED};'>— {ml_data.model_label(model)}</span>", num="⑥")
@@ -580,18 +582,18 @@ if len(lg):
         bf.update_layout(legend=dict(orientation="h", x=0, y=1.14, xanchor="left"), margin=dict(t=30, b=30, l=50, r=10))
         with _l:
             st.plotly_chart(bf, width="stretch", config={"displayModeBar": False})
-        _sumtxt = lambda vs_: " + ".join(f"{v_:.2f}" for v_ in vs_)                                                   # noqa: E731
+        _sumtxt = lambda vs_: "+".join(f"{v_:.2f}" for v_ in vs_)                                                     # noqa: E731
         _k = len(_bc)
         _row = lambda dot_, name_, vs_, m_, c_: (f"<div style='display:grid; grid-template-columns:5.2rem 1fr; align-items:baseline; padding:0.35rem 0; border-bottom:1px solid #eeede8;'>"   # noqa: E731
                                                  f"<span style='color:{theme.INK_PRIMARY}; font-weight:600;'><span style='color:{dot_};'>●</span> {name_}</span>"
-                                                 f"<span>({_sumtxt(vs_)}) ÷ {_k} = <b style='font-size:1.02rem; color:{c_};'>{m_:.2f}</b></span></div>")
+                                                 f"<span>{M(rf'\frac{{{_sumtxt(vs_)}}}{{{_k}}}=')} <b style='font-size:1.02rem; color:{c_};'>{m_:.2f}</b></span></div>")
         with _r:
             st.markdown(
                 f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.86rem; color:{theme.INK_SECONDARY};'>"
                 f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the blocks</div>"
                 + _row(_GREY, "Defaults", _bd, _md, theme.INK_PRIMARY) + _row(theme.VIOLET, "Chosen", _bs, _ms, theme.VIOLET)
                 + f"<div style='font-size:0.72rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.55rem;'>② The gain</div>"
-                f"<div style='display:flex; align-items:baseline; justify-content:space-between; gap:0.6rem; margin-top:0.1rem;'><span>({_md:.2f} − {_ms:.2f}) ÷ {_md:.2f} =</span>"
+                f"<div style='display:flex; align-items:baseline; justify-content:space-between; gap:0.6rem; margin-top:0.1rem;'><span>{M(rf'\frac{{{_md:.2f}-{_ms:.2f}}}{{{_md:.2f}}}=')}</span>"
                 f"<b style='font-size:1.7rem; line-height:1.1; color:{theme.INK_PRIMARY if _gn >= 0 else T_STOP};'>{_gn:+.1f}%</b></div></div>", unsafe_allow_html=True)
 
 if io.empty:
@@ -622,18 +624,18 @@ if len(_ir):
                       text=f"<span style='color:{theme.VIOLET}'>●</span> On the tuning blocks &nbsp;&nbsp;&nbsp; <span style='color:{theme.ORANGE}'>●</span> On the days that followed")
     with _cl:
         st.plotly_chart(sf, width="stretch", config={"displayModeBar": False})
-    _fmt = lambda v_: f"{v_:.2f}" if v_ >= 0 else f"({v_:.2f})"                                                          # noqa: E731
-    _calc = lambda vs_: " + ".join(_fmt(v_) for v_ in vs_) + f" ) ÷ {len(vs_)}"                                          # noqa: E731
+    _fmt = lambda v_: f"{v_:.2f}" if v_ >= 0 else f"(-{abs(v_):.2f})"                                                    # noqa: E731
+    _calc = lambda vs_: rf"\frac{{{'+'.join(_fmt(v_) for v_ in vs_)}}}{{{len(vs_)}}}="                                      # noqa: E731
     _mi, _mo = _gi[-1], _go[-1]
     _row2 = lambda col_, name_, vs_, m_: (f"<div style='padding:0.45rem 0; border-bottom:1px solid #eeede8;'><div style='font-weight:600; color:{theme.INK_PRIMARY};'><span style='color:{col_};'>●</span> {name_}</div>"   # noqa: E731
-                                          f"<div style='margin-top:0.15rem;'>( {_calc(vs_)} = <b style='font-size:1.05rem; color:{col_};'>{m_:.2f}</b></div></div>")
+                                          f"<div style='margin-top:0.15rem;'>{M(_calc(vs_))} <b style='font-size:1.05rem; color:{col_};'>{m_:.2f}</b></div></div>")
     with _cr:
         st.markdown(
             f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0.5rem 1.1rem 0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); font-size:0.9rem; color:{theme.INK_SECONDARY}; min-height:{int(42 * len(_yy)) + 40}px; display:flex; flex-direction:column; justify-content:space-between;'>"
             f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; padding:0.2rem 0;'>① The mean of the {len(_ir)} rounds</div>"
             + _row2(theme.VIOLET, "On the tuning blocks", _gi[:-1], _mi) + _row2(theme.ORANGE, "On the days that followed", _go[:-1], _mo)
             + f"<div style='font-size:0.74rem; font-weight:600; color:{theme.INK_MUTED}; margin-top:0.2rem;'>② The gap between the two bars below</div>"
-            f"<div style='margin-top:0.1rem;'>{_mi:.2f} − {_mo:.2f} = "
+            f"<div style='margin-top:0.1rem;'>{M(rf'{_mi:.2f}-{_mo:.2f}=')} "
             f"<b style='font-size:1.5rem; line-height:1.1; color:{theme.INK_PRIMARY};'>{_mi - _mo:.2f} points lost</b></div></div>", unsafe_allow_html=True)
 
 if not io.empty:
@@ -653,7 +655,7 @@ if not io.empty:
 # ---- 7. the outcome
 _sum = ml_ui.cached(ml_data.tuning_summary)(trials, nb)
 _section("The outcome", "what tuning gave, and the same comparison for every target", num="⑦")
-_line("<b>Fits saved = (trials stopped × 2 ÷ 3) ÷ all trials</b>. A stopped trial skips 2 of its 3 block fits.")
+_line(M(r"\text{Fits saved}=\frac{\text{trials stopped}\times\frac{2}{3}}{\text{all trials}}") + ". A stopped trial skips 2 of its 3 block fits.")
 _hdr = ["Target", "TPE best", "Random best", "Difference", "Fits saved", "Gain when choosing", "Gain afterwards"]
 _g7 = "display:grid; grid-template-columns:minmax(9rem, 1.5fr) repeat(6, minmax(0, 1fr)); align-items:center; column-gap:0.6rem;"
 _f = lambda v, fmt: "–" if pd.isna(v) else fmt.format(v)                                                              # noqa: E731
@@ -693,4 +695,4 @@ if len(_bd):
     _hh = (f"<div style='{_g7} padding:0.6rem 0 0.4rem; border-bottom:1px solid #e3e1d9; font-size:0.72rem; color:{theme.INK_MUTED}; font-weight:600; line-height:1.2;'>"
            + "".join(f"<span style='{'' if j_ == 0 else 'text-align:center;'}'>{h_}</span>" for j_, h_ in enumerate(_hd)) + "</div>")
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_hh}{_body}</div>", unsafe_allow_html=True)
-    _line("<b>Mean</b> = the row of the table above. <b>Difference</b> = TPE best − random best. <b>Fits saved</b> leaves out the decision tree, because all its combinations are tried.")
+    _line("<b>Mean</b> = the row of the table above. " + M(r"\text{Difference}=\text{TPE best}-\text{random best}") + ". <b>Fits saved</b> leaves out the decision tree, because all its combinations are tried.")

@@ -262,3 +262,10 @@ def test_the_tuning_breakdown_averages_to_the_summary_row():
     assert len(b) == 5 and b.loc["decision_tree", "saved"] != b.loc["decision_tree", "saved"]          # the decision tree has no fits saved (NaN)
     for c in ("tpe", "random", "saved", "inner", "outer"):
         assert abs(float(b[c].mean()) - float(s.loc["da_price", c])) < 1e-9
+
+
+def test_a_formula_written_in_latex_becomes_mathml_and_a_bad_one_stays_text():
+    import maths
+    out = maths.tex(r"\frac{1}{n}\sum_{i=1}^{n} \left| e_i \right|")
+    assert "<math" in out and "mfrac" in out and "\\" not in out
+    assert "<math" not in maths.tex(r"\undefinedcommand{")                    # a formula the converter cannot read is shown as its LaTeX text
