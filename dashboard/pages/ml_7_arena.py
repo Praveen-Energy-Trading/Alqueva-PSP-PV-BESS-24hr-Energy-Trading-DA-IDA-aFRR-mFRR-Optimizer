@@ -221,27 +221,32 @@ else:
     _nd = n_days_all
     _cnt = {m_: int(round(float(board.loc[board["model"] == m_, "days_best"].iloc[0]) * _nd)) for m_ in models}
 _names = [ml_data.model_label(m) for m in models]
-_c_mae, _c_days = st.columns(2, gap="large")                                                                      # side by side: names on the vertical axis, so they never collide
-_hbar = lambda x_, txt_: (                                                                              # noqa: E731
+st.markdown(f"<style>[data-testid='stVerticalBlockBorderWrapper']:has(.ml7-board) {{ background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; box-shadow:0 1px 2px rgba(0,0,0,0.04); padding:0.4rem 0.7rem 0.2rem; }}</style>", unsafe_allow_html=True)
+_hbar = lambda x_, txt_: (                                                                                          # noqa: E731
     go.Figure(go.Bar(y=_names, x=x_, orientation="h", marker_color=[_alg(m) for m in models], text=txt_, textposition="outside", cliponaxis=False,
-                     textfont=dict(size=12, color=theme.INK_SECONDARY), hoverinfo="skip")))
-with _c_mae:
-    _mini("Average error (MAE)")
-    f_s = _hbar(list(board["mae"]), [f"<b>{v:.3f}</b>" if i == 0 else f"{v:.3f}" for i, v in enumerate(board["mae"])])
-    theme.style_fig(f_s, height=290, xaxis_title=f"MAE ({units})", legend=False)
-    f_s.update_xaxes(range=[0, float(board["mae"].max()) * 1.25])
-    f_s.update_yaxes(autorange="reversed")
-    f_s.update_layout(margin=dict(t=10, r=24), bargap=0.45)
-    st.plotly_chart(f_s, width="stretch", config={"displayModeBar": False})
-with _c_days:
-    _mini("Days with the smallest error")
-    _sh = [100 * _cnt[m] / _nd for m in models]
-    f_b = _hbar(_sh, [f"{v:.1f}%" for v in _sh])
-    theme.style_fig(f_b, height=290, xaxis_title="Share of days (%)", legend=False)
-    f_b.update_xaxes(range=[0, max(_sh) * 1.25])
-    f_b.update_yaxes(autorange="reversed")
-    f_b.update_layout(margin=dict(t=10, r=24), bargap=0.45)
-    st.plotly_chart(f_b, width="stretch", config={"displayModeBar": False})
+                     textfont=dict(size=11, color=theme.INK_SECONDARY), hoverinfo="skip")))
+with st.container(border=True):
+    st.markdown("<span class='ml7-board'></span>", unsafe_allow_html=True)
+    _c_mae, _c_days = st.columns([1.3, 1], gap="small")                                                                  # side by side: names on the vertical axis, so they never collide
+    with _c_mae:
+        _mini("Average error (MAE)", "Gap to the best, beside each bar")
+        _m3 = [round(float(v), 3) for v in board["mae"]]
+        f_s = _hbar(_m3, [f"<b>{v:.3f}</b>" if i == 0 else f"{v:.3f}  <span style='color:{MUTED};'>+{v - _m3[0]:.3f}</span>" for i, v in enumerate(_m3)])
+        theme.style_fig(f_s, height=270, xaxis_title=f"MAE ({units})", legend=False)
+        f_s.update_xaxes(range=[0, max(_m3) * 1.55], showgrid=False, dtick=5)
+        f_s.update_yaxes(autorange="reversed", showgrid=False)
+        f_s.update_layout(margin=dict(t=6, r=2), bargap=0.4)
+        st.plotly_chart(f_s, width="stretch", config={"displayModeBar": False})
+    with _c_days:
+        _mini("Days with the smallest error", f"Dotted line: equal share, {100 / len(models):.0f}%")
+        _sh = [100 * _cnt[m] / _nd for m in models]
+        f_b = _hbar(_sh, [f"{v:.1f}%  <span style='color:{MUTED};'>{_cnt[m]} days</span>" for v, m in zip(_sh, models)])
+        f_b.add_vline(x=100 / len(models), line_dash="dot", line_color="#9a9890", line_width=1)
+        theme.style_fig(f_b, height=270, xaxis_title="Share of days (%)", legend=False)
+        f_b.update_xaxes(range=[0, max(_sh) * 1.5], showgrid=False, dtick=10)
+        f_b.update_yaxes(autorange="reversed", showgrid=False, showticklabels=False)
+        f_b.update_layout(margin=dict(t=6, r=2), bargap=0.4)
+        st.plotly_chart(f_b, width="stretch", config={"displayModeBar": False})
 _mini("The scoreboard in numbers", f"{n_hours:,} hourly forecasts on {_nd:,} days. RMSE is the same score with squared errors, so large misses weigh more.")
 _table(["Algorithm", f"MAE ({units})", f"RMSE ({units})", "Days with the smallest error", "Share of days"],
        [[f"{_dot(m)}{ml_data.model_label(m)}", f"{float(r['mae']):.3f}", f"{float(r['rmse']):.3f}", f"{_cnt[m]:,} of {_nd:,}", f"{100 * _cnt[m] / _nd:.1f}%"] for m, (_, r) in zip(models, board.iterrows())], highlight=0)
@@ -302,6 +307,3 @@ if res is not None and A != B:
     f2.update_layout(margin=dict(t=34))
     st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})
     _line(f"{la} was closer on <b>{wins:,} of {n_d:,} days ({100 * wins / n_d:.1f}%)</b>.")
-
-_line("The champion is chosen on the next page, by a rule written before the results existed.")
-st.caption("The plant inputs (solar irradiance, temperature, natural inflow) are compared on their own page, against simple forecasts and, for irradiance and temperature, the weather forecast.")
