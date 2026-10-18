@@ -86,6 +86,15 @@ if board.empty:
     ml_ui.not_yet_run(f"the comparison for {ml_data.label(target)}")
     st.stop()
 
+_cfg_t, _cfg_e = ml_data.config("tuning"), ml_data.config("evaluation")
+if _cfg_t and _cfg_e:
+    st.markdown(f"<div style='font-size:0.88rem; color:{theme.INK_SECONDARY}; margin:0.2rem 0 0;'>Every algorithm is scored with the settings found in the Tuning lab: "
+                f"retuned every <b>{int(_cfg_t['search']['retune_every_days'])}</b> days, refit every <b>{int(_cfg_e['schedule']['retrain_every_days'])}</b> days.</div>", unsafe_allow_html=True)
+    try:
+        st.page_link("pages/ml_6_tuning.py", label="Tuning lab", icon="🎛️")
+    except Exception:                                                                                                       # a single page run on its own
+        pass
+
 board = board.sort_values("mae").reset_index(drop=True)
 best = board.iloc[0]
 pw = tabs["pairwise_dm"]

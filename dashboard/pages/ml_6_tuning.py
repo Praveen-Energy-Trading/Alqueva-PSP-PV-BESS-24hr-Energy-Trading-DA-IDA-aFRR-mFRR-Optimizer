@@ -299,6 +299,40 @@ ft.layout.shapes = SH                                                           
 ft.layout.annotations = AN
 st.plotly_chart(ft, width="stretch", config={"displayModeBar": False})
 
+# ---- how often: the tuning rounds and the refits on one time axis
+_ex = nb * L                                                                                                             # the days of one round's exam
+_mini(f"How often: tune every {retune} days, refit every {refit} days",
+      f"Two tuning rounds on one time axis. A round tries {n_t} settings and keeps the best; until the next round that setting stays, and only the training data moves forward")
+_sh_, _an_ = [], []
+_R = lambda x0_, x1_, y_, col_, op_=1.0, h_=0.3: _sh_.append(dict(type="rect", x0=x0_, x1=x1_, y0=y_ - h_, y1=y_ + h_, fillcolor=col_, opacity=op_, line_width=0, layer="below"))   # noqa: E731
+_T = lambda x_, y_, txt_, col_=theme.INK_PRIMARY, sz_=11, **kw_: _an_.append(dict(x=x_, y=y_, text=txt_, showarrow=False, font=dict(size=sz_, color=col_), **kw_))             # noqa: E731
+for k_, r_ in enumerate((0, retune)):
+    _R(r_ - _ex - 70, r_ - _ex - 1, 0, BLUE, 0.55)                                                                       # the days it learns from (cut short here)
+    _T(r_ - _ex - 35, 0, "<b>trains</b>", "white", 10)
+    for j_ in range(nb):                                                                                                 # the exam: nb blocks, each scored
+        _R(r_ - _ex + j_ * L, r_ - _ex + (j_ + 1) * L - (1 if j_ < nb - 1 else 0), 0, VIOLET, 0.9)
+        _T(r_ - _ex + j_ * L + L / 2, 0, f"<b>{j_ + 1}</b>", "white")
+    _T(r_ - _ex / 2, -0.52, f"<b>Round {k_ + 1}</b>: best of {n_t} settings", VIOLET, 11)
+    _an_.append(dict(x=r_, y=0.32, ax=r_, ay=0.62, ayref="y", axref="x", xref="x", yref="y", text="", showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.4, arrowcolor=VIOLET))
+for k_, (a_, b_, fc_) in enumerate(((0, retune, "#e6e4dc"), (retune, 2 * retune, "#d3d8ea"))):                          # which setting is in use
+    _R(a_ + 0.5, b_ - 0.5, 1, fc_, 1.0, 0.27)
+    _T((a_ + b_) / 2, 1, f"<b>Setting {'AB'[k_]}</b> in use for {retune} days")
+_rx = list(range(0, 2 * retune, refit))
+fr = go.Figure(go.Scatter(x=_rx, y=[2] * len(_rx), mode="markers", marker=dict(size=9, color=BLUE, symbol="square"), hoverinfo="skip"))
+for i_, x_ in enumerate(_rx):                                                                                            # the 30 days each refit forecasts
+    _R(x_ + 0.5, x_ + refit - 0.5, 3, ORANGE, 0.9 if (i_ // (retune // refit)) == 0 else 0.55, 0.22)
+    _T(x_ + refit / 2, 3, f"<b>{i_ + 1}</b>", "white", 10)
+_T(retune / 2, 2.43, f"{retune // refit} refits, the same setting A", MUTED, 11)
+_T(retune * 1.5, 2.43, f"{retune // refit} refits, the same setting B", MUTED, 11)
+theme.style_fig(fr, height=300, xaxis_title="Days", legend=False)
+fr.update_xaxes(range=[-_ex - 78, 2 * retune + 62], tickvals=[0, retune, 2 * retune], showgrid=False, zeroline=False)
+fr.update_yaxes(range=[3.45, -0.8], tickvals=[0, 1, 2, 3], ticktext=["Tuning round", "Setting in use", "Model refit", "Forecast"], showgrid=False, zeroline=False, fixedrange=True)
+fr.update_layout(margin=dict(t=4, b=4, l=10, r=10))
+fr.layout.shapes = _sh_                                                                                                  # replace (not merge with) the axis line the theme added
+fr.layout.annotations = _an_
+st.plotly_chart(fr, width="stretch", config={"displayModeBar": False})
+_line(f"Between two rounds only the data moves: each refit trains on the {win} days before it, with the setting in use, and forecasts the next {refit} days. A round judges settings only on its own {_ex}-day exam.")
+
 tt = ml_ui.cached(ml_data.prepared_trials)(trials, target, "tpe")
 models = ml_data.ordered_models(tt["model"].unique())
 
@@ -696,3 +730,9 @@ if len(_bd):
            + "".join(f"<span style='{'' if j_ == 0 else 'text-align:center;'}'>{h_}</span>" for j_, h_ in enumerate(_hd)) + "</div>")
     st.markdown(f"<div style='background:#fff; border:1px solid #e3e1d9; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>{_hh}{_body}</div>", unsafe_allow_html=True)
     _line("<b>Mean</b> = the row of the table above. " + M(r"\text{Difference}=\text{TPE best}-\text{random best}") + ". <b>Fits saved</b> leaves out the decision tree, because all its combinations are tried.")
+
+_line("These tuned settings are the ones the Model arena scores next.")
+try:
+    st.page_link("pages/ml_7_arena.py", label="Model arena", icon="🏟️")
+except Exception:                                                                                                       # a single page run on its own
+    pass
