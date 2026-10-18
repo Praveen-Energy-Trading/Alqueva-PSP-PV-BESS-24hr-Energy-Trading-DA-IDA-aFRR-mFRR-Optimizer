@@ -1,4 +1,4 @@
-"""maths.py - formulas written in LaTeX, shown as real mathematics inside the HTML cards and tables of the dashboard.
+r"""maths.py - formulas written in LaTeX, shown as real mathematics inside the HTML cards and tables of the dashboard.
 
 `tex(r"\frac{1}{n}\sum_{i=1}^{n} \lvert e_i \rvert")` returns the formula as MathML, which the browser draws natively (a card made with
 `st.markdown(..., unsafe_allow_html=True)` does not pass its text through the LaTeX renderer of Streamlit, so `$...$` would stay as typed).

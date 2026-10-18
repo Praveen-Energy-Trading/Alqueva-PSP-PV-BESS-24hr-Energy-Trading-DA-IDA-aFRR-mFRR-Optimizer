@@ -221,22 +221,27 @@ else:
     _nd = n_days_all
     _cnt = {m_: int(round(float(board.loc[board["model"] == m_, "days_best"].iloc[0]) * _nd)) for m_ in models}
 _names = [ml_data.model_label(m) for m in models]
-_mini("Average error (MAE)")
-f_s = go.Figure(go.Bar(x=_names, y=board["mae"], marker_color=[_alg(m) for m in models], text=[f"<b>{v:.3f}</b>" if i == 0 else f"{v:.3f}" for i, v in enumerate(board["mae"])],
-                       textposition="outside", cliponaxis=False, textfont=dict(size=12, color=theme.INK_SECONDARY), hoverinfo="skip"))
-theme.style_fig(f_s, height=290, yaxis_title=f"MAE ({units})", legend=False)
-f_s.update_xaxes(tickangle=0)
-f_s.update_yaxes(range=[0, float(board["mae"].max()) * 1.18])
-f_s.update_layout(margin=dict(t=24), bargap=0.55)
-st.plotly_chart(f_s, width="stretch", config={"displayModeBar": False})
-_mini("Days on which each algorithm had the smallest error")
-f_b = go.Figure(go.Bar(x=_names, y=[100 * _cnt[m] / _nd for m in models], marker_color=[_alg(m) for m in models], text=[f"{100 * _cnt[m] / _nd:.1f}%" for m in models],
-                       textposition="outside", cliponaxis=False, textfont=dict(size=12, color=theme.INK_SECONDARY), hoverinfo="skip"))
-theme.style_fig(f_b, height=290, yaxis_title="Share of days (%)", legend=False)
-f_b.update_xaxes(tickangle=0)
-f_b.update_yaxes(range=[0, max(100 * _cnt[m] / _nd for m in models) * 1.18])
-f_b.update_layout(margin=dict(t=24), bargap=0.55)
-st.plotly_chart(f_b, width="stretch", config={"displayModeBar": False})
+_c_mae, _c_days = st.columns(2, gap="large")                                                                      # side by side: names on the vertical axis, so they never collide
+_hbar = lambda x_, txt_: (                                                                              # noqa: E731
+    go.Figure(go.Bar(y=_names, x=x_, orientation="h", marker_color=[_alg(m) for m in models], text=txt_, textposition="outside", cliponaxis=False,
+                     textfont=dict(size=12, color=theme.INK_SECONDARY), hoverinfo="skip")))
+with _c_mae:
+    _mini("Average error (MAE)")
+    f_s = _hbar(list(board["mae"]), [f"<b>{v:.3f}</b>" if i == 0 else f"{v:.3f}" for i, v in enumerate(board["mae"])])
+    theme.style_fig(f_s, height=290, xaxis_title=f"MAE ({units})", legend=False)
+    f_s.update_xaxes(range=[0, float(board["mae"].max()) * 1.25])
+    f_s.update_yaxes(autorange="reversed")
+    f_s.update_layout(margin=dict(t=10, r=24), bargap=0.45)
+    st.plotly_chart(f_s, width="stretch", config={"displayModeBar": False})
+with _c_days:
+    _mini("Days with the smallest error")
+    _sh = [100 * _cnt[m] / _nd for m in models]
+    f_b = _hbar(_sh, [f"{v:.1f}%" for v in _sh])
+    theme.style_fig(f_b, height=290, xaxis_title="Share of days (%)", legend=False)
+    f_b.update_xaxes(range=[0, max(_sh) * 1.25])
+    f_b.update_yaxes(autorange="reversed")
+    f_b.update_layout(margin=dict(t=10, r=24), bargap=0.45)
+    st.plotly_chart(f_b, width="stretch", config={"displayModeBar": False})
 _mini("The scoreboard in numbers", f"{n_hours:,} hourly forecasts on {_nd:,} days. RMSE is the same score with squared errors, so large misses weigh more.")
 _table(["Algorithm", f"MAE ({units})", f"RMSE ({units})", "Days with the smallest error", "Share of days"],
        [[f"{_dot(m)}{ml_data.model_label(m)}", f"{float(r['mae']):.3f}", f"{float(r['rmse']):.3f}", f"{_cnt[m]:,} of {_nd:,}", f"{100 * _cnt[m] / _nd:.1f}%"] for m, (_, r) in zip(models, board.iterrows())], highlight=0)
