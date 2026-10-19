@@ -259,11 +259,6 @@ else:
             st.markdown(_panel(
                 f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>The gain over the reference</div>"
                 f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"), unsafe_allow_html=True)
-    _mini("What was frozen", "The locked test is scored once; the frozen data and the code revision are recorded")
-    _table(["Window", "Days", "Lock status", "Code revision", "Data digest", "Locked loss against development loss"],
-           [[f"{pd.Timestamp(lk['window'][0]):%d-%m-%Y} to {pd.Timestamp(lk['window'][1]):%d-%m-%Y}", f"{lock_days}",
-             _pill(str(lk.get("lock_status")), "#006100", "#e3f1e3") if lk.get("lock_status") == "verified" else _pill(str(lk.get("lock_status")), "#5a5953", "#ecebe6"),
-             f"{lk['code']}", f"{str(lk.get('data_digest', ''))[:10]}", f"{lk['loss_ratio_locked_over_dev']:.2f}"]], first="minmax(11rem, 1.6fr)")
     if lk["loss_ratio_locked_over_dev"] < 0.8 or lk["loss_ratio_locked_over_dev"] > 1.25:
         _line(f"The locked-year loss is {lk['loss_ratio_locked_over_dev']:.2f} times the development loss. That compares two different price regimes, so it is not a measure of skill: the gain over the reference on the same hours is.")
     if lk.get("synthetic_fill"):
