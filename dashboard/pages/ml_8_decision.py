@@ -228,10 +228,9 @@ with _rc:
         f"<div><b>Cannot be told apart from the best:</b> " + (", ".join(ml_data.model_label(m_) for m_ in tied if m_ != d["best"]) or "none") + "</div></div>"), unsafe_allow_html=True)
 if len(vb):
     _mini("Each algorithm against the best", f"Against {ml_data.model_label(d['best'])}")
-    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference", "Verdict"],
+    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference"],
            [[f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}",
-             f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}",
-             _pill("Real: worse than the best", "#006100", "#e3f1e3") if r_["distinguishable_from_best"] else _pill("Cannot be told apart", "#5a5953", "#ecebe6")] for _, r_ in vb.iterrows()])
+             f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}"] for _, r_ in vb.iterrows()])
 if comb:
     _mini("Calculation for the tie", "Several algorithms cannot be told apart from the best, so the champion is their average, if the average is not worse")
     st.markdown(_panel(
@@ -249,11 +248,9 @@ else:
     s, rs = lk["locked_scores"], lk.get("reference_scores")
     real = ml_ui.cached(ml_data.locked_real_only)(target)                   # a target with days the auction published no price: the numbers use the real days only
     if real:
-        ch_mae, rf_mae, p_lk = real["mae"], real["reference_mae"], real["p_value"]
+        ch_mae, rf_mae = real["mae"], real["reference_mae"]
     else:
         ch_mae, rf_mae = s["mae"], (rs["mae"] if rs else None)
-        dmr = lk.get("dm_vs_reference") or {}
-        p_lk = dmr.get("p_value")                                                      # only the verdict uses it, never shown
     gain_lk = _gain(rf_mae, ch_mae) if rf_mae else None
     _lc, _rc = st.columns([5, 3], gap="medium")
     with _lc:
@@ -269,9 +266,7 @@ else:
         if rf_mae:
             st.markdown(_panel(
                 f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① The gain over the reference</div>"
-                f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"
-                + f"<div style='margin-top:0.7rem; font-size:1.2rem; font-weight:800; color:{REAL if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else LUCK};'>"
-                + ("Real, not luck" if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else "Not distinguishable from luck") + "</div>"), unsafe_allow_html=True)
+                f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"), unsafe_allow_html=True)
     _mini("What was frozen", "The locked test is scored once; the frozen data and the code revision are recorded")
     _table(["Window", "Days", "Lock status", "Code revision", "Data digest", "Locked loss against development loss"],
            [[f"{pd.Timestamp(lk['window'][0]):%d-%m-%Y} to {pd.Timestamp(lk['window'][1]):%d-%m-%Y}", f"{lock_days}",
