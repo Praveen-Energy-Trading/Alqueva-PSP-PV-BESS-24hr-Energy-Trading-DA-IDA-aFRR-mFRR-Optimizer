@@ -141,41 +141,13 @@ def _farrow(x0, y0, x1, y1, color=MUTED):
 
 fig_a = go.Figure()
 fig_a.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
-# ---- card 1: the rule, with the path of this target
-y1 = -0.6
-_fcard(y1, y1 + 8.0)
-_fhead(y1 + 1.0, "①", "The rule, written before the results", f"Applied by code to {ml_data.label(target)}. The path this target took is highlighted; a gate it never reached is grey")
 refl = ml_data.model_label(ref)
 evid_ok = d.get("status") == "chosen"
 par_tested, par_passed = bool(par.get("tested")), bool(par.get("passed"))
-gates = [
-    ("Evidence", [f"At least {pol['min_days']} days", f"Coverage at least {pol['min_coverage']:.0%}"], f"{d['n_days']:,} days, {d['coverage']:.0%}", evid_ok),
-    ("Rank", ["Mean absolute error", "On the same hours"], f"Best: {ml_data.model_label(d['best'])}", evid_ok),
-    ("Parsimony", [f"The best must beat the", f"{refl} at {pol['alpha']:.0%}"],
-     ("Passed" if par_tested and par_passed else f"Not better: {refl} wins" if par_tested else f"The best is the {refl}"), evid_ok),
-    ("Ties", ["Not told apart: one left wins;", "several: their " + str(pol["average_method"])],
-     (f"{len(tied)} tied" + (", their " + str(pol["average_method"]) if len(tied) > 1 else ", it wins")) if (par_passed or not par_tested) and evid_ok else "Not reached", evid_ok and (par_passed or not par_tested)),
-]
-bx0, bw, gap_x, by0, bh = 0.0, 228.0, 32.0, y1 + 2.0, 3.6
-for i, (title, lines, this, on) in enumerate(gates):
-    x0 = bx0 + i * (bw + gap_x)
-    _shp(x0, x0 + bw, by0, by0 + bh, REAL if on else NEUTRAL, 0.09 if on else 0.05, r_px=8)
-    _shp(x0, x0 + 5, by0, by0 + bh, REAL if on else LUCK, 1.0, r_px=2)
-    _fnote(x0 + 16, by0 + 0.55, f"<b>{i + 1}. {title}</b>", size=13, color=INK if on else MUTED, anchor="left")
-    for j, ln in enumerate(lines):
-        _fnote(x0 + 16, by0 + 1.3 + 0.5 * j, ln, size=11, color=theme.INK_SECONDARY if on else MUTED, anchor="left")
-    _fnote(x0 + 16, by0 + 3.0, f"<b>{this}</b>", size=11, color=(REAL if on else MUTED), anchor="left")
-    if i < len(gates) - 1:
-        _farrow(x0 + bw + 2, by0 + bh / 2, x0 + bw + gap_x - 2, by0 + bh / 2, color=MUTED)
-cy1 = by0 + bh + 1.2
-_shp(0, X_END - 20, cy1 - 0.45, cy1 + 0.45, CHAMP, 0.92, r_px=8)
-_fnote((X_END - 20) / 2, cy1, f"<b>Champion: {champ_txt}</b>", size=13, color="white")
-if d.get("policy_digest"):
-    _fnote(X_END - 20, cy1 + 0.95, f"Rule fingerprint {str(d['policy_digest'])[:12]}", size=10, color=MUTED, anchor="right")
-# ---- card 2: the two windows
-y2 = y1 + 8.45
+# ---- card 1: the two windows
+y2 = -0.6
 _fcard(y2, y2 + 4.9)
-_fhead(y2 + 1.0, "②", "Two windows, one honest test", "Chosen on the development window. The locked year is scored once")
+_fhead(y2 + 1.0, "①", "Two windows, one honest test", "Chosen on the development window. The locked year is scored once")
 dev = (d.get("source") or {}).get("window") or [None, None]
 lkw = (lk or {}).get("window") or [None, None]
 dev_days, lock_days = int(d["n_days"]), 365
@@ -195,7 +167,7 @@ SH.append(dict(type="line", x0=wd, x1=wd, y0=cyt - 0.75, y1=cyt + 0.75, line=dic
 # ---- card 3: what the champion is compared with
 y3 = y2 + 5.35
 _fcard(y3, y3 + 5.05)
-_fhead(y3 + 1.0, "③", "What the champion is compared with", "All on exactly the same hours")
+_fhead(y3 + 1.0, "②", "What the champion is compared with", "All on exactly the same hours")
 cmp_items = [(CHAMP, "Champion", "The chosen forecast<br>&nbsp;"), (theme.BLUE, "Decision tree", "The simplest algorithm:<br>what the extra ones buy"),
              (LUCK, "Naive forecasts", "No model at all: is machine<br>learning worth having?")]
 iw = 310.0
@@ -216,7 +188,7 @@ fig_a.layout.annotations = AN
 st.plotly_chart(fig_a, width="stretch", config={"displayModeBar": False})
 
 # ============================================================================================ 2. the decision
-_section(f"The decision for {ml_data.label(target)}", "The evidence behind the choice, from the development window", num="④")
+_section(f"The decision for {ml_data.label(target)}", "The evidence behind the choice, from the development window", num="③")
 if tn in ("limited_evidence", "very_limited_evidence"):
     lab = d["treatment"]["label"].replace("first test day", "first validation day")
     st.markdown(f"<div style='margin:0 0 0.6rem;'>{_pill('Very limited evidence' if tn == 'very_limited_evidence' else 'Limited evidence', '#7a5200', '#fdf0d0')}"
@@ -270,7 +242,7 @@ if comb:
         + ("The average is the champion" if comb["accepted"] else "The best single algorithm is the champion") + "</div>"), unsafe_allow_html=True)
 
 # ============================================================================================ 3. the locked year
-_section("The one look at the locked year", "Scored once, on a year that nothing was tuned or chosen on", num="⑤")
+_section("The one look at the locked year", "Scored once, on a year that nothing was tuned or chosen on", num="④")
 if lk is None:
     ml_ui.not_yet_run(f"the locked test of {ml_data.label(target)}")
 else:
@@ -335,7 +307,7 @@ else:
 
 # ============================================================================================ 4. against a naive forecast
 bm = bench.get(target)
-_section("Against a naive forecast", "A decision tree shows what the extra algorithms buy. A naive forecast shows whether machine learning is worth having at all", num="⑥")
+_section("Against a naive forecast", "A decision tree shows what the extra algorithms buy. A naive forecast shows whether machine learning is worth having at all", num="⑤")
 NAMES = {"champion": "Champion", "reference": f"{refl} (reference)", "base_price": "Day-ahead price, no spread", "naive_seasonal": "Seasonal naive", "naive_day": "Latest day available", "naive_week": "Last week"}
 WHAT = {"champion": "The chosen forecast", "reference": "The simplest algorithm",
         "base_price": "The intraday price equals the day-ahead price", "naive_seasonal": "Latest day's price (Tue to Fri), last week's (Sat to Mon)",
@@ -388,12 +360,12 @@ else:
                           f"<b style='font-size:1.1rem; color:{INK};'>{_gain(sc[_sel]['mae'], sc['champion']['mae']):.1f}%</b></span>")
         with _cd:
             st.markdown(_panel(f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>{parts}</div>"), unsafe_allow_html=True)
-    _line("Each forecast is scored on the hours where all of them exist, so the champion's MAE here can differ in the third decimal from the one in step ⑤. The naive forecasts are not tuned and not chosen, so they cannot be flattered by the selection.")
+    _line("Each forecast is scored on the hours where all of them exist, so the champion's MAE here can differ in the third decimal from the one in step ④. The naive forecasts are not tuned and not chosen, so they cannot be flattered by the selection.")
     if bm.get("locked") and bm["locked"].get("synthetic_days"):
         _line(f"The locked year has {bm['locked']['synthetic_days']} days on which the auction published no price. They are left out for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
 
 # ============================================================================================ 5. the outcome
-_section("The outcome", num="⑦")
+_section("The outcome", num="⑥")
 if bm and bm.get("locked") and lk is not None:
     sc = bm["locked"]["scores"]
     naive = [n_ for n_ in sc if n_ not in ("champion", "reference")]
