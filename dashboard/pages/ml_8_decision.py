@@ -1,6 +1,7 @@
 """ML Lifecycle 8 - Decision and locked test: a written selection rule, applied by code, and one honest test on locked data. Told as a story in numbered steps."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -25,10 +26,17 @@ ml_ui.tour_bar(8)
 MUTED, INK, CHAMP = theme.INK_MUTED, theme.INK_PRIMARY, "#2b2a28"
 NEUTRAL, GREY, REAL, LUCK, T_DONE, RED = "#6b6a64", "#b9b7ae", theme.GREEN, "#9a9890", "#8791ab", theme.STATUS_CRITICAL
 CARD_LINE = "#e3e1d9"
+def _scrub(text: str) -> str:
+    """A reason of the decision without the test numbers (the statistic, the p-values, the Holm correction, alpha): the page shows the verdicts, not those numbers."""
+    text = re.sub(r"\s*\((?:DM statistic [^)]*|Holm over[^)]*)\)", "", text)
+    text = re.sub(r",? ?\bp = [0-9.e+-]+", "", text)
+    text = re.sub(r",? alpha [0-9.]+", "", text)
+    return re.sub(r"\s*\(\s*\)", "", text.replace(" after the Holm correction", ""))
+
+
 _cap = lambda h_: h_[:1].upper() + h_[1:] if h_[:1].islower() else h_                                                  # noqa: E731
 _alg = lambda m_: CHAMP if m_ == "champion" else (theme.CATEGORICAL[ml_data.model_index(m_) % 8] if m_ in ml_data.MODEL_ORDER else LUCK)             # noqa: E731
 _dot = lambda m_: f"<span style='color:{_alg(m_)}'>■</span>&nbsp;"                                                      # noqa: E731
-_p = lambda v_: "–" if v_ is None or (isinstance(v_, float) and np.isnan(v_)) else f"{v_:.2g}"                          # noqa: E731
 
 
 def _section(title: str, hint: str = "", num: str = "") -> None:
@@ -153,8 +161,8 @@ gates = [
     ("Evidence", [f"At least {pol['min_days']} days", f"Coverage at least {pol['min_coverage']:.0%}"], f"{d['n_days']:,} days, {d['coverage']:.0%}", evid_ok),
     ("Rank", ["Mean absolute error", "On the same hours"], f"Best: {ml_data.model_label(d['best'])}", evid_ok),
     ("Parsimony", [f"The best must beat the", f"{refl} at {pol['alpha']:.0%}"],
-     (f"p = {_p(par.get('p_value'))}, passed" if par_tested and par_passed else f"Not better: {refl} wins" if par_tested else f"The best is the {refl}"), evid_ok),
-    ("Ties", ["Holm correction: one left", "wins; several: their " + str(pol["average_method"])],
+     ("Passed" if par_tested and par_passed else f"Not better: {refl} wins" if par_tested else f"The best is the {refl}"), evid_ok),
+    ("Ties", ["Not told apart: one left wins;", "several: their " + str(pol["average_method"])],
      (f"{len(tied)} tied" + (", their " + str(pol["average_method"]) if len(tied) > 1 else ", it wins")) if (par_passed or not par_tested) and evid_ok else "Not reached", evid_ok and (par_passed or not par_tested)),
 ]
 bx0, bw, gap_x, by0, bh = 0.0, 228.0, 32.0, y1 + 2.0, 3.6
@@ -238,7 +246,7 @@ with _lc:
     pv = {r_["model"]: r_ for _, r_ in vb.iterrows()} if len(vb) else {}
     fl.add_trace(go.Scatter(x=lad["mean_loss"], y=[ml_data.model_label(m_) for m_ in lad["model"]], mode="markers+text", showlegend=False,
                             marker=dict(size=15, color=[_alg(m_) for m_ in lad["model"]], line=dict(color="white", width=1.5)),
-                            text=[f"{v_:.3f}" + ("" if m_ not in pv else f"   {'Tied' if m_ in notworse else 'Worse'}, p {_p(float(pv[m_]['p_holm']))}") for m_, v_ in zip(lad["model"], lad["mean_loss"])],
+                            text=[f"{v_:.3f}" + ("" if m_ not in pv else f"   {'Tied' if m_ in notworse else 'Worse'}") for m_, v_ in zip(lad["model"], lad["mean_loss"])],
                             textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
     theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title=f"Mean daily error ({units})", legend=False)
     fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
@@ -246,20 +254,20 @@ with _lc:
     fl.update_xaxes(range=[best_l - 0.15 * spread - 0.3, float(lad["mean_loss"].max()) + 0.9 * spread + 1.5], showgrid=False, zeroline=False)
     fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
     st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
-    _line("Worse: significantly worse than the best after the Holm correction. Tied: cannot be told apart from it.")
+    _line("Worse: clearly worse than the best. Tied: cannot be told apart from it.")
 with _rc:
     st.markdown(_panel(
         f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED};'>Champion</div>"
         f"<div style='font-size:1.45rem; font-weight:800; color:{INK}; line-height:1.25; margin-bottom:0.4rem;'>{champ_txt}</div>"
         f"<div style='line-height:1.6; font-size:0.9rem;'>"
         f"<div><b>Development days:</b> {d['n_days']:,}</div><div><b>Best by mean loss:</b> {ml_data.model_label(d['best'])}</div>"
-        f"<div><b>Against the {refl}:</b> " + (f"p = {_p(par.get('p_value'))}, " + ('passed' if par_passed else 'not better') if par_tested else "it is the best itself") + "</div>"
+        f"<div><b>Against the {refl}:</b> " + (('passed' if par_passed else 'not better') if par_tested else "it is the best itself") + "</div>"
         f"<div><b>Cannot be told apart from the best:</b> " + (", ".join(ml_data.model_label(m_) for m_ in tied if m_ != d["best"]) or "none") + "</div></div>"), unsafe_allow_html=True)
 if len(vb):
-    _mini("Each algorithm against the best", f"Against {ml_data.model_label(d['best'])}, with the Holm correction over these comparisons")
-    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference", "DM statistic", "p-value", "p-value (Holm)", "Verdict"],
+    _mini("Each algorithm against the best", f"Against {ml_data.model_label(d['best'])}")
+    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference", "Verdict"],
            [[f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}",
-             f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}", f"{float(r_['statistic']):.2f}", _p(float(r_["p_value"])), _p(float(r_["p_holm"])),
+             f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}",
              _pill("Real: worse than the best", "#006100", "#e3f1e3") if r_["distinguishable_from_best"] else _pill("Cannot be told apart", "#5a5953", "#ecebe6")] for _, r_ in vb.iterrows()])
 _mini("Calculation for the parsimony gate", f"Does the best algorithm beat the simplest one, the {refl}?")
 if not par_tested:
@@ -267,13 +275,9 @@ if not par_tested:
 else:
     _ml = rk.set_index("model")["mean_loss"]
     _bl, _rl = round(float(_ml[d["best"]]), 3), round(float(_ml[ref]), 3)
-    _pp = float(par["p_value"])
-    _cmp = "<" if _pp < pol["alpha"] else r"\geq"
     st.markdown(_panel(
         f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} minus {refl}: {M(rf'{_bl:.3f}-{_rl:.3f}=')} <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span>"
-        f"<span style='font-weight:600; color:{INK};'>② The test</span><span>DM statistic <b style='color:{INK};'>{float(par['statistic']):.2f}</b>, p = <b style='color:{INK};'>{_p(_pp)}</b></span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The limit</span><span>{M(rf"p{_cmp}{pol['alpha']:.2f}")} ({pol['alpha']:.0%})</span></div>"
+        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} minus {refl}: {M(rf'{_bl:.3f}-{_rl:.3f}=')} <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span></div>"
         f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if par_passed else LUCK};'>"
         + (f"The best beats the {refl}: the rule goes on to the ties" if par_passed else f"Not better than the {refl}: the simplest wins") + "</div>"), unsafe_allow_html=True)
 if comb:
@@ -281,12 +285,11 @@ if comb:
     st.markdown(_panel(
         f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
         f"<span style='font-weight:600; color:{INK};'>① The tied</span><span>{', '.join(ml_data.model_label(m_) for m_ in comb['members'])}</span>"
-        f"<span style='font-weight:600; color:{INK};'>② Their {comb['method']}</span><span>against the best single algorithm: mean loss difference <b style='color:{INK};'>{comb['mean_diff']:+.3f}</b>, DM statistic <b style='color:{INK};'>{comb['statistic']:.2f}</b></span>"
-        f"<span style='font-weight:600; color:{INK};'>③ Chance</span><span>p = <b style='color:{INK};'>{_p(comb['p_value'])}</b>: {'not significantly worse' if comb['accepted'] else 'significantly worse'}</span></div>"
+        f"<span style='font-weight:600; color:{INK};'>② Their {comb['method']}</span><span>against the best single algorithm: mean loss difference <b style='color:{INK};'>{comb['mean_diff']:+.3f}</b></span></div>"
         f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if comb['accepted'] else LUCK};'>"
         + ("The average is the champion" if comb["accepted"] else "The best single algorithm is the champion") + "</div>"), unsafe_allow_html=True)
 with st.expander("The rule applied by code, in its own words"):
-    st.markdown(_panel("".join(f"<div style='padding:0.25rem 0; border-bottom:1px solid #eeede8;'><b style='color:{INK};'>{i}.</b> {ml_data.humanize(r_)}</div>" for i, r_ in enumerate(d["reasons"], 1))), unsafe_allow_html=True)
+    st.markdown(_panel("".join(f"<div style='padding:0.25rem 0; border-bottom:1px solid #eeede8;'><b style='color:{INK};'>{i}.</b> {ml_data.humanize(_scrub(r_))}</div>" for i, r_ in enumerate(d["reasons"], 1))), unsafe_allow_html=True)
 
 # ============================================================================================ 3. the locked year
 _section("The one look at the locked year", "Scored once, on a year that nothing was tuned or chosen on", num="⑤")
@@ -296,11 +299,11 @@ else:
     s, rs = lk["locked_scores"], lk.get("reference_scores")
     real = ml_ui.cached(ml_data.locked_real_only)(target)                   # a target with days the auction published no price: the numbers use the real days only
     if real:
-        ch_mae, rf_mae, p_lk, stat_lk = real["mae"], real["reference_mae"], real["p_value"], None
+        ch_mae, rf_mae, p_lk = real["mae"], real["reference_mae"], real["p_value"]
     else:
         ch_mae, rf_mae = s["mae"], (rs["mae"] if rs else None)
         dmr = lk.get("dm_vs_reference") or {}
-        p_lk, stat_lk = dmr.get("p_value"), dmr.get("statistic")
+        p_lk = dmr.get("p_value")                                                      # only the verdict uses it, never shown
     gain_lk = _gain(rf_mae, ch_mae) if rf_mae else None
     _lc, _rc = st.columns([5, 3], gap="medium")
     with _lc:
@@ -314,12 +317,9 @@ else:
         st.plotly_chart(fb, width="stretch", config={"displayModeBar": False})
     with _rc:
         if rf_mae:
-            _hd = lambda txt_: f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; margin-top:0.55rem;'>{txt_}</div>"                    # noqa: E731
             st.markdown(_panel(
                 f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① The gain over the reference</div>"
                 f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"
-                + _hd("② The test against the reference")
-                + (f"<div>DM statistic <b style='color:{INK};'>{stat_lk:.2f}</b>, p = <b style='color:{INK};'>{_p(p_lk)}</b></div>" if stat_lk is not None else f"<div>p = <b style='color:{INK};'>{_p(p_lk)}</b></div>")
                 + f"<div style='margin-top:0.7rem; font-size:1.2rem; font-weight:800; color:{REAL if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else LUCK};'>"
                 + ("Real, not luck" if (p_lk is not None and p_lk < 0.05 and gain_lk > 0) else "Not distinguishable from luck") + "</div>"), unsafe_allow_html=True)
     _mini("What was frozen", "The locked test is scored once; the frozen data and the code revision are recorded")
@@ -391,9 +391,9 @@ else:
             g_ = _gain(sc[n_]["mae"], sc["champion"]["mae"])
             pv_ = b["dm_champion_vs"].get(n_, {}).get("p_value") if n_ != "champion" else None
             ok = pv_ is not None and pv_ < 0.05
-            rows.append([f"{_dot(n_) if n_ == 'reference' else ''}{NAMES.get(n_, n_)}", WHAT.get(n_, ""), f"{round(sc[n_]['mae'], 3):.3f}", f"{sc[n_]['rmse']:.3f}", f"{g_:.1f}%", _p(pv_),
+            rows.append([f"{_dot(n_) if n_ == 'reference' else ''}{NAMES.get(n_, n_)}", WHAT.get(n_, ""), f"{round(sc[n_]['mae'], 3):.3f}", f"{sc[n_]['rmse']:.3f}", f"{g_:.1f}%",
                          (_real_pill() if g_ > 0 else _pill("Real: champion is worse", "#8a1f1f", "#f7e3e3")) if ok else _luck_pill()])
-        _table(["Forecast", "What it is", "MAE", "RMSE", "Champion's gain", "p-value", "Verdict"], rows, widths="minmax(9rem, 1.3fr) minmax(11rem, 2.2fr) minmax(3.5rem, 0.7fr) minmax(3.5rem, 0.7fr) minmax(5.6rem, 0.9fr) minmax(4rem, 0.8fr) minmax(4.8rem, 0.9fr)", left=(0, 1))
+        _table(["Forecast", "What it is", "MAE", "RMSE", "Champion's gain", "Verdict"], rows, widths="minmax(9rem, 1.3fr) minmax(11rem, 2.2fr) minmax(3.5rem, 0.7fr) minmax(3.5rem, 0.7fr) minmax(5.6rem, 0.9fr) minmax(4.8rem, 0.9fr)", left=(0, 1))
         st.markdown("<div style='height:0.6rem;'></div>", unsafe_allow_html=True)
     nv = [n_ for n_ in (bm[stages[0][0]]["scores"] if stages else {}) if n_ not in ("champion", "reference")]
     if nv:
@@ -421,9 +421,9 @@ if bm and bm.get("locked") and lk is not None:
     naive = [n_ for n_ in sc if n_ not in ("champion", "reference")]
     strongest = min(naive, key=lambda n_: sc[n_]["mae"]) if naive else None
     real_n = [n_ for n_ in naive if (bm["locked"]["dm_champion_vs"].get(n_, {}).get("p_value") or 1) < 0.05 and _gain(sc[n_]["mae"], sc["champion"]["mae"]) > 0]
-    lines = [f"<div><b>Gain over the {refl} on the locked year:</b> " + (f"{gain_lk:.1f}%, p = {_p(p_lk)}" if gain_lk is not None else "–") + ".</div>"]
+    lines = [f"<div><b>Gain over the {refl} on the locked year:</b> " + (f"{gain_lk:.1f}%" if gain_lk is not None else "–") + ".</div>"]
     if strongest:
-        lines.append(f"<div><b>Gain over the strongest naive forecast ({NAMES.get(strongest, strongest)}):</b> {_gain(sc[strongest]['mae'], sc['champion']['mae']):.1f}%, p = {_p(bm['locked']['dm_champion_vs'].get(strongest, {}).get('p_value'))}.</div>")
+        lines.append(f"<div><b>Gain over the strongest naive forecast ({NAMES.get(strongest, strongest)}):</b> {_gain(sc[strongest]['mae'], sc['champion']['mae']):.1f}%.</div>")
         lines.append(f"<div><b>Real gain over the naive forecasts:</b> {len(real_n)} of {len(naive)}.</div>")
     st.markdown(f"<div style='display:flex; align-items:center; gap:1.3rem; background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.8rem 1.2rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
                 f"<div style='font-size:1.45rem; font-weight:800; color:{INK}; line-height:1.25; max-width:16rem;'>{champ_txt}</div>"
