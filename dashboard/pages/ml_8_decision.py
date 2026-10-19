@@ -252,20 +252,12 @@ else:
     else:
         ch_mae, rf_mae = s["mae"], (rs["mae"] if rs else None)
     gain_lk = _gain(rf_mae, ch_mae) if rf_mae else None
-    _lc, _rc = st.columns([5, 3], gap="medium")
-    with _lc:
-        _mini("Mean absolute error on the locked year", f"{ml_data.label(target)}, {units}" + (", real days only" if real else ""))
-        fb = go.Figure(go.Bar(x=[f"{refl} (reference)", "Champion"] if rf_mae else ["Champion"], y=[rf_mae, ch_mae] if rf_mae else [ch_mae], marker_color=[theme.BLUE, CHAMP] if rf_mae else [CHAMP],
-                              text=[f"{round(v_, 3):.3f}" for v_ in ([rf_mae, ch_mae] if rf_mae else [ch_mae])], textposition="outside", cliponaxis=False,
-                              textfont=dict(size=12, color=theme.INK_SECONDARY), hoverinfo="skip"))
-        theme.style_fig(fb, height=280, yaxis_title=f"MAE ({units})", legend=False)
-        fb.update_yaxes(range=[0, float(max(rf_mae or 0, ch_mae)) * 1.18])
-        fb.update_layout(margin=dict(t=24), bargap=0.6)
-        st.plotly_chart(fb, width="stretch", config={"displayModeBar": False})
-    with _rc:
-        if rf_mae:
+    _mini("The gain on the locked year", f"{ml_data.label(target)}, {units}" + (", real days only" if real else ""))
+    if rf_mae:
+        _gc, _ = st.columns([2, 3], gap="medium")
+        with _gc:
             st.markdown(_panel(
-                f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>① The gain over the reference</div>"
+                f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>The gain over the reference</div>"
                 f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"), unsafe_allow_html=True)
     _mini("What was frozen", "The locked test is scored once; the frozen data and the code revision are recorded")
     _table(["Window", "Days", "Lock status", "Code revision", "Data digest", "Locked loss against development loss"],
