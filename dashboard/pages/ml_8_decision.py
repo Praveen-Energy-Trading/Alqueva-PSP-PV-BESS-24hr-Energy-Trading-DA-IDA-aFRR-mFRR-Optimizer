@@ -1,7 +1,6 @@
 """ML Lifecycle 8 - Decision and locked test: a written selection rule, applied by code, and one honest test on locked data. Told as a story in numbered steps."""
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -26,14 +25,6 @@ ml_ui.tour_bar(8)
 MUTED, INK, CHAMP = theme.INK_MUTED, theme.INK_PRIMARY, "#2b2a28"
 NEUTRAL, GREY, REAL, LUCK, T_DONE, RED = "#6b6a64", "#b9b7ae", theme.GREEN, "#9a9890", "#8791ab", theme.STATUS_CRITICAL
 CARD_LINE = "#e3e1d9"
-def _scrub(text: str) -> str:
-    """A reason of the decision without the test numbers (the statistic, the p-values, the Holm correction, alpha): the page shows the verdicts, not those numbers."""
-    text = re.sub(r"\s*\((?:DM statistic [^)]*|Holm over[^)]*)\)", "", text)
-    text = re.sub(r",? ?\bp = [0-9.e+-]+", "", text)
-    text = re.sub(r",? alpha [0-9.]+", "", text)
-    return re.sub(r"\s*\(\s*\)", "", text.replace(" after the Holm correction", ""))
-
-
 _cap = lambda h_: h_[:1].upper() + h_[1:] if h_[:1].islower() else h_                                                  # noqa: E731
 _alg = lambda m_: CHAMP if m_ == "champion" else (theme.CATEGORICAL[ml_data.model_index(m_) % 8] if m_ in ml_data.MODEL_ORDER else LUCK)             # noqa: E731
 _dot = lambda m_: f"<span style='color:{_alg(m_)}'>■</span>&nbsp;"                                                      # noqa: E731
@@ -269,17 +260,6 @@ if len(vb):
            [[f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}",
              f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}",
              _pill("Real: worse than the best", "#006100", "#e3f1e3") if r_["distinguishable_from_best"] else _pill("Cannot be told apart", "#5a5953", "#ecebe6")] for _, r_ in vb.iterrows()])
-_mini("Calculation for the parsimony gate", f"Does the best algorithm beat the simplest one, the {refl}?")
-if not par_tested:
-    st.markdown(_panel(f"<div style='font-size:0.95rem;'>The best algorithm is the {refl} itself, so there is nothing to test.</div>"), unsafe_allow_html=True)
-else:
-    _ml = rk.set_index("model")["mean_loss"]
-    _bl, _rl = round(float(_ml[d["best"]]), 3), round(float(_ml[ref]), 3)
-    st.markdown(_panel(
-        f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The gap</span><span>{ml_data.model_label(d['best'])} minus {refl}: {M(rf'{_bl:.3f}-{_rl:.3f}=')} <b style='color:{INK};'>{_bl - _rl:+.3f}</b> ({units}, mean daily error)</span></div>"
-        f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if par_passed else LUCK};'>"
-        + (f"The best beats the {refl}: the rule goes on to the ties" if par_passed else f"Not better than the {refl}: the simplest wins") + "</div>"), unsafe_allow_html=True)
 if comb:
     _mini("Calculation for the tie", "Several algorithms cannot be told apart from the best, so the champion is their average, if the average is not worse")
     st.markdown(_panel(
@@ -288,8 +268,6 @@ if comb:
         f"<span style='font-weight:600; color:{INK};'>② Their {comb['method']}</span><span>against the best single algorithm: mean loss difference <b style='color:{INK};'>{comb['mean_diff']:+.3f}</b></span></div>"
         f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if comb['accepted'] else LUCK};'>"
         + ("The average is the champion" if comb["accepted"] else "The best single algorithm is the champion") + "</div>"), unsafe_allow_html=True)
-with st.expander("The rule applied by code, in its own words"):
-    st.markdown(_panel("".join(f"<div style='padding:0.25rem 0; border-bottom:1px solid #eeede8;'><b style='color:{INK};'>{i}.</b> {ml_data.humanize(_scrub(r_))}</div>" for i, r_ in enumerate(d["reasons"], 1))), unsafe_allow_html=True)
 
 # ============================================================================================ 3. the locked year
 _section("The one look at the locked year", "Scored once, on a year that nothing was tuned or chosen on", num="⑤")
