@@ -289,12 +289,11 @@ if not weather and simple["mae"] < chosen["mae"]:
 
 # ============================================================================================ 3. forecast against what happened: one picture, one day
 def _key_cards(items):
-    """What each line of the graph is, in plain words, with one worked example from the same day: (colour, name, what it is, the example)."""
-    st.markdown("<div style='display:flex; gap:0.6rem; margin:0.2rem 0 0.6rem;'>" + "".join(
-        f"<div style='flex:1 1 0; min-width:0; background:{c_}18; border-left:4px solid {c_}; border-radius:8px; padding:0.5rem 0.75rem; overflow-wrap:anywhere;'>"
-        f"<div style='font-weight:700; color:{INK}; font-size:0.9rem;'>{n_}</div>"
-        f"<div style='font-size:0.8rem; color:{theme.INK_SECONDARY}; line-height:1.4; margin-top:0.1rem;'>{w_}</div>"
-        f"<div style='font-size:0.8rem; color:{INK}; line-height:1.4; margin-top:0.3rem;'><b>Example:</b> {e_}</div></div>" for c_, n_, w_, e_ in items) + "</div>", unsafe_allow_html=True)
+    """What each line of the graph is, one row each, in a drop-down: the line, what it is, and one worked example from the chosen day."""
+    with st.expander("What each line of the graph is"):
+        _table(["Line", "What it is", "Example"],
+               [[f"<span style='color:{c_};'>■</span>&nbsp;<b>{n_}</b>", w_, e_] for c_, n_, w_, e_ in items],
+               widths="minmax(11rem, 1.1fr) minmax(18rem, 2.4fr) minmax(14rem, 1.7fr)", left=(0, 1, 2))
 
 
 _AMB = "rgba(237,161,0,0.32)"                                                                                            # the miss: the gap between the real value and the forecast
