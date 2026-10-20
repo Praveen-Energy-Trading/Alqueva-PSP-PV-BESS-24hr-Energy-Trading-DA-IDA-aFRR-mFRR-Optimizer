@@ -171,8 +171,6 @@ st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 # ============================================================================================ where we are today: the only part that moves with the data
 snap = ml_ui.cached(lambda: ml_data.pack_json("registry_snapshot"))() or {}
 locked = ml_ui.cached(lambda: ml_data.pack("locked_forecasts"))()
-daily = ml_ui.cached(lambda: ml_data.pack("daily_loss"))()
-q = float(trk.get("quantile", 0.95))
 _live = [pd.Timestamp(v["promoted_utc"]).tz_localize(None).normalize() for vs in snap.get("champions", {}).values() for v in vs if v.get("status") == "active"]
 if _live and not locked.empty:
     since = min(_live)
@@ -184,27 +182,3 @@ if _live and not locked.empty:
                 "<div style='display:flex; gap:0.6rem; margin-bottom:0.7rem;'>" + "".join(
         f"<div style='flex:1 1 0; background:#fff; border:1px solid {CARD_LINE}; border-top:3px solid {c_}; border-radius:10px; padding:0.5rem 0.8rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
         f"<div style='font-size:0.75rem; color:{MUTED};'>{n_}</div><div style='font-size:1.25rem; font-weight:700; color:{INK};'>{v_}</div></div>" for n_, v_, c_ in _cards) + "</div>", unsafe_allow_html=True)
-    _pill = lambda tx_, fg_, bg_: f"<span style='background:{bg_}; color:{fg_}; border-radius:999px; padding:0.1rem 0.7rem; font-size:0.78rem; font-weight:700;'>{tx_}</span>"      # noqa: E731
-    _rows = []
-    for tg_ in ml_data.TARGETS:
-        try:
-            ck_ = ml_data.monitoring_checks(locked, daily, tg_, window, q)
-        except Exception:                                                                                               # a target without enough history is simply not listed
-            ck_ = None
-        if ck_ is None:
-            continue
-        lastr = ck_["daily"].iloc[-1]
-        fl_ = [bool(lastr["flag_mae"]), bool(lastr["flag_gain"]), bool(lastr["flag_bias"])]
-        if fl_[1] or (fl_[0] and fl_[2]):
-            st_ = _pill("Degraded", "#b00020", "#fde3e6")
-        elif any(fl_):
-            st_ = _pill("Warning", "#7a5200", "#fdf0d0")
-        else:
-            st_ = _pill("OK", "#006100", "#e3f1e3")
-        _rows.append(f"<div style='display:grid; grid-template-columns:minmax(9rem,1.4fr) repeat(4, minmax(0,1fr)); column-gap:0.6rem; align-items:center; min-height:2.4rem; border-bottom:1px solid #eeede8; font-size:0.86rem; color:{INK};'>"
-                     f"<span>{ml_data.label(tg_)}</span><span style='text-align:center;'>{st_}</span>"
-                     + "".join(f"<span style='text-align:center;'>{_pill('Flag', '#b00020', '#fde3e6') if f_ else '<span style=\"color:#9a9890;\">–</span>'}</span>" for f_ in (fl_[0], fl_[2], fl_[1])) + "</div>")
-    _hd = "".join(f"<span style='text-align:{'left' if i_ == 0 else 'center'};'>{h_}</span>" for i_, h_ in enumerate(["Forecast", f"Verdict on {last_data:%d-%m-%Y}", "Error", "Bias", f"Against {ml_data.model_label('decision_tree').lower()}"]))
-    st.markdown(f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0 1.1rem 0.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-                f"<div style='display:grid; grid-template-columns:minmax(9rem,1.4fr) repeat(4, minmax(0,1fr)); column-gap:0.6rem; padding:0.6rem 0 0.4rem; border-bottom:1px solid {CARD_LINE}; font-size:0.72rem; color:{MUTED}; font-weight:600;'>{_hd}</div>"
-                + "".join(_rows) + "</div>", unsafe_allow_html=True)
