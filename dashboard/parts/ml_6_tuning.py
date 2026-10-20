@@ -316,15 +316,13 @@ if len(_rounds):
     _sc = _nr + 1                                                                                                        # scored: the forecast days joined, then the locked year
     if pd.notna(_first):
         _R(_day(_first), _day(_last), _sc, ORANGE, 0.9)
-        _T(_day(_first, (_last - _first).days // 2), _sc, "<b>Backtest validation</b>", "white", 11)
-        _T(_day(_first, (_last - _first).days // 2), _sc, f"{_dfmt(_first)} to {_dfmt(_last)}", MUTED, 10, yshift=-26)
+        _T(_day(_first, (_last - _first).days // 2), _sc, f"<b>Backtest validation</b> &nbsp;{_dfmt(_first)} to {_dfmt(_last)}", "white", 11)
     _R(_day(_lk0), _day(_lk1), _sc, RED, 0.55)
     _T(_day(_lk0, (_lk1 - _lk0).days // 2), _sc, "<b>Locked</b>", "white", 11)
-    _T(_day(_lk1), _sc, f"Locked year {_dfmt(_lk0)} to {_dfmt(_lk1)}", RED, 10, xanchor="right", yshift=26)
+    _T(_day(_lk1), _sc, f"Locked year {_dfmt(_lk0)} to {_dfmt(_lk1)}", RED, 11, xanchor="right", yshift=38)
     _lv = _sc + 1                                                                                                        # live: the champion after the locked year
     _R(_day(min(_live0, _today - pd.Timedelta(days=24))), _day(_today), _lv, theme.GREEN, 0.9)                           # drawn wider than its few days
-    _T(_day(_today, -34), _lv, f"Champion since {_dfmt(_live0)}", MUTED, 10, xanchor="right")
-    _T(_day(_tmrw), _lv, f"Tomorrow <b>{_tmrw:%d-%m-%Y}</b>", INK, 11, xanchor="right", yshift=-26)
+    _T(_day(_today, -34), _lv, f"Champion since {_dfmt(_live0)} &nbsp;·&nbsp; tomorrow <b>{_tmrw:%d-%m-%Y}</b>", INK, 11, xanchor="right")
     _an_.append(dict(x=_day(_today, 210), y=_lv, ax=_day(_today, 6), ay=_lv, axref="x", ayref="y", xref="x", yref="y", text="moves on", showarrow=True, arrowhead=2, arrowwidth=1.6,
                      arrowcolor=theme.GREEN, font=dict(size=11, color=theme.GREEN), xanchor="left", yshift=12))
     _sh_.append(dict(type="line", x0=_day(_today), x1=_day(_today), y0=-0.55, y1=_lv + 0.55, line=dict(color=theme.INK_PRIMARY, width=1.3, dash="dot")))
@@ -334,23 +332,21 @@ if len(_rounds):
         _an_.append(dict(x=f"{y_}-07-01", xref="x", y=0, yref="paper", yshift=-14, text=str(y_), showarrow=False, font=dict(size=11, color=NEUTRAL)))
     _chip = lambda w_, c_: f"<span style='color:{c_}'>{w_}</span>"                                                       # noqa: E731
     _ticks = ([f"<b>Data</b> {_chip('moves', theme.GREEN)}"]
-              + [f"<b>Round {k_ + 1}</b> · tuned {pd.Timestamp(e_):%d-%m-%Y}"
-                 + f"<br><span style='color:{BLUE}'>■</span> training {pd.Timestamp(e_) - pd.Timedelta(days=_wl[k_] - 1):%d-%m-%Y} to {pd.Timestamp(e_) - pd.Timedelta(days=_ex):%d-%m-%Y}"
-                 + f"<br><span style='color:{VIOLET}'>■</span> tuning {pd.Timestamp(e_) - pd.Timedelta(days=_ex - 1):%d-%m-%Y} to {pd.Timestamp(e_):%d-%m-%Y}"
-                 + f"<br><span style='color:{ORANGE}'>■</span> forecast {a_:%d-%m-%Y} to {b_:%d-%m-%Y}" for k_, (e_, (a_, b_)) in enumerate(zip(_rounds, _fc))]
+              + [f"<b>Round {k_ + 1} · tuned {pd.Timestamp(e_):%d-%m-%Y}</b>"
+                 + f"<br><span style='color:{BLUE}'>■</span> {pd.Timestamp(e_) - pd.Timedelta(days=_wl[k_] - 1):%d-%m-%Y} to {pd.Timestamp(e_) - pd.Timedelta(days=_ex):%d-%m-%Y}"
+                 + f"<br><span style='color:{VIOLET}'>■</span> {pd.Timestamp(e_) - pd.Timedelta(days=_ex - 1):%d-%m-%Y} to {pd.Timestamp(e_):%d-%m-%Y}"
+                 + f"<br><span style='color:{ORANGE}'>■</span> {a_:%d-%m-%Y} to {b_:%d-%m-%Y}" for k_, (e_, (a_, b_)) in enumerate(zip(_rounds, _fc))]
               + [f"<b>Scored</b> {_chip('fixed', NEUTRAL)}<br><span style='color:#9a9890'>joined, once per day</span>", f"<b>Live</b> {_chip('moves', theme.GREEN)}<br><span style='color:#9a9890'>the champion</span>"])
     fr = go.Figure(go.Scatter(x=[_day(_pd_, -(_wl[k_] - _ex) // 2) for k_, _pd_ in enumerate(_rounds)], y=[_lane(k_) for k_ in range(_nr)], mode="markers", marker=dict(size=26, opacity=0),
                               text=[f"Round {k_ + 1}: tuned {pd.Timestamp(e_):%d-%m-%Y}<br>forecasts {a_:%d-%m-%Y} to {b_:%d-%m-%Y}" for k_, (e_, (a_, b_)) in enumerate(zip(_rounds, _fc))],
                               hoverinfo="text", showlegend=False))
-    theme.style_fig(fr, height=int(60 * (_nr + 3) + 70), legend=False)
+    theme.style_fig(fr, height=int(76 * (_nr + 3) + 70), legend=False)
     fr.update_xaxes(type="date", range=[_day(_xmin), _day(_xmax)], tickmode="array", tickvals=[f"{y_}-01-01" for y_ in _yrs], ticktext=[""] * len(_yrs), showgrid=True, gridcolor="#eceae3", zeroline=False)
     fr.update_yaxes(range=[_lv + 0.65, -0.75], tickvals=list(range(_nr + 3)), ticktext=_ticks, showgrid=False, zeroline=False, fixedrange=True)
     fr.update_layout(margin=dict(t=4, b=24, l=10, r=10))
     fr.layout.shapes = _sh_                                                                                              # replace (not merge with) the axis line the theme added
     fr.layout.annotations = _an_
     st.plotly_chart(fr, width="stretch", config={"displayModeBar": False})
-    _line(f"The windows overlap and slide forward {retune} days at a time. The forecast days never overlap: each round forecasts the {retune} days after its date, so together the rounds cover the backtest once. "
-          "The live box is drawn wider than its few days.")
 
 if len(_rds):                                                                                                            # the choice sits under the timeline and drives steps 1 to 4
     _rc1, _rc2 = st.columns([1, 2])

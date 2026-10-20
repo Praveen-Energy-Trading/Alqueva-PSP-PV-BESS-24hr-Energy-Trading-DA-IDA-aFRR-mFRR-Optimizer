@@ -121,15 +121,18 @@ if len(_rr) and len(_dd0) and _cfg_t:
     _s7, _a7 = [], []
     for i_, m_ in enumerate(models):
         for j_, (k_, e_, a_, b_) in enumerate(_st):
-            _s7.append(dict(type="rect", x0=_iso(a_), x1=_iso(b_), y0=i_ - 0.36, y1=i_ + 0.36, fillcolor=_alg(m_), opacity=0.9 if j_ % 2 == 0 else 0.6, line=dict(color="white", width=1.5), layer="below"))
+            _s7.append(dict(type="rect", x0=_iso(a_), x1=_iso(b_), y0=i_ - 0.34, y1=i_ + 0.34, fillcolor=_alg(m_), opacity=0.92 if j_ % 2 == 0 else 0.62, line=dict(color="white", width=2.5), layer="below"))
             _a7.append(dict(x=_iso(a_ + (b_ - a_) / 2), y=i_, text=f"<b>R{k_ + 1}</b>", showarrow=False, font=dict(size=11, color="white")))
     for k_, e_, a_, b_ in _st:                                                                                              # the head of every round
         _a7.append(dict(x=_iso(a_ + (b_ - a_) / 2), y=-0.95, text=f"<b>Round {k_ + 1}</b><br>tuned {e_:%d-%m-%Y}", showarrow=False, font=dict(size=11, color=INK)))
-        _s7.append(dict(type="line", x0=_iso(a_), x1=_iso(a_), y0=-0.55, y1=len(models) + 0.15, line=dict(color="#c9c7be", width=1, dash="dot")))
-    _yj = len(models) + 0.55                                                                                                # the joined series
-    _s7.append(dict(type="rect", x0=_iso(_b0), x1=_iso(_b1), y0=_yj - 0.42, y1=_yj + 0.42, fillcolor=theme.ORANGE, opacity=0.9, line_width=0, layer="below"))
-    _a7.append(dict(x=_iso(_b0 + (_b1 - _b0) / 2), y=_yj, text=f"<b>Backtest validation</b>: blocks joined, one error per day<br>{_b0:%d-%m-%Y} to {_b1:%d-%m-%Y}, {len(_dd0.unique()):,} days", showarrow=False, font=dict(size=11, color="white")))
-    _a7.append(dict(x=_iso(_b0 + (_b1 - _b0) / 2), y=_yj - 0.4, ax=_iso(_b0 + (_b1 - _b0) / 2), ay=len(models) - 0.45, axref="x", ayref="y", xref="x", yref="y", showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor=MUTED, text=""))
+        _s7.append(dict(type="line", x0=_iso(a_), x1=_iso(a_), y0=-0.55, y1=len(models) - 0.45, line=dict(color="#c9c7be", width=1, dash="dot")))
+    _yj = len(models) + 0.95                                                                                                # the joined series
+    _s7.append(dict(type="rect", x0=_iso(_b0), x1=_iso(_b1), y0=_yj - 0.5, y1=_yj + 0.5, fillcolor=theme.ORANGE, opacity=1.0, line_width=0, layer="above"))
+    _a7.append(dict(x=_iso(_b0 + (_b1 - _b0) / 2), y=_yj - 0.14, text="<b>Backtest validation</b>: the blocks joined, one error per day", showarrow=False, font=dict(size=12, color="white")))
+    _a7.append(dict(x=_iso(_b0 + (_b1 - _b0) / 2), y=_yj + 0.2, text=f"{_b0:%d-%m-%Y} to {_b1:%d-%m-%Y} · {len(_dd0.unique()):,} days", showarrow=False, font=dict(size=11, color="white")))
+    for k_, e_, a_, b_ in _st:                                                                                              # every block flows down into the joined series
+        _a7.append(dict(x=_iso(a_ + (b_ - a_) / 2), y=_yj - 0.5, ax=_iso(a_ + (b_ - a_) / 2), ay=len(models) - 0.5, axref="x", ayref="y", xref="x", yref="y", showarrow=True, arrowhead=2,
+                        arrowsize=1.0, arrowwidth=1.4, arrowcolor="#8a8880", text=""))
     _hx, _hy, _ht = [], [], []
     for i_, m_ in enumerate(models):                                                                                        # hover: the settings of every block
         for k_, e_, a_, b_ in _st:
@@ -142,11 +145,11 @@ if len(_rr) and len(_dd0) and _cfg_t:
             _ht.append(f"<b>{ml_data.model_label(m_)}, round {k_ + 1}</b><br>forecasts {a_:%d-%m-%Y} to {b_:%d-%m-%Y}<br>" + ("<br>".join(f"{ml_data.setting_label(k2_)}: {v2_}" for k2_, v2_ in d_.items()) or "the defaults"))
     fa7 = go.Figure(go.Scatter(x=_hx, y=_hy, mode="markers", marker=dict(size=28, opacity=0), text=_ht, hoverinfo="text", showlegend=False,
                                hoverlabel=dict(align="left", bgcolor="white", bordercolor="#e3e1d9", font=dict(size=12, color=INK))))
-    theme.style_fig(fa7, height=int(46 * (len(models) + 2) + 70), legend=False)
+    theme.style_fig(fa7, height=int(50 * (len(models) + 2) + 90), legend=False)
     _x0_, _x1_ = _b0 - pd.Timedelta(days=15), _b1 + pd.Timedelta(days=15)
     _yrs7 = range(_x0_.year, _x1_.year + 1)
     fa7.update_xaxes(type="date", range=[_iso(_x0_), _iso(_x1_)], tickmode="array", tickvals=[f"{y_}-01-01" for y_ in _yrs7], ticktext=[""] * len(_yrs7), showgrid=True, gridcolor="#eceae3", zeroline=False)
-    fa7.update_yaxes(range=[len(models) + 1.1, -1.45], tickvals=list(range(len(models))) + [_yj], showgrid=False, zeroline=False, fixedrange=True,
+    fa7.update_yaxes(range=[len(models) + 1.7, -1.45], tickvals=list(range(len(models))) + [_yj], showgrid=False, zeroline=False, fixedrange=True,
                      ticktext=[f"<span style='color:{_alg(m_)}'>■</span> <b>{ml_data.model_label(m_)}</b>" for m_ in models] + ["<b>Scored on</b>"])
     for y_ in _yrs7:                                                                                                        # the year in the middle of its own column
         _a7.append(dict(x=f"{y_}-07-01", xref="x", y=0, yref="paper", yshift=-14, text=str(y_), showarrow=False, font=dict(size=11, color=NEUTRAL)))

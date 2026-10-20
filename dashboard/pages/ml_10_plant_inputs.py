@@ -96,7 +96,7 @@ if weather:                                                    # irradiance and 
     rows = [("Series", f"{w['target']} ({unit}), hourly"),
             ("Inputs", "The numerical weather forecast of the site; without it, a model on past observations and clear-sky physics"),
             ("Without the forecast", (f"The model uses {p_['features'].replace('_', ' ')}. Its lags and rolling means end at the same hour yesterday, which is later than what is observed at 11:00 on the day before." if p_ else "–")),
-            ("Truth", f"{d_['source']}, {_dmy(d_['first'])} to {_dmy(d_['last'])}. A reanalysis, not an on-site measurement; the weather forecasts are archived from {_dmy(d_['forecast_first'])}."),
+            ("Real value", f"The real value y of every hour is taken from {d_['source']}, {_dmy(d_['first'])} to {_dmy(d_['last'])}. It is a reanalysis (a weather model fitted to observations), not a sensor at the plant; the weather forecasts are archived from {_dmy(d_['forecast_first'])}."),
             ("Test", f"The last twelve months, {_dmy(w['test_range'][0])} to {_dmy(w['test_range'][1])} ({w['n_test']:,} hours), judged as of 11:00 on the day before: "
                      "no observation of the last hours before the delivery day is used by anything below")]
     serve_name = "Weather forecast (serving)"
@@ -150,8 +150,9 @@ row_html = "".join(
     f'<div style="display:grid; grid-template-columns:9rem 1fr; gap:0.8rem; padding:0.5rem 0; border-top:1px solid {CARD_LINE};">'
     f'<div style="font-size:0.74rem; color:{MUTED}; font-weight:600; padding-top:0.1rem;">{_esc(k)}</div>'
     f'<div style="font-size:0.9rem; color:{INK}; line-height:1.45; overflow-wrap:anywhere;">{_esc(v)}</div></div>' for k, v in rows)
-st.markdown(f'<div style="border:1px solid {CARD_LINE}; border-radius:12px; background:#fff; padding:0.85rem 1rem 0.4rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);">'
-            f'<div style="display:flex; gap:0.7rem; margin-bottom:0.7rem;">{tile_html}</div>{row_html}</div>', unsafe_allow_html=True)
+st.markdown(f'<div style="display:flex; gap:0.7rem; margin-bottom:0.6rem;">{tile_html}</div>', unsafe_allow_html=True)
+with st.expander("The series, its inputs, the real value and the test"):                                                       # the detail, opened only when asked
+    st.markdown(f'<div style="border:1px solid {CARD_LINE}; border-radius:12px; background:#fff; padding:0.2rem 1rem 0.4rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);">{row_html}</div>', unsafe_allow_html=True)
 
 # ============================================================================================ 2. how good is it
 _section("How good is it?", f"Every forecast is scored on the same test values, mean absolute error in {unit}", num="②")
@@ -162,81 +163,191 @@ _rows = []
 for nm, kind, sc, srv, m in perf:
     dot_col = CHAMP if srv else (_col(m) if m else (NEUTRAL if kind == "Simple forecast" else LUCK))
     dot = f"<span style='color:{dot_col}'>■</span>&nbsp;"
-    _rows.append([f"{dot}{_esc(nm)}", kind, fmt(sc["mae"]), fmt(sc["rmse"]), fmt(sc["bias"])])
-_table(["Forecast", "Kind", f"MAE ({unit})", f"RMSE ({unit})", f"Bias ({unit})"], _rows, highlight=hl, widths="minmax(12rem, 2fr) minmax(15rem, 2.2fr) repeat(3, minmax(4.5rem, 0.7fr))", left=(0, 1))
-_line("MAE is the mean absolute error. RMSE is the same with squared errors, so large misses weigh more. Bias is the mean of forecast minus actual: below zero the forecast is too low.")
-
-_mini("Calculation")
-if weather:
-    s_m, p_m = round(serve["mae"], nd), round(plain["mae"], nd)
-    sm_m = round(simple["mae"], nd)
-    ch1, ch2 = 100 * (s_m / p_m - 1), 100 * (s_m / sm_m - 1)
-    st.markdown(_panel(
-        f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The weather forecast</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(serve['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>② The best algorithm without it</span><span>{_label(plain_m)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(plain['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The change</span><span>{M(rf"\frac{{{_n(serve['mae'])}}}{{{_n(plain['mae'])}}}-1=")} <b style='font-size:1.25rem; color:{REAL if ch1 < 0 else LUCK};'>{ch1:+.0f}%</b></span>"
-        f"<span style='font-weight:600; color:{INK};'>④ Against the best simple forecast</span><span>{simple_n}: {M(rf"\frac{{{_n(serve['mae'])}}}{{{_n(simple['mae'])}}}-1=")} <b style='font-size:1.1rem; color:{INK};'>{ch2:+.0f}%</b></span></div>"), unsafe_allow_html=True)
-    rel_w = 100 * (round(with_v["mae"], nd) / round(serve["mae"], nd) - 1)
-    verdict_w = (f"better than the forecast itself by {abs(rel_w):.1f}%." if rel_w < -2 else
-                 f"about as good as the forecast itself ({rel_w:+.1f}%), so the forecast is used directly." if rel_w <= 2 else
-                 f"worse than the forecast itself ({rel_w:+.1f}%), so the forecast is used directly.")
-    _line(f"The weather forecast cuts the error by <b>{abs(ch1):.0f}%</b> against the best algorithm that sees only past observations, and by <b>{abs(ch2):.0f}%</b> against the best simple forecast. "
-          f"Algorithms that also take the forecast as an input ({_label(with_m)}: {fmt(with_v['mae'])} {unit}) are " + verdict_w)
-    _mini("Two limits on these numbers")
-    _table(["Limit", "Why it matters"],
-           [["1. The truth is a reanalysis", "It is made with a weather model similar to the one that makes the forecast, so the forecast probably looks somewhat better here than it would against a sensor at the plant"],
-            ["2. The forecast is two days old", "It is the one issued two days earlier, which is certainly available at the decision time; a real run uses the newest forecast, which is usually a little better"]],
-           widths="minmax(12rem, 1fr) minmax(20rem, 3.2fr)", left=(0, 1))
+    _rows.append([f"{dot}{_esc(nm)}", kind, fmt(sc["mae"])])
+_table(["Forecast", "Kind", f"MAE ({unit})"], _rows, highlight=hl, widths="minmax(12rem, 2fr) minmax(15rem, 2.2fr) minmax(6rem, 0.8fr)", left=(0, 1))
+if weather:                                                                                                              # three ways to a forecast, built from the start, step by step, side by side
+    _tg = "irradiance" if choice == "ghi" else "temperature"
+    _obs = "irradiance" if choice == "ghi" else "temperature"
+    _cs = "clear-sky irradiance, the irradiance with no cloud at that hour"
+    _in = (f"hour and month (as sine and cosine), day of the year, {_cs}; the newest {_obs} observed at the same hour, the one 48 and 168 hours earlier and the mean of the 24 hours ending 48 hours earlier"
+           + ("; the newest observation divided by the clear-sky irradiance" if choice == "ghi" else ""))
+    _fc_in = "the weather forecast of that hour" + (" and the forecast divided by the clear-sky irradiance" if choice == "ghi" else "")
+    _best = lambda d_: min(d_.items(), key=lambda kv: kv[1]["mae"])
+    _bf, _bw, _bs = _best(w["with_forecast"]), _best(w["without_forecast_full_history"]), _best(w["without_forecast_same_period"])
+    _all5 = lambda d_: "<br>".join(f"{'<b>' if k_ == _best(d_)[0] else ''}{_label(k_)} {fmt(v_['mae'])}{'</b>' if k_ == _best(d_)[0] else ''}" for k_, v_ in sorted(d_.items(), key=lambda kv: kv[1]["mae"]))
+    _dmy2 = lambda s_: f"{s_[8:10]}-{s_[5:7]}-{s_[:4]}"
+    _t0, _t1 = _dmy2(w["test_range"][0]), _dmy2(w["test_range"][1])
+    _d0f, _d1f = _dmy2(w["dev_forecast_range"][0]), _dmy2(w["dev_forecast_range"][1])
+    _first = _dmy2(w["data"]["first"])
+    _ntest, _nfull, _nfc = f"{w['n_test']:,}", f"{w['n_dev_full']:,}", f"{w['n_dev_forecast']:,}"
+    _cols = [("Weather forecast alone", CHAMP), ("Algorithm + weather forecast", theme.VIOLET), ("Algorithm alone, past observations only", theme.BLUE)]
+    _steps = [
+        ("1", "The real value", [f"The real {_tg} y of every hour: the ERA5 reanalysis of the site"] * 3),
+        ("2", "What it uses for one hour",
+         [f"Only the numerical weather forecast of that hour, issued two days earlier",
+          f"{_in}; plus {_fc_in}",
+          f"{_in}. Nothing from the weather forecast"]),
+        ("3", "What it learns from",
+         ["Nothing: no model is fitted, nothing is tuned",
+          f"The {_nfc} hours from {_d0f} to {_d1f}: the only hours with an archived forecast",
+          f"The {_nfull} hours from {_first} to {_d1f}, all the history before the test"]),
+        ("4", "How it is built",
+         ["The forecast is taken as it is",
+          "Each of five tree algorithms learns, from those hours, how its inputs link to the real value",
+          "The same five algorithms learn the same link, without the forecast"]),
+        ("5", "How an hour is forecast",
+         [f"For each of the {_ntest} hours from {_t0} to {_t1}: ŷ = the weather forecast of that hour",
+          f"For each of the {_ntest} test hours: the inputs go into the fitted algorithm and it returns ŷ. Only what is known at 11:00 on the day before is used: the newest observation is yesterday's if the hour is up to 09:00 UTC, else the day before",
+          "The same, with the same rule on the newest observation"]),
+        ("6", "The score",
+         [f"e = ŷ − y for every hour, MAE = the mean of |e|: <b>{fmt(w['baselines']['Weather forecast alone']['mae'])}</b> {unit}",
+          f"The same MAE for each algorithm, in {unit}:<br>{_all5(w['with_forecast'])}",
+          f"The same MAE for each algorithm, in {unit}:<br>{_all5(w['without_forecast_full_history'])}"]),
+        ("7", "A fair check",
+         ["Nothing to compare",
+          f"The algorithms alone, trained on the same {_nfc} hours, score {fmt(_bs[1]['mae'])} at best ({_label(_bs[0])}): so a gain is not only a shorter history",
+          f"Trained on the whole history: {fmt(_bw[1]['mae'])} at best ({_label(_bw[0])})"]),
+    ]
+    _g = "grid-template-columns:7.5rem repeat(3, minmax(0, 1fr)); column-gap:0.7rem;"
+    _head = "".join(f"<div style='border-top:3px solid {c_}; background:{c_}14; border-radius:8px 8px 0 0; padding:0.4rem 0.7rem; font-weight:700; font-size:0.86rem; color:{INK};'>{n_}</div>" for n_, c_ in _cols)
+    _body = ""
+    for num_, ttl_, cells_ in _steps:
+        _body += (f"<div style='display:grid; {_g} border-top:1px solid {CARD_LINE}; padding:0.5rem 0;'>"
+                  f"<div style='font-size:0.8rem; font-weight:700; color:{INK}; line-height:1.3;'><span style='display:inline-flex; align-items:center; justify-content:center; width:1.15rem; height:1.15rem; border-radius:50%; background:{NEUTRAL}; color:#fff; font-size:0.66rem; margin-right:0.35rem;'>{num_}</span>{ttl_}</div>"
+                  + "".join(f"<div style='font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.4; overflow-wrap:anywhere;'>{c_}</div>" for c_ in cells_) + "</div>")
+    with st.expander("How each forecast is calculated, from the start"):
+        st.markdown(f"<div style='background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.6rem 1rem 0.3rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
+                    f"<div style='display:grid; {_g} padding-bottom:0.4rem;'><div></div>{_head}</div>{_body}</div>", unsafe_allow_html=True)
 else:
-    skill = r.get("skill_vs_yesterday")
-    yk = next((k_ for k_ in r["baselines"] if "yesterday" in k_.lower()), simple_n)
-    yv = r["baselines"][yk]
-    c_m, y_m = round(chosen["mae"], nd), round(yv["mae"], nd)
-    sk = 100 * (1 - c_m / y_m) if y_m else None
-    st.markdown(_panel(
-        f"<div style='display:grid; grid-template-columns:15rem 1fr; row-gap:0.45rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The serving model</span><span>{_label(selected)}, MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(chosen['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>② '{_esc(yk)}'</span><span>MAE <b style='font-size:1.1rem; color:{INK};'>{fmt(yv['mae'])}</b> {unit}</span>"
-        f"<span style='font-weight:600; color:{INK};'>③ The skill against it</span><span>{M(rf"1-\frac{{{_n(chosen['mae'])}}}{{{_n(yv['mae'])}}}=")} <b style='font-size:1.25rem; color:{REAL if (sk or 0) > 0 else LUCK};'>{('–' if sk is None else f'{sk:+.1f}%')}</b></span></div>"), unsafe_allow_html=True)
-    if simple["mae"] < chosen["mae"]:
-        _line(f"On the held-out year the serving model does not beat the simple forecast '{_esc(simple_n.lower())}': its MAE is {fmt(chosen['mae'])} {unit} against {fmt(simple['mae'])} {unit}. "
-              "All forecasts are scored on the same test values; only measured values are scored.")
-        _mini("Two limits on these numbers")
-        _table(["Limit", "Why it matters"],
-               [["1. Yesterday's full day is an input", "Both use it, but at 11:00 on the day before only observations up to about 10:00 exist (the rule of the forecast catalogue), so both scores are optimistic"],
-                ["2. The origin of the history", "The origin of the measured history is not independently verified"]],
-               widths="minmax(12rem, 1fr) minmax(20rem, 3.2fr)", left=(0, 1))
+    with st.expander("How each MAE is calculated, step by step"):                                                          # the blackboard version, opened only when asked
+        _n_all = w["n_test"] if weather else r["n_test"]
+        _per = "hour" if weather else "day"
+        _ser = week if weather else daily                                                                                    # the series stored for the picture: the real values, the serving forecast, the simple one
+        _tk = list(_ser["t"] if weather else _ser["day"])
+        _feat = (p_["features"] if (weather and p_) else r["features"] if not weather else "").replace("_", " ")
+        _opt = [row_[0] for row_ in perf]
+        _pick_f = st.selectbox("Forecast", _opt, key="ml10_calc_forecast")
+        _row = next(row_ for row_ in perf if row_[0] == _pick_f)
+        _kind, _sc = _row[1], _row[2]
+        _has = {"model": _pick_f == serve_name, "yesterday": (_pick_f == "Newest same-hour observation") if weather else (_pick_f == "Same time yesterday")}
+        _sk = "model" if _has["model"] else "yesterday" if _has["yesterday"] else None
 
-# ============================================================================================ 3. forecast against what happened
-_section("Forecast against what happened", "The daily mean over the test year, then the last seven days hour by hour", num="③")
+        def _step(num, title):
+            st.markdown(f"<div style='font-weight:700; color:{INK}; margin:0.8rem 0 0.2rem;'><span style='color:{MUTED};'>{num}</span>&nbsp; {title}</div>", unsafe_allow_html=True)
+
+        _step("①", "How the forecast of one " + _per + " is made")
+        if _kind == "Weather forecast":
+            _how = "No model of ours: the numerical weather forecast of the site, issued two days earlier, taken for that hour."
+        elif _kind.startswith("Algorithm, past"):
+            _how = f"{_pick_f} is fitted on the past observations and predicts the hour from: {_feat}. It does not see the weather forecast."
+        elif _kind.startswith("Algorithm with"):
+            _how = f"{_pick_f.replace(' + weather forecast', '')} is fitted on the past observations and predicts the hour from: {_feat}, plus the weather forecast of that hour."
+        elif _kind == "Algorithm":
+            _how = f"{_pick_f.replace(' (serving)', '')} is fitted on the history and predicts the {_per} from: {_feat}. It is retrained daily."
+        elif _pick_f in ("Newest same-hour observation", "Same time yesterday"):
+            _how = "No model: the value observed at the same " + ("hour" if weather else "time") + " on the newest day with an observation, which is yesterday."
+        elif "two days" in _pick_f:
+            _how = "No model: the value observed at the same hour two days earlier."
+        elif "week" in _pick_f:
+            _how = "No model: the value observed at the same time one week earlier."
+        elif "Average of the month" in _pick_f:
+            _how = "No model: the average of that month's observations."
+        else:
+            _how = _row[1] + "."
+        st.markdown(f"<div style='font-size:0.9rem; color:{theme.INK_SECONDARY};'>{_how}</div>", unsafe_allow_html=True)
+        _m_all = _sc["mae"]
+        if _sk is not None:
+            _dys = sorted({str(k_)[:10] for k_ in _tk})
+            _dy = st.selectbox("Example day", _dys[::-1], format_func=lambda d_: f"{d_[8:10]}-{d_[5:7]}-{d_[:4]}", key="ml10_calc_day")
+            _idx = [i_ for i_, k_ in enumerate(_tk) if str(k_)[:10] == _dy]
+            if weather:
+                _idx = [i_ for i_ in _idx if str(_tk[i_])[11:13] in ("02", "06", "10", "14", "18", "22")]
+            _idx = _idx[:6]
+            _y = [_ser["actual"][i_] for i_ in _idx]
+            _f = [_ser[_sk][i_] for i_ in _idx]
+            _e = [f_ - y_ for f_, y_ in zip(_f, _y)]
+            _step("②", f"The error of one {_per}: forecast minus real value")
+            st.markdown(M(r"e=\hat{y}-y", display=False, size=1.05) + f" &nbsp;in {unit}", unsafe_allow_html=True)
+            _rows = [[(str(_tk[i_])[11:16] if weather else f"{_dy[8:10]}-{_dy[5:7]}-{_dy[:4]}"), fmt(y_), fmt(f_), f"{e_:+.{nd}f}", fmt(abs(e_))] for i_, y_, f_, e_ in zip(_idx, _y, _f, _e)]
+            _table([_per.capitalize(), "Real y", "Forecast ŷ", "Error e", "|e|"], _rows, widths="minmax(5rem, 1fr) repeat(4, minmax(4.5rem, 1fr))", left=(0,))
+            if _e:
+                _step("③", "MAE: the average of the absolute errors")
+                _num = " + ".join(fmt(abs(e_)) for e_ in _e)
+                st.markdown(M(r"\mathrm{MAE}=\frac{1}{n}\sum|e|", display=False, size=1.05) + " &nbsp;&nbsp; " + M(rf"\frac{{{_num}}}{{{len(_e)}}}={sum(abs(e_) for e_ in _e) / len(_e):.{nd}f}", display=False, size=1.0)
+                            + f" &nbsp;{unit} on these {len(_e)} {_per}s", unsafe_allow_html=True)
+            _step("④", f"The same average over every {_per} of the test")
+        else:
+            _step("②", "MAE: the average of the absolute errors")
+            st.markdown(M(r"e=\hat{y}-y", display=False, size=1.05) + " &nbsp;&nbsp; " + M(r"\mathrm{MAE}=\frac{1}{n}\sum|e|", display=False, size=1.05), unsafe_allow_html=True)
+            _line(f"The forecasts of the single {_per}s of this forecast are not kept on this page; the average over the whole test is.")
+            _step("③", f"The average over every {_per} of the test")
+        st.markdown(M(rf"\mathrm{{MAE}}=\frac{{1}}{{n}}\sum|e|\quad n={_n_all:,}".replace(",", "{,}") + rf"\quad\Rightarrow\quad {fmt(_m_all)}", display=False, size=1.05) + f" &nbsp;{unit}, the figure in the table.", unsafe_allow_html=True)
+
+if not weather and simple["mae"] < chosen["mae"]:
+    _line(f"On the held-out year the serving model does not beat the simple forecast '{_esc(simple_n.lower())}': its MAE is {fmt(chosen['mae'])} {unit} against {fmt(simple['mae'])} {unit}. "
+          "All forecasts are scored on the same test values; only measured values are scored.")
+
+# ============================================================================================ 3. forecast against what happened: one picture, one day
+def _key_cards(items):
+    """What each line of the graph is, in plain words, with one worked example from the same day: (colour, name, what it is, the example)."""
+    st.markdown("<div style='display:flex; gap:0.6rem; margin:0.2rem 0 0.6rem;'>" + "".join(
+        f"<div style='flex:1 1 0; min-width:0; background:{c_}18; border-left:4px solid {c_}; border-radius:8px; padding:0.5rem 0.75rem; overflow-wrap:anywhere;'>"
+        f"<div style='font-weight:700; color:{INK}; font-size:0.9rem;'>{n_}</div>"
+        f"<div style='font-size:0.8rem; color:{theme.INK_SECONDARY}; line-height:1.4; margin-top:0.1rem;'>{w_}</div>"
+        f"<div style='font-size:0.8rem; color:{INK}; line-height:1.4; margin-top:0.3rem;'><b>Example:</b> {e_}</div></div>" for c_, n_, w_, e_ in items) + "</div>", unsafe_allow_html=True)
 
 
-def _lines(fig, x, ys, widths):
-    fig.add_trace(go.Scatter(x=x, y=ys[0], name=names[0], mode="lines", line=dict(color=GREY, width=widths[0])))
-    fig.add_trace(go.Scatter(x=x, y=ys[1], name=names[1], mode="lines", line=dict(color=CHAMP, width=widths[1])))
-    fig.add_trace(go.Scatter(x=x, y=ys[2], name=names[2], mode="lines", line=dict(color=NEUTRAL, width=widths[2], dash="dot")))
-
-
-_mini("The daily mean")
+_AMB = "rgba(237,161,0,0.32)"                                                                                            # the miss: the gap between the real value and the forecast
+_section("The table, on one day", "Two forecasts of the table, whose hours are kept, against the real value y. The shaded gap is the error e = ŷ − y; the MAE of the table is its average over every test hour", num="③")
 fig = go.Figure()
-_lines(fig, daily["day"], (daily["actual"], daily["model"], daily["yesterday"]), (3, 1.6, 1.4))
-theme.style_fig(fig, height=320, yaxis_title=f"{unit}, daily mean")
-fig.update_layout(hovermode="x unified")
-_legend_top(fig)
-fig.update_layout(margin=dict(t=34))
-fig.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=MUTED)
-st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-if week:
-    _mini("The last seven days")
-    pos = list(range(len(week["t"])))
-    fig = go.Figure()
-    _lines(fig, pos, (week["actual"], week["model"], week["yesterday"]), (3.4, 1.8, 1.5))
-    theme.style_fig(fig, height=300, yaxis_title=f"{unit}, hourly", xaxis_title=week_x)
-    ticks = [i for i, t_ in enumerate(week["t"]) if t_[11:13] == "00"]
-    fig.update_xaxes(tickvals=ticks, ticktext=[_dmy(week["t"][i]) for i in ticks], showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="solid", spikecolor=MUTED)
-    fig.update_traces(customdata=week["t"], hovertemplate="%{y:,.1f}  (%{customdata})")
-    fig.update_layout(hovermode="x unified")
+if weather and week:
+    _wt = pd.to_datetime(pd.Series(week["t"]))
+    _wd = pd.DataFrame({"t": _wt, "d": _wt.dt.strftime("%Y-%m-%d"), "h": _wt.dt.hour, "y": week["actual"], "f": week["model"], "n": week["yesterday"]})
+    _full = [d_ for d_, g_ in _wd.groupby("d") if len(g_) == 24]                                                         # days with all 24 hours
+    _day = st.select_slider("Day", options=_full, value=_full[-1], format_func=lambda d_: f"{d_[8:10]}-{d_[5:7]}-{d_[:4]}", key="ml10_day")
+    g_ = _wd[_wd["d"] == _day].sort_values("h")
+    _mae = lambda s_: float((g_["y"] - g_[s_]).abs().mean())
+    x_ = g_["h"]
+    _eh = 14 if 14 in set(g_["h"]) else int(g_["h"].iloc[len(g_) // 2])                                                    # the example hour: 14:00 when it exists
+    _er = g_[g_["h"] == _eh].iloc[0]
+    _dd = pd.Timestamp(_day)
+    _sd = _dd - pd.Timedelta(days=1 if _eh <= 9 else 2)                                                                  # the newest day observed at 11:00 on the day before, for that hour
+    _dmy3 = lambda d_: f"{d_:%d-%m-%Y}"
+    _where = f"{_eh:02d}:00 on {_dmy3(_dd)}"
+    _key_items = ([
+        (GREY, "Real value y", f"The {_tg} that really happened in that hour (the ERA5 reanalysis of the site).", f"{_where}: <b>{fmt(_er['y'])}</b> {unit}."),
+        (CHAMP, "Weather forecast ŷ", "The weather model's forecast for that hour, issued two days earlier. Nothing is fitted: it is taken as it is.", f"For {_where} it said <b>{fmt(_er['f'])}</b> {unit}."),
+        (theme.BLUE, "Newest same-hour observation ŷ", "No model: the real value of the same hour on the newest day observed at 11:00 on the day before (yesterday up to 09:00 UTC, otherwise the day before yesterday).",
+         f"For {_where} it is the real value of {_eh:02d}:00 on {_dmy3(_sd)}: <b>{fmt(_er['n'])}</b> {unit}."),
+        (_AMB.replace("0.32", "1"), "Error e = ŷ − y", "The forecast minus the real value: the shaded gap. The MAE is the average of its size.", f"{_where}: {fmt(_er['f'])} − {fmt(_er['y'])} = <b>{_er['f'] - _er['y']:+.{nd}f}</b> {unit} for the weather forecast.")]
+    )
+    fig.add_trace(go.Scatter(x=x_, y=g_["y"], name="Real value y", mode="lines", line=dict(color=GREY, width=0), fill="tozeroy", fillcolor="rgba(185,183,174,0.45)", hovertemplate="%{y:,.1f}"))
+    fig.add_trace(go.Scatter(x=x_, y=g_["f"], name=f"Weather forecast ŷ (MAE of the day {fmt(_mae('f'))})", mode="lines", line=dict(color=CHAMP, width=2.4), fill="tonexty", fillcolor=_AMB, hovertemplate="%{y:,.1f}"))
+    fig.add_trace(go.Scatter(x=x_, y=g_["n"], name=f"Newest same-hour observation ŷ (MAE of the day {fmt(_mae('n'))})", mode="lines", line=dict(color=theme.BLUE, width=1.8, dash="dot"), hovertemplate="%{y:,.1f}"))
+    fig.add_trace(go.Scatter(x=[None], y=[None], name="Error e (the shaded gap)", mode="markers", marker=dict(symbol="square", size=11, color=_AMB)))
+    theme.style_fig(fig, height=360, yaxis_title=unit, xaxis_title="Hour of the day (UTC)")
+    fig.update_xaxes(tickvals=list(range(0, 24, 3)), ticktext=[f"{h_:02d}:00" for h_ in range(0, 24, 3)], range=[0, 23])
+elif not weather:
+    _lastd = len(daily["day"]) - 1
+    _key_items = ([
+        (GREY, "Measured y", "The inflow that was really measured on that day.", f"{daily['day'][_lastd]}: <b>{fmt(daily['actual'][_lastd])}</b> {unit}."),
+        (CHAMP, f"{_label(selected)} ŷ", "The serving model's forecast for that day, retrained daily on the history.", f"For {daily['day'][_lastd]} it said <b>{fmt(daily['model'][_lastd])}</b> {unit}."),
+        (theme.BLUE, "Same time yesterday ŷ", "No model: the value measured the day before.", f"For {daily['day'][_lastd]} it is yesterday's value: <b>{fmt(daily['yesterday'][_lastd])}</b> {unit}."),
+        (_AMB.replace("0.32", "1"), "Error e = ŷ − y", "The forecast minus the measured value: the shaded gap.", f"{fmt(daily['model'][_lastd])} − {fmt(daily['actual'][_lastd])} = <b>{daily['model'][_lastd] - daily['actual'][_lastd]:+.{nd}f}</b> {unit} for the model.")]
+    )
+    _n_ = min(60, len(daily["day"]))
+    _x = list(daily["day"])[-_n_:]
+    _y = list(daily["actual"])[-_n_:]
+    _f = list(daily["model"])[-_n_:]
+    _nv = list(daily["yesterday"])[-_n_:]
+    fig.add_trace(go.Scatter(x=_x, y=_y, name="Measured y", mode="lines", line=dict(color=GREY, width=0), fill="tozeroy", fillcolor="rgba(185,183,174,0.45)"))
+    fig.add_trace(go.Scatter(x=_x, y=_f, name=f"{_label(selected)} ŷ", mode="lines", line=dict(color=CHAMP, width=2.4), fill="tonexty", fillcolor=_AMB))
+    fig.add_trace(go.Scatter(x=_x, y=_nv, name="Same time yesterday ŷ", mode="lines", line=dict(color=theme.BLUE, width=1.8, dash="dot")))
+    fig.add_trace(go.Scatter(x=[None], y=[None], name="Error e (the shaded gap)", mode="markers", marker=dict(symbol="square", size=11, color=_AMB)))
+    theme.style_fig(fig, height=360, yaxis_title=f"{unit}, last {_n_} days")
+if len(fig.data):
+    fig.update_layout(hovermode="x unified", margin=dict(t=40))
     _legend_top(fig)
-    fig.update_layout(margin=dict(t=34))
+    fig.update_layout(legend_traceorder="normal")                                                                            # the legend reads in the order of the steps: the real value, the forecasts, the error
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    _key_cards(_key_items)                                                                                        # what each line is, with an example, under the graph
