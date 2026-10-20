@@ -42,7 +42,7 @@ What to say on each page, the likely follow-up question with its answer, and the
 
 **Limits.** The catalogue holds 77 features, of which 9 (load, wind, solar, gas, carbon, hydro, weather forecasts) are defined but not collected. Stability selection is run on development data only and gives small sets; the champions use the baseline sets.
 
-## ml_5_evaluation: Evaluation design
+## ml_5_evaluation_tuning: Evaluation design (the calendar graph at the top)
 
 **What to say.** I fixed the scoring contract first: a rolling origin that refits as the live system would, a gap so training never touches the day before the first forecast, and a final year that is locked and scored once.
 
@@ -52,7 +52,7 @@ What to say on each page, the likely follow-up question with its answer, and the
 
 **Limits.** The test assumes daily loss differences have a stable variance; with about 300 days (the intraday targets) only larger differences can be established. Tests are not adjusted across targets.
 
-## ml_6_tuning: Tuning lab
+## ml_5_evaluation_tuning: Tuning lab (the steps below the graph)
 
 **What to say.** Tuning is nested and time-aware: inside each refit the search only sees that refit's past, scored on three later blocks, with the same trial budget for every algorithm and the defaults always included. I keep every trial so I can show the search, not just the winner.
 

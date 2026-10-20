@@ -16,8 +16,8 @@ import ml_ui
 import theme
 from maths import tex as M
 
-ml_ui.header("Plant inputs: PV and inflow", "", step=9)
-ml_ui.tour_bar(10)
+ml_ui.header("Plant inputs: PV and inflow", "", step=8)
+ml_ui.tour_bar(9)
 
 # The colours mean one thing each, on every picture of this page (and of the other ML pages):
 #   what happened is light grey, the serving forecast is near-black, a simple forecast is dark grey and dotted, an algorithm keeps its own colour.

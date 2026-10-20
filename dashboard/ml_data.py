@@ -278,6 +278,12 @@ def champion_short(c: Optional[dict]) -> str:
     return f"Average of {len(c['members'])} algorithms" if c["type"] == "ensemble" else model_label(c["model"])
 
 
+def champion_label(target: str) -> str:
+    """'Champion (LightGBM)': the word, then the algorithm in brackets, wherever a chart or a table names the champion of a target."""
+    d = decisions().get(target)
+    return f"Champion ({champion_short(d['champion'])})" if d and d.get("champion") else "Champion"
+
+
 def locked_real_only(target: str, root: Path = REPO_ROOT) -> Optional[dict]:
     """The locked year of a target that has artificial outcome days (IDA1), on the REAL days only: champion and reference MAE, the gain, and the
     Diebold-Mariano test of the champion against the reference (the framework's own function, one loss difference per real day). None for a target without them."""
@@ -422,6 +428,28 @@ def dm_example(daily: pd.DataFrame, target: str, a: str = "champion", b: str = "
             "losses": pd.DataFrame({"date": list(common), "a": x.loc[common, loss].to_numpy(), "b": y.loc[common, loss].to_numpy()})}
 
 
+def dm_steps(res: dict) -> dict:
+    """The steps of the Diebold-Mariano test behind `dm_example`'s result: the average gap, its uncertainty (`se`) and their ratio.
+
+    The uncertainty is the long-run variance of the daily gaps (Bartlett weights over the configured lags, so days that follow each other are not counted as independent)
+    divided by the number of days less one, which is the small-sample form the framework uses: statistic = mean_diff / se."""
+    import numpy as np
+    d = res["differences"]["difference"].to_numpy(dtype=float)
+    n = len(d)
+    lags = min(int(config("evaluation").get("comparison", {}).get("hac_lags", 7)), n - 1)
+    from scipy import stats, special
+    x = d - d.mean()
+    gammas = [float(np.dot(x, x) / n)] + [float(np.dot(x[k:], x[:-k]) / n) for k in range(1, lags + 1)]       # the variance of the daily gaps, then how the gaps k days apart move together
+    weights = [1.0] + [1.0 - k / (lags + 1.0) for k in range(1, lags + 1)]
+    long_run = gammas[0] + sum(2.0 * weights[k] * gammas[k] for k in range(1, lags + 1))
+    se = float(np.sqrt(max(long_run, 1e-12) / (n - 1)))
+    stat = float(d.mean() / se)
+    z = (n - 1) / ((n - 1) + stat * stat)                                                                    # where |DM| sits on the t curve, a number between 0 and 1
+    ib = float(special.betainc((n - 1) / 2.0, 0.5, z))                                                       # the regularized incomplete beta function: the two tails together
+    return {"z": float(z), "incomplete_beta": ib, "tail": ib / 2.0, "n_days": n, "lags": lags, "mean_diff": float(d.mean()), "gammas": gammas, "weights": weights, "long_run": float(long_run), "df": n - 1,
+            "se": se, "statistic": stat, "p_value": float(2.0 * stats.t.sf(abs(stat), df=n - 1)), "t_crit": float(stats.t.ppf(0.975, n - 1))}
+
+
 # ------------------------------------------------------------------------------------------------------------ tuning
 def prepared_trials(trials: pd.DataFrame, target: str, search: Optional[str] = None) -> pd.DataFrame:
     """The trials of a target with the settings parsed (`params_d`) and `rel` = trial score / score of the defaults in the same round."""
@@ -513,3 +541,72 @@ def monitoring_replay(locked: pd.DataFrame, daily: pd.DataFrame, target: str, wi
     d["flag"] = d["rolling_mae"] > threshold
     return {"daily": d, "level": level, "threshold": threshold, "window": window, "quantile": quantile,
             "flagged_days": int(d["flag"].sum()), "first_flag": (d.loc[d["flag"], "date"].min() if d["flag"].any() else None)}
+
+
+def monitoring_checks(locked: pd.DataFrame, daily: pd.DataFrame, target: str, window: int = 28, quantile: float = 0.95,
+                      shock_day: Optional[str] = None, factor: float = 1.0) -> Optional[dict]:
+    """The practical checks of the champion over the locked year, each against the range of normal before going live (the development window).
+
+    accuracy  rolling mean absolute error of the champion; flag above the `quantile` of its development values
+    benchmark rolling gain over the reference (the simplest algorithm); flag below the (1 - quantile) of its development values
+    bias      rolling mean error (forecast minus actual); flag beyond the `quantile` of its development absolute values
+    health    days with the usual number of hours, days with too few and days with none (a gap in the feed)
+    With `shock_day` and `factor` the champion's errors from that day on are multiplied: a SIMULATION of a market change, to show the flags firing."""
+    dev = daily[daily["target"] == target]
+    ch, rf = dev[dev["model"] == "champion"].set_index("date").sort_index(), dev[dev["model"] == "reference"].set_index("date").sort_index()
+    lk = locked[locked["target"] == target].copy()
+    common = ch.index.intersection(rf.index)
+    if len(common) < 2 * window or lk.empty:
+        return None
+    ch, rf = ch.loc[common], rf.loc[common]
+    r_ch, r_rf, r_bias = ch["mae"].rolling(window).mean(), rf["mae"].rolling(window).mean(), ch["bias"].rolling(window).mean()
+    gain_dev = (1.0 - r_ch / r_rf).dropna() * 100.0
+    mae_dev, bias_dev = r_ch.dropna(), r_bias.dropna()
+    lk["date"] = pd.to_datetime(lk["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None).dt.normalize()
+    lk["err"] = lk["champion"] - lk["y_true"]
+    lk["err_ref"] = lk["reference"] - lk["y_true"]
+    if shock_day is not None and factor != 1.0:
+        lk.loc[lk["date"] >= pd.Timestamp(shock_day), "err"] *= factor
+    d = lk.groupby("date").agg(mae=("err", lambda e: float(e.abs().mean())), ref_mae=("err_ref", lambda e: float(e.abs().mean())), bias=("err", "mean"), hours=("err", "size")).reset_index()
+    d["rolling_mae"] = d["mae"].rolling(window, min_periods=window).mean()
+    d["rolling_gain"] = (1.0 - d["rolling_mae"] / d["ref_mae"].rolling(window, min_periods=window).mean()) * 100.0
+    d["rolling_bias"] = d["bias"].rolling(window, min_periods=window).mean()
+    mae = {"level": float(mae_dev.mean()), "threshold": float(mae_dev.quantile(quantile))}
+    gain = {"level": float(gain_dev.mean()), "threshold": float(gain_dev.quantile(1.0 - quantile))}
+    bias = {"level": float(bias_dev.mean()), "threshold": float(bias_dev.abs().quantile(quantile))}
+    d["flag_mae"] = d["rolling_mae"] > mae["threshold"]
+    d["flag_gain"] = d["rolling_gain"] < gain["threshold"]
+    d["flag_bias"] = d["rolling_bias"].abs() > bias["threshold"]
+    span = pd.date_range(d["date"].min(), d["date"].max(), freq="D")
+    hmin = float(ch["hours"].quantile(0.05)) - 1.0                                                                  # a day is short if it has fewer hours than 95% of the normal days less one (the clock change)
+    health = {"days": int(len(span)), "min_hours": hmin, "complete": int((d["hours"] >= hmin).sum()), "short": int((d["hours"] < hmin).sum()), "missing": int(len(span) - len(d))}
+    return {"daily": d, "window": window, "quantile": quantile, "mae": mae, "gain": gain, "bias": bias, "health": health,
+            "flags": {"mae": int(d["flag_mae"].sum()), "gain": int(d["flag_gain"].sum()), "bias": int(d["flag_bias"].sum()), "health": health["short"] + health["missing"]}}
+
+
+def monitoring_health(locked: pd.DataFrame, daily: pd.DataFrame) -> pd.DataFrame:
+    """For every target, the days of the locked year with the usual number of hours (judged on the development window), with too few, and with none."""
+    rows = []
+    for t, g in locked.groupby("target"):
+        hmin = float(daily[(daily["target"] == t) & (daily["model"] == "champion")]["hours"].quantile(0.05)) - 1.0
+        dates = pd.to_datetime(g["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None).dt.normalize()
+        per_day = dates.value_counts().sort_index()
+        span = pd.date_range(per_day.index.min(), per_day.index.max(), freq="D")
+        rows.append({"target": t, "days": len(span), "complete": int((per_day >= hmin).sum()), "short": int((per_day < hmin).sum()), "missing": int(len(span) - len(per_day))})
+    return pd.DataFrame(rows)
+
+
+def default_settings(model: str) -> dict:
+    """The starting setting of an algorithm, trial 0 of every tuning round: the values written in the project (DEFAULTS) and, for the rest, the library's own
+    values. A loss left to the library is named, so that it can be shown like a chosen one."""
+    from common_layer.forecast_evaluation.tree_models import DEFAULTS, build_learner
+    params = dict(build_learner(model).get_params())
+    out = {**params, **DEFAULTS.get(model, {})}
+    for key, fallback in (("objective", {"lightgbm": "regression", "xgboost": "reg:squarederror"}.get(model)), ("loss", "squared_error" if model == "gradient_boosting" else None)):
+        if key in out and out[key] is None:
+            out[key] = fallback
+    if model == "xgboost":                                                                                              # settings XGBoost leaves to its booster: its own values
+        for key, val in (("min_child_weight", 1), ("reg_lambda", 1.0)):
+            if out.get(key) is None:
+                out[key] = val
+    return out

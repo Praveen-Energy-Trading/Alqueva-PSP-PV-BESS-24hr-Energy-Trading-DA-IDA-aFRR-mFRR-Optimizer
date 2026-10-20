@@ -1,4 +1,4 @@
-"""ML Lifecycle 8 - Decision and locked test: a written selection rule, applied by code, and one honest test on locked data. Told as a story in numbered steps."""
+"""ML Lifecycle 8 - Decision and locked test: how the scores of the Model arena become one champion, then one look at the locked year. Only what is new: nothing of the arena is repeated."""
 from __future__ import annotations
 
 import sys
@@ -16,9 +16,8 @@ import ml_ui
 import theme
 from maths import tex as M
 
-ml_ui.header("Decision and locked test", "The champion is chosen by a rule written down before the results existed, applied by code, and then "
-             "scored once on a year that nothing was tuned or chosen on.", step=7)
-ml_ui.tour_bar(8)
+ml_ui.header("Decision and locked test", "", step=6)
+ml_ui.tour_bar(7)
 
 # The colours mean one thing each, on every picture of this page (and of the Model arena):
 #   an algorithm keeps its own colour; the champion is near-black; the naive forecasts are grey; a real difference is green, a gap that could be luck is grey.
@@ -72,8 +71,6 @@ def _pill(text: str, color: str, bg: str) -> str:
     return f"<span style='background:{bg}; color:{color}; border-radius:999px; padding:0.1rem 0.6rem; font-size:0.78rem; font-weight:600; white-space:nowrap;'>{text}</span>"
 
 
-_real_pill = lambda: _pill("Real", "#006100", "#e3f1e3")                                                              # noqa: E731
-_luck_pill = lambda: _pill("Could be luck", "#5a5953", "#ecebe6")                                                     # noqa: E731
 _legend_top = lambda fig, y=1.08: fig.update_layout(legend=dict(orientation="h", x=0, y=y, xanchor="left", yanchor="bottom", font=dict(size=12, color=theme.INK_SECONDARY)))     # noqa: E731
 
 
@@ -102,146 +99,16 @@ par = d.get("parsimony") or {}
 tied = d.get("tied") or []
 comb = d.get("combination")
 champ_txt = ml_data.champion_text(d["champion"])
+chl = ml_data.champion_label(target)                                                                                         # "Champion (LightGBM)"
 tn = (d.get("treatment") or {}).get("name", "standard")
 
-# ============================================================================================ 1. the rule, the windows and the comparison, drawn
-SH, AN = [], []
-ROW, X_END = 34.0, 1010
-px_x = 1150.0 / X_END
-
-
-def _shp(x0, x1, y0, y1, color, opacity=1.0, r_px=6.0, line=None):
-    """A rounded bar as a path; x in the units of the figure, y in rows."""
-    rx, ry = min(r_px / px_x, (x1 - x0) / 2), min(r_px / ROW, (y1 - y0) / 2)
-    SH.append(dict(type="path", fillcolor=color, opacity=opacity, line=(line or dict(width=0)),
-                   path=(f"M {x0 + rx},{y0} L {x1 - rx},{y0} Q {x1},{y0} {x1},{y0 + ry} L {x1},{y1 - ry} Q {x1},{y1} {x1 - rx},{y1} "
-                         f"L {x0 + rx},{y1} Q {x0},{y1} {x0},{y1 - ry} L {x0},{y0 + ry} Q {x0},{y0} {x0 + rx},{y0} Z")))
-
-
-def _fcard(y0, y1, r_px=10.0):
-    rx, ry = r_px / px_x, r_px / ROW
-    x0, x1 = -12, X_END + 12
-    SH.append(dict(type="path", fillcolor="#ffffff", line=dict(color=CARD_LINE, width=1), layer="below",
-                   path=(f"M {x0 + rx},{y0} L {x1 - rx},{y0} Q {x1},{y0} {x1},{y0 + ry} L {x1},{y1 - ry} Q {x1},{y1} {x1 - rx},{y1} "
-                         f"L {x0 + rx},{y1} Q {x0},{y1} {x0},{y1 - ry} L {x0},{y0 + ry} Q {x0},{y0} {x0 + rx},{y0} Z")))
-
-
-def _fhead(y, num, title, sub_=""):
-    AN.append(dict(x=6, y=y, xanchor="left", yanchor="middle", showarrow=False, align="left", font=dict(size=14, color=INK),
-                   text=f"<b style='font-size:17px;color:{NEUTRAL}'>{num}</b>&nbsp; <b>{title}</b>" + (f"<br><span style='font-size:12px;color:{MUTED}'>{_cap(sub_)}</span>" if sub_ else "")))
-
-
-def _fnote(x, y, text, size=12, color=INK, anchor="center", **kw):
-    AN.append(dict(x=x, y=y, xanchor=anchor, showarrow=False, text=text, font=dict(size=size, color=color), **kw))
-
-
-def _farrow(x0, y0, x1, y1, color=MUTED):
-    AN.append(dict(x=x1, y=y1, ax=x0, ay=y0, axref="x", ayref="y", showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.6, arrowcolor=color, text=""))
-
-
-fig_a = go.Figure()
-fig_a.add_trace(go.Scatter(x=[0, X_END], y=[0, 0], mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip"))
 refl = ml_data.model_label(ref)
-evid_ok = d.get("status") == "chosen"
-par_tested, par_passed = bool(par.get("tested")), bool(par.get("passed"))
-# ---- card 1: the two windows
-y2 = -0.6
-_fcard(y2, y2 + 4.9)
-_fhead(y2 + 1.0, "①", "Two windows, one honest test", "Chosen on the development window. The locked year is scored once")
-dev = (d.get("source") or {}).get("window") or [None, None]
-lkw = (lk or {}).get("window") or [None, None]
-dev_days, lock_days = int(d["n_days"]), 365
-tot_w = 960.0
-wd = max(300.0, tot_w * dev_days / (dev_days + lock_days))
-wl = tot_w - wd
-cyt = y2 + 2.9
-_shp(0, wd - 3, cyt - 0.5, cyt + 0.5, theme.BLUE, 0.62, r_px=6)
-_shp(wd + 3, wd + wl, cyt - 0.5, cyt + 0.5, RED, 0.35, r_px=6)
-_fnote(10, cyt, f"<b>Development window</b>: {dev_days:,} days", color=INK, anchor="left")
-_fnote(wd + 13, cyt, f"<b>Locked year</b>: {lock_days} days", color=INK, anchor="left")
-_fnote(10, cyt + 0.95, (f"{pd.Timestamp(dev[0]):%d-%m-%Y} to {pd.Timestamp(dev[1]):%d-%m-%Y}" if dev[0] else ""), size=11, color=MUTED, anchor="left")
-_fnote(wd + 13, cyt + 0.95, (f"{pd.Timestamp(lkw[0]):%d-%m-%Y} to {pd.Timestamp(lkw[1]):%d-%m-%Y}" if lkw[0] else ""), size=11, color=MUTED, anchor="left")
-_fnote(10, cyt + 1.55, "Ranking, tests and the champion are decided here", size=11, color=theme.INK_SECONDARY, anchor="left")
-_fnote(wd + 13, cyt + 1.55, "Scored once, frozen by digest", size=11, color=RED, anchor="left")
-SH.append(dict(type="line", x0=wd, x1=wd, y0=cyt - 0.75, y1=cyt + 0.75, line=dict(color="#a8a69d", width=1.4, dash="dot")))
-# ---- card 3: what the champion is compared with
-y3 = y2 + 5.35
-_fcard(y3, y3 + 5.05)
-_fhead(y3 + 1.0, "②", "What the champion is compared with", "All on exactly the same hours")
-cmp_items = [(CHAMP, "Champion", "The chosen forecast<br>&nbsp;"), (theme.BLUE, "Decision tree", "The simplest algorithm:<br>what the extra ones buy"),
-             (LUCK, "Naive forecasts", "No model at all: is machine<br>learning worth having?")]
-iw = 310.0
-for i, (col, ttl, sub_) in enumerate(cmp_items):
-    x0 = i * (iw + 25)
-    _shp(x0, x0 + iw, y3 + 2.2, y3 + 4.5, col, 0.10, r_px=8)
-    _shp(x0, x0 + 5, y3 + 2.2, y3 + 4.5, col, 1.0, r_px=2)
-    _fnote(x0 + 16, y3 + 2.8, f"<b>{ttl}</b>", size=13, anchor="left")
-    _fnote(x0 + 16, y3 + 3.7, sub_, size=10, color=theme.INK_SECONDARY, anchor="left", align="left")
-end = y3 + 5.05
-fig_a.layout.shapes = ()
-theme.style_fig(fig_a, height=int((end + 0.9) * ROW + 12), xaxis_title=None, legend=False)
-fig_a.update_yaxes(autorange=False, range=[end + 0.15, -0.75], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False, linewidth=0)
-fig_a.update_xaxes(range=[-15, X_END + 15], showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, showline=False)
-fig_a.update_layout(margin=dict(t=2, b=2, l=10, r=10), plot_bgcolor="#ffffff", paper_bgcolor="#ffffff")
-fig_a.layout.shapes = SH
-fig_a.layout.annotations = AN
-st.plotly_chart(fig_a, width="stretch", config={"displayModeBar": False})
+if tn in ("limited_evidence", "very_limited_evidence"):                                                                     # a caution that belongs to the whole page
+    st.markdown(f"<div style='margin:0.2rem 0 0.4rem;'>{_pill('Very limited evidence' if tn == 'very_limited_evidence' else 'Limited evidence', '#7a5200', '#fdf0d0')}"
+                f"<span style='font-size:0.86rem; color:{theme.INK_SECONDARY}; margin-left:0.6rem;'>With {d['n_days']:,} development days only larger differences can be established, so ties are common.</span></div>", unsafe_allow_html=True)
 
-# ============================================================================================ 2. the decision
-_section(f"The decision for {ml_data.label(target)}", "The evidence behind the choice, from the development window", num="③")
-if tn in ("limited_evidence", "very_limited_evidence"):
-    lab = d["treatment"]["label"].replace("first test day", "first validation day")
-    st.markdown(f"<div style='margin:0 0 0.6rem;'>{_pill('Very limited evidence' if tn == 'very_limited_evidence' else 'Limited evidence', '#7a5200', '#fdf0d0')}"
-                f"<span style='font-size:0.86rem; color:{theme.INK_SECONDARY}; margin-left:0.6rem;'>{_cap(lab)}. With {d['n_days']:,} development days only larger differences can be established, so ties are common.</span></div>", unsafe_allow_html=True)
-rk = pd.DataFrame(d["ranking"])
-vb = pd.DataFrame(d["versus_best"]) if d.get("versus_best") else pd.DataFrame()
-_lc, _rc = st.columns([3, 2], gap="medium")
-with _lc:
-    _mini("The ranking", f"Mean daily error on the development window, {units}. The dotted line is the best")
-    lad = rk[["model", "mean_loss"]].sort_values("mean_loss").reset_index(drop=True)
-    notworse = set(tied)
-    fl = go.Figure()
-    k_tie = int(sum(1 for m_ in lad["model"] if m_ in notworse))
-    if k_tie > 1:
-        fl.add_shape(type="rect", xref="paper", x0=0, x1=1, y0=-0.5, y1=k_tie - 0.5, fillcolor="rgba(154,152,144,0.14)", line_width=0, layer="below")
-    best_l = float(lad["mean_loss"].iloc[0])
-    fl.add_shape(type="line", x0=best_l, x1=best_l, y0=-0.5, y1=len(lad) - 0.5, line=dict(color=MUTED, width=1, dash="dot"))
-    pv = {r_["model"]: r_ for _, r_ in vb.iterrows()} if len(vb) else {}
-    fl.add_trace(go.Scatter(x=lad["mean_loss"], y=[ml_data.model_label(m_) for m_ in lad["model"]], mode="markers+text", showlegend=False,
-                            marker=dict(size=15, color=[_alg(m_) for m_ in lad["model"]], line=dict(color="white", width=1.5)),
-                            text=[f"{v_:.3f}" + ("" if m_ not in pv else f"   {'Tied' if m_ in notworse else 'Worse'}") for m_, v_ in zip(lad["model"], lad["mean_loss"])],
-                            textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
-    theme.style_fig(fl, height=int(46 * len(lad)) + 70, xaxis_title=f"Mean daily error ({units})", legend=False)
-    fl.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
-    spread = float(lad["mean_loss"].max()) - best_l
-    fl.update_xaxes(range=[best_l - 0.15 * spread - 0.3, float(lad["mean_loss"].max()) + 0.9 * spread + 1.5], showgrid=False, zeroline=False)
-    fl.update_layout(margin=dict(t=6, b=44, l=120, r=10))
-    st.plotly_chart(fl, width="stretch", config={"displayModeBar": False})
-    _line("Worse: clearly worse than the best. Tied: cannot be told apart from it.")
-with _rc:
-    st.markdown(_panel(
-        f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED};'>Champion</div>"
-        f"<div style='font-size:1.45rem; font-weight:800; color:{INK}; line-height:1.25; margin-bottom:0.4rem;'>{champ_txt}</div>"
-        f"<div style='line-height:1.6; font-size:0.9rem;'>"
-        f"<div><b>Development days:</b> {d['n_days']:,}</div><div><b>Best by mean loss:</b> {ml_data.model_label(d['best'])}</div>"
-        f"<div><b>Against the {refl}:</b> " + (('passed' if par_passed else 'not better') if par_tested else "it is the best itself") + "</div>"
-        f"<div><b>Cannot be told apart from the best:</b> " + (", ".join(ml_data.model_label(m_) for m_ in tied if m_ != d["best"]) or "none") + "</div></div>"), unsafe_allow_html=True)
-if len(vb):
-    _mini("Each algorithm against the best", f"Against {ml_data.model_label(d['best'])}")
-    _table(["Algorithm", "Mean daily error", "Error of the best", "Difference"],
-           [[f"{_dot(r_['model'])}{ml_data.model_label(r_['model'])}", f"{float(r_['mean_loss']):.3f}", f"{float(r_['best_loss']):.3f}",
-             f"{round(float(r_['mean_loss']), 3) - round(float(r_['best_loss']), 3):+.3f}"] for _, r_ in vb.iterrows()])
-if comb:
-    _mini("Calculation for the tie", "Several algorithms cannot be told apart from the best, so the champion is their average, if the average is not worse")
-    st.markdown(_panel(
-        f"<div style='display:grid; grid-template-columns:8.5rem 1fr; row-gap:0.4rem; align-items:baseline;'>"
-        f"<span style='font-weight:600; color:{INK};'>① The tied</span><span>{', '.join(ml_data.model_label(m_) for m_ in comb['members'])}</span>"
-        f"<span style='font-weight:600; color:{INK};'>② Their {comb['method']}</span><span>against the best single algorithm: mean loss difference <b style='color:{INK};'>{comb['mean_diff']:+.3f}</b></span></div>"
-        f"<div style='margin-top:0.6rem; font-size:1.1rem; font-weight:800; color:{REAL if comb['accepted'] else LUCK};'>"
-        + ("The average is the champion" if comb["accepted"] else "The best single algorithm is the champion") + "</div>"), unsafe_allow_html=True)
-
-# ============================================================================================ 3. the locked year
-_section("The one look at the locked year", "Scored once, on a year that nothing was tuned or chosen on", num="④")
+# ============================================================================================ 2. the locked year
+_section("The locked year, one look", "Scored once, on a year that nothing was tuned or chosen on", num="①")
 if lk is None:
     ml_ui.not_yet_run(f"the locked test of {ml_data.label(target)}")
 else:
@@ -252,13 +119,28 @@ else:
     else:
         ch_mae, rf_mae = s["mae"], (rs["mae"] if rs else None)
     gain_lk = _gain(rf_mae, ch_mae) if rf_mae else None
-    _mini("The gain on the locked year", f"{ml_data.label(target)}, {units}" + (", real days only" if real else ""))
-    if rf_mae:
-        _gc, _ = st.columns([2, 3], gap="medium")
-        with _gc:
-            st.markdown(_panel(
-                f"<div style='font-size:0.74rem; font-weight:600; color:{MUTED}; padding:0.2rem 0;'>The gain over the reference</div>"
-                f"<div>{M(rf'\frac{{{round(rf_mae, 3):.3f}-{round(ch_mae, 3):.3f}}}{{{round(rf_mae, 3):.3f}}}=')} <b style='font-size:1.25rem; color:{INK};'>{gain_lk:.1f}%</b></div>"), unsafe_allow_html=True)
+    lock_days = (pd.Timestamp(lk["window"][1]) - pd.Timestamp(lk["window"][0])).days + 1
+    _chips = [f"scored once, {pd.Timestamp(lk['window'][0]):%d-%m-%Y} to {pd.Timestamp(lk['window'][1]):%d-%m-%Y}"]
+    st.markdown("<div style='display:flex; flex-wrap:wrap; gap:0.4rem 0.6rem; margin:0.1rem 0 0.6rem;'>"
+                + "".join(f"<span style='background:#f1f0eb; border-radius:999px; padding:0.15rem 0.75rem; font-size:0.82rem; color:{INK};'>{c_}</span>" for c_ in _chips) + "</div>", unsafe_allow_html=True)
+    xl = pd.DataFrame()
+    if not lf.empty and target in set(lf["target"]):
+        xl = lf[lf["target"] == target].copy()
+        xl["ts"] = pd.to_datetime(xl["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None)
+    if len(xl):
+        x = xl
+        days = sorted(x["ts"].dt.date.unique())
+        _mini("A week of the locked year", "The real price, the champion's forecast and the reference's forecast")
+        pick = st.select_slider("Week to inspect", options=days[::7], value=days[::7][len(days[::7]) // 2], key="ml8_week")
+        w = x[(x["ts"].dt.date >= pick) & (x["ts"].dt.date < pick + pd.Timedelta(days=7))]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=w["ts"], y=w["y_true"], mode="lines", name="Real price", line=dict(color=GREY, width=3)))
+        fig.add_trace(go.Scatter(x=w["ts"], y=w["champion"], mode="lines", name=chl, line=dict(color=CHAMP, width=1.8)))
+        fig.add_trace(go.Scatter(x=w["ts"], y=w["reference"], mode="lines", name=f"{refl} (reference)", line=dict(color=theme.BLUE, width=1.4, dash="dot")))
+        theme.style_fig(fig, height=270, yaxis_title=units)
+        _legend_top(fig)
+        fig.update_layout(margin=dict(t=34))
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     if lk["loss_ratio_locked_over_dev"] < 0.8 or lk["loss_ratio_locked_over_dev"] > 1.25:
         _line(f"The locked-year loss is {lk['loss_ratio_locked_over_dev']:.2f} times the development loss. That compares two different price regimes, so it is not a measure of skill: the gain over the reference on the same hours is.")
     if lk.get("synthetic_fill"):
@@ -271,95 +153,117 @@ else:
             cols_ = [c_ for c_ in ("mae", "rmse", "coverage") if all(c_ in v_ for _, v_ in mm)]
             _table(["Forecaster"] + [c_.upper() if c_ != "coverage" else "Coverage" for c_ in cols_],
                    [[f"{_dot(str(k_).replace('_tuned', ''))}{ml_data.model_label(str(k_).replace('_tuned', ''))}"] + [f"{v_[c_]:.3f}" for c_ in cols_] for k_, v_ in mm])
-    if not lf.empty and target in set(lf["target"]):
-        x = lf[lf["target"] == target].copy()
-        x["ts"] = pd.to_datetime(x["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None)
-        days = sorted(x["ts"].dt.date.unique())
-        _mini("A week of the locked year", "The real price, the champion's forecast and the reference's forecast. The models were refitted every 30 days on past data only")
-        pick = st.select_slider("Week to inspect", options=days[::7], value=days[::7][len(days[::7]) // 2], key="ml8_week")
-        w = x[(x["ts"].dt.date >= pick) & (x["ts"].dt.date < pick + pd.Timedelta(days=7))]
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=w["ts"], y=w["y_true"], mode="lines", name="Real price", line=dict(color=GREY, width=3)))
-        fig.add_trace(go.Scatter(x=w["ts"], y=w["champion"], mode="lines", name="Champion", line=dict(color=CHAMP, width=1.8)))
-        fig.add_trace(go.Scatter(x=w["ts"], y=w["reference"], mode="lines", name=f"{refl} (reference)", line=dict(color=theme.BLUE, width=1.4, dash="dot")))
-        theme.style_fig(fig, height=320, yaxis_title=units)
-        _legend_top(fig)
-        fig.update_layout(margin=dict(t=34))
-        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
-# ============================================================================================ 4. against a naive forecast
+# ============================================================================================ 3. is machine learning worth having
 bm = bench.get(target)
-_section("Against a naive forecast", "A decision tree shows what the extra algorithms buy. A naive forecast shows whether machine learning is worth having at all", num="⑤")
-NAMES = {"champion": "Champion", "reference": f"{refl} (reference)", "base_price": "Day-ahead price, no spread", "naive_seasonal": "Seasonal naive", "naive_day": "Latest day available", "naive_week": "Last week"}
+_section("Is machine learning worth having?", "The champion against forecasts with no model at all, on the locked year", num="②")
+NAMES = {"champion": chl, "reference": f"{refl} (reference)", "base_price": "Day-ahead price, no spread", "naive_seasonal": "Seasonal naive", "naive_day": "Latest day available", "naive_week": "Last week"}
 WHAT = {"champion": "The chosen forecast", "reference": "The simplest algorithm",
-        "base_price": "The intraday price equals the day-ahead price", "naive_seasonal": "Latest day's price (Tue to Fri), last week's (Sat to Mon)",
+        "base_price": "The intraday price equals the day-ahead price", "naive_seasonal": "Tue to Fri: the day before. Sat to Mon: the same weekday last week",
         "naive_day": "The latest day's price known at forecast time", "naive_week": "The price of the same day last week"}
-if not bm:
+if not bm or not bm.get("locked"):
     ml_ui.not_yet_run(f"the naive benchmark of {ml_data.label(target)}")
 else:
-    stages = [(k_, t_) for k_, t_ in (("development", "Development window"), ("locked", "Locked year")) if bm.get(k_)]
-    for stage, title in stages:
-        b = bm[stage]
-        sc = b["scores"]
-        order = ["champion", "reference"] + sorted([n_ for n_ in sc if n_ not in ("champion", "reference")], key=lambda n_: sc[n_]["mae"])
-        order = [n_ for n_ in order if n_ in sc]
-        _mini(f"{title}", f"{b['window'][0]} to {b['window'][1]}, {round(b['hours'] / 24):,} days, MAE in {units}")
-        fd = go.Figure()
-        ch_v = round(sc["champion"]["mae"], 3)
-        fd.add_shape(type="line", x0=ch_v, x1=ch_v, y0=-0.5, y1=len(order) - 0.5, line=dict(color=MUTED, width=1, dash="dot"))
-        fd.add_trace(go.Scatter(x=[sc[n_]["mae"] for n_ in order], y=[NAMES.get(n_, n_) for n_ in order], mode="markers+text", showlegend=False,
-                                marker=dict(size=15, color=[CHAMP if n_ == "champion" else theme.BLUE if n_ == "reference" else LUCK for n_ in order], line=dict(color="white", width=1.5)),
-                                text=[f"{round(sc[n_]['mae'], 3):.3f}" for n_ in order], textposition="middle right", textfont=dict(size=11, color=theme.INK_SECONDARY), cliponaxis=False, hoverinfo="skip"))
-        theme.style_fig(fd, height=int(44 * len(order)) + 64, xaxis_title=f"MAE ({units})", legend=False)
-        mx = max(sc[n_]["mae"] for n_ in order)
-        fd.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
-        fd.update_xaxes(range=[ch_v - 0.12 * (mx - ch_v) - 0.5, mx + 0.16 * (mx - ch_v) + 1.0], showgrid=False, zeroline=False)
-        fd.update_layout(margin=dict(t=6, b=44, l=190, r=10))
-        st.plotly_chart(fd, width="stretch", config={"displayModeBar": False})
-        rows = []
-        for n_ in order:
-            if n_ == "champion":
-                continue
-            g_ = _gain(sc[n_]["mae"], sc["champion"]["mae"])
-            pv_ = b["dm_champion_vs"].get(n_, {}).get("p_value") if n_ != "champion" else None
-            ok = pv_ is not None and pv_ < 0.05
-            rows.append([f"{_dot(n_) if n_ == 'reference' else ''}{NAMES.get(n_, n_)}", WHAT.get(n_, ""), f"{round(sc[n_]['mae'], 3):.3f}", f"{sc[n_]['rmse']:.3f}", f"{g_:.1f}%",
-                         (_real_pill() if g_ > 0 else _pill("Real: champion is worse", "#8a1f1f", "#f7e3e3")) if ok else _luck_pill()])
-        _table(["Forecast", "What it is", "MAE", "RMSE", "Champion's gain", "Verdict"], rows, widths="minmax(9rem, 1.3fr) minmax(11rem, 2.2fr) minmax(3.5rem, 0.7fr) minmax(3.5rem, 0.7fr) minmax(5.6rem, 0.9fr) minmax(4.8rem, 0.9fr)", left=(0, 1))
-        st.markdown("<div style='height:0.6rem;'></div>", unsafe_allow_html=True)
-    nv = [n_ for n_ in (bm[stages[0][0]]["scores"] if stages else {}) if n_ not in ("champion", "reference")]
-    if nv:
-        _mini("Calculation of the gain over one forecast")
-        _cc, _cd = st.columns([2, 3], gap="medium")
-        with _cc:
-            _sel = st.selectbox("Forecast", nv, index=nv.index("naive_seasonal") if "naive_seasonal" in nv else 0, format_func=lambda n_: NAMES.get(n_, n_), key="ml8_naive", label_visibility="collapsed")
-        parts = ""
-        for stage, title in stages:
-            sc = bm[stage]["scores"]
-            if _sel in sc:
-                parts += (f"<span style='font-weight:600; color:{INK};'>{title}</span>"
-                          f"<span>{M(rf'\frac{{{round(sc[_sel]['mae'], 3):.3f}-{round(sc['champion']['mae'], 3):.3f}}}{{{round(sc[_sel]['mae'], 3):.3f}}}=')} "
-                          f"<b style='font-size:1.1rem; color:{INK};'>{_gain(sc[_sel]['mae'], sc['champion']['mae']):.1f}%</b></span>")
-        with _cd:
-            st.markdown(_panel(f"<div style='display:grid; grid-template-columns:9rem 1fr; row-gap:0.45rem; align-items:baseline;'>{parts}</div>"), unsafe_allow_html=True)
-    _line("Each forecast is scored on the hours where all of them exist, so the champion's MAE here can differ in the third decimal from the one in step ④. The naive forecasts are not tuned and not chosen, so they cannot be flattered by the selection.")
-    if bm.get("locked") and bm["locked"].get("synthetic_days"):
-        _line(f"The locked year has {bm['locked']['synthetic_days']} days on which the auction published no price. They are left out for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
+    b = bm["locked"]
+    sc = b["scores"]
+    scd = (bm.get("development") or {}).get("scores", {})
+    order = ["champion", "reference"] + sorted([n_ for n_ in sc if n_ not in ("champion", "reference")], key=lambda n_: sc[n_]["mae"])
+    order = [n_ for n_ in order if n_ in sc]
+    chm = round(sc["champion"]["mae"], 3)
+    gains = {n_: _gain(sc[n_]["mae"], sc["champion"]["mae"]) for n_ in order if n_ != "champion"}
+    txt = [f"<b>{chm:.3f}</b>"] + [f"{round(sc[n_]['mae'], 3):.3f}   champion {abs(gains[n_]):.1f}% " + ("lower" if gains[n_] > 0 else "higher") for n_ in order if n_ != "champion"]
+    hov = []
+    for n_ in order:
+        h_ = f"<b>{NAMES.get(n_, n_)}</b><br>{WHAT.get(n_, '')}<br>Locked year MAE {round(sc[n_]['mae'], 3):.3f}"
+        if n_ in scd and "champion" in scd:
+            h_ += f"<br>Development window MAE {round(scd[n_]['mae'], 3):.3f}" + ("" if n_ == "champion" else f", champion {abs(_gain(scd[n_]['mae'], scd['champion']['mae'])):.1f}% " + ("lower" if _gain(scd[n_]["mae"], scd["champion"]["mae"]) > 0 else "higher"))
+        hov.append(h_)
+    fd = go.Figure(go.Bar(y=[NAMES.get(n_, n_) for n_ in order], x=[sc[n_]["mae"] for n_ in order], orientation="h",
+                          marker_color=[CHAMP if n_ == "champion" else theme.BLUE if n_ == "reference" else LUCK for n_ in order], text=txt, textposition="outside", cliponaxis=False,
+                          textfont=dict(size=11, color=theme.INK_SECONDARY), hovertext=hov, hoverinfo="text",
+                          hoverlabel=dict(align="left", bgcolor="white", bordercolor="#e3e1d9", font=dict(size=12, color=INK))))
+    theme.style_fig(fd, height=int(46 * len(order)) + 60, xaxis_title=f"MAE ({units}), locked year, {round(b['hours'] / 24):,} days", legend=False)
+    fd.update_yaxes(autorange="reversed", showgrid=False, zeroline=False, fixedrange=True)
+    fd.update_xaxes(range=[0, max(sc[n_]["mae"] for n_ in order) * 2.0], showgrid=False, zeroline=False)
+    fd.update_layout(margin=dict(t=6, b=44, l=190, r=10), bargap=0.4)
+    st.plotly_chart(fd, width="stretch", config={"displayModeBar": False})
+    naive_ = [n_ for n_ in order if n_ not in ("champion", "reference")]
+    LEVEL = target in ("da_price", "afrr_cap_price", "afrr_dn_price")                                                       # a price level forecast: the naive curve can be drawn from the real prices
+    RULE = {"naive_day": "Copies the most recent day whose prices are known, hour by hour", "naive_week": "Every day: copies the same weekday of last week (7 days back)", "base_price": "The day-ahead price, no spread",
+            "naive_seasonal": "Tuesday to Friday: copies yesterday. Saturday, Sunday, Monday: copies last week. A mix of the two forecasts above"}
+    _mini("How each naive forecast is made", "No model, nothing to fit or tune: only prices known when the forecast is made")
+    D_ = pd.Timestamp(lk["window"][1]) if lk is not None else pd.Timestamp(b["window"][1])                                    # the examples: the last Wednesday and the last Sunday of the locked year
+    minlag = {"xbid_price": 2, "mfrr_price": 3}.get(target, 1)                                                              # the days the target's own prices take to become known
+    wed_, sun_ = (D_ - pd.Timedelta(days=(D_.weekday() - 2) % 7)), (D_ - pd.Timedelta(days=(D_.weekday() - 6) % 7))         # two weekdays on which the seasonal naive forecast acts differently
 
-# ============================================================================================ 5. the outcome
-_section("The outcome", num="⑥")
-if bm and bm.get("locked") and lk is not None:
-    sc = bm["locked"]["scores"]
-    naive = [n_ for n_ in sc if n_ not in ("champion", "reference")]
-    strongest = min(naive, key=lambda n_: sc[n_]["mae"]) if naive else None
-    real_n = [n_ for n_ in naive if (bm["locked"]["dm_champion_vs"].get(n_, {}).get("p_value") or 1) < 0.05 and _gain(sc[n_]["mae"], sc["champion"]["mae"]) > 0]
-    lines = [f"<div><b>Gain over the {refl} on the locked year:</b> " + (f"{gain_lk:.1f}%" if gain_lk is not None else "–") + ".</div>"]
-    if strongest:
-        lines.append(f"<div><b>Gain over the strongest naive forecast ({NAMES.get(strongest, strongest)}):</b> {_gain(sc[strongest]['mae'], sc['champion']['mae']):.1f}%.</div>")
-        lines.append(f"<div><b>Real gain over the naive forecasts:</b> {len(real_n)} of {len(naive)}.</div>")
-    st.markdown(f"<div style='display:flex; align-items:center; gap:1.3rem; background:#fff; border:1px solid {CARD_LINE}; border-radius:12px; padding:0.8rem 1.2rem; box-shadow:0 1px 2px rgba(0,0,0,0.04);'>"
-                f"<div style='font-size:1.45rem; font-weight:800; color:{INK}; line-height:1.25; max-width:16rem;'>{champ_txt}</div>"
-                f"<div style='line-height:1.6; font-size:0.9rem; color:{theme.INK_SECONDARY};'>{''.join(lines)}</div></div>", unsafe_allow_html=True)
-else:
-    ml_ui.not_yet_run("the locked test and the naive benchmark")
-st.caption("The plant inputs (solar irradiance, temperature, natural inflow) have no champion decision and no locked year: irradiance and temperature are served by the weather forecast and inflow by a model chosen by walk-forward validation; the held-out year is shown on the Plant inputs page.")
+    def _lag(n_, day_):
+        return max({"naive_day": 1, "naive_week": 7, "naive_seasonal": 7 if day_.weekday() in (5, 6, 0) else 1}[n_], minlag)
+
+    def _ex(n_, day_):                                                                                                      # one plain sentence: which day is forecast, which day is copied
+        if n_ == "base_price":
+            return f"{day_:%A} {day_:%d-%m-%Y} uses the day-ahead price of {day_:%d-%m-%Y}"
+        s_ = day_ - pd.Timedelta(days=_lag(n_, day_))
+        return f"{day_:%A} {day_:%d-%m-%Y} uses {s_:%A} {s_:%d-%m-%Y}"
+    _table(["Forecast", "Rule", f"Example: a {wed_:%A}", f"Example: a {sun_:%A}"], [[NAMES.get(n_, n_), RULE.get(n_, WHAT.get(n_, "")), _ex(n_, wed_), _ex(n_, sun_)] for n_ in naive_],
+           widths="minmax(9rem, 1fr) minmax(14rem, 2.2fr) minmax(11rem, 1.3fr) minmax(11rem, 1.3fr)", left=(0, 1, 2, 3))
+    lag_of = {n_: _lag(n_, D_) for n_ in ("naive_day", "naive_week", "naive_seasonal")}                                      # used by the drop-down below
+    _stages = [(k_, t_) for k_, t_ in (("development", "Development window"), ("locked", "Locked year")) if bm.get(k_)]                  # the two windows, in time order
+    _mini("The numbers behind the chart", "Mean absolute error and root mean squared error of every forecast on each window, and the champion's gain over it")
+    _heads = ["Forecast"] + [h_ for _, t_ in _stages for h_ in (f"{t_.split()[0]}: MAE", "RMSE", "Champion's gain")]
+    _trs = []
+    for n_ in order:
+        row_ = [f"{_dot(n_) if n_ in ('champion', 'reference') else ''}{NAMES.get(n_, n_)}"]
+        for k_, _t in _stages:
+            sk_ = bm[k_]["scores"]
+            row_ += [f"{round(sk_[n_]['mae'], 3):.3f}", f"{sk_[n_]['rmse']:.3f}", "–" if n_ == "champion" else f"{_gain(sk_[n_]['mae'], sk_['champion']['mae']):.1f}%"] if n_ in sk_ else ["–", "–", "–"]
+        _trs.append(row_)
+    _table(_heads, _trs, highlight=0, widths="minmax(10rem, 1.4fr) " + "minmax(3.6rem, 0.8fr) minmax(3.6rem, 0.8fr) minmax(4.6rem, 0.9fr) " * len(_stages))
+    if LEVEL and not lf.empty and target in set(lf["target"]):                                                             # how a naive forecast gets its value: a real price, copied
+        with st.expander("How a naive forecast predicts one hour"):
+            _lfx = lf[lf["target"] == target].copy()
+            _lfx["ts"] = pd.to_datetime(_lfx["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None)
+            _lfx = _lfx.dropna(subset=["y_true"]).assign(d=lambda g_: g_["ts"].dt.normalize(), h=lambda g_: g_["ts"].dt.hour)
+            _ysh = _lfx.groupby(["d", "h"])["y_true"].mean()
+            _cA, _cB = st.columns(2)
+            _cmp = _cA.selectbox("Forecast", [n_ for n_ in naive_ if n_ in lag_of], format_func=lambda n_: NAMES.get(n_, n_), key="ml8_calc_cmp")
+            _dys = sorted(_lfx["d"].unique())
+            _day = pd.Timestamp(_cB.selectbox("Delivery day", _dys[::-1], format_func=lambda d_: pd.Timestamp(d_).strftime("%d-%m-%Y"), key="ml8_calc_day"))
+            _lg = max(7 if _cmp == "naive_week" or (_cmp == "naive_seasonal" and _day.weekday() in (5, 6, 0)) else 1, minlag)
+            _src = _day - pd.Timedelta(days=_lg)
+            st.markdown(f"<div style='margin:0.4rem 0;'>" + M(r"\hat{y}_{d,h}=y_{d-" + str(_lg) + r",\,h}", display=False, size=1.1)
+                        + f" &nbsp; the forecast for {_day:%d-%m-%Y} ({_day:%A}) is the real price of <b>{_src:%d-%m-%Y}</b> ({_src:%A}), hour by hour</div>", unsafe_allow_html=True)
+            _rows = []
+            for h_ in (2, 6, 10, 14, 18, 22):
+                yv_, ys_ = _ysh.get((_day, h_), np.nan), _ysh.get((_src, h_), np.nan)
+                if not (np.isnan(yv_) or np.isnan(ys_)):
+                    _rows.append([f"{h_:02d}:00", f"{_src:%d-%m-%Y} {h_:02d}:00", f"{ys_:.2f}", f"{ys_:.2f}", f"{yv_:.2f}"])
+            _table(["Hour", "Copied from", "Real price there", "Forecast ŷ", f"Real price on {_day:%d-%m-%Y}"], _rows, widths="minmax(4rem, 0.8fr) minmax(10rem, 1.6fr) " + "minmax(6rem, 1fr) " * 3, left=(0, 1))
+    if b.get("synthetic_days"):
+        _line(f"The locked year has {b['synthetic_days']} days on which the auction published no price. They are left out for every forecast, because a forecast built on the day-ahead price would be flattered by them.")
+
+    if lk is not None and not lf.empty and target in set(lf["target"]):                                                    # month by month: the champion, the decision tree and the strongest naive forecast
+        xa = lf[lf["target"] == target].copy()
+        xa["ts"] = pd.to_datetime(xa["ts_utc"], utc=True).dt.tz_convert("Europe/Madrid").dt.tz_localize(None)
+        xa = xa.dropna(subset=["y_true", "champion", "reference"]).assign(d=lambda g_: g_["ts"].dt.normalize(), h=lambda g_: g_["ts"].dt.hour)
+        xa["month"] = xa["ts"].dt.to_period("M")
+        strong = min(naive_, key=lambda n_: sc[n_]["mae"]) if naive_ else None
+        series_ = {chl: (xa["champion"] - xa["y_true"]).abs(), refl: (xa["reference"] - xa["y_true"]).abs()}
+        nm_ = None
+        if LEVEL and strong in ("naive_day", "naive_week", "naive_seasonal"):                                              # a price level: the naive curve is the real price of an earlier day, same hour
+            ysh = xa.groupby(["d", "h"])["y_true"].mean()
+            lag_s = xa["d"].map(lambda d_: 7 if strong == "naive_week" or (strong == "naive_seasonal" and d_.weekday() in (5, 6, 0)) else 1)
+            src = pd.MultiIndex.from_arrays([xa["d"] - pd.to_timedelta(lag_s, unit="D"), xa["h"]])
+            ysrc = pd.Series(ysh.reindex(src).to_numpy(), index=xa.index)
+            series_[NAMES.get(strong, strong)] = (ysrc - xa["y_true"]).abs()
+            nm_ = NAMES.get(strong, strong)
+        mon_ = pd.DataFrame({k_: v_.groupby(xa["month"]).mean() for k_, v_ in series_.items()})
+        _mini("Month by month", "Mean absolute error of the champion, the " + refl.lower() + (f" and the {nm_.lower()} on every month of the locked year" if nm_ else " on every month of the locked year"))
+        cols_ = {chl: CHAMP, refl: theme.BLUE, nm_: LUCK}
+        fmn = go.Figure()
+        for k_ in mon_.columns:
+            fmn.add_trace(go.Bar(x=[m_.strftime("%b %Y") for m_ in mon_.index], y=mon_[k_], name=k_, marker_color=cols_[k_], text=[f"{v_:.1f}" for v_ in mon_[k_]], textposition="outside",
+                                 textfont=dict(size=9, color=theme.INK_SECONDARY), cliponaxis=False, hovertemplate="%{x}<br>" + k_ + ": %{y:.3f}<extra></extra>"))
+        theme.style_fig(fmn, height=300, yaxis_title=f"MAE ({units})", barmode="group")
+        _legend_top(fmn)
+        fmn.update_layout(margin=dict(t=34), bargap=0.25, bargroupgap=0.05)
+        st.plotly_chart(fmn, width="stretch", config={"displayModeBar": False})

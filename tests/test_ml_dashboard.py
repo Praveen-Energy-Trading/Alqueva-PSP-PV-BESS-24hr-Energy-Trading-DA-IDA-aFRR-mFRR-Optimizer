@@ -225,7 +225,7 @@ def test_the_pages_still_open_when_the_pack_and_runtime_are_missing(tmp_path, mo
     monkeypatch.setattr(ml_data, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(ml_data, "pack", lambda name, root=tmp_path: pd.DataFrame())
     monkeypatch.setattr(ml_data, "pack_json", lambda name, root=tmp_path: None)
-    for page in ("ml_1_data.py", "ml_6_tuning.py", "ml_9_run.py"):
+    for page in ("ml_1_data.py", "ml_5_evaluation_tuning.py", "ml_9_run.py"):
         at = AppTest.from_file(str(REPO / "dashboard" / "pages" / page), default_timeout=60).run()
         assert not at.exception, (page, [e.value for e in at.exception])
 
@@ -269,3 +269,29 @@ def test_a_formula_written_in_latex_becomes_mathml_and_a_bad_one_stays_text():
     out = maths.tex(r"\frac{1}{n}\sum_{i=1}^{n} \left| e_i \right|")
     assert "<math" in out and "mfrac" in out and "\\" not in out
     assert "<math" not in maths.tex(r"\undefinedcommand{")                    # a formula the converter cannot read is shown as its LaTeX text
+
+
+def test_the_dm_steps_shown_on_the_arena_give_the_frameworks_statistic():
+    daily = ml_data.pack("daily_loss")
+    if daily.empty:
+        pytest.skip("no daily losses in the data pack")
+    res = ml_data.dm_example(daily, "da_price", "champion", "decision_tree")
+    stp = ml_data.dm_steps(res)
+    assert stp["statistic"] == pytest.approx(res["statistic"], rel=1e-6)
+    assert stp["mean_diff"] == pytest.approx(res["mean_diff"], rel=1e-9)
+    assert stp["p_value"] == pytest.approx(res["p_value"], rel=1e-6, abs=1e-30)
+    assert stp["incomplete_beta"] == pytest.approx(res["p_value"], rel=1e-5, abs=1e-30)             # the two tails together are the p-value
+    assert stp["gammas"][0] + sum(2 * w * g for w, g in zip(stp["weights"][1:], stp["gammas"][1:])) == pytest.approx(stp["long_run"])
+
+
+def test_the_monitoring_checks_agree_with_the_replay_and_flag_a_simulated_change():
+    locked, daily = ml_data.pack("locked_forecasts"), ml_data.pack("daily_loss")
+    if locked.empty or daily.empty:
+        pytest.skip("no locked forecasts in the data pack")
+    chk = ml_data.monitoring_checks(locked, daily, "da_price", 28, 0.95)
+    old = ml_data.monitoring_replay(locked, daily, "da_price", 28, 0.95)
+    assert chk["flags"]["mae"] == old["flagged_days"]                                         # the accuracy check is the replay that was already there
+    assert chk["health"]["missing"] == 0 and chk["health"]["short"] == 0
+    shaken = ml_data.monitoring_checks(locked, daily, "da_price", 28, 0.95, "2026-04-01", 3.0)
+    assert shaken["flags"]["mae"] > chk["flags"]["mae"]                                       # a market change makes the accuracy alarm fire more
+
