@@ -71,11 +71,6 @@ _CARDS = [
      [("Gap length", "longer than 3 hours, no upper limit"), ("Condition", "an earlier value exists"), ("Value", "the same hour 1 week earlier; else yesterday; else 2 weeks earlier")]),
 ]
 
-_NOTE = ("One rule for every series: a gap of 1 to 3 hours is joined by a straight line, a longer gap repeats the same hour from earlier. Two exceptions, each with a reason: "
-         "aFRR band prices are carried forward (up to 48 hours) and IDA1-3 and XBID use the day-ahead price + spread. Wrong values are removed first and then count as missing. "
-         "Genuine spikes and negative prices are kept.")
-
-
 def html_block() -> str:
     border, muted, ink = theme.GRIDLINE, theme.INK_MUTED, theme.INK_PRIMARY
     cards = ""
@@ -89,5 +84,4 @@ def html_block() -> str:
     legend = (f'<div style="display:flex; gap:1.2rem; align-items:center; font-size:0.78rem; color:{theme.INK_SECONDARY}; margin:0.4rem 0 0.1rem;">'
               f'<span><span style="display:inline-block; width:0.7rem; height:0.7rem; border-radius:50%; background:{_MEASURED}; vertical-align:-1px;"></span> measured value</span>'
               f'<span><span style="display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; border:2px solid {_FILLED}; vertical-align:-1px;"></span> imputed value</span></div>')
-    return (f'<div style="margin:0.2rem 0 0.6rem 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">{cards}</div>{legend}'
-            f'<div style="font-size:0.78rem; color:{theme.INK_SECONDARY}; line-height:1.45;">{html.escape(_NOTE)}</div></div>')
+    return (f'<div style="margin:0.2rem 0 0.6rem 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">{cards}</div>{legend}</div>')
