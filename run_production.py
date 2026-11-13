@@ -766,6 +766,7 @@ def main() -> int:
     # the most recent run. Skipped on --dry-run and on critical abort.
     if not ns.dry_run and rc in (0, 1):
         _generate_figures(date)
+        _refresh_ml_pack()
 
     return rc
 
@@ -778,6 +779,20 @@ def _generate_figures(date: str) -> None:
     except Exception as exc:
         import warnings
         warnings.warn(f"[Figures] Generation skipped ({exc})", RuntimeWarning)
+
+
+def _refresh_ml_pack() -> None:
+    """Rebuild the data pack the ML Lifecycle pages read (model_development/data/), so that the
+    Data and quality page ends at the day just loaded. Warn but never crash the pipeline."""
+    try:
+        from dashboard import ml_pack
+        manifest = ml_pack.build()
+        for line in manifest.get("skipped", []):
+            print(f"  [ML pack] {line}")
+        print("  [ML pack] refreshed model_development/data/")
+    except Exception as exc:
+        import warnings
+        warnings.warn(f"[ML pack] Refresh skipped ({exc})", RuntimeWarning)
 
 
 if __name__ == "__main__":

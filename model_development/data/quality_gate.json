@@ -1,24 +1,27 @@
 {
   "latest_days": {
-    "afrr_price": "2026-10-12",
-    "da_price": "2026-10-13",
-    "ida_price": "2026-10-12",
-    "imbalance_price": "2026-10-10",
-    "mfrr_price": "2026-10-12",
-    "xbid_price": "2026-10-12"
+    "afrr_price": "2026-11-12",
+    "da_price": "2026-11-13",
+    "ida_price": "2026-11-12",
+    "imbalance_price": "2026-11-10",
+    "mfrr_price": "2026-11-12",
+    "xbid_price": "2026-11-12"
   },
   "passed": true,
   "reasons": [],
   "repairs": [
-    "ida_price session 1: 63/852 days missing (7.4%), filled by the data curation",
-    "ida_price session 2: 16/852 days missing (1.9%), filled by the data curation",
-    "ida_price session 3: 12/852 days missing (1.4%), filled by the data curation",
-    "imbalance_price: 4/2842 days missing (0.1%), filled by the data curation",
-    "xbid_price: 1/852 days missing (0.1%), filled by the data curation"
+    "afrr_price: 5/2873 days missing (0.2%), filled by the data curation",
+    "da_price: 2/2508 days missing (0.1%), filled by the data curation",
+    "ida_price session 1: 69/883 days missing (7.8%), filled by the data curation",
+    "ida_price session 2: 21/883 days missing (2.4%), filled by the data curation",
+    "ida_price session 3: 17/883 days missing (1.9%), filled by the data curation",
+    "imbalance_price: 12/2873 days missing (0.4%), filled by the data curation",
+    "mfrr_price: 5/716 days missing (0.7%), filled by the data curation",
+    "xbid_price: 6/883 days missing (0.7%), filled by the data curation"
   ],
-  "today": "2026-10-13",
+  "today": "2026-11-13",
   "window": [
     "2019-01-01",
-    "2026-10-12"
+    "2026-11-12"
   ]
 }
