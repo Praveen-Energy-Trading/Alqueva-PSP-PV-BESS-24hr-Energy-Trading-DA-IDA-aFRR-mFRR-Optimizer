@@ -145,10 +145,7 @@ else:
             rows.append([f"<span style='color:{COLOR[s]}'>■</span>&nbsp;{SERIES[s]}", f"{len(both):,}", f"{mean_sp:+.2f}", f"{abs_sp:.2f}", f"{lvl:.2f}", f"{100 * abs_sp / lvl:.1f}%"])
         _table(["Market", "Days", "Mean spread (EUR/MWh)", "Mean absolute spread (EUR/MWh)", "Average day-ahead price (EUR/MWh)", "Absolute spread as a share of the day-ahead price"], rows,
                widths="minmax(9rem, 1.4fr) minmax(4rem, 0.6fr) repeat(4, minmax(6rem, 1fr))")
-        _line(M(r"\text{Absolute spread share}=\frac{\text{mean absolute spread}}{\text{average day-ahead price}}") + ", from the numbers shown. "
-              "The intraday markets start on 13-06-2024 in their current form. "
-              + (f"The mean absolute spread is <b>{min(shares):.0f}% to {max(shares):.0f}%</b> of the day-ahead price, small compared with its level, " if shares else "")
-              + "which is why the intraday targets are modelled as a spread to the day-ahead price.")
+        _line(M(r"\text{Absolute spread share}=\frac{\text{mean absolute spread}}{\text{average day-ahead price}}"))
 
     # ======================================================================================== 3. how the day-ahead price level changed
     _section("How the day-ahead price level changed", "Periods found from the data, with the known market events marked", num="③")
