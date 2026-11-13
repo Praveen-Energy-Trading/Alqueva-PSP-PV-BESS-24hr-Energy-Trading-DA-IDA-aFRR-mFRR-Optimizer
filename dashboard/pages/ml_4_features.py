@@ -109,7 +109,10 @@ _line(f"The groups add up to <b>{int(g.sum())}</b> features: " + " + ".join(f"{v
 
 _mini("Every feature", f"Marked for {tlabel}: the features it may use come first and are numbered")
 grp = st.multiselect("Groups", list(g.index), default=list(g.index), key="ml4_groups", format_func=ml_data.pretty)
-show = feats[feats["group"].isin(grp)]
+if not grp:                                  # an empty choice would blank the tables and the availability matrix below: show every group and say so
+    st.info("No group is selected, so every group is shown. Pick one or more groups to narrow the list.")
+    grp = list(g.index)
+show =feats[feats["group"].isin(grp)]
 show = show.assign(ok=show["id"].isin(usable)).sort_values("ok", ascending=False, kind="stable")
 rows = []
 for i, (_, r_) in enumerate(show.iterrows(), 1):

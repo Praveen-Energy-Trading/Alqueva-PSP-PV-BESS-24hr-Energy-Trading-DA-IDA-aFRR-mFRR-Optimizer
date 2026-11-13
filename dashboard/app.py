@@ -123,6 +123,9 @@ _live_flag_key = f"_auto_refresh_was_live_{selected_date}"
 _was_live = st.session_state.get(_live_flag_key, pipeline_live)
 if _was_live and not pipeline_live:
     st.session_state["auto_refresh_toggle"] = False
+    st.session_state["_auto_refresh_manual"] = False
+elif pipeline_live and not _was_live:
+    st.session_state["auto_refresh_toggle"] = True  # a run started elsewhere (terminal, VS Code): follow it without an extra click
 st.session_state[_live_flag_key] = pipeline_live
 
 # Streamlit warns (and silently prefers its own value= over the Session
@@ -139,12 +142,17 @@ st.session_state[_live_flag_key] = pipeline_live
 if "auto_refresh_toggle" not in st.session_state:
     st.session_state["auto_refresh_toggle"] = pipeline_live
 
+def _remember_manual_toggle() -> None:
+    # runs before the rerun: a switch-on while nothing is live is the user's own choice, so the idle watchdog in theme.py must not undo it
+    st.session_state["_auto_refresh_manual"] = bool(st.session_state.get("auto_refresh_toggle")) and not pipeline_live
+
+
 auto_refresh = st.sidebar.toggle(
-    "⏱️ Auto-refresh while pipeline runs", key="auto_refresh_toggle",
+    "⏱️ Auto-refresh while pipeline runs", key="auto_refresh_toggle", on_change=_remember_manual_toggle,
     help="Polls the report/log/audit files on disk and reloads whatever "
          "changed - on automatically while a run is live, off once it "
-         "finishes (nothing left to poll for). Turn on for a static "
-         "snapshot to periodically re-check anyway.",
+         "finishes (nothing left to poll for). Switch it on by hand to keep "
+         "re-checking a static snapshot; it then stays on until you switch it off.",
 )
 if auto_refresh:
     if pipeline_live:

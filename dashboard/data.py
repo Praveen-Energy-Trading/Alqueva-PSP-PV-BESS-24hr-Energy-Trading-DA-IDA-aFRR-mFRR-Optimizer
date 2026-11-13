@@ -38,12 +38,12 @@ from common_layer.optimisation_model.reserve_activation import simulate_ace_seri
 from phase_2_da_day_ahead_bidding.da_price_pv_inflow_forecasting.da_price_forecaster import forecast_da_prices_isp  # noqa: E402
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_plant_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "plant.yaml").read_text(encoding="utf-8"))
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_market_allocation() -> list:
     """How the plant's MW are split over the markets: [(name, MW, share of the plant)], from config. The reserve figures are the largest offers
     (config/market.yaml), FCR is the mandatory headroom (config/plant.yaml) and day-ahead energy is what is left of the plant's total MW."""
@@ -73,7 +73,7 @@ def _component_store_path(delivery_date: str) -> Path:
     return REPO_ROOT / "runtime" / "components" / f"components_{delivery_date}.json"
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_component_store_cached(delivery_date: str, mtime: float) -> dict:
     return ComponentStore().load(delivery_date)
 
@@ -85,7 +85,7 @@ def load_component_store(delivery_date: str) -> dict | None:
     return _load_component_store_cached(delivery_date, path.stat().st_mtime)
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_market_config() -> dict:
     return yaml.safe_load((CONFIG_DIR / "market.yaml").read_text(encoding="utf-8"))
 
@@ -142,7 +142,7 @@ def available_dates() -> tuple[list[str], list[str]]:
 # Daily report (Excel)
 # ---------------------------------------------------------------------------
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_daily_report_cached(path_str: str, mtime: float) -> dict[str, pd.DataFrame]:
     # mtime is part of the cache key so a re-run pipeline (new mtime, same
     # filename) invalidates the cache automatically instead of showing stale data.
@@ -215,7 +215,7 @@ def parse_label_value_sheet(raw: pd.DataFrame) -> list[tuple[str, object, bool]]
     return out
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_backtest_report_cached(path_str: str, mtime: float) -> dict:
     path = Path(path_str)
     all_sheets = pd.read_excel(path, sheet_name=None, header=0)
@@ -239,7 +239,7 @@ def load_backtest_report(path: Path) -> dict:
 # Run status (JSON) - the health banner's data source
 # ---------------------------------------------------------------------------
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_run_status_cached(path_str: str, mtime: float) -> dict:
     return json.loads(Path(path_str).read_text(encoding="utf-8"))
 
@@ -322,7 +322,7 @@ def no_report_message(delivery_date: str) -> str:
 # Audit trail (JSONL) - decision rationale source
 # ---------------------------------------------------------------------------
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_all_audit_events_cached(dir_listing_key: str) -> list[dict]:
     # The audit file is named by EXECUTION date (when the phase ran), not by
     # delivery date - e.g. a DA run executed today logs delivery_date=tomorrow
@@ -356,7 +356,7 @@ def load_audit_events(delivery_date: str, event_prefix: str | None = None) -> li
 # Console log
 # ---------------------------------------------------------------------------
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def _load_log_cached(path_str: str, mtime: float) -> str:
     return Path(path_str).read_text(encoding="utf-8", errors="replace")
 
@@ -671,7 +671,7 @@ def _build_ticket(gate: str, suffix: str, event: dict, events: list, delivery_da
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def all_gate_tickets(delivery_date: str) -> list[dict]:
     """One ticket per gate that has reached a decision so far today, oldest
     first - DA, then aFRR, then whatever's next - so a gate's card stays
@@ -712,7 +712,7 @@ def all_gate_tickets(delivery_date: str) -> list[dict]:
     return tickets
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_rt_delivery(delivery_date: str) -> dict | None:
     """Phase 5A: RT_DELIVERED audit summary + the per-ISP scheduled/actual
     trace from DeliveryStore. None if the phase hasn't run yet for this
@@ -738,7 +738,7 @@ def load_rt_delivery(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_imbalance_settlement(delivery_date: str) -> dict | None:
     """Phase 6C: IMBALANCE_SETTLED audit summary (real net EUR + total MWh,
     whatever price source that run actually used -- REN live or the
@@ -789,7 +789,7 @@ def load_imbalance_settlement(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_activation_summary(delivery_date: str, product: str) -> dict | None:
     """Phase 5B (aFRR) / 5C (mFRR): {PRODUCT}_ACT_DONE audit summary + per-ISP
     activated energy/prices from ActivationStore, with revenue computed
@@ -869,7 +869,7 @@ _MIN_REAL_ISP_COUNT = 90  # 96 nominal, 92/100 on DST days -- below this, the
 # real ISP granularity.
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_isp_dispatch(delivery_date: str) -> dict | None:
     """Real per-asset dispatch at true ISP (15-min) resolution -- PV, BESS
     discharge, and PSP turbine, straight from ComponentStore's
@@ -907,7 +907,7 @@ def load_isp_dispatch(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None:
     """Real per-ISP reserved capacity (ReserveStore) vs actually activated MW
     (ActivationStore), split by resource -- BESS (fast responder, up to its
@@ -954,7 +954,7 @@ def load_afrr_dispatch(delivery_date: str, product: str = "aFRR") -> dict | None
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     """Real solved MILP reservoir trajectory (upper=Alqueva, lower=Pedrogao)
     -- ComponentStore.reservoir_trajectory is written straight from the
@@ -992,7 +992,7 @@ def load_reservoir_trajectory(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_pv_routing(delivery_date: str) -> dict | None:
     """Real per-hour PV allocation from the solved MILP -- ComponentStore's
     pv_schedule is written straight from pv_used/pv_to_bess/pv_curt/pv_av
@@ -1046,7 +1046,7 @@ def load_pv_routing(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_water_balance(delivery_date: str) -> dict | None:
     """Per-hour hydrological water balance for the upper reservoir (Alqueva)
     -- inflow_m3h (natural river inflow, real forecast input) + pump-return
@@ -1099,7 +1099,7 @@ def load_water_balance(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_bess_charge_source(delivery_date: str) -> dict | None:
     """Real per-hour split of what BESS charging power actually came from --
     grid (bess_schedule.charge_mw, the p_chg solver variable) vs PV
@@ -1143,7 +1143,7 @@ def load_bess_charge_source(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_gate_position_evolution(delivery_date: str) -> dict | None:
     """Net committed position (MW) AND effective price (EUR/MWh) as of each
     gate's close, true ISP resolution -- shows how each re-bid (IDA1-3/XBID)
@@ -1213,7 +1213,7 @@ def load_gate_position_evolution(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_da_vs_activation(delivery_date: str) -> dict | None:
     """Two independent obligations at true 96-ISP (15-min) resolution, NOT a
     delivery reconciliation: the real per-ISP DA-committed net position
@@ -1264,7 +1264,7 @@ def load_da_vs_activation(delivery_date: str) -> dict | None:
     }
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def load_fcr_activation(delivery_date: str) -> dict | None:
     """FCR droop-response compliance simulation. Unlike every other delivery
     card, this is NOT read from a pipeline run's audit trail or database --
@@ -1399,7 +1399,7 @@ _MODEL_BLURBS = {
 }
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_ml_models_overview() -> dict:
     """One row per forecasting target: which of the 3 candidate models won
     its bake-off, by how much, and how much history it trained on. Reads

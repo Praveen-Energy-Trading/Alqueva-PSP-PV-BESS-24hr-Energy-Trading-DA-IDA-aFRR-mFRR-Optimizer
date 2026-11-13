@@ -19,6 +19,7 @@ import data
 import gate_ticket
 import delivery_ticket
 import dispatch_ticket
+import sticky_choice
 import theme
 
 st.title("⚡ Overview")
@@ -129,7 +130,7 @@ def _render_section(title: str, cards: list, state_key: str) -> None:
         st.session_state[state_key] = labels[0]  # only seed on first render
 
     if len(labels) > 1 and st.session_state[state_key] in labels:
-        selected = st.segmented_control(
+        selected = sticky_choice.segmented_control(
             title, labels, key=state_key, label_visibility="collapsed",
         )
     else:
@@ -173,7 +174,7 @@ def _render_gate_positions(gate_pos: dict) -> None:
     if gate_key not in st.session_state:
         st.session_state[gate_key] = gate_order[0]
     if st.session_state[gate_key] in gate_order:
-        selected_gate = st.segmented_control(
+        selected_gate = sticky_choice.segmented_control(
             "Gate Position Evolution", gate_order, key=gate_key, label_visibility="collapsed",
         )
     else:

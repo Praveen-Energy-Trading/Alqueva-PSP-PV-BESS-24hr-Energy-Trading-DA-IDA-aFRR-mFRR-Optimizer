@@ -16,6 +16,7 @@ import column_labels
 import data
 import dispatch_ticket
 import ml_ui
+import sticky_choice
 import theme
 
 
@@ -153,7 +154,7 @@ def _render() -> None:
 
     # a section of its own, not an expander: choosing a topic reruns the page and would fold an expander shut again
     _head("Hourly dispatch", "Choose a topic to see its columns, hour by hour")
-    topic = st.segmented_control("Topic", list(column_labels.GROUPS), default="Market & position", key="desk_dispatch_topic", label_visibility="collapsed")
+    topic = sticky_choice.segmented_control("Topic", list(column_labels.GROUPS), default="Market & position", key="desk_dispatch_topic", label_visibility="collapsed")
     ml_ui.table(column_labels.topic(dispatch, topic or "Market & position"), fit=True, height=500)
 
     with st.expander("ISP-level reserve activation (96 x 15-min)"):

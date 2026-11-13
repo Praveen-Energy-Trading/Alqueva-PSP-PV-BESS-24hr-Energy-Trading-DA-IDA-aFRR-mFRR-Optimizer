@@ -294,6 +294,8 @@ def _auto_correct_refresh_toggle() -> None:
     selected_date = st.session_state.get("selected_date")
     if not selected_date or not st.session_state.get("auto_refresh_toggle"):
         return
+    if st.session_state.get("_auto_refresh_manual"):
+        return  # the user switched it on by hand while idle (app.py's on_change): leave it on until they switch it off or a run ends
     import data  # local import: theme.py must stay import-cycle-free of data.py
     # data.is_pipeline_active() is file-based (checks the log on disk) and
     # lags a subprocess that was JUST launched by runner.start() in this

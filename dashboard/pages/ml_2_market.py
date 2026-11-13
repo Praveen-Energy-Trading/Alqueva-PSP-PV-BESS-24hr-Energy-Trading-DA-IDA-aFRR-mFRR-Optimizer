@@ -78,6 +78,9 @@ else:
     _section("Price history", "Every market on one time axis, with the market regimes shaded", num="①")
     c1, c2, c3 = st.columns([3, 2, 2], gap="medium")
     pick = c1.multiselect("Series", avail, default=["da_pt"], format_func=SERIES.get, key="ml2_series")
+    if not pick:                             # an empty choice would draw an empty chart with nothing to say why
+        c1.caption("No series is selected, so the day-ahead price is shown.")
+        pick = ["da_pt"] if "da_pt" in avail else avail[:1]
     smooth = c2.selectbox("Smoothing", [1, 7, 30, 90], index=2, format_func=lambda d: "Daily" if d == 1 else f"{d}-day mean", key="ml2_smooth")
     lo, hi = prices["date"].min().date(), prices["date"].max().date()
     rng = c3.slider("Period", lo, hi, (lo, hi), key="ml2_range")
