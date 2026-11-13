@@ -191,13 +191,3 @@ if len(tl):
         trows.append([r_["series"], off, "–" if h is None else clock(h), known, state, evid])
     _table(["Series", "Latest day used", "Available at", "Known for", "Status", "Evidence"], trows,
            widths="minmax(9rem, 1.6fr) minmax(4.8rem, 0.8fr) minmax(5.2rem, 0.9fr) minmax(5.2rem, 0.9fr) minmax(7rem, 1.1fr) minmax(10rem, 1.5fr)")
-    _line(M(r"\text{Known for}=t_{\text{forecast made}}-t_{\text{newest value available}}") + ", from the clock times shown. "
-          "Hover over a pill in the evidence column for the note behind it.")
-
-# ============================================================================================ 3. what may and may not be used
-_aso = cdef.get("as_of", {})
-if _aso.get("allowed") or _aso.get("forbidden"):
-    _section("What may and may not be used", "The rule that keeps tomorrow's answer out of the model", num="③")
-    arows = [[_ok_pill("Allowed"), _esc(a_)] for a_ in _aso.get("allowed", [])] + [[_bad_pill("Never used"), _esc(f_)] for f_ in _aso.get("forbidden", [])]
-    _table(["Rule", "What"], arows, widths="minmax(7rem, 0.7fr) minmax(20rem, 4fr)", left=(1,))
-    _line("Anything of the delivery day itself, or published after the moment the forecast is made, is never used: it would make the evaluation look better than the live run can be.")
