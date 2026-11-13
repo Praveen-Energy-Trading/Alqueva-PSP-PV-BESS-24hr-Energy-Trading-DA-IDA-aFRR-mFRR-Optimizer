@@ -120,41 +120,11 @@ for i, (_, r_) in enumerate(show.iterrows(), 1):
                  _ok_pill("Available") if r_["ok"] else _off_pill("Not available")])
 _table(["No.", "Feature", "Group", "Kind", "This target"], rows, widths="minmax(2.5rem, 0.4fr) minmax(12rem, 3fr) minmax(7rem, 1.2fr) minmax(7rem, 1.2fr) minmax(7.5rem, 1fr)", left=(1, 2, 3), max_height="26rem")
 
-# ============================================================================================ 2. availability
-_section("Availability: what each target may use", "A feature is available only if everything it reads was published before the forecast is made", num="②")
+# ============================================================================================ 2. why some features are not available
 if avail.empty:
-    ml_ui.not_yet_run("the availability matrix")
+    ml_ui.not_yet_run("the availability list")
 else:
-    a = avail[avail["group"].isin(grp)]
-    order = [t for t in ml_data.TARGETS if t in set(a["target"])]
-    cnt = a.groupby(["group", "target"])["available"].agg(["sum", "count"]).reset_index()
-    ok = cnt.pivot(index="group", columns="target", values="sum")[order]
-    tot = cnt.pivot(index="group", columns="target", values="count")[order]
-    text = ok.astype(int).astype(str) + " of " + tot.astype(int).astype(str)
-    _mini("Available features, by group and target", "Green: all of the group; red: none of it; the number is how many of the group")
-    fig = go.Figure(go.Heatmap(z=(ok / tot).values, x=[ml_data.short(t) for t in order], y=[ml_data.pretty(x_) for x_ in ok.index], text=text.values,
-                               texttemplate="%{text}", colorscale=[[0, "#f1c8c8"], [0.5, "#f7e7b0"], [1, "#a9d8a9"]], showscale=False, zmin=0, zmax=1, xgap=3, ygap=3,
-                               hovertemplate="%{y}<br>%{x}: %{text}<extra></extra>"))
-    fig.update_yaxes(autorange="reversed")
-    fig.update_xaxes(side="top")
-    theme.style_fig(fig, height=70 + 42 * len(ok), legend=False)
-    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     sel = avail[avail["target"] == target]
-    n_bad = int((~sel["available"]).sum())
-    _mini(f"The features of {tlabel}, by group", f"{n_ok} available + {n_bad} not available = {n_ok + n_bad} features")
-    grows = []
-    for grp_ in g.index:
-        s_ = sel[sel["group"] == grp_]
-        if s_.empty:
-            continue
-        k_, n_ = int(s_["available"].sum()), len(s_)
-        mg = s_.loc[s_["available"] & s_["margin_min"].notna(), "margin_min"]
-        margin = "–" if mg.empty else (f"{mg.min() / 60:,.1f} hours" if mg.min() <= 72 * 60 else f"{mg.min() / 1440:,.1f} days")
-        pill = _ok_pill("All") if k_ == n_ else _bad_pill("None") if k_ == 0 else _warn_pill("Some")
-        grows.append([f"<span style='color:{GCOL[grp_]}'>■</span>&nbsp;{ml_data.pretty(grp_)}", f"{k_}", f"{n_}", f"{100 * k_ / n_:.0f}%", pill, margin])
-    _table(["Group", "Available", "In the group", "Share available", "Status", "Smallest safety margin"], grows,
-           widths="minmax(9rem, 1.6fr) minmax(4.5rem, 0.7fr) minmax(4.5rem, 0.7fr) minmax(5rem, 0.8fr) minmax(5rem, 0.8fr) minmax(7rem, 1.1fr)")
-    _line("The safety margin is the time between the moment the newest value a feature reads was published and the moment the forecast is made; the smallest one in the group is shown. A dash means there is nothing to measure: the group reads no published series, or none of it is available.")
     bad = sel[~sel["available"]].copy()
     if len(bad):
         def _kind(r_: str):
