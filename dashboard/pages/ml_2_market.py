@@ -195,6 +195,5 @@ else:
             prow.append([f"Period {i}", f"{a:%d-%m-%Y}", f"{b:%d-%m-%Y}", f"{n:,}", f"{lv:,.1f}", change])
             prev = lv
         _table(["Period", "From", "To", "Days", "Average price (EUR/MWh)", "Change from the period before"], prow, widths="minmax(7rem, 1fr) repeat(2, minmax(6rem, 1fr)) minmax(4rem, 0.7fr) minmax(7rem, 1.2fr) minmax(7rem, 1.2fr)")
-        _line("The change is worked out from the averages as shown: " + M(r"\text{change}=\frac{\text{this period}-\text{period before}}{\text{period before}}") + ".")
         _mini("The known market events", "The numbers on the chart")
         _table(["No.", "Event", "Date"], [[f"<b>{i}</b>", e["text"], f"{e['date']:%d-%m-%Y}"] for i, e in enumerate(events, 1)], widths="minmax(3.5rem, 0.4fr) minmax(16rem, 3fr) minmax(6rem, 1fr)", left=(0, 1))
