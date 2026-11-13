@@ -107,7 +107,6 @@ else:
                      _ok_pill("None") if int(r_["versions_above_1"]) == 0 else _warn_pill(f"{int(r_['versions_above_1']):,}")])
     _table(["Source", "Days held", "First day", "Last day", "Days in the span", "Missing in the span", "Files with several versions"], rows,
            widths="minmax(10rem, 1.7fr) minmax(4rem, 0.7fr) minmax(5.2rem, 0.9fr) minmax(5.2rem, 0.9fr) minmax(4rem, 0.7fr) minmax(7rem, 1.1fr) minmax(5.5rem, 0.8fr)")
-    _line(M(r"\text{Missing in the span}=\text{days in the span}-\text{days held}") + ", where the span runs from the first to the last day. A missing day is either a day the source never published or one that failed to load; see step ⑤.")
 
 # ============================================================================================ 2. the quality gate
 _section("The quality gate", "The latest check of the data: it passes, or it says why not", num="②")
